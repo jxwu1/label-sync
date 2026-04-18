@@ -1,6 +1,6 @@
 #pageImport.active{display:flex;gap:16px;height:100%}
 .import-left{width:260px;flex-shrink:0;display:flex;flex-direction:column;gap:12px;min-height:0}
-.import-right{flex:1;display:flex;flex-direction:column;gap:12px;min-width:0;min-height:0}
+.import-right{flex:1;display:flex;flex-direction:column;gap:12px;min-width:0;min-height:0;overflow:hidden}
 .img-drop{border:2px dashed #2d3148;border-radius:8px;padding:24px;text-align:center;cursor:pointer;transition:.2s}
 .img-drop:hover,.img-drop.drag{border-color:#4f46e5;background:#1e1b4b22}
 .img-drop input{display:none}
@@ -20,5 +20,5 @@
 .cell-null input{color:#f87171}
 .cell-suspect{background:#42200622}
 .cell-suspect input{color:#fbbf24}
-.tbl-wrap{overflow:auto;flex:1}
+.tbl-wrap{overflow:auto;flex:1;min-height:0}
 .import-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:8px;align-items:center}
