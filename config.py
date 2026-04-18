@@ -1,3 +1,4 @@
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,6 +29,7 @@ class AppConfig:
     csv_fallback_encoding: str = "gbk"
     web_poll_interval_ms: int = 5000
     dual_mode: bool = True
+    gemini_api_key: str = ""
 
     @property
     def input_dir(self) -> Path:
@@ -70,4 +72,8 @@ class AppConfig:
         return self.input_dir / "_temp_results.json"
 
 
-CONFIG = AppConfig(base_dir=_data_dir(), resource_dir=_resource_dir())
+CONFIG = AppConfig(
+    base_dir=_data_dir(),
+    resource_dir=_resource_dir(),
+    gemini_api_key=os.environ.get("GEMINI_API_KEY", ""),
+)
