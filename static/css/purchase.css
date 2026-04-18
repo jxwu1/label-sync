@@ -1,0 +1,20 @@
+#pagePurchase.active{display:flex;flex-direction:column;gap:16px;height:100%;min-height:0}
+.pur-drop{border:2px dashed #2d3148;border-radius:8px;padding:28px;text-align:center;cursor:pointer;transition:.2s}
+.pur-drop:hover,.pur-drop.drag{border-color:#4f46e5;background:#1e1b4b22}
+.pur-drop input{display:none}
+.pur-results{flex:1;min-height:0;overflow:auto;background:#0d0f1a;border:1px solid #2d3148;border-radius:8px;padding:10px 12px;font-family:"Cascadia Code","Consolas",monospace;font-size:13px;line-height:1.8}
+.pur-row{display:flex;align-items:center;gap:8px;padding:2px 0}
+.pur-row.flagged{color:#f87171}
+.pur-row .pur-text{flex:1;color:#e2e8f0}
+.pur-row.flagged .pur-text{color:#f87171}
+.pur-price-input{width:80px;background:#1a1d27;border:1px solid #f87171;border-radius:4px;color:#fbbf24;font-size:13px;padding:2px 6px;font-family:inherit}
+.pur-price-input.valid{border-color:#4ade80;color:#4ade80}
+.pur-actions{display:flex;gap:8px;justify-content:flex-end;align-items:center;flex-shrink:0}
+.pur-status{font-size:12px;color:#64748b;flex:1}
+.pur-status.error{color:#f87171}
+.pur-btn-copy{background:#0e7490;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer}
+.pur-btn-copy:hover:not(:disabled){background:#0c6578}
+.pur-btn-copy.copied{background:#059669}
+.pur-btn-dl{background:#4f46e5;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer}
+.pur-btn-dl:hover:not(:disabled){background:#4338ca}
+.pur-btn-copy:disabled,.pur-btn-dl:disabled{opacity:.45;cursor:not-allowed}
