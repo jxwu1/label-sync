@@ -16,7 +16,7 @@
       </div>
       <div class="pur-results" id="purResults"><div class="empty">上传文件后显示结果</div></div>
       <div class="pur-newbox" id="purNewBox" style="display:none">
-        <div class="pur-newbox-hd">新条码处理</div>
+        <div class="pur-newbox-hd">新条码处理 <button class="pur-new-copy-all" id="purNewCopyAll">复制全部条码</button></div>
         <div class="pur-supplier">
           供应商 ID: <input class="pur-inp" id="purSupId" placeholder="必填">
           供应商名称: <input class="pur-inp" id="purSupName" placeholder="必填">
@@ -36,6 +36,7 @@
     drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('drag'); handleFiles(e.dataTransfer.files); });
     input.addEventListener('change', () => { handleFiles(input.files); input.value = ''; });
     document.getElementById('purCopy').addEventListener('click', copyAll);
+    document.getElementById('purNewCopyAll').addEventListener('click', copyNewBarcodes);
     document.getElementById('purDl').addEventListener('click', downloadZip);
     document.getElementById('purSupId').addEventListener('input', e => { supplierInfo.id = e.target.value.trim(); updateButtons(); });
     document.getElementById('purSupName').addEventListener('input', e => { supplierInfo.name = e.target.value.trim(); updateButtons(); });
@@ -90,6 +91,25 @@
       el.addEventListener('change', onPriceEdit);
     });
     updateButtons();
+  }
+
+  async function copyNewBarcodes() {
+    const text = newEntries.map(e => e.barcode).join('\n');
+    const btn = document.getElementById('purNewCopyAll');
+    const done = () => {
+      btn.textContent = '已复制 ✓'; btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = '复制全部条码'; btn.classList.remove('copied'); }, 2000);
+    };
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text); done(); return;
+      }
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+      document.body.appendChild(ta); ta.select();
+      if (document.execCommand('copy')) done();
+      document.body.removeChild(ta);
+    } catch (e) { setStatus('复制失败：' + e.message, true); }
   }
 
   function renderNewBox() {

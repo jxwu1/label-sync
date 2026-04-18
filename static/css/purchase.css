@@ -19,7 +19,10 @@
 .pur-btn-dl:hover:not(:disabled){background:#4338ca}
 .pur-btn-copy:disabled,.pur-btn-dl:disabled{opacity:.45;cursor:not-allowed}
 .pur-newbox{background:#0d0f1a;border:1px solid #2d3148;border-radius:8px;padding:12px;flex-shrink:0;max-height:40%;overflow:auto}
-.pur-newbox-hd{font-size:11px;font-weight:700;color:#fbbf24;text-transform:uppercase;margin-bottom:8px}
+.pur-newbox-hd{font-size:11px;font-weight:700;color:#fbbf24;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:10px}
+.pur-new-copy-all{font-size:11px;padding:2px 10px;border-radius:4px;cursor:pointer;border:1px solid #0e7490;color:#22d3ee;background:transparent}
+.pur-new-copy-all:hover{background:#0e2d3a}
+.pur-new-copy-all.copied{border-color:#059669;color:#4ade80}
 .pur-supplier{display:flex;gap:10px;align-items:center;font-size:12px;color:#94a3b8;margin-bottom:10px;flex-wrap:wrap}
 .pur-inp{background:#1a1d27;border:1px solid #2d3148;border-radius:4px;color:#e2e8f0;font-size:13px;padding:4px 8px;font-family:inherit;min-width:120px}
 .pur-inp:focus{outline:none;border-color:#4f46e5}
