@@ -27,6 +27,7 @@ class AppConfig:
     child_process_encoding: str = "utf-8"
     csv_fallback_encoding: str = "gbk"
     web_poll_interval_ms: int = 5000
+    dual_mode: bool = True
 
     @property
     def input_dir(self) -> Path:
