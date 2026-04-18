@@ -1,8 +1,17 @@
+import os
 import socket
+from pathlib import Path
 
 from flask import Flask
 
 import storage_service
+_env = Path(__file__).resolve().parent / ".env"
+if _env.exists():
+    for _line in _env.read_text(encoding="utf-8").splitlines():
+        if "=" in _line and not _line.startswith("#"):
+            _k, _v = _line.split("=", 1)
+            os.environ.setdefault(_k.strip(), _v.strip())
+
 from config import CONFIG
 from routes import register_routes
 from state import INPUT_DIR, OUTPUT_DIR, TRANSFER_DIR
