@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>控制台 - 双端服务</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+</head>
+<body>
+<div class="header">
+  <button class="btn-hamburger" id="btnHamburger">☰</button>
+  <div class="header-title">控制台 - 双端服务</div>
+  <button class="btn-term-toggle active" id="btnTermToggle">终端</button>
+  <span class="badge badge-idle" id="statusBadge">空闲</span>
+  <button class="btn-run" id="btnRun">开始处理</button>
+</div>
+
+<div class="body-wrap">
+  <div class="nav-drawer" id="navDrawer">
+    <div class="nav-label">功能</div>
+    <div class="nav-item active" id="navFiles" onclick="switchPage('files')">
+      <span class="nav-icon">文</span>标签处理
+    </div>
+    <div class="nav-item" id="navStats" onclick="switchPage('stats')">
+      <span class="nav-icon">表</span>月度报表
+    </div>
+  </div>
+
+  <div class="middle-col">
+    <div class="main-area">
+      <div class="page active" id="pageFiles">
+        <div class="files-row">
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">收到的文件（input）</span>
+              <span class="panel-count" id="inputCount">0</span>
+            </div>
+            <div class="panel-body" id="inputList"><div class="empty">暂无文件</div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">处理结果（output）</span>
+              <span class="panel-count" id="outputCount">0</span>
+            </div>
+            <div class="panel-body" id="outputList"><div class="empty">暂无结果</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="page" id="pageStats">
+        <div class="panel" style="flex:1;">
+          <div class="panel-header"><span class="panel-title">月度扫描报表</span></div>
+          <div class="panel-body" id="statsContainer"><div style="color:#4a5568;font-size:13px;">加载中...</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="transfer-panel">
+    <div class="transfer-section-title">文件互传</div>
+    <div class="t-drop" id="bDropZone">
+      <input type="file" id="bFileInput" multiple>
+      <div class="t-drop-text">拖入或点击，发送文件给 A 端</div>
+    </div>
+    <div class="t-msg" id="transferMsg"></div>
+    <div class="transfer-section-title">共享区文件</div>
+    <div id="transferFileList"><div class="t-empty">暂无</div></div>
+
+    <div class="tp-divider"></div>
+
+    <div class="transfer-section-title">文本互传</div>
+    <textarea class="text-input" id="textInput" rows="3" placeholder="输入消息，发送给 A 端（Ctrl+Enter）"></textarea>
+    <div class="text-actions">
+      <button class="btn-tcopy" id="btnTextCopy">复制</button>
+      <button class="btn-tsend" id="btnTextSend">发送</button>
+    </div>
+    <div class="msg-list" id="textMsgList">
+      <div class="t-empty">暂无消息</div>
+    </div>
+  </div>
+</div>
+
+<div class="terminal-bar" id="terminalBar">
+  <div class="terminal-header" id="terminalDragHandle">
+    <span class="terminal-drag-dot"></span>
+    <span class="terminal-drag-dot"></span>
+    <span class="terminal-drag-dot"></span>
+    <span class="terminal-title" style="margin-left:6px;">终端</span>
+    <button class="btn-clear-log" onclick="clearLog()">清空</button>
+  </div>
+  <div class="terminal-body" id="terminalBody">
+    <span class="log-dim">等待操作</span>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+</body>
+</html>

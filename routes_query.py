@@ -1,0 +1,41 @@
+from flask import Blueprint, jsonify, send_file
+
+import query_service
+from output_repository import output_zip_path
+
+bp = Blueprint("query", __name__)
+
+
+@bp.get("/barcodes")
+def barcodes():
+    payload = query_service.read_barcode_list()
+    if not payload["ok"]:
+        return jsonify(payload), 404
+    return jsonify(payload)
+
+
+@bp.get("/models")
+def models():
+    payload = query_service.read_model_list()
+    if not payload["ok"]:
+        status_code = 404 if "找不到" in payload["msg"] else 500
+        return jsonify(payload), status_code
+    return jsonify(payload)
+
+
+@bp.get("/files")
+def files():
+    return jsonify(query_service.read_file_list())
+
+
+@bp.get("/stats")
+def stats():
+    return jsonify(query_service.read_monthly_stats())
+
+
+@bp.get("/download_zip/<path:filename>")
+def download_zip(filename):
+    zip_path = output_zip_path(filename)
+    if not zip_path.exists():
+        return jsonify({"ok": False, "msg": "文件不存在"}), 404
+    return send_file(zip_path, as_attachment=True)

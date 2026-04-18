@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A端 - 双端处理</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+</head>
+<body>
+<div class="header"><button class="btn-mini" id="hamb">☰</button><div class="header-title">A端 - 双端处理</div><span class="badge badge-idle" id="badge">空闲</span></div>
+<div class="layout">
+  <div class="nav" id="nav"><div class="nav-item active" id="navMain" onclick="switchPage('main')">标签处理</div><div class="nav-item" id="navDup" onclick="switchPage('dup')">重复检查</div></div>
+  <div class="main">
+    <div class="pages">
+      <div class="page active" id="pageMain">
+        <div style="display:flex;flex-direction:column;gap:16px;min-height:0;overflow:hidden">
+          <div class="panel" style="flex:1;min-height:0"><div class="panel-hd">异常处理</div><div class="panel-bd" id="warnBox"><div class="empty">暂无需要人工处理的异常</div></div></div>
+          <div class="panel" style="height:200px;flex-shrink:0"><div class="panel-hd" style="display:flex;justify-content:space-between;align-items:center"><span>终端日志</span><button class="clear" onclick="clearLog()">清空</button></div><div class="tbod" id="tbod"><span class="log-dim">等待操作</span></div></div>
+        </div>
+        <div class="panel"><div class="panel-hd">文件上传与处理</div><div class="panel-bd">
+          <div class="drop" id="drop"><input type="file" id="fileInput" multiple accept=".xlsx,.csv"><div>拖入文件或点击选择</div><div class="hint">支持扫描文件 .xlsx、系统 stockpile .csv、模板 .csv</div></div>
+          <div class="files" id="files"></div>
+          <button class="btn u" id="upload" disabled>上传文件</button>
+          <button class="btn r" id="run" disabled>开始处理</button>
+          <button class="btn c" id="cont">继续处理</button>
+          <button class="btn d" id="download">下载结果</button>
+          <button class="btn m" id="copyModels">复制所有型号</button>
+          <button class="btn m" id="copyModelsAll" style="display:none">复制所有型号（含重复）</button>
+          <button class="btn x" id="reset">清空界面，准备下一批</button>
+          <div class="status" id="status">请先上传文件</div>
+        </div></div>
+      </div>
+      <div class="page" id="pageDup">
+        <div class="panel"><div class="panel-bd">
+          <div class="dup-top" id="dupDrop"><input type="file" id="dupInput" accept=".xlsx,.xls,.csv"><div>拖入或点击选择文件，检查第一列重复值</div><div class="hint">支持 .xlsx / .xls / .csv</div></div>
+          <div class="dup-res" id="dupRes"><div class="empty">上传文件后显示检查结果</div></div>
+        </div></div>
+      </div>
+    </div>
+    <div class="transfer">
+      <div class="tt">文件互传</div>
+      <div class="t-drop" id="tDrop"><input type="file" id="tInput" multiple><div>拖入或点击，发送文件给 B 端</div></div>
+      <div class="msg" id="tMsg"></div>
+      <div class="tt">B 端共享文件</div>
+      <div id="tList"><div class="empty">暂无</div></div>
+      <div class="tt">文字互传</div>
+      <textarea class="txt" id="textInput" rows="3" placeholder="输入消息，发送给 B 端（Ctrl+Enter）"></textarea>
+      <div class="ta"><button class="tb" id="copyText">复制</button><button class="tsend" id="sendText">发送</button></div>
+      <div class="list" id="msgList"><div class="empty">暂无消息</div></div>
+    </div>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='js/index.js') }}"></script>
+</body>
+</html>

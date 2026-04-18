@@ -1,0 +1,144 @@
+import unittest
+from pathlib import Path
+
+import pandas as pd
+
+from check_duplicates import check_duplicates
+from update_location_phase1 import (
+    analyze_phase_one,
+    detect_barcode_outliers,
+    detect_invalid_locations,
+)
+from update_location_phase2 import build_phase_two_results, compose_location, parse_locations
+
+TEST_TMP_DIR = Path(__file__).resolve().parent / "_tmp"
+
+
+class CheckDuplicatesTests(unittest.TestCase):
+    def setUp(self) -> None:
+        TEST_TMP_DIR.mkdir(exist_ok=True)
+
+    def tearDown(self) -> None:
+        for path in TEST_TMP_DIR.iterdir():
+            if path.is_file():
+                path.unlink()
+
+    def test_check_duplicates_reports_duplicate_rows_from_csv(self) -> None:
+        csv_path = TEST_TMP_DIR / "duplicates.csv"
+        dataframe = pd.DataFrame({"barcode": ["A1", "B2", "A1", "", "B2"]})
+        dataframe.to_csv(csv_path, index=False, encoding="utf-8-sig")
+
+        result = check_duplicates(csv_path)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["column"], "barcode")
+        self.assertEqual(result["total"], 4)
+        self.assertEqual(result["dup_count"], 2)
+        self.assertEqual(
+            result["duplicates"],
+            [
+                {"value": "A1", "rows": [2, 4], "count": 2},
+                {"value": "B2", "rows": [3, 6], "count": 2},
+            ],
+        )
+
+    def test_check_duplicates_rejects_unsupported_suffix(self) -> None:
+        result = check_duplicates("sample.txt")
+
+        self.assertEqual(result, {"ok": False, "msg": "不支持的文件格式：.txt"})
+
+
+class PhaseOneTests(unittest.TestCase):
+    def test_analyze_phase_one_prioritizes_invalid_locations(self) -> None:
+        analysis = analyze_phase_one(
+            {
+                "12345678": ["A-01-01", "X-01-01"],
+                "1234": ["BAD"],
+            }
+        )
+
+        self.assertEqual(
+            analysis,
+            {
+                "duplicate_barcodes": {"12345678": ["A-01-01", "X-01-01"]},
+                "invalid_locations": ["BAD"],
+                "barcode_warnings": [("1234", 4, 8)],
+                "median": 8,
+                "exit_code": 3,
+            },
+        )
+
+    def test_detect_invalid_locations_returns_only_invalid_entries(self) -> None:
+        location_map = {
+            "1001": ["A-01-01"],
+            "1002": ["BAD"],
+            "1003": ["Z-02-03", "INVALID"],
+        }
+
+        invalid_locations = detect_invalid_locations(location_map)
+
+        self.assertEqual(invalid_locations, ["BAD", "INVALID"])
+
+    def test_detect_barcode_outliers_flags_abnormal_lengths(self) -> None:
+        warnings, median = detect_barcode_outliers(
+            ["12345678", "12345679", "12345670", "12345671", "1234"]
+        )
+
+        self.assertEqual(median, 8)
+        self.assertEqual(warnings, [("1234", 4, 8)])
+
+
+class PhaseTwoTests(unittest.TestCase):
+    def test_build_phase_two_results_handles_existing_new_and_exception_cases(self) -> None:
+        location_map = {
+            "111": ["B-02-02"],
+            "222": ["X-03-03"],
+            "333": ["A-05-05"],
+        }
+        system_records = {
+            "111": {"model": "M-111", "stockpile_location": "A-01-01/X-01-01"},
+            "333": {"model": "M-333", "stockpile_location": "A-01-01/"},
+            "444": {"model": "M-444", "stockpile_location": "Z-09-09"},
+        }
+
+        results, new_barcodes, exceptions, unmatched_barcodes = build_phase_two_results(
+            location_map, system_records
+        )
+
+        self.assertEqual(
+            results,
+            [
+                {"model": "M-111", "location": "B-02-02/X-01-01"},
+                {"model": "222", "location": "X-03-03"},
+            ],
+        )
+        self.assertEqual(new_barcodes, ["222"])
+        self.assertEqual(
+            exceptions, [("333", "system issue: invalid system location: A-01-01/")]
+        )
+        self.assertEqual(unmatched_barcodes, ["444"])
+
+    def test_parse_locations_splits_store_and_warehouse(self) -> None:
+        store, warehouse, issue = parse_locations(["A-01-01", "X-02-03"])
+
+        self.assertEqual((store, warehouse, issue), ("A-01-01", "X-02-03", None))
+
+    def test_parse_locations_reports_duplicate_store_locations(self) -> None:
+        store, warehouse, issue = parse_locations(["A-01-01", "B-01-01"])
+
+        self.assertEqual((store, warehouse), (None, None))
+        self.assertEqual(issue, "duplicate_locations store=[A-01-01,B-01-01]")
+
+    def test_compose_location_prefers_new_values_and_keeps_existing_warehouse(self) -> None:
+        final_location = compose_location(
+            old_store="A-01-01",
+            old_warehouse="X-01-01",
+            new_store="B-02-02",
+            new_warehouse=None,
+        )
+
+        self.assertEqual(final_location, "B-02-02/X-01-01")
+
+
+if __name__ == "__main__":
+    unittest.main()
