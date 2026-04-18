@@ -62,14 +62,65 @@ def rewrite_scan_export(
     scan_df.to_excel(target_path, index=False)
 
 
-def main() -> int:
+def load_phase2_results() -> dict | None:
     if not TEMP_RESULTS_FILE.exists():
         print("ERROR: missing phase2 results")
-        return 1
-
+        return None
     with TEMP_RESULTS_FILE.open("r", encoding="utf-8") as file:
-        results_data = json.load(file)
+        data = json.load(file)
     TEMP_RESULTS_FILE.unlink()
+    return data
+
+
+def find_template_path() -> Path | None:
+    template_files = sorted(INPUT_DIR.glob("*模板*.csv"))
+    if not template_files:
+        print("ERROR: missing template csv")
+        return None
+    return template_files[0]
+
+
+def write_output_package(
+    employee_name: str,
+    template_path: Path,
+    results: list[dict[str, str]],
+) -> Path:
+    template_df = read_csv(template_path).iloc[0:0]
+    output_df = build_output_dataframe(template_df, results)
+
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    package_dir = OUTPUT_DIR / f"{employee_name}价格标{timestamp}"
+    package_dir.mkdir(exist_ok=True)
+
+    output_path = package_dir / template_path.name
+    output_df.to_csv(output_path, index=False, encoding="utf-8-sig")
+    print(f"OUTPUT {output_path}")
+    return package_dir
+
+
+def archive_scan_files(
+    scan_files: list[Path],
+    package_dir: Path,
+    barcode_model_map: dict[str, str],
+    trash_suffix: str,
+) -> None:
+    for scan_file in scan_files:
+        target_path = package_dir / scan_file.name
+        try:
+            rewrite_scan_export(scan_file, target_path, barcode_model_map)
+        except Exception as exc:
+            print(f"COPY_SCAN_FALLBACK {scan_file.name} {exc}")
+            shutil.copy2(scan_file, target_path)
+
+        trash_path = TRASH_DIR / f"{scan_file.stem}_{trash_suffix}.xlsx"
+        shutil.move(scan_file, trash_path)
+        print(f"TRASH_SCAN {trash_path.name}")
+
+
+def main() -> int:
+    results_data = load_phase2_results()
+    if results_data is None:
+        return 1
 
     results = results_data["results"]
     new_barcodes = results_data["new_barcodes"]
@@ -83,26 +134,13 @@ def main() -> int:
     print(f"EMPLOYEE {employee_name}")
     print(f"RESULT_COUNT {len(results)}")
 
-    template_files = sorted(INPUT_DIR.glob("*模板*.csv"))
-    if not template_files:
-        print("ERROR: missing template csv")
+    template_path = find_template_path()
+    if template_path is None:
         return 1
-
-    template_path = template_files[0]
     print(f"TEMPLATE {template_path.name}")
 
-    template_df = read_csv(template_path).iloc[0:0]
-    output_df = build_output_dataframe(template_df, results)
+    package_dir = write_output_package(employee_name, template_path, results)
 
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    package_name = f"{employee_name}价格标{timestamp}"
-    package_dir = OUTPUT_DIR / package_name
-    package_dir.mkdir(exist_ok=True)
-
-    output_path = package_dir / template_path.name
-    output_df.to_csv(output_path, index=False, encoding="utf-8-sig")
-
-    print(f"OUTPUT {output_path}")
     print(f"MATCHED {len(results) - len(new_barcodes)}")
     print(f"NEW {len(new_barcodes)}")
     print(f"UNMATCHED {len(unmatched_barcodes)}")
@@ -114,18 +152,7 @@ def main() -> int:
 
     print("Cleaning up input files...")
     trash_suffix = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    for scan_file in scan_files:
-        target_path = package_dir / scan_file.name
-        try:
-            rewrite_scan_export(scan_file, target_path, barcode_model_map)
-        except Exception as exc:
-            print(f"COPY_SCAN_FALLBACK {scan_file.name} {exc}")
-            shutil.copy2(scan_file, target_path)
-
-        trash_path = TRASH_DIR / f"{scan_file.stem}_{trash_suffix}.xlsx"
-        shutil.move(scan_file, trash_path)
-        print(f"TRASH_SCAN {trash_path.name}")
+    archive_scan_files(scan_files, package_dir, barcode_model_map, trash_suffix)
 
     system_trash_path = TRASH_DIR / f"{stockpile_path.stem}_{trash_suffix}.csv"
     shutil.move(stockpile_path, system_trash_path)

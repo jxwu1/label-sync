@@ -136,29 +136,19 @@ def find_latest_stockpile_file() -> Path | None:
     return max(stockpile_files, key=lambda path: path.stat().st_mtime)
 
 
-def main() -> int:
+def load_phase1_mapping() -> dict | None:
     if not TEMP_MAPPING_FILE.exists():
         print("ERROR: missing phase1 temp mapping")
-        return 1
-
+        return None
     with TEMP_MAPPING_FILE.open("r", encoding="utf-8") as file:
-        temp_data = json.load(file)
+        data = json.load(file)
     TEMP_MAPPING_FILE.unlink()
+    return data
 
-    location_map: dict[str, list[str]] = temp_data["location_map"]
-    employee_name: str = temp_data["employee_name"]
-    scan_files = temp_data["scan_files"]
 
-    print(f"EMPLOYEE {employee_name}")
-    print(f"SCAN_COUNT {len(location_map)}")
-
-    stockpile_path = find_latest_stockpile_file()
-    if stockpile_path is None:
-        print("ERROR: missing stockpile csv")
-        return 1
-    print(f"STOCKPILE {stockpile_path.name}")
-    dataframe = read_csv(stockpile_path)
-
+def build_system_records(
+    dataframe: pd.DataFrame,
+) -> tuple[dict[str, str], dict[str, dict[str, str]]]:
     barcode_model_map: dict[str, str] = {}
     system_records: dict[str, dict[str, str]] = {}
     for _, row in dataframe.iterrows():
@@ -172,10 +162,19 @@ def main() -> int:
             "model": barcode_model_map[barcode],
             "stockpile_location": "" if stockpile_location == "nan" else stockpile_location,
         }
-    results, new_barcodes, exceptions, unmatched_barcodes = build_phase_two_results(
-        location_map, system_records
-    )
+    return barcode_model_map, system_records
 
+
+def write_phase2_results(
+    results: list[dict[str, str]],
+    new_barcodes: list[str],
+    exceptions: list[tuple[str, str]],
+    unmatched_barcodes: list[str],
+    employee_name: str,
+    scan_files: list,
+    barcode_model_map: dict[str, str],
+    stockpile_path: Path,
+) -> None:
     with TEMP_RESULTS_FILE.open("w", encoding="utf-8") as file:
         json.dump(
             {
@@ -192,6 +191,35 @@ def main() -> int:
             ensure_ascii=False,
             indent=2,
         )
+
+
+def main() -> int:
+    temp_data = load_phase1_mapping()
+    if temp_data is None:
+        return 1
+
+    location_map: dict[str, list[str]] = temp_data["location_map"]
+    employee_name: str = temp_data["employee_name"]
+    scan_files = temp_data["scan_files"]
+
+    print(f"EMPLOYEE {employee_name}")
+    print(f"SCAN_COUNT {len(location_map)}")
+
+    stockpile_path = find_latest_stockpile_file()
+    if stockpile_path is None:
+        print("ERROR: missing stockpile csv")
+        return 1
+    print(f"STOCKPILE {stockpile_path.name}")
+
+    barcode_model_map, system_records = build_system_records(read_csv(stockpile_path))
+    results, new_barcodes, exceptions, unmatched_barcodes = build_phase_two_results(
+        location_map, system_records
+    )
+
+    write_phase2_results(
+        results, new_barcodes, exceptions, unmatched_barcodes,
+        employee_name, scan_files, barcode_model_map, stockpile_path,
+    )
 
     matched_count = len(results) - len(new_barcodes)
     print(f"[PHASE2_DONE] matched={matched_count}")

@@ -12,19 +12,47 @@ from config import CONFIG
 
 _TEMPLATE_PATH = Path(__file__).resolve().parent / "static" / "templates" / "产品信息导入模板.csv"
 
-_FIELD_INDICES = {
-    "barcode_cols": (0, 1, 10),
-    "name_cols": (3, 4),
-    "supplier_id_col": 38,
-    "supplier_name_col": 39,
-}
+# 供应商 Excel 列索引（0-based）
+_SUPPLIER_BARCODE_COL = 0
+_SUPPLIER_PRICE_COL = 2
+_SUPPLIER_QUANTITY_COL = 5
+
+# stockpile CSV 中条码所在列
+_STOCKPILE_BARCODE_COL = 3
+
+# 产品信息导入模板列索引（同一字段需要写入多列）
+_TEMPLATE_BARCODE_COLS = (0, 1, 10)
+_TEMPLATE_NAME_COLS = (3, 4)
+_TEMPLATE_SUPPLIER_ID_COL = 38
+_TEMPLATE_SUPPLIER_NAME_COL = 39
+
+_PRICE_MAX_DECIMALS = 2
 
 
-def _decimal_places(value) -> int:
+def _count_decimal_places(value) -> int:
     s = str(float(value))
     if '.' in s:
         return len(s.split('.')[1].rstrip('0'))
     return 0
+
+
+def _parse_price(raw) -> tuple[float, bool]:
+    """返回 (价格, 是否需要人工复核)。NaN / 无法解析 / 小数位超限 均标记 flagged。"""
+    try:
+        price = float(raw)
+    except (ValueError, TypeError):
+        return 0.0, True
+    if math.isnan(price) or math.isinf(price):
+        return 0.0, True
+    flagged = _count_decimal_places(price) > _PRICE_MAX_DECIMALS
+    return price, flagged
+
+
+def _parse_quantity(raw) -> int:
+    try:
+        return int(float(raw))
+    except (ValueError, TypeError):
+        return 0
 
 
 @dataclass
@@ -52,28 +80,15 @@ def parse_purchase_excel(file_bytes: bytes) -> list[PurchaseRow]:
     df = pd.read_excel(io.BytesIO(file_bytes), header=0)
     rows = []
     for _, row in df.iterrows():
-        barcode = str(row.iloc[0]).strip()
-        price_val = row.iloc[2]
-        qty_val = row.iloc[5]
-        try:
-            price = float(price_val)
-            if math.isnan(price) or math.isinf(price):
-                price = 0.0
-                price_flagged = True
-            else:
-                price_flagged = _decimal_places(price) > 2
-        except (ValueError, TypeError):
-            price = 0.0
-            price_flagged = True
-        try:
-            quantity = int(float(qty_val))
-        except (ValueError, TypeError):
-            quantity = 0
+        barcode = str(row.iloc[_SUPPLIER_BARCODE_COL]).strip()
+        price_val = row.iloc[_SUPPLIER_PRICE_COL]
+        qty_val = row.iloc[_SUPPLIER_QUANTITY_COL]
+        price, price_flagged = _parse_price(price_val)
         rows.append(PurchaseRow(
             barcode=barcode,
             price_raw=str(price_val),
             price=price,
-            quantity=quantity,
+            quantity=_parse_quantity(qty_val),
             price_flagged=price_flagged,
         ))
     return rows
@@ -101,9 +116,9 @@ def parse_stockpile_csv(file_bytes: bytes) -> set[str]:
     for i, row in enumerate(reader):
         if i == 0:
             continue
-        if len(row) < 4:
+        if len(row) <= _STOCKPILE_BARCODE_COL:
             continue
-        bc = row[3].strip()
+        bc = row[_STOCKPILE_BARCODE_COL].strip()
         if bc:
             result.add(bc)
     return result
@@ -132,6 +147,21 @@ def _read_template_header() -> list[str]:
     return next(csv.reader([first_line]))
 
 
+def _fill_template_row(entry: dict, n_cols: int) -> list[str]:
+    row = [""] * n_cols
+    for i in _TEMPLATE_BARCODE_COLS:
+        if i < n_cols:
+            row[i] = entry["barcode"]
+    for i in _TEMPLATE_NAME_COLS:
+        if i < n_cols:
+            row[i] = entry["name"]
+    if _TEMPLATE_SUPPLIER_ID_COL < n_cols:
+        row[_TEMPLATE_SUPPLIER_ID_COL] = entry["supplier_id"]
+    if _TEMPLATE_SUPPLIER_NAME_COL < n_cols:
+        row[_TEMPLATE_SUPPLIER_NAME_COL] = entry["supplier_name"]
+    return row
+
+
 def build_template_csv(new_entries: list[dict]) -> bytes:
     header = _read_template_header()
     n_cols = len(header)
@@ -139,18 +169,7 @@ def build_template_csv(new_entries: list[dict]) -> bytes:
     writer = csv.writer(buf)
     writer.writerow(header)
     for entry in new_entries:
-        row = [""] * n_cols
-        for i in _FIELD_INDICES["barcode_cols"]:
-            if i < n_cols:
-                row[i] = entry["barcode"]
-        for i in _FIELD_INDICES["name_cols"]:
-            if i < n_cols:
-                row[i] = entry["name"]
-        if _FIELD_INDICES["supplier_id_col"] < n_cols:
-            row[_FIELD_INDICES["supplier_id_col"]] = entry["supplier_id"]
-        if _FIELD_INDICES["supplier_name_col"] < n_cols:
-            row[_FIELD_INDICES["supplier_name_col"]] = entry["supplier_name"]
-        writer.writerow(row)
+        writer.writerow(_fill_template_row(entry, n_cols))
     return buf.getvalue().encode("gbk")
 
 
