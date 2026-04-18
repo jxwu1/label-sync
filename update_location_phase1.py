@@ -13,6 +13,8 @@ VALID_LOCATION_PREFIXES = {"A", "B", "C", "X", "Z"}
 INPUT_DIR = CONFIG.input_dir
 TEMP_MAPPING_FILE = CONFIG.temp_mapping_file
 
+_BARCODE_LENGTH_TOLERANCE = 2  # 条码长度相对中位数的最大允许偏差（超出则告警）
+
 
 def find_single_file(pattern: str, description: str) -> Path:
     files = sorted(INPUT_DIR.glob(pattern))
@@ -84,7 +86,7 @@ def detect_barcode_outliers(barcodes: list[str]) -> tuple[list[tuple[str, int, i
     warnings: list[tuple[str, int, int]] = []
     for barcode in barcodes:
         length = len(barcode)
-        if length < lower or length > upper or abs(length - median) >= 2:
+        if length < lower or length > upper or abs(length - median) >= _BARCODE_LENGTH_TOLERANCE:
             warnings.append((barcode, length, median))
 
     return warnings, median

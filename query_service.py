@@ -15,6 +15,8 @@ from output_repository import (
 )
 from state import task_state
 
+_YYYYMMDD_LEN = 8  # 输出目录名中日期前缀长度（格式 YYYYMMDD[HHMMSS]）
+
 
 def _file_info(path: Path) -> dict:
     stat = path.stat()
@@ -114,7 +116,7 @@ def read_monthly_stats() -> list[dict]:
             continue
 
         employee = match.group(1)
-        date_text = match.group(2)[:8]
+        date_text = match.group(2)[:_YYYYMMDD_LEN]
         try:
             month_key = datetime.strptime(date_text, "%Y%m%d").strftime("%Y-%m")
         except ValueError:
