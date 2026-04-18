@@ -18,6 +18,11 @@ BARCODE_WARNING_PATTERN = r"\[BARCODE_WARNING\] (\S+) length=(\d+) normal=(\d+)"
 LOCATION_WARNING_PATTERN = r"\[LOCATION_WARNING\] (\S+)"
 PHASE2_WARNING_PATTERN = r"\[PHASE2_WARNING\] (\S+) (.+)"
 
+# Phase 脚本退出码（在 phase1/phase2/task_service 三处共用）
+PHASE_EXIT_OK = 0
+PHASE_EXIT_REVIEW_REQUIRED = 2  # 需要人工复核（条码异常 / phase2 审核）
+PHASE_EXIT_LOCATION_FORMAT_ERROR = 3  # 位置格式错误，需修正后重跑
+
 
 class TaskState:
     def __init__(self) -> None:

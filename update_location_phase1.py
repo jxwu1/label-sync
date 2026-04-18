@@ -6,6 +6,11 @@ from pathlib import Path
 import pandas as pd
 
 from config import CONFIG
+from state import (
+    PHASE_EXIT_LOCATION_FORMAT_ERROR,
+    PHASE_EXIT_OK,
+    PHASE_EXIT_REVIEW_REQUIRED,
+)
 
 LOCATION_FORMAT = re.compile(r"^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+$")
 VALID_LOCATION_PREFIXES = {"A", "B", "C", "X", "Z"}
@@ -101,11 +106,11 @@ def analyze_phase_one(
     invalid_locations = detect_invalid_locations(location_map)
     barcode_warnings, median = detect_barcode_outliers(list(location_map))
     if invalid_locations:
-        exit_code = 3
+        exit_code = PHASE_EXIT_LOCATION_FORMAT_ERROR
     elif barcode_warnings:
-        exit_code = 2
+        exit_code = PHASE_EXIT_REVIEW_REQUIRED
     else:
-        exit_code = 0
+        exit_code = PHASE_EXIT_OK
     return {
         "duplicate_barcodes": duplicate_barcodes,
         "invalid_locations": invalid_locations,
@@ -161,7 +166,7 @@ def main() -> int:
             print(f"[LOCATION_WARNING] {location}")
         save_temp_mapping(location_map, employee_name, scan_files)
         print("[WAITING] invalid locations need correction")
-        return 3
+        return PHASE_EXIT_LOCATION_FORMAT_ERROR
 
     barcode_warnings = analysis["barcode_warnings"]
     median = analysis["median"]
@@ -173,8 +178,8 @@ def main() -> int:
     print(f"[PHASE1_DONE] total={len(location_map)}")
     if barcode_warnings:
         print(f"[WAITING] barcode warnings need review median={median}")
-        return 2
-    return 0
+        return PHASE_EXIT_REVIEW_REQUIRED
+    return PHASE_EXIT_OK
 
 
 if __name__ == "__main__":

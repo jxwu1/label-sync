@@ -13,6 +13,9 @@ from state import (
     PHASE2_SCRIPT,
     PHASE2_WARNING_PATTERN,
     PHASE3_SCRIPT,
+    PHASE_EXIT_LOCATION_FORMAT_ERROR,
+    PHASE_EXIT_OK,
+    PHASE_EXIT_REVIEW_REQUIRED,
     task_state,
 )
 from storage_service import package_latest_output
@@ -67,13 +70,13 @@ def handle_phase_one_line(text: str) -> None:
 
 
 def handle_phase_one_return_code(return_code: int) -> bool:
-    if return_code == 3:
+    if return_code == PHASE_EXIT_LOCATION_FORMAT_ERROR:
         task_state.mark_waiting("location_format")
         return False
-    if return_code == 2:
+    if return_code == PHASE_EXIT_REVIEW_REQUIRED:
         task_state.mark_waiting("anomaly")
         return False
-    if return_code == 0:
+    if return_code == PHASE_EXIT_OK:
         return True
     task_state.mark_error()
     return False
@@ -100,17 +103,17 @@ def handle_phase_two_line(text: str) -> None:
 
 
 def handle_phase_two_return_code(return_code: int) -> bool:
-    if return_code == 2:
+    if return_code == PHASE_EXIT_REVIEW_REQUIRED:
         task_state.mark_waiting("phase2_review")
         return False
-    if return_code == 0:
+    if return_code == PHASE_EXIT_OK:
         return True
     task_state.mark_error()
     return False
 
 
 def handle_phase_three_return_code(return_code: int) -> bool:
-    if return_code != 0:
+    if return_code != PHASE_EXIT_OK:
         task_state.mark_error()
         return False
     package_latest_output()

@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 from config import CONFIG
+from state import PHASE_EXIT_OK, PHASE_EXIT_REVIEW_REQUIRED
 
 INPUT_DIR = CONFIG.input_dir
 TEMP_MAPPING_FILE = CONFIG.temp_mapping_file
@@ -201,8 +202,8 @@ def main() -> int:
 
     if new_barcodes or exceptions:
         print("[WAITING] phase2 review required")
-        return 2
-    return 0
+        return PHASE_EXIT_REVIEW_REQUIRED
+    return PHASE_EXIT_OK
 
 
 if __name__ == "__main__":
