@@ -1,4 +1,4 @@
 flask
 pandas
 openpyxl
-google-generativeai
+google-genai

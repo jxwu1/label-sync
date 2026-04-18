@@ -58,23 +58,28 @@ def parse_gemini_response(raw: str) -> list[ImportItem]:
 
 
 def recognize_images(image_bytes_list: list[bytes], api_key: str) -> list[ImportItem]:
-    import google.generativeai as genai
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
-        system_instruction=(
-            "You are a data extraction assistant. Given one or more supplier invoice images "
-            "(possibly in Greek, English, or other languages), extract all line items. "
-            "Return ONLY a JSON array with objects: "
-            '{"barcode": "...", "quantity": N, "total_price": N.NN}. '
-            "If a field is uncertain or missing, use null. Do not guess. No extra text."
+    from google import genai
+    from google.genai import types
+
+    client = genai.Client(api_key=api_key)
+    parts = [
+        types.Part.from_bytes(data=img_bytes, mime_type="image/jpeg")
+        for img_bytes in image_bytes_list
+    ]
+    parts.append(types.Part.from_text(text="Extract all line items from these invoice images."))
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=parts,
+        config=types.GenerateContentConfig(
+            system_instruction=(
+                "You are a data extraction assistant. Given one or more supplier invoice images "
+                "(possibly in Greek, English, or other languages), extract all line items. "
+                "Return ONLY a JSON array with objects: "
+                '{"barcode": "...", "quantity": N, "total_price": N.NN}. '
+                "If a field is uncertain or missing, use null. Do not guess. No extra text."
+            )
         ),
     )
-    parts = []
-    for img_bytes in image_bytes_list:
-        parts.append({"mime_type": "image/jpeg", "data": img_bytes})
-    parts.append("Extract all line items from these invoice images.")
-    response = model.generate_content(parts)
     return parse_gemini_response(response.text)
 
 
