@@ -1,4 +1,5 @@
 import io
+import math
 from dataclasses import dataclass
 
 import openpyxl
@@ -42,12 +43,16 @@ def parse_purchase_excel(file_bytes: bytes) -> list[PurchaseRow]:
         qty_val = row.iloc[5]
         try:
             price = float(price_val)
-            price_flagged = _decimal_places(price) > 2
+            if math.isnan(price) or math.isinf(price):
+                price = 0.0
+                price_flagged = True
+            else:
+                price_flagged = _decimal_places(price) > 2
         except (ValueError, TypeError):
             price = 0.0
             price_flagged = True
         try:
-            quantity = int(qty_val)
+            quantity = int(float(qty_val))
         except (ValueError, TypeError):
             quantity = 0
         rows.append(PurchaseRow(
