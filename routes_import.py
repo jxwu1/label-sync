@@ -14,9 +14,9 @@ def recognize():
     files = request.files.getlist("files")
     if not files or all(f.filename == "" for f in files):
         return jsonify({"ok": False, "msg": "请先上传图片"}), 400
-    image_bytes_list = [f.read() for f in files]
+    image_data = [(f.read(), f.content_type or "image/jpeg") for f in files]
     try:
-        items = import_service.recognize_images(image_bytes_list, CONFIG.gemini_api_key)
+        items = import_service.recognize_images(image_data, CONFIG.gemini_api_key)
     except Exception as exc:
         return jsonify({"ok": False, "msg": f"识别失败：{exc}"}), 500
     return jsonify({"ok": True, "items": [item.to_dict() for item in items]})

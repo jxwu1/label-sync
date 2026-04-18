@@ -57,27 +57,41 @@ def parse_gemini_response(raw: str) -> list[ImportItem]:
     return items
 
 
-def recognize_images(image_bytes_list: list[bytes], api_key: str) -> list[ImportItem]:
+_SYSTEM_INSTRUCTION = """You are extracting product line items from supplier invoice photos.
+Invoices may be in Greek or English, printed or handwritten, in any table layout.
+
+For EACH product/item line extract:
+- barcode: the numeric product code, typically EAN-13 (13 digits) or EAN-8 (8 digits).
+  It appears as a standalone number in a product-code column, or printed below a barcode symbol.
+  Copy ALL digits exactly as they appear — do not guess, do not add or remove digits.
+- quantity: integer number of units on this line.
+- total_price: the line total in euros for this row (NOT the invoice grand total).
+
+Rules:
+- Extract EVERY product line — never skip any row.
+- Use null ONLY when a value is completely absent or completely illegible.
+- Exclude header rows, column labels, invoice totals, subtotals, VAT lines, and discount lines.
+- If the same barcode appears on multiple lines (e.g. across pages), keep both rows.
+
+Return ONLY a valid JSON array of objects with keys "barcode", "quantity", "total_price". No other text."""
+
+
+def recognize_images(image_data_list: list[tuple[bytes, str]], api_key: str) -> list[ImportItem]:
     from google import genai
     from google.genai import types
 
     client = genai.Client(api_key=api_key)
-    parts = [
-        types.Part.from_bytes(data=img_bytes, mime_type="image/jpeg")
-        for img_bytes in image_bytes_list
+    parts: list[types.Part] = [
+        types.Part.from_bytes(data=img_bytes, mime_type=mime_type)
+        for img_bytes, mime_type in image_data_list
     ]
-    parts.append(types.Part.from_text(text="Extract all line items from these invoice images."))
+    parts.append(types.Part.from_text(text="Extract all product line items from these invoice images."))
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-2.5-pro",
         contents=parts,
         config=types.GenerateContentConfig(
-            system_instruction=(
-                "You are a data extraction assistant. Given one or more supplier invoice images "
-                "(possibly in Greek, English, or other languages), extract all line items. "
-                "Return ONLY a JSON array with objects: "
-                '{"barcode": "...", "quantity": N, "total_price": N.NN}. '
-                "If a field is uncertain or missing, use null. Do not guess. No extra text."
-            )
+            system_instruction=_SYSTEM_INSTRUCTION,
+            response_mime_type="application/json",
         ),
     )
     return parse_gemini_response(response.text)

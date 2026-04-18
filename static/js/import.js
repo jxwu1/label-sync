@@ -1,6 +1,8 @@
 (function () {
   let uploadedFiles = [];
   let recognizedItems = [];
+  let timerInterval = null;
+  let timerEl = null;
 
   function init() {
     const page = document.getElementById('pageImport');
@@ -14,6 +16,7 @@
         </div>
         <div class="thumb-list" id="thumbList"></div>
         <button class="btn r" id="btnRecognize" disabled>开始识别</button>
+        <div class="import-log" id="importLog"><span class="il-dim">等待上传图片...\n</span></div>
       </div>
       <div class="import-right">
         <div class="tbl-wrap" id="tblWrap"><div class="empty">上传图片后点击"开始识别"</div></div>
@@ -34,13 +37,49 @@
     document.getElementById('btnExport').addEventListener('click', exportExcel);
   }
 
+  function appendLog(msg, cls) {
+    const log = document.getElementById('importLog');
+    if (!log) return null;
+    const span = document.createElement('span');
+    span.textContent = msg + '\n';
+    if (cls) span.className = cls;
+    log.appendChild(span);
+    log.scrollTop = log.scrollHeight;
+    return span;
+  }
+
+  function clearLog() {
+    const log = document.getElementById('importLog');
+    if (log) log.innerHTML = '';
+  }
+
+  function startTimer() {
+    let s = 0;
+    timerEl = appendLog('Gemini 识别中... 0s', 'il-dim');
+    timerInterval = setInterval(() => {
+      s++;
+      if (timerEl) timerEl.textContent = `Gemini 识别中... ${s}s\n`;
+    }, 1000);
+  }
+
+  function stopTimer() {
+    clearInterval(timerInterval);
+    timerInterval = null;
+    timerEl = null;
+  }
+
   function addFiles(fileList) {
     for (const f of fileList) {
       if (!f.type.startsWith('image/')) continue;
       uploadedFiles.push(f);
     }
     renderThumbs();
-    document.getElementById('btnRecognize').disabled = uploadedFiles.length === 0;
+    const btn = document.getElementById('btnRecognize');
+    if (btn) btn.disabled = uploadedFiles.length === 0;
+    if (uploadedFiles.length > 0) {
+      clearLog();
+      appendLog(`已选择 ${uploadedFiles.length} 张图片，点击"开始识别"`, 'il-dim');
+    }
   }
 
   function renderThumbs() {
@@ -52,7 +91,12 @@
         <span class="thumb-rm" data-i="${i}">✕</span>
       </div>`).join('');
     list.querySelectorAll('.thumb-rm').forEach(el => {
-      el.addEventListener('click', () => { uploadedFiles.splice(+el.dataset.i, 1); renderThumbs(); document.getElementById('btnRecognize').disabled = uploadedFiles.length === 0; });
+      el.addEventListener('click', () => {
+        uploadedFiles.splice(+el.dataset.i, 1);
+        renderThumbs();
+        const btn = document.getElementById('btnRecognize');
+        if (btn) btn.disabled = uploadedFiles.length === 0;
+      });
     });
   }
 
@@ -60,16 +104,32 @@
     const btn = document.getElementById('btnRecognize');
     btn.disabled = true;
     btn.textContent = '识别中…';
-    setStatus('');
+    clearLog();
+    appendLog(`上传 ${uploadedFiles.length} 张图片...`);
+
     const fd = new FormData();
     uploadedFiles.forEach(f => fd.append('files', f));
+
+    startTimer();
     try {
       const res = await fetch('/import/recognize', { method: 'POST', body: fd });
+      stopTimer();
       const body = await res.json();
-      if (!body.ok) { setStatus(body.msg, true); return; }
+      if (!body.ok) {
+        appendLog('识别失败：' + body.msg, 'il-err');
+        setStatus(body.msg, true);
+        return;
+      }
       recognizedItems = body.items;
+      const nullCount = recognizedItems.filter(it => it.flagged).length;
+      const suspectCount = recognizedItems.filter(it => it.barcode_suspect).length;
+      appendLog(`识别完成，共 ${recognizedItems.length} 条`, 'il-ok');
+      if (nullCount) appendLog(`  ${nullCount} 条有空值（红色）需补填`, 'il-warn');
+      if (suspectCount) appendLog(`  ${suspectCount} 条条码格式可疑（黄色）`, 'il-warn');
       renderTable();
     } catch (e) {
+      stopTimer();
+      appendLog('网络错误：' + e.message, 'il-err');
       setStatus('网络错误：' + e.message, true);
     } finally {
       btn.disabled = false;
@@ -111,13 +171,14 @@
   async function exportExcel() {
     const btn = document.getElementById('btnExport');
     btn.disabled = true;
+    appendLog('正在导出 Excel...', 'il-dim');
     try {
       const res = await fetch('/import/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items: recognizedItems }),
       });
-      if (!res.ok) { const b = await res.json(); setStatus(b.msg, true); return; }
+      if (!res.ok) { const b = await res.json(); appendLog('导出失败：' + b.msg, 'il-err'); setStatus(b.msg, true); return; }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -125,7 +186,9 @@
       a.download = `import_${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15)}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
+      appendLog('Excel 已下载', 'il-ok');
     } catch (e) {
+      appendLog('导出失败：' + e.message, 'il-err');
       setStatus('导出失败：' + e.message, true);
     } finally {
       updateExportBtn();
@@ -145,24 +208,16 @@
     el.className = 'status' + (isError ? ' error' : '');
   }
 
-  // index.js switchPage only handles 'main' and 'dup' via classList.toggle.
-  // Calling orig('import') will deactivate both pages (toggle with false) and
-  // deactivate both nav items — which is correct before we activate 'import'.
-  // We then activate #pageImport and #navImport ourselves.
   document.addEventListener('DOMContentLoaded', function () {
     init();
     const orig = window.switchPage;
-    window.switchPage = function (page) {
-      // Let the original handle all nav/page switching (main and dup)
-      if (typeof orig === 'function') orig(page);
-      // If original doesn't handle 'import', handle it here
-      if (page === 'import') {
+    window.switchPage = function (pg) {
+      if (typeof orig === 'function') orig(pg);
+      if (pg === 'import') {
         document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-        const ni = document.getElementById('navImport');
-        if (ni) ni.classList.add('active');
+        document.getElementById('navImport')?.classList.add('active');
         document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
-        const pi = document.getElementById('pageImport');
-        if (pi) pi.classList.add('active');
+        document.getElementById('pageImport')?.classList.add('active');
       }
     };
   });
