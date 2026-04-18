@@ -68,7 +68,7 @@ def recognize_images(image_bytes_list: list[bytes], api_key: str) -> list[Import
     ]
     parts.append(types.Part.from_text(text="Extract all line items from these invoice images."))
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash",
         contents=parts,
         config=types.GenerateContentConfig(
             system_instruction=(
