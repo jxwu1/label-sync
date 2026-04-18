@@ -5,11 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>A端 - 双端处理</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/import.css') }}">
 </head>
 <body>
 <div class="header"><button class="btn-mini" id="hamb">☰</button><div class="header-title">A端 - 双端处理</div><span class="badge badge-idle" id="badge">空闲</span></div>
 <div class="layout">
-  <div class="nav" id="nav"><div class="nav-item active" id="navMain" onclick="switchPage('main')">标签处理</div><div class="nav-item" id="navDup" onclick="switchPage('dup')">重复检查</div></div>
+  <div class="nav" id="nav"><div class="nav-item active" id="navMain" onclick="switchPage('main')">标签处理</div><div class="nav-item" id="navDup" onclick="switchPage('dup')">重复检查</div><div class="nav-item" id="navImport" onclick="switchPage('import')">进货识别</div></div>
   <div class="main">
     <div class="pages">
       <div class="page active" id="pageMain">
@@ -36,6 +37,7 @@
           <div class="dup-res" id="dupRes"><div class="empty">上传文件后显示检查结果</div></div>
         </div></div>
       </div>
+      <div class="page" id="pageImport"></div>
     </div>
     <div class="transfer">
       <div class="tt">文件互传</div>
@@ -51,5 +53,6 @@
   </div>
 </div>
 <script src="{{ url_for('static', filename='js/index.js') }}"></script>
+<script src="{{ url_for('static', filename='js/import.js') }}"></script>
 </body>
 </html>
