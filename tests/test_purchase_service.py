@@ -1,9 +1,19 @@
+import csv
 import io
 import unittest
+import zipfile
 
 import openpyxl
 
-from purchase_service import PurchaseRow, parse_purchase_excel, build_output_excel
+from purchase_service import (
+    PurchaseRow,
+    build_output_excel,
+    build_template_csv,
+    build_zip,
+    find_new_barcodes,
+    parse_purchase_excel,
+    parse_stockpile_csv,
+)
 
 
 def _make_excel(data_rows: list[list]) -> bytes:
@@ -84,3 +94,125 @@ class TestBuildOutputExcel(unittest.TestCase):
         ws = wb.active
         self.assertEqual(ws.cell(row=2, column=1).value, "BC1")
         self.assertAlmostEqual(ws.cell(row=2, column=3).value, 9.48)
+
+
+def _stockpile_bytes(rows, encoding="utf-8"):
+    lines = [",".join(r) for r in rows]
+    return "\n".join(lines).encode(encoding)
+
+
+class TestParseStockpileCsv(unittest.TestCase):
+    def test_header_only_returns_empty_set(self):
+        data = _stockpile_bytes([["c1", "c2", "c3", "barcode"]])
+        self.assertEqual(parse_stockpile_csv(data), set())
+
+    def test_reads_column_4_barcodes(self):
+        data = _stockpile_bytes([
+            ["c1", "c2", "c3", "barcode"],
+            ["a", "b", "c", "1234567890123"],
+            ["a", "b", "c", "9876543210987"],
+        ])
+        self.assertEqual(parse_stockpile_csv(data), {"1234567890123", "9876543210987"})
+
+    def test_falls_back_to_gbk_when_not_utf8(self):
+        data = _stockpile_bytes([
+            ["型号", "c2", "c3", "条码"],
+            ["甲", "b", "c", "1111111111111"],
+        ], encoding="gbk")
+        self.assertEqual(parse_stockpile_csv(data), {"1111111111111"})
+
+    def test_skips_rows_shorter_than_4_columns(self):
+        data = _stockpile_bytes([
+            ["c1", "c2", "c3", "barcode"],
+            ["a", "b"],
+            ["a", "b", "c", "1234567890123"],
+        ])
+        self.assertEqual(parse_stockpile_csv(data), {"1234567890123"})
+
+    def test_strips_whitespace(self):
+        data = _stockpile_bytes([
+            ["c1", "c2", "c3", "barcode"],
+            ["a", "b", "c", "  1234567890123  "],
+        ])
+        self.assertEqual(parse_stockpile_csv(data), {"1234567890123"})
+
+
+class TestFindNewBarcodes(unittest.TestCase):
+    def _row(self, barcode):
+        return PurchaseRow(barcode=barcode, price_raw="1", price=1.0, quantity=1, price_flagged=False)
+
+    def test_all_new_when_system_empty(self):
+        rows = [self._row("A"), self._row("B")]
+        self.assertEqual(find_new_barcodes(rows, set()), ["A", "B"])
+
+    def test_returns_only_rows_not_in_system(self):
+        rows = [self._row("A"), self._row("B"), self._row("C")]
+        self.assertEqual(find_new_barcodes(rows, {"B"}), ["A", "C"])
+
+    def test_dedupes_preserving_order(self):
+        rows = [self._row("A"), self._row("A"), self._row("B"), self._row("A")]
+        self.assertEqual(find_new_barcodes(rows, set()), ["A", "B"])
+
+    def test_empty_rows_returns_empty(self):
+        self.assertEqual(find_new_barcodes([], {"X"}), [])
+
+
+class TestBuildTemplateCsv(unittest.TestCase):
+    def test_single_entry_has_correct_indices(self):
+        entries = [{
+            "barcode": "1234567890123",
+            "name": "测试品",
+            "supplier_id": "S01",
+            "supplier_name": "某供应商",
+        }]
+        out = build_template_csv(entries)
+        text = out.decode("gbk")
+        lines = text.splitlines()
+        self.assertEqual(len(lines), 2)
+        fields = next(csv.reader([lines[1]]))
+        self.assertEqual(fields[0], "1234567890123")
+        self.assertEqual(fields[1], "1234567890123")
+        self.assertEqual(fields[3], "测试品")
+        self.assertEqual(fields[4], "测试品")
+        self.assertEqual(fields[10], "1234567890123")
+        self.assertEqual(fields[38], "S01")
+        self.assertEqual(fields[39], "某供应商")
+        for i in [2, 5, 6, 7, 8, 9, 11, 12, 37]:
+            self.assertEqual(fields[i], "")
+
+    def test_column_count_matches_header(self):
+        out = build_template_csv([{
+            "barcode": "X", "name": "Y", "supplier_id": "S", "supplier_name": "N"
+        }])
+        lines = out.decode("gbk").splitlines()
+        header_fields = next(csv.reader([lines[0]]))
+        data_fields = next(csv.reader([lines[1]]))
+        self.assertEqual(len(data_fields), len(header_fields))
+
+    def test_multiple_entries(self):
+        entries = [
+            {"barcode": "A", "name": "品A", "supplier_id": "S1", "supplier_name": "N1"},
+            {"barcode": "B", "name": "品B", "supplier_id": "S1", "supplier_name": "N1"},
+        ]
+        out = build_template_csv(entries)
+        lines = out.decode("gbk").splitlines()
+        self.assertEqual(len(lines), 3)
+
+
+class TestBuildZip(unittest.TestCase):
+    def test_xlsx_only_when_template_none(self):
+        out = build_zip(b"fake-xlsx", None, "20260418")
+        with zipfile.ZipFile(io.BytesIO(out)) as zf:
+            names = zf.namelist()
+        self.assertEqual(names, ["采购订单20260418.xlsx"])
+
+    def test_both_files_when_template_provided(self):
+        out = build_zip(b"fake-xlsx", b"fake-csv", "20260418")
+        with zipfile.ZipFile(io.BytesIO(out)) as zf:
+            names = sorted(zf.namelist())
+        self.assertEqual(names, sorted(["采购订单20260418.xlsx", "产品信息导入模板.csv"]))
+
+    def test_xlsx_content_preserved(self):
+        out = build_zip(b"HELLO", None, "20260101")
+        with zipfile.ZipFile(io.BytesIO(out)) as zf:
+            self.assertEqual(zf.read("采购订单20260101.xlsx"), b"HELLO")
