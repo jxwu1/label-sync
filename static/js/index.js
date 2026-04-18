@@ -332,6 +332,13 @@ function confirmDupLoc(barcode) {
 }
 window.confirmDupLoc = confirmDupLoc;
 
+function keepBothWarehouses(barcode) {
+  const fixed = p2DupFixed[barcode] || {};
+  const parts = [fixed.store, ...(fixed.warehouses || [])].filter(Boolean);
+  resolveEx(barcode, parts.join("/"));
+}
+window.keepBothWarehouses = keepBothWarehouses;
+
 function renderDupCard(warning, dup) {
   const { stores, warehouses } = dup;
   const dupBoth = stores.length > 1 && warehouses.length > 1;
@@ -340,6 +347,7 @@ function renderDupCard(warning, dup) {
   p2DupFixed[barcode] = {
     store: stores.length === 1 ? stores[0] : null,
     warehouse: warehouses.length === 1 ? warehouses[0] : null,
+    warehouses,
     dupBoth,
   };
   const selectedItem = p2DupSel[barcode] || {};
@@ -358,7 +366,7 @@ function renderDupCard(warning, dup) {
   } else if (warehouses.length > 1) {
     html += `<div><div class="sub" style="margin-bottom:4px">选择仓库库位：</div><div class="actions">${warehouses.map((loc) => mkBtn("warehouse", loc)).join("")}</div></div>`;
   }
-  html += `</div><div class="actions" style="margin-top:8px">${dupBoth ? `<button class="btn-s bf" id="dpconf_${key}" disabled onclick="confirmDupLoc('${jesc(barcode)}')">确认选择</button>` : ""}<button class="btn-s bd" onclick="resolveEx('${jesc(barcode)}','ignore')">忽略</button></div></div>`;
+  html += `</div><div class="actions" style="margin-top:8px">${dupBoth ? `<button class="btn-s bf" id="dpconf_${key}" disabled onclick="confirmDupLoc('${jesc(barcode)}')">确认选择</button>` : ""}${warehouses.length > 1 ? `<button class="btn-s bg" onclick="keepBothWarehouses('${jesc(barcode)}')">保留两个库位</button>` : ""}<button class="btn-s bd" onclick="resolveEx('${jesc(barcode)}','ignore')">忽略</button></div></div>`;
   return html;
 }
 
