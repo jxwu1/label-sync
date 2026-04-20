@@ -212,7 +212,7 @@ def resolve_phase2_exception(barcode: str, resolution: str) -> ServiceResult:
     try:
         with TEMP_RESULTS_FILE.open("r", encoding="utf-8") as file:
             data = json.load(file)
-        data["exceptions"] = [[b, r] for b, r in data["exceptions"] if b != barcode]
+        data["exceptions"] = [exc for exc in data["exceptions"] if exc[0] != barcode]
         if resolution != "ignore":
             model = data.get("barcode_model_map", {}).get(barcode, barcode)
             data["results"].append({"model": model, "location": resolution})

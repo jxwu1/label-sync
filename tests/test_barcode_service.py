@@ -97,6 +97,21 @@ class NewBarcodeCorrectionTests(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertEqual(result.status_code, 404)
 
+    def test_resolve_phase2_exception_removes_multi_location_payload(self) -> None:
+        data = json.loads(self.temp_results.read_text(encoding="utf-8"))
+        data["exceptions"] = [
+            ["111", "multi_location", {"stockpile_stores": ["A-01"], "scan_warehouses": ["X-01"]}],
+            ["222", "scan issue: unknown prefix"],
+        ]
+        self.temp_results.write_text(json.dumps(data), encoding="utf-8")
+        result = barcode_service.resolve_phase2_exception("111", "A-01/X-01")
+        self.assertTrue(result.ok)
+        saved = json.loads(self.temp_results.read_text(encoding="utf-8"))
+        self.assertEqual(len(saved["exceptions"]), 1)
+        self.assertEqual(saved["exceptions"][0][0], "222")
+        resolved = next(r for r in saved["results"] if r["location"] == "A-01/X-01")
+        self.assertEqual(resolved["model"], "111")
+
 
 if __name__ == "__main__":
     unittest.main()

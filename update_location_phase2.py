@@ -239,7 +239,10 @@ def write_phase2_results(
             {
                 "results": results,
                 "new_barcodes": new_barcodes,
-                "exceptions": [[entry[0], entry[1]] for entry in exceptions],
+                "exceptions": [
+                    [entry[0], entry[1], entry[2]] if len(entry) > 2 else [entry[0], entry[1]]
+                    for entry in exceptions
+                ],
                 "unmatched_barcodes": unmatched_barcodes,
                 "employee_name": employee_name,
                 "scan_files": scan_files,

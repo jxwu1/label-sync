@@ -363,6 +363,25 @@ function parseP2WFromLog(log) {
         return null;
       }
       const barcode = match[1];
+      let payload;
+      try {
+        payload = JSON.parse(match[2]);
+      } catch (_) {
+        payload = null;
+      }
+      if (payload && typeof payload === "object") {
+        return {
+          barcode,
+          reason: payload.reason || match[2],
+          locations: [],
+          stockpile_stores: payload.stockpile_stores || [],
+          stockpile_warehouses: payload.stockpile_warehouses || [],
+          scan_stores: payload.scan_stores || [],
+          scan_warehouses: payload.scan_warehouses || [],
+          resolved: false,
+          resolution: null,
+        };
+      }
       const reason = match[2];
       const locations = reason.match(/'([^']+)'/g) || [];
       return {

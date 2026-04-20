@@ -1,8 +1,11 @@
+import json
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import pandas as pd
 
+import update_location_phase2
 from check_duplicates import check_duplicates
 from update_location_phase1 import (
     analyze_phase_one,
@@ -14,6 +17,7 @@ from update_location_phase2 import (
     categorize_locations,
     compose_location,
     parse_locations,
+    write_phase2_results,
 )
 
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_tmp"
@@ -191,6 +195,82 @@ class PhaseTwoTests(unittest.TestCase):
         )
 
         self.assertEqual(final_location, "B-02-02/X-01-01")
+
+
+class WritePhase2ResultsTests(unittest.TestCase):
+    def setUp(self) -> None:
+        TEST_TMP_DIR.mkdir(exist_ok=True)
+        self.temp_results = TEST_TMP_DIR / "phase2_results_test.json"
+        self.patch_file = mock.patch.object(
+            update_location_phase2, "TEMP_RESULTS_FILE", self.temp_results
+        )
+        self.patch_file.start()
+
+    def tearDown(self) -> None:
+        self.patch_file.stop()
+        if self.temp_results.exists():
+            self.temp_results.unlink()
+
+    def test_write_preserves_multi_location_payload_in_exceptions(self) -> None:
+        exceptions = [
+            ("111", "multi_location", {
+                "stockpile_stores": ["A-01-01"],
+                "stockpile_warehouses": ["X-01-01"],
+                "scan_stores": ["A-02-02", "B-03-03"],
+                "scan_warehouses": ["X-04-04"],
+            }),
+            ("222", "scan issue: unknown location prefix: Q-02"),
+        ]
+        write_phase2_results(
+            results=[{"model": "M1", "location": "A-01/X-01"}],
+            new_barcodes=[],
+            exceptions=exceptions,
+            unmatched_barcodes=["333"],
+            employee_name="tester",
+            scan_files=[],
+            barcode_model_map={},
+            stockpile_path=Path("stockpile.csv"),
+        )
+        data = json.loads(self.temp_results.read_text(encoding="utf-8"))
+        self.assertEqual(len(data["exceptions"]), 2)
+        first = data["exceptions"][0]
+        self.assertEqual(first[0], "111")
+        self.assertEqual(first[1], "multi_location")
+        self.assertEqual(first[2]["stockpile_stores"], ["A-01-01"])
+        self.assertEqual(first[2]["scan_warehouses"], ["X-04-04"])
+        second = data["exceptions"][1]
+        self.assertEqual(len(second), 2)
+        self.assertEqual(second[0], "222")
+
+    def test_round_trip_multi_location_exception_survives_read_write(self) -> None:
+        get_payload = (
+            lambda entry: entry[2]
+            if len(entry) > 2
+            else {}
+        )
+        original_exceptions = [
+            ("999", "multi_location", {
+                "stockpile_stores": ["A5"],
+                "stockpile_warehouses": ["X5"],
+                "scan_stores": ["B6"],
+                "scan_warehouses": ["Z7"],
+            }),
+        ]
+        write_phase2_results(
+            results=[],
+            new_barcodes=[],
+            exceptions=original_exceptions,
+            unmatched_barcodes=[],
+            employee_name="tester",
+            scan_files=[],
+            barcode_model_map={},
+            stockpile_path=Path("s.csv"),
+        )
+        data = json.loads(self.temp_results.read_text(encoding="utf-8"))
+        loaded_exceptions = data["exceptions"]
+        payload = get_payload(loaded_exceptions[0])
+        self.assertEqual(payload["stockpile_stores"], ["A5"])
+        self.assertEqual(payload["scan_warehouses"], ["Z7"])
 
 
 if __name__ == "__main__":
