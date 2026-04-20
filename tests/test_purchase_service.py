@@ -162,6 +162,7 @@ class TestBuildTemplateCsv(unittest.TestCase):
         entries = [{
             "barcode": "1234567890123",
             "name": "测试品",
+            "invoice_name": "发票名",
             "supplier_id": "S01",
             "supplier_name": "某供应商",
         }]
@@ -173,7 +174,7 @@ class TestBuildTemplateCsv(unittest.TestCase):
         self.assertEqual(fields[0], "1234567890123")
         self.assertEqual(fields[1], "1234567890123")
         self.assertEqual(fields[3], "测试品")
-        self.assertEqual(fields[4], "测试品")
+        self.assertEqual(fields[4], "发票名")
         self.assertEqual(fields[10], "1234567890123")
         self.assertEqual(fields[38], "S01")
         self.assertEqual(fields[39], "某供应商")
@@ -182,7 +183,7 @@ class TestBuildTemplateCsv(unittest.TestCase):
 
     def test_column_count_matches_header(self):
         out = build_template_csv([{
-            "barcode": "X", "name": "Y", "supplier_id": "S", "supplier_name": "N"
+            "barcode": "X", "name": "Y", "invoice_name": "Z", "supplier_id": "S", "supplier_name": "N"
         }])
         lines = out.decode("gbk").splitlines()
         header_fields = next(csv.reader([lines[0]]))
@@ -191,8 +192,8 @@ class TestBuildTemplateCsv(unittest.TestCase):
 
     def test_multiple_entries(self):
         entries = [
-            {"barcode": "A", "name": "品A", "supplier_id": "S1", "supplier_name": "N1"},
-            {"barcode": "B", "name": "品B", "supplier_id": "S1", "supplier_name": "N1"},
+            {"barcode": "A", "name": "品A", "invoice_name": "发A", "supplier_id": "S1", "supplier_name": "N1"},
+            {"barcode": "B", "name": "品B", "invoice_name": "发B", "supplier_id": "S1", "supplier_name": "N1"},
         ]
         out = build_template_csv(entries)
         lines = out.decode("gbk").splitlines()

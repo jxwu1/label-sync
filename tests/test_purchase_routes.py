@@ -115,7 +115,7 @@ class TestExportZip(unittest.TestCase):
     def test_export_with_new_entries_returns_zip_with_both(self):
         import zipfile as _z
         entries = [{
-            "barcode": "NEW1", "name": "测试品",
+            "barcode": "NEW1", "name": "测试品", "invoice_name": "发票品名",
             "supplier_id": "S01", "supplier_name": "某供应商",
         }]
         response = self.client.post(

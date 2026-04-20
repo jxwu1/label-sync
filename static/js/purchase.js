@@ -62,7 +62,7 @@
       if (!body.ok) { setStatus(body.msg, true); return; }
       rows = body.rows;
       systemBarcodes = new Set(body.system_barcodes);
-      newEntries = body.new_barcodes.map(bc => ({ barcode: bc, name: '' }));
+      newEntries = body.new_barcodes.map(bc => ({ barcode: bc, name: '', invoice_name: '' }));
       renderResults();
       renderNewBox();
       const flagCount = rows.filter(r => r.price_flagged).length;
@@ -120,18 +120,40 @@
     list.innerHTML = newEntries.map((e, i) => `
       <div class="pur-new-row" data-i="${i}">
         <span class="pur-new-bc">${escapeHtml(e.barcode)}</span>
-        品名: <input class="pur-inp pur-new-name" data-i="${i}" value="${escapeAttr(e.name)}" placeholder="必填">
+        品名: <input class="pur-inp pur-new-name" data-i="${i}" data-field="name" value="${escapeAttr(e.name)}" placeholder="第4列">
+        发票品名: <input class="pur-inp pur-new-name" data-i="${i}" data-field="invoice_name" value="${escapeAttr(e.invoice_name)}" placeholder="第5列">
         <button class="pur-new-mod" data-i="${i}">修改</button>
         <button class="pur-new-del" data-i="${i}">删除</button>
       </div>`).join('');
     list.querySelectorAll('.pur-new-name').forEach(el => {
-      el.addEventListener('input', ev => { newEntries[+ev.target.dataset.i].name = ev.target.value.trim(); updateButtons(); });
+      el.addEventListener('input', ev => {
+        const t = ev.target;
+        newEntries[+t.dataset.i][t.dataset.field] = t.value.trim();
+        updateButtons();
+      });
     });
     list.querySelectorAll('.pur-new-mod').forEach(el => {
       el.addEventListener('click', ev => {
-        const i = +ev.target.dataset.i;
-        const inp = list.querySelector(`.pur-new-name[data-i="${i}"]`);
-        inp && inp.focus();
+        const btn = ev.target;
+        const i = +btn.dataset.i;
+        const nameInp = list.querySelector(`.pur-new-name[data-i="${i}"][data-field="name"]`);
+        const invInp = list.querySelector(`.pur-new-name[data-i="${i}"][data-field="invoice_name"]`);
+        const rowEl = list.querySelector(`.pur-new-row[data-i="${i}"]`);
+        const name = nameInp ? nameInp.value.trim() : '';
+        const invoice = invInp ? invInp.value.trim() : '';
+        if (!name) { nameInp && nameInp.focus(); return; }
+        if (!invoice) { invInp && invInp.focus(); return; }
+        newEntries[i].name = name;
+        newEntries[i].invoice_name = invoice;
+        updateButtons();
+        btn.textContent = '已修改 ✓';
+        btn.classList.add('saved');
+        rowEl && rowEl.classList.add('saved-flash');
+        setTimeout(() => {
+          btn.textContent = '修改';
+          btn.classList.remove('saved');
+          rowEl && rowEl.classList.remove('saved-flash');
+        }, 1500);
       });
     });
     list.querySelectorAll('.pur-new-del').forEach(el => {
@@ -199,7 +221,7 @@
     const anyFlagged = rows.some(r => r.price_flagged);
     const hasRows = rows.length > 0;
     const newOk = newEntries.length === 0 ||
-      (supplierInfo.id && supplierInfo.name && newEntries.every(e => e.name));
+      (supplierInfo.id && supplierInfo.name && newEntries.every(e => e.name && e.invoice_name));
     document.getElementById('purCopy').disabled = anyFlagged || !hasRows;
     document.getElementById('purDl').disabled = anyFlagged || !hasRows || !newOk;
   }
@@ -231,7 +253,7 @@
     fd.append('file', storedSupplierFile);
     fd.append('rows', JSON.stringify(rows));
     const entriesForExport = newEntries.map(e => ({
-      barcode: e.barcode, name: e.name,
+      barcode: e.barcode, name: e.name, invoice_name: e.invoice_name,
       supplier_id: supplierInfo.id, supplier_name: supplierInfo.name,
     }));
     fd.append('new_entries', JSON.stringify(entriesForExport));

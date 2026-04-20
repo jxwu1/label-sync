@@ -22,7 +22,8 @@ _STOCKPILE_BARCODE_COL = 3
 
 # 产品信息导入模板列索引（同一字段需要写入多列）
 _TEMPLATE_BARCODE_COLS = (0, 1, 10)
-_TEMPLATE_NAME_COLS = (3, 4)
+_TEMPLATE_NAME_COL = 3
+_TEMPLATE_INVOICE_NAME_COL = 4
 _TEMPLATE_SUPPLIER_ID_COL = 38
 _TEMPLATE_SUPPLIER_NAME_COL = 39
 
@@ -152,9 +153,10 @@ def _fill_template_row(entry: dict, n_cols: int) -> list[str]:
     for i in _TEMPLATE_BARCODE_COLS:
         if i < n_cols:
             row[i] = entry["barcode"]
-    for i in _TEMPLATE_NAME_COLS:
-        if i < n_cols:
-            row[i] = entry["name"]
+    if _TEMPLATE_NAME_COL < n_cols:
+        row[_TEMPLATE_NAME_COL] = entry["name"]
+    if _TEMPLATE_INVOICE_NAME_COL < n_cols:
+        row[_TEMPLATE_INVOICE_NAME_COL] = entry["invoice_name"]
     if _TEMPLATE_SUPPLIER_ID_COL < n_cols:
         row[_TEMPLATE_SUPPLIER_ID_COL] = entry["supplier_id"]
     if _TEMPLATE_SUPPLIER_NAME_COL < n_cols:
