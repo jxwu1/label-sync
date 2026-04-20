@@ -50,3 +50,35 @@ def update_json_file(path: Path, modifier_fn) -> dict | list:
     with path.open("w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     return data
+
+
+def write_phase2_results(
+    path: Path,
+    results: list[dict[str, str]],
+    new_barcodes: list[str],
+    exceptions: list,
+    unmatched_barcodes: list[str],
+    employee_name: str,
+    scan_files: list,
+    barcode_model_map: dict[str, str],
+    stockpile_path: Path,
+) -> None:
+    with path.open("w", encoding="utf-8") as file:
+        json.dump(
+            {
+                "results": results,
+                "new_barcodes": new_barcodes,
+                "exceptions": [
+                    [entry[0], entry[1], entry[2]] if len(entry) > 2 else [entry[0], entry[1]]
+                    for entry in exceptions
+                ],
+                "unmatched_barcodes": unmatched_barcodes,
+                "employee_name": employee_name,
+                "scan_files": scan_files,
+                "barcode_model_map": barcode_model_map,
+                "stockpile_path": str(stockpile_path),
+            },
+            file,
+            ensure_ascii=False,
+            indent=2,
+        )

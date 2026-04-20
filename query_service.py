@@ -1,4 +1,5 @@
 import csv
+import logging
 import re
 from collections import defaultdict
 from datetime import datetime
@@ -37,7 +38,8 @@ def read_barcode_list() -> dict:
     for xlsx_path in xlsx_files:
         try:
             dataframe = pd.read_excel(xlsx_path, dtype=str)
-        except Exception:
+        except Exception as exc:
+            logging.warning("Skipping invalid Excel file %s: %s", xlsx_path.name, exc)
             continue
 
         if "条码/库位" not in dataframe.columns:

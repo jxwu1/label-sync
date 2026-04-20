@@ -1,6 +1,6 @@
-import { esc, logClass, setupDropZone, postJSON } from "./shared.js";
-import { uploadTransferFiles, loadTransferFiles, deleteTransferFile } from "./transfer.js";
-import { sendTextMessage, loadMessages, deleteMessage } from "./messaging.js";
+import { esc, logClass, setupDropZone } from "./shared.js";
+import { uploadTransferFiles, loadTransferFiles, deleteTransferFile, renderAdminTransferItems } from "./admin-transfer.js";
+import { sendTextMessage, loadMessages, deleteMessage, renderAdminMessages } from "./admin-messaging.js";
 
 (function () {
   const bar = document.getElementById("terminalBar");
@@ -17,9 +17,7 @@ import { sendTextMessage, loadMessages, deleteMessage } from "./messaging.js";
   });
 
   handle.addEventListener("mousedown", (event) => {
-    if (event.target.tagName === "BUTTON") {
-      return;
-    }
+    if (event.target.tagName === "BUTTON") return;
     dragging = true;
     if (!pinned) {
       const rect = bar.getBoundingClientRect();
@@ -35,38 +33,27 @@ import { sendTextMessage, loadMessages, deleteMessage } from "./messaging.js";
   });
 
   document.addEventListener("mousemove", (event) => {
-    if (!dragging) {
-      return;
-    }
+    if (!dragging) return;
     bar.style.left = event.clientX - offsetX + "px";
     bar.style.top = event.clientY - offsetY + "px";
   });
 
-  document.addEventListener("mouseup", () => {
-    dragging = false;
-  });
+  document.addEventListener("mouseup", () => { dragging = false; });
 })();
 
 const terminalBody = document.getElementById("terminalBody");
 let terminalLines = [];
 
 function termLog(text, cls) {
-  const now = new Date().toLocaleTimeString("zh-CN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  const now = new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   terminalLines.push({ text, cls, time: now });
   renderTerminal();
 }
 
 function renderTerminal() {
-  terminalBody.innerHTML = terminalLines
-    .map(
-      (line) =>
-        `<span class="log-dim">${line.time} </span><span class="${line.cls || ""}">${esc(line.text)}</span>`,
-    )
-    .join("\n");
+  terminalBody.innerHTML = terminalLines.map((line) =>
+    `<span class="log-dim">${line.time} </span><span class="${line.cls || ""}">${esc(line.text)}</span>`
+  ).join("\n");
   terminalBody.scrollTop = terminalBody.scrollHeight;
 }
 
@@ -85,9 +72,7 @@ function switchPage(page) {
   document.querySelectorAll(".nav-item").forEach((item) => item.classList.remove("active"));
   document.getElementById("page" + page.charAt(0).toUpperCase() + page.slice(1)).classList.add("active");
   document.getElementById("nav" + page.charAt(0).toUpperCase() + page.slice(1)).classList.add("active");
-  if (page === "stats") {
-    loadStats();
-  }
+  if (page === "stats") loadStats();
 }
 window.switchPage = switchPage;
 
@@ -103,106 +88,52 @@ let knownOutputs = new Set();
 let statusKnown = "";
 
 function fileIcon(name) {
-  if (name.endsWith(".xlsx")) return "表";
-  if (name.endsWith(".csv")) return "表";
+  if (name.endsWith(".xlsx") || name.endsWith(".csv")) return "表";
   if (name.endsWith(".zip")) return "包";
   return "文";
 }
 
 function fmtDate(timestamp) {
   const date = new Date(timestamp * 1000);
-  return date.toLocaleString("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return date.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
 function renderInput(files) {
   inputCount.textContent = files.length;
-  if (!files.length) {
-    inputList.innerHTML = '<div class="empty">暂无文件</div>';
-    return;
-  }
-  inputList.innerHTML = files
-    .map(
-      (file) => `
-      <div class="file-item">
-        <div class="file-left">
-          <span class="file-icon">${fileIcon(file.name)}</span>
-          <span class="file-name" title="${file.name}">${file.name}</span>
-        </div>
-        <span class="file-size">${file.size} KB</span>
-      </div>`,
-    )
-    .join("");
+  if (!files.length) { inputList.innerHTML = '<div class="empty">暂无文件</div>'; return; }
+  inputList.innerHTML = files.map((file) => `
+    <div class="file-item">
+      <div class="file-left"><span class="file-icon">${fileIcon(file.name)}</span><span class="file-name" title="${file.name}">${file.name}</span></div>
+      <span class="file-size">${file.size} KB</span>
+    </div>`).join("");
 }
 
 function renderOutput(items) {
   const zipItems = items.filter((item) => item.is_zip);
   outputCount.textContent = zipItems.length;
-  if (!items.length) {
-    outputList.innerHTML = '<div class="empty">暂无结果</div>';
-    return;
-  }
-  outputList.innerHTML = items
-    .map((file) => {
-      const isNew = !knownOutputs.has(file.name) && file.is_zip;
-      if (file.is_zip) {
-        knownOutputs.add(file.name);
-      }
-      return `<div class="file-item">
-        <div class="file-left">
-          <span class="file-icon">${fileIcon(file.name)}</span>
-          <span class="file-name" title="${file.name}">${file.name}</span>
-          ${isNew ? '<span class="new-tag">NEW</span>' : ""}
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-          <span class="file-size" style="font-size:10px;">${fmtDate(file.mtime)}</span>
-          <span class="file-size">${file.size}KB</span>
-          ${file.is_zip ? `<a class="file-dl" href="/download_zip/${encodeURIComponent(file.name)}">下载</a>` : ""}
-        </div>
-      </div>`;
-    })
-    .join("");
+  if (!items.length) { outputList.innerHTML = '<div class="empty">暂无结果</div>'; return; }
+  outputList.innerHTML = items.map((file) => {
+    const isNew = !knownOutputs.has(file.name) && file.is_zip;
+    if (file.is_zip) knownOutputs.add(file.name);
+    return `<div class="file-item">
+      <div class="file-left"><span class="file-icon">${fileIcon(file.name)}</span><span class="file-name" title="${file.name}">${file.name}</span>${isNew ? '<span class="new-tag">NEW</span>' : ""}</div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;"><span class="file-size" style="font-size:10px;">${fmtDate(file.mtime)}</span><span class="file-size">${file.size}KB</span>${file.is_zip ? `<a class="file-dl" href="/download_zip/${encodeURIComponent(file.name)}">下载</a>` : ""}</div>
+    </div>`;
+  }).join("");
 }
 
 function renderLog(lines, done) {
-  if (lines.length === lastLogLen && !done) {
-    return;
-  }
-  for (let index = lastLogLen; index < lines.length; index += 1) {
-    termLog(lines[index], logClass(lines[index]));
-  }
+  if (lines.length === lastLogLen && !done) return;
+  for (let i = lastLogLen; i < lines.length; i += 1) termLog(lines[i], logClass(lines[i]));
   lastLogLen = lines.length;
 }
 
 function updateStatus(status) {
   const key = status.running ? "running" : status.error ? "error" : status.done ? "done" : "idle";
-  if (status.running) {
-    statusBadge.className = "badge badge-running";
-    statusBadge.innerHTML = '<span class="spinner"></span>处理中';
-    btnRun.disabled = true;
-  } else if (status.error) {
-    statusBadge.className = "badge badge-error";
-    statusBadge.textContent = "出错";
-    btnRun.disabled = false;
-    if (statusKnown !== "error") {
-      termLog("处理出错", "log-err");
-    }
-  } else if (status.done) {
-    statusBadge.className = "badge badge-done";
-    statusBadge.textContent = "完成";
-    btnRun.disabled = false;
-    if (statusKnown !== "done") {
-      termLog("处理完成", "log-ok");
-    }
-  } else {
-    statusBadge.className = "badge badge-idle";
-    statusBadge.textContent = "空闲";
-    btnRun.disabled = false;
-  }
+  if (status.running) { statusBadge.className = "badge badge-running"; statusBadge.innerHTML = '<span class="spinner"></span>处理中'; btnRun.disabled = true; }
+  else if (status.error) { statusBadge.className = "badge badge-error"; statusBadge.textContent = "出错"; btnRun.disabled = false; if (statusKnown !== "error") termLog("处理出错", "log-err"); }
+  else if (status.done) { statusBadge.className = "badge badge-done"; statusBadge.textContent = "完成"; btnRun.disabled = false; if (statusKnown !== "done") termLog("处理完成", "log-ok"); }
+  else { statusBadge.className = "badge badge-idle"; statusBadge.textContent = "空闲"; btnRun.disabled = false; }
   statusKnown = key;
 }
 
@@ -214,25 +145,17 @@ async function refresh() {
     renderOutput(data.output);
     updateStatus(data.status);
     renderLog(data.status.log, data.status.done);
-  } catch (error) {}
+  } catch (error) { console.error("Refresh failed:", error); }
 }
 
 btnRun.addEventListener("click", async () => {
-  btnRun.disabled = true;
-  lastLogLen = 0;
-  statusKnown = "";
+  btnRun.disabled = true; lastLogLen = 0; statusKnown = "";
   termLog("开始处理...", "");
   try {
     const response = await fetch("/run", { method: "POST" });
     const data = await response.json();
-    if (!data.ok) {
-      termLog("启动失败：" + data.msg, "log-err");
-      alert(data.msg);
-      btnRun.disabled = false;
-    }
-  } catch (error) {
-    btnRun.disabled = false;
-  }
+    if (!data.ok) { termLog("启动失败：" + data.msg, "log-err"); alert(data.msg); btnRun.disabled = false; }
+  } catch (error) { btnRun.disabled = false; console.error("Run failed:", error); }
 });
 
 async function loadStats() {
@@ -240,57 +163,26 @@ async function loadStats() {
     const response = await fetch("/stats");
     const data = await response.json();
     const container = document.getElementById("statsContainer");
-    if (!data.length) {
-      container.innerHTML = '<div style="color:#4a5568;font-size:13px;">暂无数据</div>';
-      return;
-    }
-    const maxHeight = 120;
-    container.innerHTML = data
-      .map((month) => {
-        const max = Math.max(...month.employees.map((employee) => employee.count), 1);
-        const columns = month.employees
-          .map((employee) => {
-            const height = Math.max(4, Math.round((employee.count / max) * maxHeight));
-            return `<div class="bar-col"><span class="bar-count">${employee.count}</span><div class="bar-fill" style="height:${height}px"></div></div>`;
-          })
-          .join("");
-        const names = month.employees
-          .map((employee) => `<div class="bar-name">${employee.name}</div>`)
-          .join("");
-        return `<div class="month-block"><div class="month-label">${month.month}</div><div class="bar-chart">${columns}</div><div class="bar-names">${names}</div></div>`;
-      })
-      .join("");
-  } catch (error) {}
+    if (!data.length) { container.innerHTML = '<div style="color:#4a5568;font-size:13px;">暂无数据</div>'; return; }
+    container.innerHTML = data.map((month) => {
+      const max = Math.max(...month.employees.map((e) => e.count), 1);
+      const columns = month.employees.map((e) => `<div class="bar-col"><span class="bar-count">${e.count}</span><div class="bar-fill" style="height:${Math.max(4, Math.round((e.count / max) * 120))}px"></div></div>`).join("");
+      const names = month.employees.map((e) => `<div class="bar-name">${e.name}</div>`).join("");
+      return `<div class="month-block"><div class="month-label">${month.month}</div><div class="bar-chart">${columns}</div><div class="bar-names">${names}</div></div>`;
+    }).join("");
+  } catch (error) { console.error("Stats failed:", error); }
 }
 
-const bDropZone = document.getElementById("bDropZone");
-const bFileInput = document.getElementById("bFileInput");
 const transferFileList = document.getElementById("transferFileList");
 const transferMsg = document.getElementById("transferMsg");
 
-setupDropZone(bDropZone, bFileInput, (files) => {
+setupDropZone(document.getElementById("bDropZone"), document.getElementById("bFileInput"), (files) => {
   uploadTransferFiles(files, transferMsg).then(() => loadTransfer());
 });
 
 async function loadTransfer() {
   const items = await loadTransferFiles();
-  if (!items.length) {
-    transferFileList.innerHTML = '<div class="t-empty">暂无</div>';
-    return;
-  }
-  transferFileList.innerHTML = items
-    .map(
-      (file) => `
-      <div class="t-file-item">
-        <span class="t-file-name" title="${file.name}">${file.name}</span>
-        <span class="t-file-size">${file.size}KB</span>
-        <div class="t-actions">
-          <a class="btn-tdl" href="/transfer_download/${encodeURIComponent(file.name)}">下载</a>
-          <button class="btn-tdel" onclick="deleteTransfer('${file.name}')">删除</button>
-        </div>
-      </div>`,
-    )
-    .join("");
+  transferFileList.innerHTML = renderAdminTransferItems(items);
 }
 
 async function deleteTransfer(filename) {
@@ -307,21 +199,13 @@ const textMsgList = document.getElementById("textMsgList");
 btnTextCopy.addEventListener("click", () => {
   if (!textInput.value) return;
   navigator.clipboard.writeText(textInput.value).then(() => {
-    btnTextCopy.textContent = "已复制";
-    btnTextCopy.classList.add("copied");
-    setTimeout(() => {
-      btnTextCopy.textContent = "复制";
-      btnTextCopy.classList.remove("copied");
-    }, 1500);
+    btnTextCopy.textContent = "已复制"; btnTextCopy.classList.add("copied");
+    setTimeout(() => { btnTextCopy.textContent = "复制"; btnTextCopy.classList.remove("copied"); }, 1500);
   });
 });
 
 btnTextSend.addEventListener("click", sendText);
-textInput.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-    sendText();
-  }
-});
+textInput.addEventListener("keydown", (event) => { if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) sendText(); });
 
 async function sendText() {
   const text = textInput.value.trim();
@@ -329,32 +213,15 @@ async function sendText() {
   btnTextSend.disabled = true;
   try {
     const data = await sendTextMessage(text, "B");
-    if (data.ok) {
-      textInput.value = "";
-      loadTextMsgs();
-    }
-  } catch (error) {}
+    if (data.ok) { textInput.value = ""; loadTextMsgs(); }
+  } catch (error) { console.error("Send text failed:", error); }
   btnTextSend.disabled = false;
 }
 
 async function loadTextMsgs() {
   const messages = await loadMessages();
-  if (!messages.length) {
-    textMsgList.innerHTML = '<div class="t-empty">暂无消息</div>';
-    return;
-  }
-  textMsgList.innerHTML = messages
-    .map(
-      (message) => `
-      <div class="msg-item${message.sender === "B" ? " from-self" : ""}">
-        <div class="msg-header">
-          <span class="msg-sender">${message.sender === "B" ? "我（B）" : "A 端"}</span>
-          <span><span class="msg-time">${message.time}</span><button class="btn-mdel" onclick="deleteTextMsg(${message.id})">×</button></span>
-        </div>
-        <div class="msg-body">${esc(message.text)}</div>
-      </div>`,
-    )
-    .join("");
+  if (!messages.length) { textMsgList.innerHTML = '<div class="t-empty">暂无消息</div>'; return; }
+  textMsgList.innerHTML = renderAdminMessages(messages, "B");
 }
 
 async function deleteTextMsg(id) {

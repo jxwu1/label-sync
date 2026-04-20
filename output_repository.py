@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from path_helpers import safe_filename
+from path_safety import safe_filename
 from state import OUTPUT_DIR
 
 

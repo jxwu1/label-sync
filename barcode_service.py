@@ -43,13 +43,14 @@ def _correct_in_output_csv(old_barcode: str, new_barcode: str) -> ServiceResult:
 
 
 def _load_stockpile_records(stockpile_path: str) -> dict[str, dict[str, str]]:
-    from update_location_phase2 import build_system_records, read_csv
+    from file_io import read_csv
+    from update_location_phase2 import build_system_records
     _, records = build_system_records(read_csv(Path(stockpile_path)))
     return records
 
 
 def _correct_new_barcode(old_barcode: str, new_barcode: str) -> ServiceResult:
-    from update_location_phase2 import compose_location, parse_system_location
+    from location_parser import compose_location, parse_system_location
 
     if not TEMP_RESULTS_FILE.exists():
         return ServiceResult(ok=False, payload={"msg": "找不到阶段二结果文件"}, status_code=404)

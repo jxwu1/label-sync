@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request, send_file
 
 import storage_service
-from route_helpers import json_result
+from response_builder import json_result
 from state import TRANSFER_DIR
 from transfer_repository import transfer_file_path
 

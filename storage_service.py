@@ -5,7 +5,7 @@ from pathlib import Path
 
 from file_io import find_latest_stockpile_file
 from output_repository import latest_output_dir
-from path_helpers import safe_filename
+from path_safety import safe_filename
 from schemas import ServiceResult
 from state import INPUT_DIR, OUTPUT_DIR, TRANSFER_DIR, task_state
 from transfer_repository import iter_transfer_items, transfer_file_path

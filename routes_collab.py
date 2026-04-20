@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, request
 
 import duplicate_service
 import message_service
-from route_helpers import json_result
+from response_builder import json_result
 
 bp = Blueprint("collab", __name__)
 

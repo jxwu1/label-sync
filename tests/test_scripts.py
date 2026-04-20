@@ -7,6 +7,7 @@ import pandas as pd
 
 import update_location_phase2
 from check_duplicates import check_duplicates
+from location_parser import categorize_locations, compose_location, parse_locations
 from update_location_phase1 import (
     analyze_phase_one,
     detect_barcode_outliers,
@@ -15,9 +16,6 @@ from update_location_phase1 import (
 import update_location
 from update_location_phase2 import (
     build_phase_two_results,
-    categorize_locations,
-    compose_location,
-    parse_locations,
     write_phase2_results,
 )
 
@@ -223,6 +221,7 @@ class WritePhase2ResultsTests(unittest.TestCase):
             ("222", "scan issue: unknown location prefix: Q-02"),
         ]
         write_phase2_results(
+            self.temp_results,
             results=[{"model": "M1", "location": "A-01/X-01"}],
             new_barcodes=[],
             exceptions=exceptions,
@@ -258,6 +257,7 @@ class WritePhase2ResultsTests(unittest.TestCase):
             }),
         ]
         write_phase2_results(
+            self.temp_results,
             results=[],
             new_barcodes=[],
             exceptions=original_exceptions,

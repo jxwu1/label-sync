@@ -5,7 +5,7 @@ from flask import Blueprint, jsonify, render_template, request, send_file
 import barcode_service
 import storage_service
 import task_service
-from route_helpers import json_result
+from response_builder import json_result
 from state import INPUT_DIR, task_state
 
 bp = Blueprint("pages_tasks", __name__)
