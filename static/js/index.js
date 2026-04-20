@@ -290,54 +290,71 @@ function parseDupLoc(reason) {
   };
 }
 
-function pickDupLoc(barcode, type, loc) {
-  if (!p2DupSel[barcode]) {
-    p2DupSel[barcode] = { store: null, warehouse: null };
-  }
-  p2DupSel[barcode][type] = loc;
+const KEEP_ALL = "__all__";
+
+function dupHighlight(barcode, type, loc) {
   const key = barcode.replace(/\W/g, "_");
   document.querySelectorAll(".dpbtn-" + type + "-" + key).forEach((button) => {
-    button.style.background = button.dataset.loc === loc ? "#c2410c" : "transparent";
-    button.style.color = button.dataset.loc === loc ? "#fff" : "#fb923c";
+    const match = button.dataset.loc === loc;
+    button.style.background = match ? "#c2410c" : "transparent";
+    button.style.color = match ? "#fff" : "#fb923c";
   });
+}
+
+function composeDupParts(fixed, sel) {
+  const parts = [];
+  const storeChoice = sel.store || fixed.store;
+  if (storeChoice === KEEP_ALL) parts.push(...(fixed.stores || []));
+  else if (storeChoice) parts.push(storeChoice);
+  const warehouseChoice = sel.warehouse || fixed.warehouse;
+  if (warehouseChoice === KEEP_ALL) parts.push(...(fixed.warehouses || []));
+  else if (warehouseChoice) parts.push(warehouseChoice);
+  return parts.join("/");
+}
+
+function dupSideSettled(fixed, sel, type) {
+  const multi = (fixed[type + "s"] || []).length > 1;
+  return !multi || Boolean(sel[type]);
+}
+
+function dupTryResolve(barcode) {
   const fixed = p2DupFixed[barcode] || {};
-  const selectedItem = p2DupSel[barcode];
+  const sel = p2DupSel[barcode] || {};
+  const storeDone = dupSideSettled(fixed, sel, "store");
+  const warehouseDone = dupSideSettled(fixed, sel, "warehouse");
   if (fixed.dupBoth) {
-    if (selectedItem.store && selectedItem.warehouse) {
-      const confirmButton = document.getElementById("dpconf_" + key);
-      if (confirmButton) {
-        confirmButton.disabled = false;
-      }
-    }
-  } else {
-    resolveEx(
-      barcode,
-      [selectedItem.store || fixed.store, selectedItem.warehouse || fixed.warehouse]
-        .filter(Boolean)
-        .join("/"),
-    );
+    const key = barcode.replace(/\W/g, "_");
+    const confirmButton = document.getElementById("dpconf_" + key);
+    if (confirmButton) confirmButton.disabled = !(storeDone && warehouseDone);
+    return;
   }
+  if (storeDone && warehouseDone) {
+    resolveEx(barcode, composeDupParts(fixed, sel));
+  }
+}
+
+function pickDupLoc(barcode, type, loc) {
+  if (!p2DupSel[barcode]) p2DupSel[barcode] = { store: null, warehouse: null };
+  p2DupSel[barcode][type] = loc;
+  dupHighlight(barcode, type, loc);
+  dupTryResolve(barcode);
 }
 window.pickDupLoc = pickDupLoc;
 
+function keepAllDupLoc(barcode, type) {
+  if (!p2DupSel[barcode]) p2DupSel[barcode] = { store: null, warehouse: null };
+  p2DupSel[barcode][type] = KEEP_ALL;
+  dupHighlight(barcode, type, KEEP_ALL);
+  dupTryResolve(barcode);
+}
+window.keepAllDupLoc = keepAllDupLoc;
+
 function confirmDupLoc(barcode) {
-  const selectedItem = p2DupSel[barcode] || {};
   const fixed = p2DupFixed[barcode] || {};
-  resolveEx(
-    barcode,
-    [selectedItem.store || fixed.store, selectedItem.warehouse || fixed.warehouse]
-      .filter(Boolean)
-      .join("/"),
-  );
+  const sel = p2DupSel[barcode] || {};
+  resolveEx(barcode, composeDupParts(fixed, sel));
 }
 window.confirmDupLoc = confirmDupLoc;
-
-function keepBothWarehouses(barcode) {
-  const fixed = p2DupFixed[barcode] || {};
-  const parts = [fixed.store, ...(fixed.warehouses || [])].filter(Boolean);
-  resolveEx(barcode, parts.join("/"));
-}
-window.keepBothWarehouses = keepBothWarehouses;
 
 function renderDupCard(warning, dup) {
   const { stores, warehouses } = dup;
@@ -347,6 +364,7 @@ function renderDupCard(warning, dup) {
   p2DupFixed[barcode] = {
     store: stores.length === 1 ? stores[0] : null,
     warehouse: warehouses.length === 1 ? warehouses[0] : null,
+    stores,
     warehouses,
     dupBoth,
   };
@@ -355,18 +373,22 @@ function renderDupCard(warning, dup) {
     const selected = selectedItem[type] === loc;
     return `<button class="btn-s bc dpbtn-${type}-${key}" data-loc="${esc(loc)}" style="${selected ? "background:#c2410c;color:#fff" : ""}" onclick="pickDupLoc('${jesc(barcode)}','${type}','${jesc(loc)}')">${esc(loc)}</button>`;
   };
+  const mkKeepBtn = (type, label) => {
+    const selected = selectedItem[type] === KEEP_ALL;
+    return `<button class="btn-s bg dpbtn-${type}-${key}" data-loc="${KEEP_ALL}" style="${selected ? "background:#047857;color:#fff" : ""}" onclick="keepAllDupLoc('${jesc(barcode)}','${type}')">${label}</button>`;
+  };
   let html = `<div class="warn"><div class="row"><div class="col"><span class="code">${esc(barcode)}</span><span class="sub" style="color:#fbbf24">扫描到多个库位冲突</span></div></div><div class="col" style="gap:8px;margin-top:8px">`;
   if (stores.length === 1) {
     html += `<span class="sub">店面：<span class="loc">${esc(stores[0])}</span> <span style="color:#4a5568">（自动保留）</span></span>`;
   } else if (stores.length > 1) {
-    html += `<div><div class="sub" style="margin-bottom:4px">选择店面库位：</div><div class="actions">${stores.map((loc) => mkBtn("store", loc)).join("")}</div></div>`;
+    html += `<div><div class="sub" style="margin-bottom:4px">选择店面库位：</div><div class="actions">${stores.map((loc) => mkBtn("store", loc)).join("")}${mkKeepBtn("store", "保留全部店面")}</div></div>`;
   }
   if (warehouses.length === 1) {
     html += `<span class="sub">仓库：<span class="loc">${esc(warehouses[0])}</span> <span style="color:#4a5568">（自动保留）</span></span>`;
   } else if (warehouses.length > 1) {
-    html += `<div><div class="sub" style="margin-bottom:4px">选择仓库库位：</div><div class="actions">${warehouses.map((loc) => mkBtn("warehouse", loc)).join("")}</div></div>`;
+    html += `<div><div class="sub" style="margin-bottom:4px">选择仓库库位：</div><div class="actions">${warehouses.map((loc) => mkBtn("warehouse", loc)).join("")}${mkKeepBtn("warehouse", "保留全部仓库")}</div></div>`;
   }
-  html += `</div><div class="actions" style="margin-top:8px">${dupBoth ? `<button class="btn-s bf" id="dpconf_${key}" disabled onclick="confirmDupLoc('${jesc(barcode)}')">确认选择</button>` : ""}${warehouses.length > 1 ? `<button class="btn-s bg" onclick="keepBothWarehouses('${jesc(barcode)}')">保留两个库位</button>` : ""}<button class="btn-s bd" onclick="resolveEx('${jesc(barcode)}','ignore')">忽略</button></div></div>`;
+  html += `</div><div class="actions" style="margin-top:8px">${dupBoth ? `<button class="btn-s bf" id="dpconf_${key}" disabled onclick="confirmDupLoc('${jesc(barcode)}')">确认选择</button>` : ""}<button class="btn-s bd" onclick="resolveEx('${jesc(barcode)}','ignore')">忽略</button></div></div>`;
   return html;
 }
 
