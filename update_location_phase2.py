@@ -33,33 +33,39 @@ def classify_location(location: str) -> str | None:
     return None
 
 
-def parse_locations(locations: list[str]) -> tuple[str | None, str | None, str | None]:
+def categorize_locations(locations: list[str]) -> tuple[list[str], list[str], str | None]:
     cleaned = [location.strip() for location in locations if location and location.strip()]
-    if not cleaned:
-        return None, None, None
-
-    store_locs: list[str] = []
-    warehouse_locs: list[str] = []
+    stores: list[str] = []
+    warehouses: list[str] = []
     for location in cleaned:
         category = classify_location(location)
         if category is None:
-            return None, None, f"unknown location prefix: {location}"
+            return [], [], f"unknown location prefix: {location}"
         if category == "store":
-            store_locs.append(location)
+            if location not in stores:
+                stores.append(location)
         else:
-            warehouse_locs.append(location)
+            if location not in warehouses:
+                warehouses.append(location)
+    return stores, warehouses, None
 
-    if len(store_locs) > 1 or len(warehouse_locs) > 1:
+
+def parse_locations(locations: list[str]) -> tuple[str | None, str | None, str | None]:
+    stores, warehouses, error = categorize_locations(locations)
+    if error:
+        return None, None, error
+    if not stores and not warehouses:
+        return None, None, None
+    if len(stores) > 1 or len(warehouses) > 1:
         parts = []
-        if store_locs:
-            parts.append(f"store=[{','.join(store_locs)}]")
-        if warehouse_locs:
-            parts.append(f"warehouse=[{','.join(warehouse_locs)}]")
+        if stores:
+            parts.append(f"store=[{','.join(stores)}]")
+        if warehouses:
+            parts.append(f"warehouse=[{','.join(warehouses)}]")
         return None, None, f"duplicate_locations {' '.join(parts)}"
-
     return (
-        store_locs[0] if store_locs else None,
-        warehouse_locs[0] if warehouse_locs else None,
+        stores[0] if stores else None,
+        warehouses[0] if warehouses else None,
         None,
     )
 
@@ -87,43 +93,96 @@ def compose_location(
     return final_store or final_warehouse or ""
 
 
+def _categorize_stockpile(raw: str) -> tuple[list[str], list[str], str | None]:
+    text = str(raw or "").strip()
+    if not text or text == "nan":
+        return [], [], None
+    parts = text.split("/")
+    if any(not part.strip() for part in parts):
+        return [], [], f"invalid system location: {text}"
+    return categorize_locations(parts)
+
+
+def _compose_if_single(
+    stockpile_stores: list[str],
+    stockpile_warehouses: list[str],
+    scan_stores: list[str],
+    scan_warehouses: list[str],
+) -> str:
+    store = (scan_stores[0] if scan_stores else None) or (
+        stockpile_stores[0] if stockpile_stores else None
+    )
+    warehouse = (scan_warehouses[0] if scan_warehouses else None) or (
+        stockpile_warehouses[0] if stockpile_warehouses else None
+    )
+    return compose_location(None, None, store, warehouse)
+
+
 def build_phase_two_results(
     location_map: dict[str, list[str]],
     system_records: dict[str, dict[str, str]],
-) -> tuple[list[dict[str, str]], list[str], list[tuple[str, str]], list[str]]:
+) -> tuple[list[dict[str, str]], list[str], list, list[str]]:
+    """Returns (results, new_barcodes, exceptions, unmatched_barcodes).
+
+    Exceptions are tuples:
+      (barcode, reason_str) for simple reasons, or
+      (barcode, reason_str, payload_dict) for multi-location conflicts carrying
+      {stockpile_stores, stockpile_warehouses, scan_stores, scan_warehouses}.
+    """
     results: list[dict[str, str]] = []
     new_barcodes: list[str] = []
-    exceptions: list[tuple[str, str]] = []
+    exceptions: list = []
 
     for barcode, scanned_locations in location_map.items():
-        new_store, new_warehouse, scan_issue = parse_locations(scanned_locations)
+        scan_stores, scan_warehouses, scan_issue = categorize_locations(scanned_locations)
         if scan_issue:
             exceptions.append((barcode, f"scan issue: {scan_issue}"))
             continue
 
         system_item = system_records.get(barcode)
+        stockpile_stores: list[str] = []
+        stockpile_warehouses: list[str] = []
+        if system_item is not None:
+            stockpile_stores, stockpile_warehouses, system_issue = _categorize_stockpile(
+                system_item["stockpile_location"]
+            )
+            if system_issue:
+                exceptions.append((barcode, f"system issue: {system_issue}"))
+                continue
+
+        multi = (
+            len(scan_stores) > 1
+            or len(scan_warehouses) > 1
+            or len(stockpile_stores) > 1
+            or len(stockpile_warehouses) > 1
+        )
+        if multi:
+            payload = {
+                "stockpile_stores": stockpile_stores,
+                "stockpile_warehouses": stockpile_warehouses,
+                "scan_stores": scan_stores,
+                "scan_warehouses": scan_warehouses,
+            }
+            exceptions.append((barcode, "multi_location", payload))
+            continue
+
+        final_location = _compose_if_single(
+            stockpile_stores, stockpile_warehouses, scan_stores, scan_warehouses
+        )
+        if not final_location:
+            reason = (
+                "new barcode missing valid location"
+                if system_item is None
+                else "failed to generate final location"
+            )
+            exceptions.append((barcode, reason))
+            continue
+
         if system_item is None:
             new_barcodes.append(barcode)
-            final_location = compose_location(None, None, new_store, new_warehouse)
-            if not final_location:
-                exceptions.append((barcode, "new barcode missing valid location"))
-                continue
             results.append({"model": barcode, "location": final_location})
-            continue
-
-        old_store, old_warehouse, system_issue = parse_system_location(
-            system_item["stockpile_location"]
-        )
-        if system_issue:
-            exceptions.append((barcode, f"system issue: {system_issue}"))
-            continue
-
-        final_location = compose_location(old_store, old_warehouse, new_store, new_warehouse)
-        if not final_location:
-            exceptions.append((barcode, "failed to generate final location"))
-            continue
-
-        results.append({"model": system_item["model"], "location": final_location})
+        else:
+            results.append({"model": system_item["model"], "location": final_location})
 
     unmatched_barcodes = [barcode for barcode in system_records if barcode not in location_map]
     return results, new_barcodes, exceptions, unmatched_barcodes
@@ -168,7 +227,7 @@ def build_system_records(
 def write_phase2_results(
     results: list[dict[str, str]],
     new_barcodes: list[str],
-    exceptions: list[tuple[str, str]],
+    exceptions: list,
     unmatched_barcodes: list[str],
     employee_name: str,
     scan_files: list,
@@ -180,7 +239,7 @@ def write_phase2_results(
             {
                 "results": results,
                 "new_barcodes": new_barcodes,
-                "exceptions": [[barcode, reason] for barcode, reason in exceptions],
+                "exceptions": [[entry[0], entry[1]] for entry in exceptions],
                 "unmatched_barcodes": unmatched_barcodes,
                 "employee_name": employee_name,
                 "scan_files": scan_files,
@@ -225,8 +284,12 @@ def main() -> int:
     print(f"[PHASE2_DONE] matched={matched_count}")
     for barcode in new_barcodes:
         print(f"[NEW_BARCODE] {barcode}")
-    for barcode, reason in exceptions:
-        print(f"[PHASE2_WARNING] {barcode} {reason}")
+    for entry in exceptions:
+        barcode = entry[0]
+        reason = entry[1]
+        payload = entry[2] if len(entry) > 2 else {}
+        message = json.dumps({"reason": reason, **payload}, ensure_ascii=False)
+        print(f"[PHASE2_WARNING] {barcode} {message}")
 
     if new_barcodes or exceptions:
         print("[WAITING] phase2 review required")

@@ -32,6 +32,23 @@ class TaskServiceTests(unittest.TestCase):
             ["A-01-01", "X-02-02"],
         )
 
+    def test_handle_phase_two_line_parses_structured_multi_location_payload(self) -> None:
+        task_service.handle_phase_two_line(
+            '[PHASE2_WARNING] 999 {"reason": "multi_location",'
+            ' "stockpile_stores": ["A-01-01"], "stockpile_warehouses": ["X-01-01"],'
+            ' "scan_stores": ["A-02-02", "B-03-03"], "scan_warehouses": []}'
+        )
+
+        warnings = task_state.snapshot().phase2_warnings
+        self.assertEqual(len(warnings), 1)
+        warning = warnings[0]
+        self.assertEqual(warning.barcode, "999")
+        self.assertEqual(warning.reason, "multi_location")
+        self.assertEqual(warning.stockpile_stores, ["A-01-01"])
+        self.assertEqual(warning.stockpile_warehouses, ["X-01-01"])
+        self.assertEqual(warning.scan_stores, ["A-02-02", "B-03-03"])
+        self.assertEqual(warning.scan_warehouses, [])
+
     def test_execute_phase_appends_logs_and_returns_auto_continue(self) -> None:
         task_state.reset()
 

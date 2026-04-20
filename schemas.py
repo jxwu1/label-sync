@@ -29,6 +29,10 @@ class Phase2Warning:
     barcode: str
     reason: str
     locations: list[str] = field(default_factory=list)
+    stockpile_stores: list[str] = field(default_factory=list)
+    stockpile_warehouses: list[str] = field(default_factory=list)
+    scan_stores: list[str] = field(default_factory=list)
+    scan_warehouses: list[str] = field(default_factory=list)
     resolved: bool = False
     resolution: str | None = None
 

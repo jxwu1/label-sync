@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import subprocess
@@ -91,15 +92,32 @@ def handle_phase_two_line(text: str) -> None:
 
     if text.startswith("[PHASE2_WARNING]"):
         match = re.match(PHASE2_WARNING_PATTERN, text)
-        if match:
-            barcode = match.group(1)
-            reason = match.group(2)
-            locations = re.findall(r"'([^']+)'", reason)
+        if not match:
+            return
+        barcode = match.group(1)
+        payload_text = match.group(2)
+        try:
+            payload = json.loads(payload_text)
+        except (ValueError, TypeError):
+            payload = None
+        if isinstance(payload, dict):
+            reason = payload.get("reason", payload_text)
             task_state.add_phase2_warning(
                 barcode=barcode,
                 reason=reason,
-                locations=locations,
+                locations=[],
+                stockpile_stores=payload.get("stockpile_stores", []),
+                stockpile_warehouses=payload.get("stockpile_warehouses", []),
+                scan_stores=payload.get("scan_stores", []),
+                scan_warehouses=payload.get("scan_warehouses", []),
             )
+            return
+        locations = re.findall(r"'([^']+)'", payload_text)
+        task_state.add_phase2_warning(
+            barcode=barcode,
+            reason=payload_text,
+            locations=locations,
+        )
 
 
 def handle_phase_two_return_code(return_code: int) -> bool:

@@ -90,10 +90,27 @@ class TaskState:
                 new_barcode if b == old_barcode else b for b in self._data.new_barcodes
             ]
 
-    def add_phase2_warning(self, barcode: str, reason: str, locations: list[str]) -> None:
+    def add_phase2_warning(
+        self,
+        barcode: str,
+        reason: str,
+        locations: list[str],
+        stockpile_stores: list[str] | None = None,
+        stockpile_warehouses: list[str] | None = None,
+        scan_stores: list[str] | None = None,
+        scan_warehouses: list[str] | None = None,
+    ) -> None:
         with self._lock:
             self._data.phase2_warnings.append(
-                Phase2Warning(barcode=barcode, reason=reason, locations=locations)
+                Phase2Warning(
+                    barcode=barcode,
+                    reason=reason,
+                    locations=locations,
+                    stockpile_stores=stockpile_stores or [],
+                    stockpile_warehouses=stockpile_warehouses or [],
+                    scan_stores=scan_stores or [],
+                    scan_warehouses=scan_warehouses or [],
+                )
             )
 
     def update_phase2_warning(self, barcode: str, **changes) -> None:

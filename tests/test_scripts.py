@@ -9,7 +9,12 @@ from update_location_phase1 import (
     detect_barcode_outliers,
     detect_invalid_locations,
 )
-from update_location_phase2 import build_phase_two_results, compose_location, parse_locations
+from update_location_phase2 import (
+    build_phase_two_results,
+    categorize_locations,
+    compose_location,
+    parse_locations,
+)
 
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_tmp"
 
@@ -118,6 +123,39 @@ class PhaseTwoTests(unittest.TestCase):
         )
         self.assertEqual(unmatched_barcodes, ["444"])
 
+    def test_build_phase_two_results_emits_multi_location_payload(self) -> None:
+        location_map = {"111": ["A-02-02", "B-03-03", "X-04-04"]}
+        system_records = {
+            "111": {"model": "M-111", "stockpile_location": "A-01-01/X-01-01"},
+        }
+
+        results, new_barcodes, exceptions, _ = build_phase_two_results(
+            location_map, system_records
+        )
+
+        self.assertEqual(results, [])
+        self.assertEqual(new_barcodes, [])
+        self.assertEqual(len(exceptions), 1)
+        barcode, reason, payload = exceptions[0]
+        self.assertEqual(barcode, "111")
+        self.assertEqual(reason, "multi_location")
+        self.assertEqual(payload["stockpile_stores"], ["A-01-01"])
+        self.assertEqual(payload["stockpile_warehouses"], ["X-01-01"])
+        self.assertEqual(payload["scan_stores"], ["A-02-02", "B-03-03"])
+        self.assertEqual(payload["scan_warehouses"], ["X-04-04"])
+
+    def test_build_phase_two_results_flags_stockpile_multi_even_when_scan_single(self) -> None:
+        location_map = {"111": ["B-02-02"]}
+        system_records = {
+            "111": {"model": "M-111", "stockpile_location": "A-01-01/A-02-02/X-01-01"},
+        }
+
+        _, _, exceptions, _ = build_phase_two_results(location_map, system_records)
+
+        self.assertEqual(len(exceptions), 1)
+        self.assertEqual(exceptions[0][1], "multi_location")
+        self.assertEqual(exceptions[0][2]["stockpile_stores"], ["A-01-01", "A-02-02"])
+
     def test_parse_locations_splits_store_and_warehouse(self) -> None:
         store, warehouse, issue = parse_locations(["A-01-01", "X-02-03"])
 
@@ -128,6 +166,21 @@ class PhaseTwoTests(unittest.TestCase):
 
         self.assertEqual((store, warehouse), (None, None))
         self.assertEqual(issue, "duplicate_locations store=[A-01-01,B-01-01]")
+
+    def test_categorize_locations_collects_multi_sides_and_dedupes(self) -> None:
+        stores, warehouses, error = categorize_locations(
+            ["A-01-01", "B-02-02", "A-01-01", "X-03-03"]
+        )
+
+        self.assertIsNone(error)
+        self.assertEqual(stores, ["A-01-01", "B-02-02"])
+        self.assertEqual(warehouses, ["X-03-03"])
+
+    def test_categorize_locations_rejects_unknown_prefix(self) -> None:
+        stores, warehouses, error = categorize_locations(["A-01-01", "Q-02"])
+
+        self.assertEqual((stores, warehouses), ([], []))
+        self.assertEqual(error, "unknown location prefix: Q-02")
 
     def test_compose_location_prefers_new_values_and_keeps_existing_warehouse(self) -> None:
         final_location = compose_location(
