@@ -12,6 +12,7 @@ from update_location_phase1 import (
     detect_barcode_outliers,
     detect_invalid_locations,
 )
+import update_location
 from update_location_phase2 import (
     build_phase_two_results,
     categorize_locations,
@@ -271,6 +272,44 @@ class WritePhase2ResultsTests(unittest.TestCase):
         payload = get_payload(loaded_exceptions[0])
         self.assertEqual(payload["stockpile_stores"], ["A5"])
         self.assertEqual(payload["scan_warehouses"], ["Z7"])
+
+
+class LoadPhase2ResultsTests(unittest.TestCase):
+    def setUp(self) -> None:
+        TEST_TMP_DIR.mkdir(exist_ok=True)
+        self.temp_results = TEST_TMP_DIR / "phase3_results_test.json"
+        self.patch_file = mock.patch.object(
+            update_location, "TEMP_RESULTS_FILE", self.temp_results
+        )
+        self.patch_file.start()
+
+    def tearDown(self) -> None:
+        self.patch_file.stop()
+        if self.temp_results.exists():
+            self.temp_results.unlink()
+
+    def test_load_phase2_results_handles_3_element_exceptions(self) -> None:
+        data = {
+            "results": [{"model": "M1", "location": "A-01/X-01"}],
+            "new_barcodes": [],
+            "exceptions": [
+                ["555", "multi_location", {"stockpile_stores": ["A-01"], "scan_warehouses": ["X-02"]}],
+                ["666", "scan issue"],
+            ],
+            "unmatched_barcodes": [],
+            "employee_name": "tester",
+            "scan_files": [],
+            "barcode_model_map": {},
+            "stockpile_path": "stockpile.csv",
+        }
+        self.temp_results.write_text(json.dumps(data), encoding="utf-8")
+        loaded = update_location.load_phase2_results()
+        self.assertIsNotNone(loaded)
+        self.assertEqual(len(loaded["exceptions"]), 2)
+        self.assertEqual(loaded["exceptions"][0][0], "555")
+        self.assertEqual(loaded["exceptions"][0][1], "multi_location")
+        self.assertEqual(loaded["exceptions"][1][0], "666")
+        self.assertEqual(loaded["exceptions"][1][1], "scan issue")
 
 
 if __name__ == "__main__":

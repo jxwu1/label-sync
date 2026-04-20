@@ -124,7 +124,7 @@ def main() -> int:
 
     results = results_data["results"]
     new_barcodes = results_data["new_barcodes"]
-    exceptions = [(barcode, reason) for barcode, reason in results_data["exceptions"]]
+    exceptions = [(entry[0], entry[1]) for entry in results_data["exceptions"]]
     unmatched_barcodes = results_data["unmatched_barcodes"]
     employee_name = results_data["employee_name"]
     scan_files = [Path(path) for path in results_data["scan_files"]]
