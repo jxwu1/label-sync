@@ -1,3 +1,7 @@
+import { esc, logClass, setupDropZone, postJSON } from "./shared.js";
+import { uploadTransferFiles, loadTransferFiles, deleteTransferFile } from "./transfer.js";
+import { sendTextMessage, loadMessages, deleteMessage } from "./messaging.js";
+
 (function () {
   const bar = document.getElementById("terminalBar");
   const handle = document.getElementById("terminalDragHandle");
@@ -46,10 +50,6 @@
 const terminalBody = document.getElementById("terminalBody");
 let terminalLines = [];
 
-function escapeHtml(value) {
-  return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
 function termLog(text, cls) {
   const now = new Date().toLocaleTimeString("zh-CN", {
     hour: "2-digit",
@@ -64,7 +64,7 @@ function renderTerminal() {
   terminalBody.innerHTML = terminalLines
     .map(
       (line) =>
-        `<span class="log-dim">${line.time} </span><span class="${line.cls || ""}">${escapeHtml(line.text)}</span>`,
+        `<span class="log-dim">${line.time} </span><span class="${line.cls || ""}">${esc(line.text)}</span>`,
     )
     .join("\n");
   terminalBody.scrollTop = terminalBody.scrollHeight;
@@ -73,19 +73,6 @@ function renderTerminal() {
 function clearLog() {
   terminalLines = [];
   terminalBody.innerHTML = '<span class="log-dim">日志已清空</span>';
-}
-
-function logClass(text) {
-  if (/错误|Error|失败/.test(text)) {
-    return "log-err";
-  }
-  if (/警告|异常/.test(text)) {
-    return "log-warn";
-  }
-  if (/完成|成功/.test(text)) {
-    return "log-ok";
-  }
-  return "";
 }
 
 const navDrawer = document.getElementById("navDrawer");
@@ -116,15 +103,9 @@ let knownOutputs = new Set();
 let statusKnown = "";
 
 function fileIcon(name) {
-  if (name.endsWith(".xlsx")) {
-    return "表";
-  }
-  if (name.endsWith(".csv")) {
-    return "表";
-  }
-  if (name.endsWith(".zip")) {
-    return "包";
-  }
+  if (name.endsWith(".xlsx")) return "表";
+  if (name.endsWith(".csv")) return "表";
+  if (name.endsWith(".zip")) return "包";
   return "文";
 }
 
@@ -287,88 +268,34 @@ const bFileInput = document.getElementById("bFileInput");
 const transferFileList = document.getElementById("transferFileList");
 const transferMsg = document.getElementById("transferMsg");
 
-bDropZone.addEventListener("click", () => bFileInput.click());
-bDropZone.addEventListener("dragover", (event) => {
-  event.preventDefault();
-  bDropZone.classList.add("dragover");
+setupDropZone(bDropZone, bFileInput, (files) => {
+  uploadTransferFiles(files, transferMsg).then(() => loadTransfer());
 });
-bDropZone.addEventListener("dragleave", () => bDropZone.classList.remove("dragover"));
-bDropZone.addEventListener("drop", (event) => {
-  event.preventDefault();
-  bDropZone.classList.remove("dragover");
-  uploadTransfer(event.dataTransfer.files);
-});
-bFileInput.addEventListener("change", () => {
-  uploadTransfer(bFileInput.files);
-  bFileInput.value = "";
-});
-
-async function uploadTransfer(files) {
-  if (!files.length) {
-    return;
-  }
-  const formData = new FormData();
-  [...files].forEach((file) => formData.append("files", file));
-  transferMsg.style.color = "#60a5fa";
-  transferMsg.textContent = "上传中...";
-  try {
-    const response = await fetch("/transfer_upload", { method: "POST", body: formData });
-    const data = await response.json();
-    if (data.ok) {
-      transferMsg.style.color = "#4ade80";
-      transferMsg.textContent = `已发送 ${data.saved.length} 个文件`;
-      loadTransfer();
-    } else {
-      transferMsg.style.color = "#f87171";
-      transferMsg.textContent = "上传失败：" + data.msg;
-    }
-  } catch (error) {
-    transferMsg.style.color = "#f87171";
-    transferMsg.textContent = "上传失败";
-  }
-  setTimeout(() => {
-    transferMsg.textContent = "";
-  }, 3000);
-}
 
 async function loadTransfer() {
-  try {
-    const response = await fetch("/transfer_list");
-    const items = await response.json();
-    if (!items.length) {
-      transferFileList.innerHTML = '<div class="t-empty">暂无</div>';
-      return;
-    }
-    transferFileList.innerHTML = items
-      .map(
-        (file) => `
-        <div class="t-file-item">
-          <span class="t-file-name" title="${file.name}">${file.name}</span>
-          <span class="t-file-size">${file.size}KB</span>
-          <div class="t-actions">
-            <a class="btn-tdl" href="/transfer_download/${encodeURIComponent(file.name)}">下载</a>
-            <button class="btn-tdel" onclick="deleteTransfer('${file.name}')">删除</button>
-          </div>
-        </div>`,
-      )
-      .join("");
-  } catch (error) {}
+  const items = await loadTransferFiles();
+  if (!items.length) {
+    transferFileList.innerHTML = '<div class="t-empty">暂无</div>';
+    return;
+  }
+  transferFileList.innerHTML = items
+    .map(
+      (file) => `
+      <div class="t-file-item">
+        <span class="t-file-name" title="${file.name}">${file.name}</span>
+        <span class="t-file-size">${file.size}KB</span>
+        <div class="t-actions">
+          <a class="btn-tdl" href="/transfer_download/${encodeURIComponent(file.name)}">下载</a>
+          <button class="btn-tdel" onclick="deleteTransfer('${file.name}')">删除</button>
+        </div>
+      </div>`,
+    )
+    .join("");
 }
 
 async function deleteTransfer(filename) {
-  try {
-    const response = await fetch("/transfer_delete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filename }),
-    });
-    const data = await response.json();
-    if (data.ok) {
-      loadTransfer();
-    } else {
-      alert("删除失败：" + data.msg);
-    }
-  } catch (error) {}
+  await deleteTransferFile(filename);
+  loadTransfer();
 }
 window.deleteTransfer = deleteTransfer;
 
@@ -378,9 +305,7 @@ const btnTextCopy = document.getElementById("btnTextCopy");
 const textMsgList = document.getElementById("textMsgList");
 
 btnTextCopy.addEventListener("click", () => {
-  if (!textInput.value) {
-    return;
-  }
+  if (!textInput.value) return;
   navigator.clipboard.writeText(textInput.value).then(() => {
     btnTextCopy.textContent = "已复制";
     btnTextCopy.classList.add("copied");
@@ -400,17 +325,10 @@ textInput.addEventListener("keydown", (event) => {
 
 async function sendText() {
   const text = textInput.value.trim();
-  if (!text) {
-    return;
-  }
+  if (!text) return;
   btnTextSend.disabled = true;
   try {
-    const response = await fetch("/text_send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, sender: "B" }),
-    });
-    const data = await response.json();
+    const data = await sendTextMessage(text, "B");
     if (data.ok) {
       textInput.value = "";
       loadTextMsgs();
@@ -420,37 +338,28 @@ async function sendText() {
 }
 
 async function loadTextMsgs() {
-  try {
-    const response = await fetch("/text_list");
-    const messages = await response.json();
-    if (!messages.length) {
-      textMsgList.innerHTML = '<div class="t-empty">暂无消息</div>';
-      return;
-    }
-    textMsgList.innerHTML = messages
-      .map(
-        (message) => `
-        <div class="msg-item${message.sender === "B" ? " from-self" : ""}">
-          <div class="msg-header">
-            <span class="msg-sender">${message.sender === "B" ? "我（B）" : "A 端"}</span>
-            <span><span class="msg-time">${message.time}</span><button class="btn-mdel" onclick="deleteTextMsg(${message.id})">×</button></span>
-          </div>
-          <div class="msg-body">${escapeHtml(message.text)}</div>
-        </div>`,
-      )
-      .join("");
-  } catch (error) {}
+  const messages = await loadMessages();
+  if (!messages.length) {
+    textMsgList.innerHTML = '<div class="t-empty">暂无消息</div>';
+    return;
+  }
+  textMsgList.innerHTML = messages
+    .map(
+      (message) => `
+      <div class="msg-item${message.sender === "B" ? " from-self" : ""}">
+        <div class="msg-header">
+          <span class="msg-sender">${message.sender === "B" ? "我（B）" : "A 端"}</span>
+          <span><span class="msg-time">${message.time}</span><button class="btn-mdel" onclick="deleteTextMsg(${message.id})">×</button></span>
+        </div>
+        <div class="msg-body">${esc(message.text)}</div>
+      </div>`,
+    )
+    .join("");
 }
 
 async function deleteTextMsg(id) {
-  try {
-    await fetch("/text_delete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
-    loadTextMsgs();
-  } catch (error) {}
+  await deleteMessage(id);
+  loadTextMsgs();
 }
 window.deleteTextMsg = deleteTextMsg;
 

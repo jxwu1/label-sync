@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 from config import CONFIG
+from file_io import find_latest_stockpile_file, find_single_file
 from state import (
     PHASE_EXIT_LOCATION_FORMAT_ERROR,
     PHASE_EXIT_OK,
@@ -18,23 +19,15 @@ VALID_LOCATION_PREFIXES = {"A", "B", "C", "X", "Z"}
 INPUT_DIR = CONFIG.input_dir
 TEMP_MAPPING_FILE = CONFIG.temp_mapping_file
 
-_BARCODE_LENGTH_TOLERANCE = 2  # 条码长度相对中位数的最大允许偏差（超出则告警）
+_BARCODE_LENGTH_TOLERANCE = 2
 
 
-def find_single_file(pattern: str, description: str) -> Path:
-    files = sorted(INPUT_DIR.glob(pattern))
-    if not files:
-        print(f"ERROR: missing {description} in input/")
-        raise SystemExit(1)
-    return files[0]
-
-
-def find_latest_stockpile_file() -> Path:
-    files = list(INPUT_DIR.glob("*stockpile*.csv"))
-    if not files:
+def find_latest_stockpile_file_or_exit() -> Path:
+    result = find_latest_stockpile_file(INPUT_DIR)
+    if result is None:
         print("ERROR: missing stockpile csv in input/")
         raise SystemExit(1)
-    return max(files, key=lambda path: path.stat().st_mtime)
+    return result
 
 
 def collect_location_map(scan_files: list[Path]) -> dict[str, list[str]]:
@@ -137,10 +130,13 @@ def save_temp_mapping(
 
 
 def main() -> int:
-    template_file = find_single_file("*模板*.csv", "template csv")
+    template_file = find_single_file(INPUT_DIR, "*模板*.csv")
+    if template_file is None:
+        print("ERROR: missing template csv in input/")
+        return 1
     print(f"TEMPLATE {template_file.name}")
 
-    stockpile_file = find_latest_stockpile_file()
+    stockpile_file = find_latest_stockpile_file_or_exit()
     print(f"STOCKPILE {stockpile_file.name}")
 
     scan_files = sorted(INPUT_DIR.glob("*.xlsx"))

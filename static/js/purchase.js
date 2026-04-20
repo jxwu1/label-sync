@@ -1,3 +1,5 @@
+import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shared.js";
+
 (function () {
   let storedSupplierFile = null;
   let rows = [];
@@ -30,16 +32,12 @@
       </div>`;
     const drop = document.getElementById('purDrop');
     const input = document.getElementById('purInput');
-    drop.addEventListener('click', () => input.click());
-    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
-    drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
-    drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('drag'); handleFiles(e.dataTransfer.files); });
-    input.addEventListener('change', () => { handleFiles(input.files); input.value = ''; });
+    setupDropZone(drop, input, (files) => handleFiles(files));
     document.getElementById('purCopy').addEventListener('click', copyAll);
     document.getElementById('purNewCopyAll').addEventListener('click', copyNewBarcodes);
     document.getElementById('purDl').addEventListener('click', downloadZip);
-    document.getElementById('purSupId').addEventListener('input', e => { supplierInfo.id = e.target.value.trim(); updateButtons(); });
-    document.getElementById('purSupName').addEventListener('input', e => { supplierInfo.name = e.target.value.trim(); updateButtons(); });
+    document.getElementById('purSupId').addEventListener('input', (e) => { supplierInfo.id = e.target.value.trim(); updateButtons(); });
+    document.getElementById('purSupName').addEventListener('input', (e) => { supplierInfo.name = e.target.value.trim(); updateButtons(); });
   }
 
   async function handleFiles(files) {
@@ -101,14 +99,8 @@
       setTimeout(() => { btn.textContent = '复制全部条码'; btn.classList.remove('copied'); }, 2000);
     };
     try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(text); done(); return;
-      }
-      const ta = document.createElement('textarea');
-      ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
-      document.body.appendChild(ta); ta.select();
-      if (document.execCommand('copy')) done();
-      document.body.removeChild(ta);
+      await copyToClip(text);
+      done();
     } catch (e) { setStatus('复制失败：' + e.message, true); }
   }
 
@@ -234,14 +226,8 @@
       setTimeout(() => { btn.textContent = '一键复制'; btn.classList.remove('copied'); }, 2000);
     };
     try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(text); done(); return;
-      }
-      const ta = document.createElement('textarea');
-      ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
-      document.body.appendChild(ta); ta.select();
-      const ok = document.execCommand('copy'); document.body.removeChild(ta);
-      if (ok) done(); else setStatus('复制失败：浏览器不允许', true);
+      await copyToClip(text);
+      done();
     } catch (e) { setStatus('复制失败：' + e.message, true); }
   }
 
@@ -276,13 +262,6 @@
     if (!el) return;
     el.textContent = msg;
     el.className = 'pur-status' + (isError ? ' error' : '');
-  }
-
-  function escapeAttr(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-  }
-  function escapeHtml(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
   document.addEventListener('DOMContentLoaded', function () {

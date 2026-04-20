@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 from config import CONFIG
+from file_io import find_latest_stockpile_file, read_csv
 from state import PHASE_EXIT_OK, PHASE_EXIT_REVIEW_REQUIRED
 
 INPUT_DIR = CONFIG.input_dir
@@ -13,13 +14,6 @@ TEMP_RESULTS_FILE = CONFIG.temp_results_file
 
 STORE_PREFIXES = {"A", "B", "C"}
 WAREHOUSE_PREFIXES = {"X", "Z"}
-
-
-def read_csv(path: Path) -> pd.DataFrame:
-    try:
-        return pd.read_csv(path, dtype=str, encoding="utf-8")
-    except UnicodeDecodeError:
-        return pd.read_csv(path, dtype=str, encoding=CONFIG.csv_fallback_encoding)
 
 
 def classify_location(location: str) -> str | None:
@@ -188,13 +182,6 @@ def build_phase_two_results(
     return results, new_barcodes, exceptions, unmatched_barcodes
 
 
-def find_latest_stockpile_file() -> Path | None:
-    stockpile_files = list(INPUT_DIR.glob("*stockpile*.csv"))
-    if not stockpile_files:
-        return None
-    return max(stockpile_files, key=lambda path: path.stat().st_mtime)
-
-
 def load_phase1_mapping() -> dict | None:
     if not TEMP_MAPPING_FILE.exists():
         print("ERROR: missing phase1 temp mapping")
@@ -267,7 +254,7 @@ def main() -> int:
     print(f"EMPLOYEE {employee_name}")
     print(f"SCAN_COUNT {len(location_map)}")
 
-    stockpile_path = find_latest_stockpile_file()
+    stockpile_path = find_latest_stockpile_file(INPUT_DIR)
     if stockpile_path is None:
         print("ERROR: missing stockpile csv")
         return 1

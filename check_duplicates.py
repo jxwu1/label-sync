@@ -2,19 +2,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
-
-
-def read_input_file(path: Path) -> pd.DataFrame | None:
-    suffix = path.suffix.lower()
-    if suffix in {".xlsx", ".xls"}:
-        return pd.read_excel(path, header=0, dtype=str)
-    if suffix == ".csv":
-        try:
-            return pd.read_csv(path, dtype=str, encoding="utf-8-sig")
-        except UnicodeDecodeError:
-            return pd.read_csv(path, dtype=str, encoding="gbk")
-    return None
+from file_io import read_input_file
 
 
 def check_duplicates(filepath: str | Path) -> dict[str, Any]:

@@ -1,21 +1,22 @@
 import csv
-import json
 from pathlib import Path
 
+from file_io import update_json_file
 from output_repository import latest_output_csv
 from schemas import ServiceResult
 from state import TEMP_MAPPING_FILE, TEMP_RESULTS_FILE, task_state
 
 
 def _correct_in_phase1_mapping(old_barcode: str, new_barcode: str) -> ServiceResult:
-    try:
-        with TEMP_MAPPING_FILE.open("r", encoding="utf-8") as file:
-            temp = json.load(file)
+    def _modifier(temp: dict) -> None:
         if old_barcode not in temp["location_map"]:
-            return ServiceResult(ok=False, payload={"msg": f"未找到条码：{old_barcode}"}, status_code=404)
+            raise KeyError(f"未找到条码：{old_barcode}")
         temp["location_map"][new_barcode] = temp["location_map"].pop(old_barcode)
-        with TEMP_MAPPING_FILE.open("w", encoding="utf-8") as file:
-            json.dump(temp, file, ensure_ascii=False, indent=2)
+
+    try:
+        update_json_file(TEMP_MAPPING_FILE, _modifier)
+    except KeyError:
+        return ServiceResult(ok=False, payload={"msg": f"未找到条码：{old_barcode}"}, status_code=404)
     except Exception as exc:
         return ServiceResult(ok=False, payload={"msg": str(exc)}, status_code=500)
     task_state.update_barcode_warning(old_barcode, corrected=True, new_barcode=new_barcode)
@@ -49,14 +50,18 @@ def _load_stockpile_records(stockpile_path: str) -> dict[str, dict[str, str]]:
 
 def _correct_new_barcode(old_barcode: str, new_barcode: str) -> ServiceResult:
     from update_location_phase2 import compose_location, parse_system_location
+
     if not TEMP_RESULTS_FILE.exists():
         return ServiceResult(ok=False, payload={"msg": "找不到阶段二结果文件"}, status_code=404)
-    try:
-        with TEMP_RESULTS_FILE.open("r", encoding="utf-8") as file:
-            data = json.load(file)
+
+    mismatch = None
+
+    def _modifier(data: dict) -> None:
+        nonlocal mismatch
         new_list: list[str] = data.get("new_barcodes", [])
         if old_barcode not in new_list:
-            return ServiceResult(ok=False, payload={"msg": f"未找到新条码：{old_barcode}"}, status_code=404)
+            mismatch = f"未找到新条码：{old_barcode}"
+            return
 
         entry_idx = next(
             (i for i, r in enumerate(data["results"]) if r.get("model") == old_barcode),
@@ -70,13 +75,15 @@ def _correct_new_barcode(old_barcode: str, new_barcode: str) -> ServiceResult:
             system_item = records[new_barcode]
             old_store, old_warehouse, system_issue = parse_system_location(system_item["stockpile_location"])
             if system_issue:
-                return ServiceResult(ok=False, payload={"msg": f"stockpile 库位异常：{system_issue}"}, status_code=400)
+                mismatch = f"stockpile 库位异常：{system_issue}"
+                return
             scan_store, scan_warehouse, _ = parse_system_location(
                 data["results"][entry_idx]["location"] if entry_idx is not None else ""
             )
             final_location = compose_location(old_store, old_warehouse, scan_store, scan_warehouse)
             if not final_location:
-                return ServiceResult(ok=False, payload={"msg": "合成最终库位失败"}, status_code=400)
+                mismatch = "合成最终库位失败"
+                return
             if entry_idx is not None:
                 data["results"][entry_idx] = {"model": system_item["model"], "location": final_location}
             new_list.remove(old_barcode)
@@ -92,10 +99,14 @@ def _correct_new_barcode(old_barcode: str, new_barcode: str) -> ServiceResult:
             task_state.replace_new_barcode(old_barcode, new_barcode)
 
         data["new_barcodes"] = new_list
-        with TEMP_RESULTS_FILE.open("w", encoding="utf-8") as file:
-            json.dump(data, file, ensure_ascii=False, indent=2)
+
+    try:
+        update_json_file(TEMP_RESULTS_FILE, _modifier)
     except Exception as exc:
         return ServiceResult(ok=False, payload={"msg": str(exc)}, status_code=500)
+    if mismatch:
+        status = 400 if "库位" in mismatch else 404
+        return ServiceResult(ok=False, payload={"msg": mismatch}, status_code=status)
     return ServiceResult(ok=True)
 
 
@@ -109,36 +120,38 @@ def correct_barcode(old_barcode: str, new_barcode: str) -> ServiceResult:
 
 
 def correct_location(old_location: str, new_location: str) -> ServiceResult:
-    try:
-        with TEMP_MAPPING_FILE.open("r", encoding="utf-8") as file:
-            temp = json.load(file)
-        updated = False
+    updated = False
+
+    def _modifier(temp: dict) -> None:
+        nonlocal updated
         for locations in temp["location_map"].values():
             if old_location in locations:
                 locations.remove(old_location)
                 if new_location not in locations:
                     locations.append(new_location)
                 updated = True
-        if not updated:
-            return ServiceResult(ok=False, payload={"msg": f"未找到库位：{old_location}"}, status_code=404)
-        with TEMP_MAPPING_FILE.open("w", encoding="utf-8") as file:
-            json.dump(temp, file, ensure_ascii=False, indent=2)
+
+    try:
+        update_json_file(TEMP_MAPPING_FILE, _modifier)
     except Exception as exc:
         return ServiceResult(ok=False, payload={"msg": str(exc)}, status_code=500)
+    if not updated:
+        return ServiceResult(ok=False, payload={"msg": f"未找到库位：{old_location}"}, status_code=404)
 
     task_state.update_location_warning(old_location, corrected=True, new_location=new_location)
     return ServiceResult(ok=True)
 
 
 def _delete_in_phase1_mapping(barcode: str) -> ServiceResult:
-    try:
-        with TEMP_MAPPING_FILE.open("r", encoding="utf-8") as file:
-            temp = json.load(file)
+    def _modifier(temp: dict) -> None:
         if barcode not in temp["location_map"]:
-            return ServiceResult(ok=False, payload={"msg": f"未找到条码：{barcode}"}, status_code=404)
+            raise KeyError(f"未找到条码：{barcode}")
         del temp["location_map"][barcode]
-        with TEMP_MAPPING_FILE.open("w", encoding="utf-8") as file:
-            json.dump(temp, file, ensure_ascii=False, indent=2)
+
+    try:
+        update_json_file(TEMP_MAPPING_FILE, _modifier)
+    except KeyError:
+        return ServiceResult(ok=False, payload={"msg": f"未找到条码：{barcode}"}, status_code=404)
     except Exception as exc:
         return ServiceResult(ok=False, payload={"msg": str(exc)}, status_code=500)
     task_state.update_barcode_warning(barcode, deleted=True)
@@ -174,20 +187,26 @@ def _delete_in_output_csv(barcode: str) -> ServiceResult:
 def _delete_new_barcode(barcode: str) -> ServiceResult:
     if not TEMP_RESULTS_FILE.exists():
         return ServiceResult(ok=False, payload={"msg": "找不到阶段二结果文件"}, status_code=404)
-    try:
-        with TEMP_RESULTS_FILE.open("r", encoding="utf-8") as file:
-            data = json.load(file)
+
+    not_found = None
+
+    def _modifier(data: dict) -> None:
+        nonlocal not_found
         new_list: list[str] = data.get("new_barcodes", [])
         if barcode not in new_list:
-            return ServiceResult(ok=False, payload={"msg": f"未找到新条码：{barcode}"}, status_code=404)
+            not_found = f"未找到新条码：{barcode}"
+            return
         data["results"] = [r for r in data["results"] if r.get("model") != barcode]
         new_list.remove(barcode)
         data["new_barcodes"] = new_list
         data.get("barcode_model_map", {}).pop(barcode, None)
-        with TEMP_RESULTS_FILE.open("w", encoding="utf-8") as file:
-            json.dump(data, file, ensure_ascii=False, indent=2)
+
+    try:
+        update_json_file(TEMP_RESULTS_FILE, _modifier)
     except Exception as exc:
         return ServiceResult(ok=False, payload={"msg": str(exc)}, status_code=500)
+    if not_found:
+        return ServiceResult(ok=False, payload={"msg": not_found}, status_code=404)
     task_state.remove_new_barcode(barcode)
     return ServiceResult(ok=True)
 
@@ -209,15 +228,14 @@ def resolve_phase2_exception(barcode: str, resolution: str) -> ServiceResult:
             status_code=404,
         )
 
-    try:
-        with TEMP_RESULTS_FILE.open("r", encoding="utf-8") as file:
-            data = json.load(file)
+    def _modifier(data: dict) -> None:
         data["exceptions"] = [exc for exc in data["exceptions"] if exc[0] != barcode]
         if resolution != "ignore":
             model = data.get("barcode_model_map", {}).get(barcode, barcode)
             data["results"].append({"model": model, "location": resolution})
-        with TEMP_RESULTS_FILE.open("w", encoding="utf-8") as file:
-            json.dump(data, file, ensure_ascii=False, indent=2)
+
+    try:
+        update_json_file(TEMP_RESULTS_FILE, _modifier)
     except Exception as exc:
         return ServiceResult(ok=False, payload={"msg": str(exc)}, status_code=500)
 

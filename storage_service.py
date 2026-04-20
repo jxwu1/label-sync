@@ -3,6 +3,7 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 
+from file_io import find_latest_stockpile_file
 from output_repository import latest_output_dir
 from path_helpers import safe_filename
 from schemas import ServiceResult
@@ -45,11 +46,8 @@ def save_uploaded_files(files, target_dir: Path) -> list[str]:
     return saved
 
 
-def find_latest_stockpile_file() -> Path | None:
-    stockpile_files = list(INPUT_DIR.glob("*stockpile*.csv"))
-    if not stockpile_files:
-        return None
-    return max(stockpile_files, key=lambda path: path.stat().st_mtime)
+def find_stockpile_file() -> Path | None:
+    return find_latest_stockpile_file(INPUT_DIR)
 
 
 def parse_date_from_filename(filename: str) -> datetime | None:
@@ -72,7 +70,7 @@ def parse_date_from_filename(filename: str) -> datetime | None:
 
 
 def validate_stockpile_is_today() -> tuple[bool, str | None]:
-    stockpile_path = find_latest_stockpile_file()
+    stockpile_path = find_stockpile_file()
     if stockpile_path is None:
         return False, "未找到系统导出文件，请先上传当天的 stockpile CSV"
 

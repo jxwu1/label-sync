@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 
 from config import CONFIG
+from file_io import find_latest_stockpile_file, read_csv
 
 INPUT_DIR = CONFIG.input_dir
 OUTPUT_DIR = CONFIG.output_dir
@@ -14,13 +15,6 @@ TRASH_DIR = CONFIG.trash_dir
 TEMP_RESULTS_FILE = CONFIG.temp_results_file
 
 TRASH_DIR.mkdir(exist_ok=True)
-
-
-def read_csv(path: Path) -> pd.DataFrame:
-    try:
-        return pd.read_csv(path, dtype=str, encoding="utf-8")
-    except UnicodeDecodeError:
-        return pd.read_csv(path, dtype=str, encoding=CONFIG.csv_fallback_encoding)
 
 
 def lookup_model(value, barcode_model_map: dict[str, str]) -> str:
