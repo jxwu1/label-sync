@@ -28,13 +28,13 @@ def _make_excel(data_rows: list[list]) -> bytes:
 
 
 class TestPurchaseRow(unittest.TestCase):
-    def test_formatted_two_decimal(self):
+    def test_formatted_four_decimal(self):
         row = PurchaseRow(barcode="1234567890123", price_raw="9.48", price=9.48, quantity=144, price_flagged=False)
-        self.assertEqual(row.formatted(), "1234567890123,9.48,,144")
+        self.assertEqual(row.formatted(), "1234567890123,9.4800,,144")
 
-    def test_formatted_pads_whole_number_to_two_decimal(self):
+    def test_formatted_pads_whole_number_to_four_decimal(self):
         row = PurchaseRow(barcode="1234567890123", price_raw="12", price=12.0, quantity=36, price_flagged=False)
-        self.assertEqual(row.formatted(), "1234567890123,12.00,,36")
+        self.assertEqual(row.formatted(), "1234567890123,12.0000,,36")
 
     def test_to_dict_has_expected_keys(self):
         row = PurchaseRow(barcode="1111", price_raw="5.0", price=5.0, quantity=10, price_flagged=False)
@@ -43,7 +43,7 @@ class TestPurchaseRow(unittest.TestCase):
         self.assertAlmostEqual(d["price"], 5.0)
         self.assertEqual(d["quantity"], 10)
         self.assertFalse(d["price_flagged"])
-        self.assertEqual(d["formatted"], "1111,5.00,,10")
+        self.assertEqual(d["formatted"], "1111,5.0000,,10")
 
 
 class TestParsePurchaseExcel(unittest.TestCase):
@@ -56,15 +56,17 @@ class TestParsePurchaseExcel(unittest.TestCase):
         self.assertEqual(rows[0].quantity, 144)
         self.assertFalse(rows[0].price_flagged)
 
-    def test_flags_price_with_more_than_two_decimals(self):
-        data = _make_excel([["1234567890123", "x", 9.4812, "x", "x", 10, "x"]])
-        rows = parse_purchase_excel(data)
-        self.assertTrue(rows[0].price_flagged)
-
-    def test_does_not_flag_trailing_zeros(self):
-        data = _make_excel([["1234567890123", "x", 9.480, "x", "x", 10, "x"]])
+    def test_rounds_price_beyond_four_decimals(self):
+        data = _make_excel([["1234567890123", "x", 9.48125, "x", "x", 10, "x"]])
         rows = parse_purchase_excel(data)
         self.assertFalse(rows[0].price_flagged)
+        self.assertAlmostEqual(rows[0].price, 9.4813)
+
+    def test_keeps_four_decimals_as_is(self):
+        data = _make_excel([["1234567890123", "x", 9.4812, "x", "x", 10, "x"]])
+        rows = parse_purchase_excel(data)
+        self.assertFalse(rows[0].price_flagged)
+        self.assertAlmostEqual(rows[0].price, 9.4812)
 
     def test_parses_multiple_data_rows_skips_header(self):
         data = _make_excel([

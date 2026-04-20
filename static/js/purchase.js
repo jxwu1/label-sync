@@ -204,13 +204,13 @@
     const i = +e.target.dataset.i;
     const val = e.target.value.trim();
     const price = parseFloat(val);
-    const decimals = val.includes('.') ? val.split('.')[1].replace(/0+$/, '').length : 0;
-    const valid = !isNaN(price) && decimals <= 2;
+    const valid = !isNaN(price) && isFinite(price);
     e.target.classList.toggle('valid', valid);
     if (valid) {
-      rows[i].price = price;
+      const rounded = Math.round(price * 10000) / 10000;
+      rows[i].price = rounded;
       rows[i].price_flagged = false;
-      rows[i].formatted = `${rows[i].barcode},${price.toFixed(2)},,${rows[i].quantity}`;
+      rows[i].formatted = `${rows[i].barcode},${rounded.toFixed(4)},,${rows[i].quantity}`;
     } else {
       rows[i].price_flagged = true;
     }

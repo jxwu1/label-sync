@@ -3,6 +3,7 @@ import io
 import math
 import zipfile
 from dataclasses import dataclass
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 import openpyxl
@@ -27,26 +28,23 @@ _TEMPLATE_INVOICE_NAME_COL = 4
 _TEMPLATE_SUPPLIER_ID_COL = 38
 _TEMPLATE_SUPPLIER_NAME_COL = 39
 
-_PRICE_MAX_DECIMALS = 2
+_PRICE_DECIMALS = 4
+_PRICE_QUANT = Decimal("0.0001")
 
 
-def _count_decimal_places(value) -> int:
-    s = str(float(value))
-    if '.' in s:
-        return len(s.split('.')[1].rstrip('0'))
-    return 0
+def _round_half_up(price: float) -> float:
+    return float(Decimal(str(price)).quantize(_PRICE_QUANT, rounding=ROUND_HALF_UP))
 
 
 def _parse_price(raw) -> tuple[float, bool]:
-    """返回 (价格, 是否需要人工复核)。NaN / 无法解析 / 小数位超限 均标记 flagged。"""
+    """返回 (价格, 是否需要人工复核)。超过4位自动四舍五入；NaN/无法解析才 flagged。"""
     try:
         price = float(raw)
     except (ValueError, TypeError):
         return 0.0, True
     if math.isnan(price) or math.isinf(price):
         return 0.0, True
-    flagged = _count_decimal_places(price) > _PRICE_MAX_DECIMALS
-    return price, flagged
+    return _round_half_up(price), False
 
 
 def _parse_quantity(raw) -> int:
@@ -65,7 +63,7 @@ class PurchaseRow:
     price_flagged: bool
 
     def formatted(self) -> str:
-        return f"{self.barcode},{self.price:.2f},,{self.quantity}"
+        return f"{self.barcode},{self.price:.4f},,{self.quantity}"
 
     def to_dict(self) -> dict:
         return {
