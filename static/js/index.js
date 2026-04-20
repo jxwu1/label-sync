@@ -378,60 +378,76 @@ function parseP2WFromLog(log) {
 
 const p2DupSel = {};
 const p2DupFixed = {};
-
-function parseDupLoc(reason) {
-  if (!reason.includes("duplicate_locations")) {
-    return null;
-  }
-  const storeMatch = reason.match(/store=\[([^\]]*)\]/);
-  const warehouseMatch = reason.match(/warehouse=\[([^\]]*)\]/);
-  return {
-    stores: storeMatch ? storeMatch[1].split(",").filter(Boolean) : [],
-    warehouses: warehouseMatch ? warehouseMatch[1].split(",").filter(Boolean) : [],
-  };
-}
-
 const KEEP_ALL = "__all__";
 
-function dupHighlight(barcode, type, loc) {
-  const key = barcode.replace(/\W/g, "_");
-  document.querySelectorAll(".dpbtn-" + type + "-" + key).forEach((button) => {
-    const match = button.dataset.loc === loc;
-    button.style.background = match ? "#c2410c" : "transparent";
-    button.style.color = match ? "#fff" : "#fb923c";
-  });
+function dedupeWithSources(stockpileLocs, scanLocs) {
+  const order = [];
+  const sources = {};
+  const add = (loc, src) => {
+    if (!loc) return;
+    if (!(loc in sources)) {
+      order.push(loc);
+      sources[loc] = new Set();
+    }
+    sources[loc].add(src);
+  };
+  (stockpileLocs || []).forEach((loc) => add(loc, "stockpile"));
+  (scanLocs || []).forEach((loc) => add(loc, "scan"));
+  return { uniques: order, sources };
+}
+
+function badgeFor(sourceSet) {
+  if (sourceSet.has("stockpile") && sourceSet.has("scan")) {
+    return '<span style="background:#4338ca;color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;margin-left:4px">两者</span>';
+  }
+  if (sourceSet.has("stockpile")) {
+    return '<span style="background:#6b7280;color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;margin-left:4px">原库位</span>';
+  }
+  return '<span style="background:#059669;color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;margin-left:4px">扫描</span>';
+}
+
+function effectiveSingle(side) {
+  if (side.scanLocs.length) return side.scanLocs[0];
+  if (side.stockpileLocs.length) return side.stockpileLocs[0];
+  return null;
 }
 
 function composeDupParts(fixed, sel) {
   const parts = [];
-  const storeChoice = sel.store || fixed.store;
-  if (storeChoice === KEEP_ALL) parts.push(...(fixed.stores || []));
-  else if (storeChoice) parts.push(storeChoice);
-  const warehouseChoice = sel.warehouse || fixed.warehouse;
-  if (warehouseChoice === KEEP_ALL) parts.push(...(fixed.warehouses || []));
-  else if (warehouseChoice) parts.push(warehouseChoice);
+  const pick = (side, choice) => {
+    if (!side) return [];
+    if (choice === KEEP_ALL) return side.uniques;
+    if (choice) return [choice];
+    const single = effectiveSingle(side);
+    return single ? [single] : [];
+  };
+  parts.push(...pick(fixed.store, sel.store));
+  parts.push(...pick(fixed.warehouse, sel.warehouse));
   return parts.join("/");
 }
 
-function dupSideSettled(fixed, sel, type) {
-  const multi = (fixed[type + "s"] || []).length > 1;
-  return !multi || Boolean(sel[type]);
+function dupSideSettled(side, choice) {
+  return !side || side.uniques.length <= 1 || Boolean(choice);
 }
 
 function dupTryResolve(barcode) {
   const fixed = p2DupFixed[barcode] || {};
   const sel = p2DupSel[barcode] || {};
-  const storeDone = dupSideSettled(fixed, sel, "store");
-  const warehouseDone = dupSideSettled(fixed, sel, "warehouse");
-  if (fixed.dupBoth) {
-    const key = barcode.replace(/\W/g, "_");
-    const confirmButton = document.getElementById("dpconf_" + key);
-    if (confirmButton) confirmButton.disabled = !(storeDone && warehouseDone);
-    return;
-  }
-  if (storeDone && warehouseDone) {
-    resolveEx(barcode, composeDupParts(fixed, sel));
-  }
+  const storeDone = dupSideSettled(fixed.store, sel.store);
+  const warehouseDone = dupSideSettled(fixed.warehouse, sel.warehouse);
+  const key = barcode.replace(/\W/g, "_");
+  const confirmButton = document.getElementById("dpconf_" + key);
+  if (confirmButton) confirmButton.disabled = !(storeDone && warehouseDone);
+}
+
+function dupHighlight(barcode, type, loc) {
+  const key = barcode.replace(/\W/g, "_");
+  document.querySelectorAll(".dpbtn-" + type + "-" + key).forEach((button) => {
+    const match = button.dataset.loc === loc;
+    const isKeep = button.dataset.loc === KEEP_ALL;
+    button.style.background = match ? (isKeep ? "#047857" : "#c2410c") : "transparent";
+    button.style.color = match ? "#fff" : "#fb923c";
+  });
 }
 
 function pickDupLoc(barcode, type, loc) {
@@ -443,54 +459,91 @@ function pickDupLoc(barcode, type, loc) {
 window.pickDupLoc = pickDupLoc;
 
 function keepAllDupLoc(barcode, type) {
-  if (!p2DupSel[barcode]) p2DupSel[barcode] = { store: null, warehouse: null };
-  p2DupSel[barcode][type] = KEEP_ALL;
-  dupHighlight(barcode, type, KEEP_ALL);
-  dupTryResolve(barcode);
+  pickDupLoc(barcode, type, KEEP_ALL);
 }
 window.keepAllDupLoc = keepAllDupLoc;
 
 function confirmDupLoc(barcode) {
   const fixed = p2DupFixed[barcode] || {};
   const sel = p2DupSel[barcode] || {};
-  resolveEx(barcode, composeDupParts(fixed, sel));
+  const value = composeDupParts(fixed, sel);
+  if (!value) return;
+  resolveEx(barcode, value);
 }
 window.confirmDupLoc = confirmDupLoc;
 
-function renderDupCard(warning, dup) {
-  const { stores, warehouses } = dup;
-  const dupBoth = stores.length > 1 && warehouses.length > 1;
+function buildDupSide(stockpileLocs, scanLocs) {
+  const { uniques, sources } = dedupeWithSources(stockpileLocs, scanLocs);
+  return { stockpileLocs: stockpileLocs || [], scanLocs: scanLocs || [], uniques, sources };
+}
+
+function renderDupSide(barcode, key, type, side, label, keepLabel) {
+  if (side.uniques.length === 0) return "";
+  if (side.uniques.length === 1) {
+    const loc = side.uniques[0];
+    return `<span class="sub">${label}：<span class="loc">${esc(loc)}</span>${badgeFor(side.sources[loc])} <span style="color:#4a5568">（自动保留）</span></span>`;
+  }
+  const sel = (p2DupSel[barcode] || {})[type];
+  const btns = side.uniques.map((loc) => {
+    const selected = sel === loc;
+    return `<button class="btn-s bc dpbtn-${type}-${key}" data-loc="${esc(loc)}" style="${selected ? "background:#c2410c;color:#fff" : ""}" onclick="pickDupLoc('${jesc(barcode)}','${type}','${jesc(loc)}')">${esc(loc)}${badgeFor(side.sources[loc])}</button>`;
+  }).join("");
+  const keepSelected = sel === KEEP_ALL;
+  const keepBtn = `<button class="btn-s bg dpbtn-${type}-${key}" data-loc="${KEEP_ALL}" style="${keepSelected ? "background:#047857;color:#fff" : ""}" onclick="keepAllDupLoc('${jesc(barcode)}','${type}')">${keepLabel}</button>`;
+  return `<div><div class="sub" style="margin-bottom:4px">选择${label}库位：</div><div class="actions">${btns}${keepBtn}</div></div>`;
+}
+
+function renderDupCard(warning) {
   const barcode = warning.barcode;
   const key = barcode.replace(/\W/g, "_");
-  p2DupFixed[barcode] = {
-    store: stores.length === 1 ? stores[0] : null,
-    warehouse: warehouses.length === 1 ? warehouses[0] : null,
-    stores,
-    warehouses,
-    dupBoth,
-  };
-  const selectedItem = p2DupSel[barcode] || {};
-  const mkBtn = (type, loc) => {
-    const selected = selectedItem[type] === loc;
-    return `<button class="btn-s bc dpbtn-${type}-${key}" data-loc="${esc(loc)}" style="${selected ? "background:#c2410c;color:#fff" : ""}" onclick="pickDupLoc('${jesc(barcode)}','${type}','${jesc(loc)}')">${esc(loc)}</button>`;
-  };
-  const mkKeepBtn = (type, label) => {
-    const selected = selectedItem[type] === KEEP_ALL;
-    return `<button class="btn-s bg dpbtn-${type}-${key}" data-loc="${KEEP_ALL}" style="${selected ? "background:#047857;color:#fff" : ""}" onclick="keepAllDupLoc('${jesc(barcode)}','${type}')">${label}</button>`;
-  };
-  let html = `<div class="warn"><div class="row"><div class="col"><span class="code">${esc(barcode)}</span><span class="sub" style="color:#fbbf24">扫描到多个库位冲突</span></div></div><div class="col" style="gap:8px;margin-top:8px">`;
-  if (stores.length === 1) {
-    html += `<span class="sub">店面：<span class="loc">${esc(stores[0])}</span> <span style="color:#4a5568">（自动保留）</span></span>`;
-  } else if (stores.length > 1) {
-    html += `<div><div class="sub" style="margin-bottom:4px">选择店面库位：</div><div class="actions">${stores.map((loc) => mkBtn("store", loc)).join("")}${mkKeepBtn("store", "保留全部店面")}</div></div>`;
-  }
-  if (warehouses.length === 1) {
-    html += `<span class="sub">仓库：<span class="loc">${esc(warehouses[0])}</span> <span style="color:#4a5568">（自动保留）</span></span>`;
-  } else if (warehouses.length > 1) {
-    html += `<div><div class="sub" style="margin-bottom:4px">选择仓库库位：</div><div class="actions">${warehouses.map((loc) => mkBtn("warehouse", loc)).join("")}${mkKeepBtn("warehouse", "保留全部仓库")}</div></div>`;
-  }
-  html += `</div><div class="actions" style="margin-top:8px">${dupBoth ? `<button class="btn-s bf" id="dpconf_${key}" disabled onclick="confirmDupLoc('${jesc(barcode)}')">确认选择</button>` : ""}<button class="btn-s bd" onclick="resolveEx('${jesc(barcode)}','ignore')">忽略</button></div></div>`;
+  const storeSide = buildDupSide(warning.stockpile_stores, warning.scan_stores);
+  const warehouseSide = buildDupSide(warning.stockpile_warehouses, warning.scan_warehouses);
+  p2DupFixed[barcode] = { store: storeSide, warehouse: warehouseSide };
+
+  const storeHtml = renderDupSide(barcode, key, "store", storeSide, "店面", "保留全部店面");
+  const warehouseHtml = renderDupSide(barcode, key, "warehouse", warehouseSide, "仓库", "保留全部仓库");
+  const html =
+    `<div class="warn"><div class="row"><div class="col"><span class="code">${esc(barcode)}</span><span class="sub" style="color:#fbbf24">多库位冲突，请手动选择</span></div></div>` +
+    `<div class="col" style="gap:8px;margin-top:8px">${storeHtml}${warehouseHtml}</div>` +
+    `<div class="actions" style="margin-top:8px"><button class="btn-s bf" id="dpconf_${key}" disabled onclick="confirmDupLoc('${jesc(barcode)}')">确认选择</button></div></div>`;
+  setTimeout(() => dupTryResolve(barcode), 0);
   return html;
+}
+
+function isUnknownPrefixWarning(warning) {
+  return typeof warning.reason === "string" && warning.reason.includes("unknown location prefix");
+}
+
+async function submitExLoc(barcode, inputId, buttonId) {
+  const input = document.getElementById(inputId);
+  const value = input ? input.value.trim() : "";
+  if (!value) {
+    if (input) input.focus();
+    return;
+  }
+  const button = document.getElementById(buttonId);
+  if (button) {
+    button.disabled = true;
+    button.textContent = "提交中...";
+  }
+  try {
+    await resolveEx(barcode, value);
+  } catch (error) {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "提交新库位";
+    }
+    alert("提交失败：" + error);
+  }
+}
+window.submitExLoc = submitExLoc;
+
+function renderUnknownPrefixCard(warning) {
+  const barcode = warning.barcode;
+  const key = barcode.replace(/\W/g, "_");
+  const inputId = `exli_${key}`;
+  const buttonId = `exlf_${key}`;
+  return `<div class="warn"><div class="row"><div class="col"><span class="code">${esc(barcode)}</span><span class="sub" style="color:#fbbf24">${esc(warning.reason)}</span></div></div><div class="actions" style="margin-top:8px"><input id="${inputId}" class="inp" placeholder="填写正确库位" /><button id="${buttonId}" class="btn-s bf" onclick="submitExLoc('${jesc(barcode)}','${inputId}','${buttonId}')">提交新库位</button><button class="btn-s bd" onclick="resolveEx('${jesc(barcode)}','ignore')">删除</button></div></div>`;
 }
 
 function renderP2Warnings(items) {
@@ -503,9 +556,11 @@ function renderP2Warnings(items) {
         if (warning.resolved) {
           return `<div class="warn"><div class="row"><div class="col"><span class="code" style="text-decoration:line-through;opacity:.45">${esc(warning.barcode)}</span><span class="sub">${esc(warning.reason)}</span></div><span class="${warning.resolution === "ignore" ? "tag-del" : "tag-ok"}">${warning.resolution === "ignore" ? "已忽略" : "已选 " + esc(warning.resolution)}</span></div></div>`;
         }
-        const dup = parseDupLoc(warning.reason);
-        if (dup) {
-          return renderDupCard(warning, dup);
+        if (warning.reason === "multi_location") {
+          return renderDupCard(warning);
+        }
+        if (isUnknownPrefixWarning(warning)) {
+          return renderUnknownPrefixCard(warning);
         }
         return `<div class="warn"><div class="row"><div class="col"><span class="code">${esc(warning.barcode)}</span><span class="sub">${esc(warning.reason)}</span></div><div class="actions">${(warning.locations || []).map((loc) => `<button class="btn-s bc" onclick="resolveEx('${jesc(warning.barcode)}','${jesc(loc)}')">选 ${esc(loc)}</button>`).join("")}<button class="btn-s bd" onclick="resolveEx('${jesc(warning.barcode)}','ignore')">忽略</button></div></div></div>`;
       })
