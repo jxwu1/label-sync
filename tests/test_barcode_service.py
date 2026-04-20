@@ -1,0 +1,102 @@
+import json
+import unittest
+from pathlib import Path
+from unittest import mock
+
+import pandas as pd
+
+import barcode_service
+
+TEST_TMP_DIR = Path(__file__).resolve().parent / "_tmp"
+
+
+def _write_stockpile(path: Path, records: list[dict]) -> None:
+    pd.DataFrame(records).to_csv(path, index=False, encoding="utf-8")
+
+
+def _results_fixture(stockpile_path: Path) -> dict:
+    return {
+        "results": [
+            {"model": "NEW_A", "location": "A1/X1"},
+            {"model": "NEW_B", "location": "B2"},
+            {"model": "MATCHED", "location": "A9/X9"},
+        ],
+        "new_barcodes": ["NEW_A", "NEW_B"],
+        "exceptions": [],
+        "unmatched_barcodes": [],
+        "employee_name": "tester",
+        "scan_files": [],
+        "barcode_model_map": {"NEW_A": "NEW_A", "NEW_B": "NEW_B", "MATCHED": "MATCHED_MODEL"},
+        "stockpile_path": str(stockpile_path),
+    }
+
+
+class NewBarcodeCorrectionTests(unittest.TestCase):
+    def setUp(self) -> None:
+        TEST_TMP_DIR.mkdir(exist_ok=True)
+        self.temp_results = TEST_TMP_DIR / "phase2_results.json"
+        self.stockpile = TEST_TMP_DIR / "stockpile.csv"
+        _write_stockpile(self.stockpile, [
+            {"product_barcode": "EXISTING", "product_model": "MODEL_X", "stockpile_location": "A5/X5"},
+        ])
+        self.temp_results.write_text(
+            json.dumps(_results_fixture(self.stockpile)), encoding="utf-8"
+        )
+        self.patch_file = mock.patch.object(barcode_service, "TEMP_RESULTS_FILE", self.temp_results)
+        self.patch_file.start()
+        self.patch_state = mock.patch.object(barcode_service, "task_state", autospec=True)
+        self.mock_state = self.patch_state.start()
+        self.mock_state.is_waiting.return_value = True
+        self.mock_state.waiting_stage.return_value = "phase2_review"
+
+    def tearDown(self) -> None:
+        self.patch_file.stop()
+        self.patch_state.stop()
+        for path in TEST_TMP_DIR.iterdir():
+            if path.is_file():
+                path.unlink()
+
+    def test_correct_to_stockpile_barcode_composes_location_and_drops_from_new(self) -> None:
+        result = barcode_service.correct_barcode("NEW_A", "EXISTING")
+        self.assertTrue(result.ok)
+        data = json.loads(self.temp_results.read_text(encoding="utf-8"))
+        self.assertNotIn("NEW_A", data["new_barcodes"])
+        entry = next(r for r in data["results"] if r["model"] == "MODEL_X")
+        # scan A1/X1 覆盖 stockpile A5/X5
+        self.assertEqual(entry["location"], "A1/X1")
+        self.assertEqual(data["barcode_model_map"]["EXISTING"], "MODEL_X")
+        self.assertNotIn("NEW_A", data["barcode_model_map"])
+        self.mock_state.remove_new_barcode.assert_called_once_with("NEW_A")
+
+    def test_correct_to_non_stockpile_barcode_replaces_id_keeps_location(self) -> None:
+        result = barcode_service.correct_barcode("NEW_A", "STILL_NEW")
+        self.assertTrue(result.ok)
+        data = json.loads(self.temp_results.read_text(encoding="utf-8"))
+        self.assertIn("STILL_NEW", data["new_barcodes"])
+        self.assertNotIn("NEW_A", data["new_barcodes"])
+        entry = next(r for r in data["results"] if r["model"] == "STILL_NEW")
+        self.assertEqual(entry["location"], "A1/X1")
+        self.mock_state.replace_new_barcode.assert_called_once_with("NEW_A", "STILL_NEW")
+
+    def test_correct_unknown_barcode_returns_404(self) -> None:
+        result = barcode_service.correct_barcode("NOT_IN_LIST", "EXISTING")
+        self.assertFalse(result.ok)
+        self.assertEqual(result.status_code, 404)
+
+    def test_delete_removes_entry_from_results_and_list(self) -> None:
+        result = barcode_service.delete_barcode("NEW_A")
+        self.assertTrue(result.ok)
+        data = json.loads(self.temp_results.read_text(encoding="utf-8"))
+        self.assertNotIn("NEW_A", data["new_barcodes"])
+        self.assertFalse(any(r["model"] == "NEW_A" for r in data["results"]))
+        self.assertNotIn("NEW_A", data["barcode_model_map"])
+        self.mock_state.remove_new_barcode.assert_called_once_with("NEW_A")
+
+    def test_delete_unknown_returns_404(self) -> None:
+        result = barcode_service.delete_barcode("NOT_IN_LIST")
+        self.assertFalse(result.ok)
+        self.assertEqual(result.status_code, 404)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -244,14 +244,115 @@ function renderNew(items) {
   if (!items.length) {
     return "";
   }
-  return '<div class="warn"><div class="col"><span class="sub">以下条码未在 stockpile 中找到，请确认后继续：</span></div></div>' +
-    items
-      .map(
-        (barcode) =>
-          `<div class="warn"><div class="row"><div class="col"><span class="code">${esc(barcode)}</span></div></div></div>`,
-      )
-      .join("");
+  const header = `<div class="warn"><div class="row"><div class="col"><span class="sub">以下条码未在 stockpile 中找到，可校正、删除或保留后继续：</span></div><div class="actions"><button class="btn-s bc" id="nbcopyall" onclick="copyAllNewBc()">一键复制</button></div></div></div>`;
+  return header + items
+    .map(
+      (barcode, index) =>
+        `<div class="warn" id="nb_${index}"><div class="row"><div class="col"><span class="code">${esc(barcode)}</span></div><div class="actions"><button class="btn-s bc" onclick="showNbEdit(${index})">校正</button><button class="btn-s bd" onclick="delNewBc('${jesc(barcode)}',${index})">删除</button></div></div><div class="form" id="nbf_${index}" style="display:none"><input id="nbi_${index}" placeholder="输入正确条码"><button class="btn-s bf" onclick="submitNewBc('${jesc(barcode)}',${index})">确认</button><button class="btn-s cx" onclick="hideNbEdit(${index})">取消</button></div></div>`,
+    )
+    .join("");
 }
+
+function showNbEdit(index) {
+  $("#nbf_" + index).style.display = "flex";
+  $("#nbi_" + index).focus();
+}
+window.showNbEdit = showNbEdit;
+
+function hideNbEdit(index) {
+  $("#nbf_" + index).style.display = "none";
+}
+window.hideNbEdit = hideNbEdit;
+
+async function copyAllNewBc() {
+  const items = Array.from(document.querySelectorAll('[id^="nb_"] .code')).map((el) => el.textContent);
+  if (!items.length) return;
+  const text = items.join("\n");
+  const button = document.getElementById("nbcopyall");
+  const done = () => {
+    if (!button) return;
+    button.textContent = "已复制 ✓";
+    setTimeout(() => { button.textContent = "一键复制"; }, 2000);
+  };
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      done();
+      return;
+    }
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    if (document.execCommand("copy")) done();
+    document.body.removeChild(ta);
+  } catch (error) {
+    alert("复制失败：" + error);
+  }
+}
+window.copyAllNewBc = copyAllNewBc;
+
+async function submitNewBc(oldBarcode, index) {
+  const input = $("#nbi_" + index);
+  const newBarcode = input.value.trim();
+  if (!newBarcode) {
+    input.focus();
+    return;
+  }
+  const button = document.querySelector(`#nbf_${index} .bf`);
+  button.disabled = true;
+  button.textContent = "提交中...";
+  try {
+    const response = await fetch("/correct", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ old_barcode: oldBarcode, new_barcode: newBarcode }),
+    });
+    const data = await response.json();
+    if (!data.ok) {
+      alert("校正失败：" + data.msg);
+      button.disabled = false;
+      button.textContent = "确认";
+      return;
+    }
+    term("新条码校正：" + oldBarcode + " -> " + newBarcode, "log-ok");
+    await reloadStatus();
+  } catch (error) {
+    alert("请求失败：" + error);
+    button.disabled = false;
+    button.textContent = "确认";
+  }
+}
+window.submitNewBc = submitNewBc;
+
+async function delNewBc(barcode, index) {
+  const button = document.querySelector(`#nb_${index} .bd`);
+  button.disabled = true;
+  button.textContent = "删除中...";
+  try {
+    const response = await fetch("/delete_barcode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ barcode }),
+    });
+    const data = await response.json();
+    if (!data.ok) {
+      alert("删除失败：" + data.msg);
+      button.disabled = false;
+      button.textContent = "删除";
+      return;
+    }
+    term("已删除新条码：" + barcode, "log-warn");
+    await reloadStatus();
+  } catch (error) {
+    alert("请求失败：" + error);
+    button.disabled = false;
+    button.textContent = "删除";
+  }
+}
+window.delNewBc = delNewBc;
 
 function parseP2WFromLog(log) {
   return (log || [])

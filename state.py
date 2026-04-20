@@ -80,6 +80,16 @@ class TaskState:
         with self._lock:
             self._data.new_barcodes.append(barcode)
 
+    def remove_new_barcode(self, barcode: str) -> None:
+        with self._lock:
+            self._data.new_barcodes = [b for b in self._data.new_barcodes if b != barcode]
+
+    def replace_new_barcode(self, old_barcode: str, new_barcode: str) -> None:
+        with self._lock:
+            self._data.new_barcodes = [
+                new_barcode if b == old_barcode else b for b in self._data.new_barcodes
+            ]
+
     def add_phase2_warning(self, barcode: str, reason: str, locations: list[str]) -> None:
         with self._lock:
             self._data.phase2_warnings.append(
