@@ -80,3 +80,23 @@ class TestCleanupExpired(unittest.TestCase):
         svc.cleanup_expired(reference_date=date(2026, 4, 1))
         self.assertFalse(old_file.exists())
         self.assertTrue(recent_file.exists())
+
+
+class TestBuildPdf(unittest.TestCase):
+    def setUp(self):
+        _TEST_DIR.mkdir(exist_ok=True)
+        svc._SUMMARY_DIR = _TEST_DIR
+
+    def tearDown(self):
+        shutil.rmtree(_TEST_DIR, ignore_errors=True)
+
+    def test_builds_pdf_bytes(self):
+        svc.save_record("ABC贸易", 12000.0, 1560.0, "2026-04-15", "2026-04")
+        svc.save_record("XYZ国际", 8500.0, 1105.0, "2026-04-18", "2026-04")
+        pdf_bytes = svc.build_pdf("2026-04")
+        self.assertGreater(len(pdf_bytes), 100)
+        self.assertTrue(pdf_bytes[:5] == b"%PDF-")
+
+    def test_empty_month_returns_pdf_with_no_records_note(self):
+        pdf_bytes = svc.build_pdf("2099-01")
+        self.assertTrue(pdf_bytes[:5] == b"%PDF-")
