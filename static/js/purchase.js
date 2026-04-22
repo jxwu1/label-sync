@@ -29,6 +29,30 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
         <div class="pur-status" id="purStatus"></div>
         <button class="pur-btn-copy" id="purCopy" disabled>一键复制</button>
         <button class="pur-btn-dl" id="purDl" disabled>下载全部</button>
+      </div>
+      <div class="pur-modal-overlay" id="purModalOverlay" style="display:none">
+        <div class="pur-modal">
+          <div class="pur-modal-title">记录到月度总结</div>
+          <label>供应商名称<input class="pur-inp" id="purMsSupplier" placeholder="必填"></label>
+          <label>总价 (€)<input class="pur-inp" id="purMsTotal" type="number" step="0.01"></label>
+          <label>税金 (€)<input class="pur-inp" id="purMsTax" type="number" step="0.01" placeholder="必填"></label>
+          <label>加税总价 (€)<input class="pur-inp" id="purMsTotalTax" disabled></label>
+          <label>开票日期<input class="pur-inp" id="purMsDate" type="date"></label>
+          <label>目标月份<input class="pur-inp" id="purMsMonth" type="month"></label>
+          <div class="pur-modal-actions">
+            <button class="pur-btn-dl" id="purMsConfirm">确认并导出</button>
+            <button class="pur-btn-copy" id="purMsSkip">跳过，直接导出</button>
+          </div>
+        </div>
+      </div>
+      <div class="pur-summary-section" id="purSummarySection">
+        <div class="pur-summary-hd">月度总结</div>
+        <div class="pur-summary-controls">
+          <select class="pur-inp" id="purSumMonth"></select>
+          <span id="purSumCount"></span>
+          <button class="pur-btn-copy" id="purSumAdd">补录</button>
+          <button class="pur-btn-dl" id="purSumDl">下载 PDF</button>
+        </div>
       </div>`;
     const drop = document.getElementById('purDrop');
     const input = document.getElementById('purInput');
@@ -38,6 +62,14 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     document.getElementById('purDl').addEventListener('click', downloadZip);
     document.getElementById('purSupId').addEventListener('input', (e) => { supplierInfo.id = e.target.value.trim(); updateButtons(); });
     document.getElementById('purSupName').addEventListener('input', (e) => { supplierInfo.name = e.target.value.trim(); updateButtons(); });
+    document.getElementById('purMsTax').addEventListener('input', updateTotalTax);
+    document.getElementById('purMsTotal').addEventListener('input', updateTotalTax);
+    document.getElementById('purMsConfirm').addEventListener('click', confirmWithSummary);
+    document.getElementById('purMsSkip').addEventListener('click', skipAndExport);
+    document.getElementById('purSumMonth').addEventListener('change', loadSummaryCount);
+    document.getElementById('purSumDl').addEventListener('click', downloadSummaryPdf);
+    document.getElementById('purSumAdd').addEventListener('click', openAddRecord);
+    loadSummaryMonths();
   }
 
   async function handleFiles(files) {
@@ -233,6 +265,65 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
 
   async function downloadZip() {
     if (!storedSupplierFile) return;
+    const totalPrice = rows.reduce((sum, r) => sum + r.price * r.quantity, 0);
+    const rounded = Math.round(totalPrice * 100) / 100;
+    document.getElementById('purMsTotal').value = rounded.toFixed(2);
+    document.getElementById('purMsTax').value = '';
+    document.getElementById('purMsTotalTax').value = '';
+    document.getElementById('purMsDate').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('purMsMonth').value = new Date().toISOString().slice(0, 7);
+    document.getElementById('purMsSupplier').value = '';
+    document.getElementById('purMsSkip').style.display = '';
+    document.getElementById('purMsConfirm').onclick = () => confirmWithSummary();
+    document.getElementById('purModalOverlay').style.display = 'flex';
+  }
+
+  function updateTotalTax() {
+    const total = parseFloat(document.getElementById('purMsTotal').value) || 0;
+    const tax = parseFloat(document.getElementById('purMsTax').value) || 0;
+    document.getElementById('purMsTotalTax').value = (total + tax).toFixed(2);
+  }
+
+  async function confirmWithSummary() {
+    const supplier = document.getElementById('purMsSupplier').value.trim();
+    const total = parseFloat(document.getElementById('purMsTotal').value);
+    const tax = parseFloat(document.getElementById('purMsTax').value);
+    const invoiceDate = document.getElementById('purMsDate').value;
+    const month = document.getElementById('purMsMonth').value;
+    if (!supplier || isNaN(tax) || !invoiceDate || !month) {
+      setStatus('请填写所有必填字段', true);
+      return;
+    }
+    try {
+      const res = await fetch('/monthly-summary/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          supplier_name: supplier,
+          total_price: total,
+          tax: tax,
+          invoice_date: invoiceDate,
+          month: month,
+        }),
+      });
+      const body = await res.json();
+      if (!body.ok) { setStatus(body.msg, true); return; }
+    } catch (e) {
+      setStatus('保存月度记录失败：' + e.message, true);
+      return;
+    }
+    document.getElementById('purModalOverlay').style.display = 'none';
+    await loadSummaryCount();
+    await doExport();
+  }
+
+  function skipAndExport() {
+    document.getElementById('purModalOverlay').style.display = 'none';
+    doExport();
+  }
+
+  async function doExport() {
+    if (!storedSupplierFile) return;
     const btn = document.getElementById('purDl');
     btn.disabled = true;
     const fd = new FormData();
@@ -255,6 +346,91 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
       URL.revokeObjectURL(url);
     } catch (e) { setStatus('下载失败：' + e.message, true); }
     finally { updateButtons(); }
+  }
+
+  async function loadSummaryMonths() {
+    try {
+      const res = await fetch('/monthly-summary/months');
+      const body = await res.json();
+      const sel = document.getElementById('purSumMonth');
+      if (!sel) return;
+      const current = new Date().toISOString().slice(0, 7);
+      const months = body.months || [];
+      if (!months.includes(current)) months.unshift(current);
+      sel.innerHTML = months.map(m => `<option value="${m}">${m}</option>`).join('');
+      await loadSummaryCount();
+    } catch (e) { /* silent */ }
+  }
+
+  async function loadSummaryCount() {
+    const month = document.getElementById('purSumMonth')?.value;
+    if (!month) return;
+    try {
+      const res = await fetch(`/monthly-summary/records/${month}`);
+      const body = await res.json();
+      const el = document.getElementById('purSumCount');
+      if (el) el.textContent = `${body.count || 0} 条记录`;
+    } catch (e) { /* silent */ }
+  }
+
+  async function downloadSummaryPdf() {
+    const month = document.getElementById('purSumMonth')?.value;
+    if (!month) return;
+    try {
+      const res = await fetch(`/monthly-summary/pdf/${month}`);
+      if (!res.ok) { setStatus('下载 PDF 失败', true); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `月度采购总结_${month}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) { setStatus('下载 PDF 失败：' + e.message, true); }
+  }
+
+  function openAddRecord() {
+    const month = document.getElementById('purSumMonth')?.value || new Date().toISOString().slice(0, 7);
+    document.getElementById('purMsTotal').value = '';
+    document.getElementById('purMsTax').value = '';
+    document.getElementById('purMsTotalTax').value = '';
+    document.getElementById('purMsDate').value = '';
+    document.getElementById('purMsMonth').value = month;
+    document.getElementById('purMsSupplier').value = '';
+    document.getElementById('purMsSkip').style.display = 'none';
+    document.getElementById('purMsConfirm').onclick = async () => {
+      const supplier = document.getElementById('purMsSupplier').value.trim();
+      const total = parseFloat(document.getElementById('purMsTotal').value);
+      const tax = parseFloat(document.getElementById('purMsTax').value);
+      const invoiceDate = document.getElementById('purMsDate').value;
+      const targetMonth = document.getElementById('purMsMonth').value;
+      if (!supplier || isNaN(total) || isNaN(tax) || !invoiceDate || !targetMonth) {
+        setStatus('请填写所有必填字段', true);
+        return;
+      }
+      try {
+        const res = await fetch('/monthly-summary/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            supplier_name: supplier,
+            total_price: total,
+            tax: tax,
+            invoice_date: invoiceDate,
+            month: targetMonth,
+          }),
+        });
+        const body = await res.json();
+        if (!body.ok) { setStatus(body.msg, true); return; }
+        setStatus('补录成功');
+      } catch (e) {
+        setStatus('保存失败：' + e.message, true);
+        return;
+      }
+      document.getElementById('purModalOverlay').style.display = 'none';
+      await loadSummaryMonths();
+    };
+    document.getElementById('purModalOverlay').style.display = 'flex';
   }
 
   function setStatus(msg, isError = false) {
