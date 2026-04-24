@@ -24,7 +24,8 @@ _FONT_CANDIDATES = [
 ]
 
 _PDF_TABLE_HEADER = ["日期", "星期", "上班", "下班", "天数", "状态"]
-_OVERVIEW_HEADER = ["员工", "累计天数", "缺勤天数", "总工作日"]
+_OVERVIEW_HEADER = ["员工", "累计天数", "缺勤天数", "总工作日", "本月天数"]
+_STATUS_CN = {"normal": "正常", "absent": "缺勤", "sunday": "周日"}
 
 
 def _employee_anchor(emp_id: str) -> str:
@@ -54,8 +55,9 @@ def _build_overview(month: str, employees: list, summaries: dict, font_name: str
             f"{s['worked_days']}",
             f"{s['absent_days']}",
             f"{s['total_workdays']}",
+            f"{s['month_days']}",
         ])
-    table = Table(rows, colWidths=[50 * mm, 30 * mm, 30 * mm, 30 * mm])
+    table = Table(rows, colWidths=[40 * mm, 26 * mm, 26 * mm, 26 * mm, 26 * mm])
     table.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (-1, -1), font_name),
         ("FONTSIZE", (0, 0), (-1, -1), 10),
@@ -78,7 +80,7 @@ def build_csv(month: str) -> bytes:
             writer.writerow([
                 emp["name"], row["date"], row["weekday"],
                 row["start"], row["end"],
-                row["day_fraction"], row["status"],
+                row["day_fraction"], _STATUS_CN.get(row["status"], row["status"]),
             ])
     return b"\xef\xbb\xbf" + buf.getvalue().encode("utf-8")
 
@@ -114,7 +116,7 @@ def _build_employee_block(emp: dict, summary: dict) -> list:
     for r in summary["detail"]:
         rows.append([
             r["date"], r["weekday"], r["start"] or "—", r["end"] or "—",
-            f"{r['day_fraction']:.2f}", r["status"],
+            f"{r['day_fraction']:.2f}", _STATUS_CN.get(r["status"], r["status"]),
         ])
     table = Table(rows, colWidths=[28 * mm, 14 * mm, 20 * mm, 20 * mm, 16 * mm, 20 * mm])
     table.setStyle(TableStyle([

@@ -187,5 +187,6 @@ def compute_summary(employee_id: str, month: str) -> dict:
         "worked_days": round(worked_days, 3),
         "absent_days": absent_days,
         "total_workdays": total_days - absent_days,
+        "month_days": total_days,
         "detail": detail,
     }

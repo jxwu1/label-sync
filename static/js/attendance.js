@@ -21,6 +21,7 @@
           <span>累计 <b id="attnWorked">0</b> 天</span>
           <span>缺勤 <b id="attnAbsent">0</b> 天</span>
           <span>总工作日 <b id="attnTotal">0</b></span>
+          <span>本月天数 <b id="attnMonthDays">0</b></span>
         </div>
         <div id="attnGridWrap"></div>
       </div>`;
@@ -124,7 +125,7 @@
         ? '<td colspan="2">自动（周日）</td>'
         : `<td><input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" data-date="${r.date}" data-field="start" value="${r.start}"></td>
            <td><input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" data-date="${r.date}" data-field="end" value="${r.end}"></td>`;
-      const statusText = r.status === 'sunday' ? '🔒' : (r.status === 'absent' ? '缺勤' : '✓');
+      const statusText = r.status === 'sunday' ? '周日' : (r.status === 'absent' ? '缺勤' : '正常');
       const actionCell = r.status === 'sunday'
         ? '<td></td>'
         : `<td><button class="attn-btn attn-fill" data-date="${r.date}">正常</button></td>`;
@@ -203,6 +204,7 @@
     document.getElementById('attnWorked').textContent = summary ? summary.worked_days : 0;
     document.getElementById('attnAbsent').textContent = summary ? summary.absent_days : 0;
     document.getElementById('attnTotal').textContent = summary ? summary.total_workdays : 0;
+    document.getElementById('attnMonthDays').textContent = summary ? summary.month_days : 0;
   }
 
   function downloadPdf() {
