@@ -42,6 +42,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
           <div class="pur-modal-actions">
             <button class="pur-btn-dl" id="purMsConfirm">确认并导出</button>
             <button class="pur-btn-copy" id="purMsSkip">跳过，直接导出</button>
+            <button class="pur-btn-copy" id="purMsCancel">取消</button>
           </div>
         </div>
       </div>
@@ -51,7 +52,18 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
           <select class="pur-inp" id="purSumMonth"></select>
           <span id="purSumCount"></span>
           <button class="pur-btn-copy" id="purSumAdd">补录</button>
+          <button class="pur-btn-copy" id="purSumManage">管理</button>
           <button class="pur-btn-dl" id="purSumDl">下载 PDF</button>
+        </div>
+      </div>
+      <div class="pur-modal-overlay" id="purMgrOverlay" style="display:none;">
+        <div class="pur-modal">
+          <div class="pur-modal-hd">月度记录管理 <span id="purMgrMonth"></span></div>
+          <input class="pur-inp" id="purMgrSearch" placeholder="搜索供应商/日期/金额">
+          <div id="purMgrList" class="pur-mgr-list"></div>
+          <div class="pur-modal-actions">
+            <button class="pur-btn-copy" id="purMgrClose">关闭</button>
+          </div>
         </div>
       </div>`;
     const drop = document.getElementById('purDrop');
@@ -64,11 +76,18 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     document.getElementById('purSupName').addEventListener('input', (e) => { supplierInfo.name = e.target.value.trim(); updateButtons(); });
     document.getElementById('purMsTax').addEventListener('input', updateTotalTax);
     document.getElementById('purMsTotal').addEventListener('input', updateTotalTax);
-    document.getElementById('purMsConfirm').addEventListener('click', confirmWithSummary);
     document.getElementById('purMsSkip').addEventListener('click', skipAndExport);
+    document.getElementById('purMsCancel').addEventListener('click', () => {
+      document.getElementById('purModalOverlay').style.display = 'none';
+    });
     document.getElementById('purSumMonth').addEventListener('change', loadSummaryCount);
     document.getElementById('purSumDl').addEventListener('click', downloadSummaryPdf);
     document.getElementById('purSumAdd').addEventListener('click', openAddRecord);
+    document.getElementById('purSumManage').addEventListener('click', openManageRecords);
+    document.getElementById('purMgrClose').addEventListener('click', () => {
+      document.getElementById('purMgrOverlay').style.display = 'none';
+    });
+    document.getElementById('purMgrSearch').addEventListener('input', renderManageList);
     loadSummaryMonths();
   }
 
@@ -290,7 +309,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     const tax = parseFloat(document.getElementById('purMsTax').value);
     const invoiceDate = document.getElementById('purMsDate').value;
     const month = document.getElementById('purMsMonth').value;
-    if (!supplier || isNaN(tax) || !invoiceDate || !month) {
+    if (!supplier || isNaN(total) || isNaN(tax) || !invoiceDate || !month) {
       setStatus('请填写所有必填字段', true);
       return;
     }
@@ -431,6 +450,89 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
       await loadSummaryMonths();
     };
     document.getElementById('purModalOverlay').style.display = 'flex';
+  }
+
+  let manageRecords = [];
+  let manageMonth = '';
+
+  async function openManageRecords() {
+    const month = document.getElementById('purSumMonth')?.value;
+    if (!month) { setStatus('请先选择月份', true); return; }
+    manageMonth = month;
+    document.getElementById('purMgrMonth').textContent = month;
+    document.getElementById('purMgrSearch').value = '';
+    await reloadManageRecords();
+    document.getElementById('purMgrOverlay').style.display = 'flex';
+  }
+
+  async function reloadManageRecords() {
+    try {
+      const res = await fetch(`/monthly-summary/records/${manageMonth}`);
+      const body = await res.json();
+      manageRecords = body.records || [];
+    } catch (e) {
+      manageRecords = [];
+      setStatus('加载记录失败：' + e.message, true);
+    }
+    renderManageList();
+  }
+
+  function renderManageList() {
+    const kw = document.getElementById('purMgrSearch').value.trim().toLowerCase();
+    const list = document.getElementById('purMgrList');
+    const filtered = manageRecords
+      .map((rec, idx) => ({ rec, idx }))
+      .sort((a, b) => (a.rec.invoice_date || '').localeCompare(b.rec.invoice_date || ''))
+      .filter(({ rec }) => {
+        if (!kw) return true;
+        const hay = [
+          rec.supplier_name,
+          rec.invoice_date,
+          String(rec.total_price),
+          String(rec.tax),
+          String(rec.total_with_tax),
+        ].join(' ').toLowerCase();
+        return hay.includes(kw);
+      });
+    if (!filtered.length) {
+      list.innerHTML = '<div class="empty">无匹配记录</div>';
+      return;
+    }
+    list.innerHTML = filtered.map(({ rec, idx }) => `
+      <div class="pur-mgr-row">
+        <div class="pur-mgr-cell"><b>${escapeHtml(rec.supplier_name)}</b></div>
+        <div class="pur-mgr-cell">${escapeHtml(rec.invoice_date)}</div>
+        <div class="pur-mgr-cell">总 €${Number(rec.total_price).toFixed(2)}</div>
+        <div class="pur-mgr-cell">税 €${Number(rec.tax).toFixed(2)}</div>
+        <div class="pur-mgr-cell">含税 €${Number(rec.total_with_tax).toFixed(2)}</div>
+        <button class="pur-btn-copy pur-mgr-del" data-idx="${idx}">删除</button>
+      </div>
+    `).join('');
+    list.querySelectorAll('.pur-mgr-del').forEach(btn => {
+      btn.addEventListener('click', () => deleteManageRecord(parseInt(btn.dataset.idx, 10)));
+    });
+  }
+
+  async function deleteManageRecord(idx) {
+    const rec = manageRecords[idx];
+    if (!rec) return;
+    if (!confirm(`确认删除 ${rec.supplier_name} ${rec.invoice_date} 这条记录？`)) return;
+    try {
+      const res = await fetch(`/monthly-summary/delete/${manageMonth}/${idx}`, { method: 'POST' });
+      const body = await res.json();
+      if (!body.ok) { setStatus(body.msg, true); return; }
+    } catch (e) {
+      setStatus('删除失败：' + e.message, true);
+      return;
+    }
+    await reloadManageRecords();
+    await loadSummaryMonths();
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
   }
 
   function setStatus(msg, isError = false) {

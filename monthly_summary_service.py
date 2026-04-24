@@ -9,7 +9,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 _SUMMARY_DIR = Path(__file__).resolve().parent / "monthly_summary"
 
@@ -55,6 +55,19 @@ def save_record(
 
 def load_records(month: str) -> list[dict]:
     return _read_json(_month_file(month))
+
+
+def delete_record(month: str, index: int) -> dict:
+    path = _month_file(month)
+    records = _read_json(path)
+    if index < 0 or index >= len(records):
+        raise IndexError(f"记录索引越界：month={month} index={index} total={len(records)}")
+    removed = records.pop(index)
+    if records:
+        _write_json(path, records)
+    elif path.exists():
+        path.unlink()
+    return removed
 
 
 def list_months() -> list[str]:
@@ -157,8 +170,10 @@ def build_pdf(month: str) -> bytes:
         elements.append(Paragraph("本月暂无记录", no_data_style))
     else:
         for rec in records:
-            elements.append(_build_record_table(rec, _FONT_NAME))
-            elements.append(Spacer(1, 8 * mm))
+            elements.append(KeepTogether([
+                _build_record_table(rec, _FONT_NAME),
+                Spacer(1, 8 * mm),
+            ]))
 
     doc.build(elements)
     return buf.getvalue()

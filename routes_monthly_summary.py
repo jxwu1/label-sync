@@ -42,6 +42,17 @@ def get_records(month: str):
     return jsonify({"ok": True, "records": records, "count": len(records)})
 
 
+@bp.post("/delete/<month>/<int:index>")
+def delete_record(month: str, index: int):
+    try:
+        removed = monthly_summary_service.delete_record(month, index)
+    except IndexError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 404
+    except Exception as exc:
+        return jsonify({"ok": False, "msg": f"删除失败：{exc}"}), 500
+    return jsonify({"ok": True, "removed": removed})
+
+
 @bp.get("/pdf/<month>")
 def download_pdf(month: str):
     try:
