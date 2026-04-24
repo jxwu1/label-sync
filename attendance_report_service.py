@@ -25,7 +25,10 @@ _FONT_CANDIDATES = [
 
 _PDF_TABLE_HEADER = ["日期", "星期", "上班", "下班", "天数", "状态"]
 _OVERVIEW_HEADER = ["员工", "累计天数", "缺勤天数", "总工作日", "本月天数"]
-_STATUS_CN = {"normal": "正常", "absent": "缺勤", "sunday": "周日", "holiday": "节假日"}
+_STATUS_CN = {
+    "normal": "正常", "absent": "缺勤", "sunday": "周日",
+    "holiday": "节假日", "special": "特殊日", "special_absent": "特殊日缺勤",
+}
 
 
 def _employee_anchor(emp_id: str) -> str:

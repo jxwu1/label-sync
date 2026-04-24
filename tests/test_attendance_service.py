@@ -175,3 +175,59 @@ class TestHolidays(unittest.TestCase):
         result = svc.compute_summary("e001", "2026-04")
         # 30 天 - 4 周日 - 1 节假日 = 25 缺勤
         self.assertEqual(result["absent_days"], 25)
+
+
+class TestSpecialDays(unittest.TestCase):
+    def setUp(self):
+        _TEST_DIR.mkdir(exist_ok=True)
+        svc._ATTENDANCE_DIR = _TEST_DIR
+
+    def tearDown(self):
+        shutil.rmtree(_TEST_DIR, ignore_errors=True)
+
+    def test_list_empty_initially(self):
+        self.assertEqual(svc.list_special_days(), {})
+
+    def test_add_and_list(self):
+        svc.set_special_day("2026-04-02", "09:30", "14:30")
+        self.assertEqual(svc.list_special_days(), {"2026-04-02": {"start": "09:30", "end": "14:30"}})
+
+    def test_remove(self):
+        svc.set_special_day("2026-04-02", "09:30", "14:30")
+        svc.remove_special_day("2026-04-02")
+        self.assertEqual(svc.list_special_days(), {})
+
+    def test_full_attendance_on_special_day_is_one(self):
+        svc.set_special_day("2026-04-02", "09:30", "14:30")  # 5h 缩短标准
+        svc.set_day("e001", "2026-04-02", {"start": "09:30", "end": "14:30"})
+        result = svc.compute_summary("e001", "2026-04")
+        row = next(d for d in result["detail"] if d["date"] == "2026-04-02")
+        self.assertEqual(row["status"], "special")
+        self.assertEqual(row["day_fraction"], 1.0)
+
+    def test_partial_on_special_day_is_prorated(self):
+        svc.set_special_day("2026-04-02", "09:30", "14:30")  # 5h 缩短
+        svc.set_day("e001", "2026-04-02", {"start": "09:30", "end": "12:30"})  # 3h / 5h
+        result = svc.compute_summary("e001", "2026-04")
+        row = next(d for d in result["detail"] if d["date"] == "2026-04-02")
+        self.assertAlmostEqual(row["day_fraction"], 0.6, places=3)
+
+    def test_special_day_no_record_is_absent(self):
+        svc.set_special_day("2026-04-02", "09:30", "14:30")
+        result = svc.compute_summary("e001", "2026-04")
+        row = next(d for d in result["detail"] if d["date"] == "2026-04-02")
+        self.assertEqual(row["status"], "special_absent")
+        self.assertEqual(row["day_fraction"], 0.0)
+
+    def test_holiday_takes_priority_over_special(self):
+        svc.add_holiday("2026-04-02")
+        svc.set_special_day("2026-04-02", "09:30", "14:30")
+        result = svc.compute_summary("e001", "2026-04")
+        row = next(d for d in result["detail"] if d["date"] == "2026-04-02")
+        self.assertEqual(row["status"], "holiday")
+
+    def test_day_fraction_with_custom_standard(self):
+        # 09:30-12:30 = 3h; custom standard 5h -> 0.6
+        self.assertAlmostEqual(svc.day_fraction("09:30", "12:30", standard_hours=5.0), 0.6, places=3)
+        # 10h with custom 5h -> 1.0 cap
+        self.assertAlmostEqual(svc.day_fraction("09:00", "19:00", standard_hours=5.0), 1.0)

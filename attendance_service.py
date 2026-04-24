@@ -8,6 +8,7 @@ from pathlib import Path
 _ATTENDANCE_DIR = Path(__file__).resolve().parent / "attendance"
 _EMPLOYEES_FILE = "employees.json"
 _HOLIDAYS_FILE = "holidays.json"
+_SPECIAL_DAYS_FILE = "special_days.json"
 _METADATA_FILE = "metadata.json"
 
 
@@ -73,6 +74,29 @@ def remove_holiday(date: str) -> None:
     _write_json(_holidays_path(), holidays)
 
 
+def _special_days_path() -> Path:
+    return _ATTENDANCE_DIR / _SPECIAL_DAYS_FILE
+
+
+def list_special_days() -> dict:
+    return _read_json(_special_days_path(), {})
+
+
+def set_special_day(date: str, start: str, end: str) -> None:
+    # 校验时段合法
+    day_fraction(start, end, standard_hours=1.0)  # 仅触发 end>start 校验
+    data = list_special_days()
+    data[date] = {"start": start, "end": end}
+    _write_json(_special_days_path(), dict(sorted(data.items())))
+
+
+def remove_special_day(date: str) -> None:
+    data = list_special_days()
+    if date in data:
+        del data[date]
+        _write_json(_special_days_path(), data)
+
+
 def delete_employee(employee_id: str) -> None:
     employees = [e for e in list_employees() if e["id"] != employee_id]
     _write_json(_employees_path(), employees)
@@ -87,25 +111,28 @@ def _parse_hm(hm: str) -> int:
     return int(h) * 60 + int(m)
 
 
-def day_fraction(start: str, end: str) -> float:
+def day_fraction(start: str, end: str, standard_hours: float = STANDARD_HOURS) -> float:
     """计算工作日占比（纯函数）。
 
     Args:
         start: 上班时间，格式 "HH:MM"
         end: 下班时间，格式 "HH:MM"
+        standard_hours: 这一天的标准工时（小时）；默认 10.5。特殊日可传入缩短值。
 
     Returns:
-        [0.0, 1.0] 范围内的占比，超过标准工作时间（10.5h）封顶为 1.0
+        [0.0, 1.0] 范围内的占比，超过标准工作时间封顶为 1.0
 
     Raises:
-        ValueError: 若 end <= start
+        ValueError: 若 end <= start 或 standard_hours <= 0
     """
+    if standard_hours <= 0:
+        raise ValueError(f"standard_hours 必须 > 0：{standard_hours}")
     start_min = _parse_hm(start)
     end_min = _parse_hm(end)
     if end_min <= start_min:
         raise ValueError(f"下班时间必须晚于上班时间：start={start} end={end}")
     hours = (end_min - start_min) / 60
-    return min(hours / STANDARD_HOURS, 1.0)
+    return min(hours / standard_hours, 1.0)
 
 
 def _month_path(month: str) -> Path:
@@ -175,6 +202,7 @@ def compute_summary(employee_id: str, month: str) -> dict:
     """
     month_data = load_month(month).get(employee_id, {})
     holidays = set(list_holidays())
+    special_days = list_special_days()
     detail = []
     worked_days = 0.0
     absent_days = 0
@@ -194,6 +222,28 @@ def compute_summary(employee_id: str, month: str) -> dict:
                 "day_fraction": 1.0, "status": "holiday",
             })
             worked_days += 1.0
+            continue
+        if date_str in special_days:
+            sd = special_days[date_str]
+            sd_hours = (_parse_hm(sd["end"]) - _parse_hm(sd["start"])) / 60
+            rec = month_data.get(date_str)
+            if rec:
+                frac = day_fraction(rec["start"], rec["end"], standard_hours=sd_hours)
+                detail.append({
+                    "date": date_str, "weekday": wd_cn,
+                    "start": rec["start"], "end": rec["end"],
+                    "day_fraction": round(frac, 3), "status": "special",
+                    "special_start": sd["start"], "special_end": sd["end"],
+                })
+                worked_days += frac
+            else:
+                detail.append({
+                    "date": date_str, "weekday": wd_cn,
+                    "start": "", "end": "",
+                    "day_fraction": 0.0, "status": "special_absent",
+                    "special_start": sd["start"], "special_end": sd["end"],
+                })
+                absent_days += 1
             continue
         rec = month_data.get(date_str)
         if rec:

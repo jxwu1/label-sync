@@ -51,6 +51,32 @@ def remove_holiday(date: str):
     return jsonify({"ok": True, "holidays": attendance_service.list_holidays()})
 
 
+@bp.get("/special-days")
+def list_special_days():
+    return jsonify({"ok": True, "special_days": attendance_service.list_special_days()})
+
+
+@bp.post("/special-days")
+def set_special_day():
+    data = request.get_json(silent=True) or {}
+    date = (data.get("date") or "").strip()
+    start = (data.get("start") or "").strip()
+    end = (data.get("end") or "").strip()
+    if not date or not start or not end:
+        return jsonify({"ok": False, "msg": "缺少 date / start / end"}), 400
+    try:
+        attendance_service.set_special_day(date, start, end)
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
+    return jsonify({"ok": True, "special_days": attendance_service.list_special_days()})
+
+
+@bp.delete("/special-days/<date>")
+def remove_special_day(date: str):
+    attendance_service.remove_special_day(date)
+    return jsonify({"ok": True, "special_days": attendance_service.list_special_days()})
+
+
 @bp.get("/month/<employee_id>/<month>")
 def month_summary(employee_id: str, month: str):
     try:

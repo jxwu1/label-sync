@@ -15,6 +15,7 @@
           <button class="attn-btn" id="attnEmpNew">+ 新建</button>
           <button class="attn-btn attn-btn-danger" id="attnEmpDel">删除员工</button>
           <button class="attn-btn" id="attnHolidays">节假日</button>
+          <button class="attn-btn" id="attnSpecial">特殊日</button>
           <button class="attn-btn attn-btn-dl" id="attnPdf">下载 PDF</button>
           <button class="attn-btn attn-btn-dl" id="attnCsv">下载 CSV</button>
         </div>
@@ -25,6 +26,22 @@
           <span>本月天数 <b id="attnMonthDays">0</b></span>
         </div>
         <div id="attnGridWrap"></div>
+      </div>
+      <div class="pur-modal-overlay" id="attnSpecialOverlay" style="display:none;">
+        <div class="pur-modal">
+          <div class="pur-modal-hd">特殊日管理（缩短工时）</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <input class="attn-inp" id="attnSpecialDate" type="date">
+            <input class="attn-inp" id="attnSpecialStart" type="text" placeholder="09:30" maxlength="5">
+            <span>—</span>
+            <input class="attn-inp" id="attnSpecialEnd" type="text" placeholder="14:30" maxlength="5">
+            <button class="attn-btn attn-btn-dl" id="attnSpecialAdd">添加</button>
+          </div>
+          <div id="attnSpecialList" class="pur-mgr-list"></div>
+          <div class="pur-modal-actions">
+            <button class="attn-btn" id="attnSpecialClose">关闭</button>
+          </div>
+        </div>
       </div>
       <div class="pur-modal-overlay" id="attnHolidayOverlay" style="display:none;">
         <div class="pur-modal">
@@ -50,6 +67,11 @@
     document.getElementById('attnHolidayAdd').addEventListener('click', addHoliday);
     document.getElementById('attnHolidayClose').addEventListener('click', () => {
       document.getElementById('attnHolidayOverlay').style.display = 'none';
+    });
+    document.getElementById('attnSpecial').addEventListener('click', openSpecial);
+    document.getElementById('attnSpecialAdd').addEventListener('click', addSpecial);
+    document.getElementById('attnSpecialClose').addEventListener('click', () => {
+      document.getElementById('attnSpecialOverlay').style.display = 'none';
     });
 
     document.getElementById('attnMonth').value = new Date().toISOString().slice(0, 7);
@@ -140,17 +162,21 @@
     const wrap = document.getElementById('attnGridWrap');
     const rows = detail.map(r => {
       const autoRow = r.status === 'sunday' || r.status === 'holiday';
-      const cls = r.status === 'sunday' ? 'sunday' : (r.status === 'holiday' ? 'holiday' : (r.status === 'absent' ? 'absent' : ''));
+      const isSpecial = r.status === 'special' || r.status === 'special_absent';
+      const clsMap = { sunday: 'sunday', holiday: 'holiday', absent: 'absent', special: 'special', special_absent: 'special absent' };
+      const cls = clsMap[r.status] || '';
       const autoLabel = r.status === 'sunday' ? '自动（周日）' : '自动（节假日）';
+      const specialHint = isSpecial ? `<span class="attn-hint">缩短 ${r.special_start}-${r.special_end}</span>` : '';
       const startCell = autoRow
         ? `<td colspan="2">${autoLabel}</td>`
-        : `<td><input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" data-date="${r.date}" data-field="start" value="${r.start}"></td>
+        : `<td><input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" data-date="${r.date}" data-field="start" value="${r.start}">${specialHint ? '<br>'+specialHint : ''}</td>
            <td><input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" data-date="${r.date}" data-field="end" value="${r.end}"></td>`;
-      const statusMap = { sunday: '周日', holiday: '节假日', absent: '缺勤', normal: '正常' };
+      const statusMap = { sunday: '周日', holiday: '节假日', absent: '缺勤', normal: '正常', special: '特殊日', special_absent: '特殊日缺勤' };
       const statusText = statusMap[r.status] || r.status;
-      const actionCell = autoRow
-        ? '<td></td>'
-        : `<td><button class="attn-btn attn-fill" data-date="${r.date}">正常</button></td>`;
+      const fillBtn = isSpecial
+        ? `<td><button class="attn-btn attn-fill" data-date="${r.date}" data-start="${r.special_start}" data-end="${r.special_end}">按标准</button></td>`
+        : (autoRow ? '<td></td>' : `<td><button class="attn-btn attn-fill" data-date="${r.date}" data-start="09:30" data-end="20:00">正常</button></td>`);
+      const actionCell = fillBtn;
       return `<tr class="${cls}" data-date="${r.date}">
         <td>${r.date.slice(5)}</td>
         <td>${r.weekday}</td>
@@ -169,17 +195,17 @@
       inp.addEventListener('change', () => onCellChange(inp.dataset.date));
     });
     wrap.querySelectorAll('.attn-fill').forEach(btn => {
-      btn.addEventListener('click', () => fillNormal(btn.dataset.date));
+      btn.addEventListener('click', () => fillNormal(btn.dataset.date, btn.dataset.start, btn.dataset.end));
     });
   }
 
-  async function fillNormal(date) {
+  async function fillNormal(date, start, end) {
     const row = document.querySelector(`tr[data-date="${date}"]`);
     if (!row) return;
     const startInp = row.querySelector('input[data-field="start"]');
     const endInp = row.querySelector('input[data-field="end"]');
-    if (startInp) startInp.value = '09:30';
-    if (endInp) endInp.value = '20:00';
+    if (startInp) startInp.value = start || '09:30';
+    if (endInp) endInp.value = end || '20:00';
     await onCellChange(date);
   }
 
@@ -281,6 +307,68 @@
       if (!body.ok) { alert(body.msg); return; }
     } catch (e) { alert('删除失败：' + e.message); return; }
     await renderHolidayList();
+    await loadMonth();
+  }
+
+  async function openSpecial() {
+    document.getElementById('attnSpecialDate').value = '';
+    document.getElementById('attnSpecialStart').value = '';
+    document.getElementById('attnSpecialEnd').value = '';
+    await renderSpecialList();
+    document.getElementById('attnSpecialOverlay').style.display = 'flex';
+  }
+
+  async function renderSpecialList() {
+    try {
+      const res = await fetch('/attendance/special-days');
+      const body = await res.json();
+      const list = document.getElementById('attnSpecialList');
+      const sd = body.special_days || {};
+      const entries = Object.entries(sd).sort(([a], [b]) => a.localeCompare(b));
+      if (!entries.length) {
+        list.innerHTML = '<div class="empty">暂无特殊日</div>';
+        return;
+      }
+      list.innerHTML = entries.map(([date, range]) => `
+        <div class="pur-mgr-row">
+          <div class="pur-mgr-cell">${escapeHtml(date)}</div>
+          <div class="pur-mgr-cell">${escapeHtml(range.start)} — ${escapeHtml(range.end)}</div>
+          <button class="pur-btn-copy pur-mgr-del" data-date="${date}">删除</button>
+        </div>`).join('');
+      list.querySelectorAll('.pur-mgr-del').forEach(btn => {
+        btn.addEventListener('click', () => deleteSpecial(btn.dataset.date));
+      });
+    } catch (e) { alert('加载特殊日失败：' + e.message); }
+  }
+
+  async function addSpecial() {
+    const date = document.getElementById('attnSpecialDate').value;
+    const start = normalizeTime(document.getElementById('attnSpecialStart').value);
+    const end = normalizeTime(document.getElementById('attnSpecialEnd').value);
+    const timeRe = /^([01]\d|2[0-3]):([0-5]\d)$/;
+    if (!date) { alert('请选择日期'); return; }
+    if (!timeRe.test(start) || !timeRe.test(end)) { alert('时间格式错误（HH:MM）'); return; }
+    try {
+      const res = await fetch('/attendance/special-days', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, start, end }),
+      });
+      const body = await res.json();
+      if (!body.ok) { alert(body.msg); return; }
+    } catch (e) { alert('添加失败：' + e.message); return; }
+    await renderSpecialList();
+    await loadMonth();
+  }
+
+  async function deleteSpecial(date) {
+    if (!confirm(`删除特殊日 ${date}？`)) return;
+    try {
+      const res = await fetch(`/attendance/special-days/${date}`, { method: 'DELETE' });
+      const body = await res.json();
+      if (!body.ok) { alert(body.msg); return; }
+    } catch (e) { alert('删除失败：' + e.message); return; }
+    await renderSpecialList();
     await loadMonth();
   }
 

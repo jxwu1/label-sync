@@ -16,6 +16,9 @@
 .attn-grid td input[type=time],.attn-grid td input[type=text]{background:transparent;border:1px solid #334155;color:#e2e8f0;padding:2px 4px;border-radius:3px;width:64px;text-align:center;font-family:inherit}
 .attn-grid tr.sunday td{background:#1e1b4b;color:#a5b4fc}
 .attn-grid tr.holiday td{background:#14532d;color:#86efac}
+.attn-grid tr.special td{background:#422006;color:#fdba74}
+.attn-grid tr.special.absent td{background:#451a03;color:#fca5a5}
+.attn-hint{font-size:10px;color:#94a3b8}
 .attn-grid tr.absent td{background:#1a0f0f;color:#fca5a5}
 .attn-grid .attn-status{font-size:12px}
 .attn-grid .attn-fill{padding:2px 8px;font-size:12px;background:#059669;border-color:#059669;color:#fff}
