@@ -68,6 +68,14 @@ class TestParsePurchaseExcel(unittest.TestCase):
         self.assertFalse(rows[0].price_flagged)
         self.assertAlmostEqual(rows[0].price, 9.4812)
 
+    def test_numeric_barcode_with_empty_row_has_no_decimal(self):
+        data = _make_excel([
+            [6901234567890, "x", 9.48, "x", "x", 10, "x"],
+            [None, "x", 9.48, "x", "x", 5, "x"],
+        ])
+        rows = parse_purchase_excel(data)
+        self.assertEqual(rows[0].barcode, "6901234567890")
+
     def test_parses_multiple_data_rows_skips_header(self):
         data = _make_excel([
             ["BC1", "x", 1.0, "x", "x", 5, "x"],
