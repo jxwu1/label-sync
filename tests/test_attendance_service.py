@@ -39,3 +39,24 @@ class TestEmployeeCrud(unittest.TestCase):
         svc.delete_employee(e1["id"])
         e2 = svc.create_employee("B")
         self.assertEqual(e2["id"], "e002")
+
+
+class TestDayFraction(unittest.TestCase):
+    def test_full_day(self):
+        self.assertAlmostEqual(svc.day_fraction("09:30", "20:00"), 1.0)
+
+    def test_half_day(self):
+        # 09:30-15:30 = 6h, 6/10.5 ≈ 0.571
+        self.assertAlmostEqual(svc.day_fraction("09:30", "15:30"), 6.0 / 10.5)
+
+    def test_overtime_capped_at_one(self):
+        # 09:30-21:00 = 11.5h, 封顶 1.0
+        self.assertAlmostEqual(svc.day_fraction("09:30", "21:00"), 1.0)
+
+    def test_rejects_end_before_start(self):
+        with self.assertRaises(ValueError):
+            svc.day_fraction("20:00", "09:30")
+
+    def test_rejects_equal_times(self):
+        with self.assertRaises(ValueError):
+            svc.day_fraction("09:30", "09:30")

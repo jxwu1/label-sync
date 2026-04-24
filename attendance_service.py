@@ -55,3 +55,33 @@ def create_employee(name: str) -> dict:
 def delete_employee(employee_id: str) -> None:
     employees = [e for e in list_employees() if e["id"] != employee_id]
     _write_json(_employees_path(), employees)
+
+
+STANDARD_HOURS = 10.5
+
+
+def _parse_hm(hm: str) -> int:
+    """HH:MM -> 分钟总数"""
+    h, m = hm.split(":")
+    return int(h) * 60 + int(m)
+
+
+def day_fraction(start: str, end: str) -> float:
+    """计算工作日占比（纯函数）。
+
+    Args:
+        start: 上班时间，格式 "HH:MM"
+        end: 下班时间，格式 "HH:MM"
+
+    Returns:
+        [0.0, 1.0] 范围内的占比，超过标准工作时间（10.5h）封顶为 1.0
+
+    Raises:
+        ValueError: 若 end <= start
+    """
+    start_min = _parse_hm(start)
+    end_min = _parse_hm(end)
+    if end_min <= start_min:
+        raise ValueError(f"下班时间必须晚于上班时间：start={start} end={end}")
+    hours = (end_min - start_min) / 60
+    return min(hours / STANDARD_HOURS, 1.0)
