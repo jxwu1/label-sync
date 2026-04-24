@@ -122,8 +122,8 @@
       const cls = r.status === 'sunday' ? 'sunday' : (r.status === 'absent' ? 'absent' : '');
       const startCell = r.status === 'sunday'
         ? '<td colspan="2">自动（周日）</td>'
-        : `<td><input type="time" data-date="${r.date}" data-field="start" value="${r.start}"></td>
-           <td><input type="time" data-date="${r.date}" data-field="end" value="${r.end}"></td>`;
+        : `<td><input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" data-date="${r.date}" data-field="start" value="${r.start}"></td>
+           <td><input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" data-date="${r.date}" data-field="end" value="${r.end}"></td>`;
       const statusText = r.status === 'sunday' ? '🔒' : (r.status === 'absent' ? '缺勤' : '✓');
       const actionCell = r.status === 'sunday'
         ? '<td></td>'
@@ -142,7 +142,7 @@
         <thead><tr><th>日期</th><th>星期</th><th>上班</th><th>下班</th><th>天数</th><th>状态</th><th>快填</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
-    wrap.querySelectorAll('input[type=time]').forEach(inp => {
+    wrap.querySelectorAll('input[data-field]').forEach(inp => {
       inp.addEventListener('change', () => onCellChange(inp.dataset.date));
     });
     wrap.querySelectorAll('.attn-fill').forEach(btn => {
@@ -167,9 +167,14 @@
     const endInp = row.querySelector('input[data-field="end"]');
     const start = startInp ? startInp.value : '';
     const end = endInp ? endInp.value : '';
+    const timeRe = /^([01]\d|2[0-3]):([0-5]\d)$/;
     if (!start && !end) {
       await fetch(`/attendance/day/${currentEmployeeId}/${date}`, { method: 'DELETE' });
     } else if (start && end) {
+      if (!timeRe.test(start) || !timeRe.test(end)) {
+        alert('时间格式错误，请按 HH:MM 填写（如 09:30）');
+        return;
+      }
       const res = await fetch(`/attendance/day/${currentEmployeeId}/${date}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
