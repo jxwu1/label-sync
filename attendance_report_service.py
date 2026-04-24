@@ -35,6 +35,9 @@ def _build_overview(month: str, employees: list, summaries: dict, font_name: str
     styles = getSampleStyleSheet()
     title_style = styles["Title"].clone("attn_overview_title")
     title_style.fontName = font_name
+    name_style = styles["Normal"].clone("attn_name_link")
+    name_style.fontName = font_name
+    name_style.fontSize = 10
     elements = [
         Paragraph(f"{month} 月度考勤总览", title_style),
         Spacer(1, 6 * mm),
@@ -42,17 +45,16 @@ def _build_overview(month: str, employees: list, summaries: dict, font_name: str
     rows = [_OVERVIEW_HEADER]
     for emp in employees:
         s = summaries[emp["id"]]
-        name_link = f'<a href="#{_employee_anchor(emp["id"])}" color="blue"><u>{emp["name"]}</u></a>'
+        name_link = (
+            f'<link href="#{_employee_anchor(emp["id"])}" color="blue">'
+            f'<u>{emp["name"]}</u></link>'
+        )
         rows.append([
-            Paragraph(name_link, styles["Normal"].clone(f"n_{emp['id']}")),
+            Paragraph(name_link, name_style),
             f"{s['worked_days']}",
             f"{s['absent_days']}",
             f"{s['total_workdays']}",
         ])
-    # 设置链接段落字体
-    for i, emp in enumerate(employees, start=1):
-        rows[i][0].style.fontName = font_name
-        rows[i][0].style.fontSize = 10
     table = Table(rows, colWidths=[50 * mm, 30 * mm, 30 * mm, 30 * mm])
     table.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (-1, -1), font_name),
