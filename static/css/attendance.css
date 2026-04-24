@@ -1,4 +1,4 @@
-#pageAttendance.active{display:block;overflow:auto;height:100%}
+#pageAttendance.active{display:block;overflow:auto;height:calc(100vh - 100px)}
 .attn-wrap{display:flex;flex-direction:column;gap:12px;padding:16px}
 .attn-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .attn-top label{color:#94a3b8;font-size:13px}
