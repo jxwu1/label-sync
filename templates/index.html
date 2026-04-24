@@ -6,11 +6,12 @@
 <title>A端 - 双端处理</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/purchase.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/attendance.css') }}">
 </head>
 <body>
 <div class="header"><button class="btn-mini" id="hamb">☰</button><div class="header-title">A端 - 双端处理</div><span class="badge badge-idle" id="badge">空闲</span></div>
 <div class="layout">
-  <div class="nav" id="nav"><div class="nav-item active" id="navMain" onclick="switchPage('main')">标签处理</div><div class="nav-item" id="navDup" onclick="switchPage('dup')">重复检查</div><div class="nav-item" id="navPurchase" onclick="switchPage('purchase')">采购订单</div></div>
+  <div class="nav" id="nav"><div class="nav-item active" id="navMain" onclick="switchPage('main')">标签处理</div><div class="nav-item" id="navDup" onclick="switchPage('dup')">重复检查</div><div class="nav-item" id="navPurchase" onclick="switchPage('purchase')">采购订单</div><div class="nav-item" id="navAttendance" onclick="switchPage('attendance')">考勤</div></div>
   <div class="main">
     <div class="pages">
       <div class="page active" id="pageMain">
@@ -38,6 +39,7 @@
         </div></div>
       </div>
       <div class="page" id="pagePurchase"></div>
+      <div class="page" id="pageAttendance"></div>
     </div>
     <div class="transfer">
       <div class="tt">文件互传</div>
@@ -54,5 +56,6 @@
 </div>
 <script type="module" src="{{ url_for('static', filename='js/index.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/purchase.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/attendance.js') }}"></script>
 </body>
 </html>

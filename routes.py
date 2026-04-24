@@ -1,3 +1,4 @@
+from routes_attendance import bp as attendance_bp
 from routes_monthly_summary import bp as monthly_summary_bp
 from routes_pages_tasks import bp as pages_tasks_bp
 from routes_purchase import bp as purchase_bp
@@ -11,6 +12,7 @@ def register_routes(app) -> None:
     app.register_blueprint(query_bp)
     app.register_blueprint(purchase_bp)
     app.register_blueprint(monthly_summary_bp)
+    app.register_blueprint(attendance_bp)
     if CONFIG.dual_mode:
         from routes_transfer import bp as transfer_bp
         from routes_collab import bp as collab_bp
