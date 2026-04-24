@@ -89,3 +89,44 @@ class TestDayCrud(unittest.TestCase):
 
     def test_load_empty_month(self):
         self.assertEqual(svc.load_month("2099-01"), {})
+
+
+class TestComputeSummary(unittest.TestCase):
+    def setUp(self):
+        _TEST_DIR.mkdir(exist_ok=True)
+        svc._ATTENDANCE_DIR = _TEST_DIR
+
+    def tearDown(self):
+        shutil.rmtree(_TEST_DIR, ignore_errors=True)
+
+    def test_sunday_auto_one(self):
+        # 2026-04 有 4 个周日: 5, 12, 19, 26
+        result = svc.compute_summary("e001", "2026-04")
+        sunday_rows = [d for d in result["detail"] if d["status"] == "sunday"]
+        self.assertEqual(len(sunday_rows), 4)
+        self.assertTrue(all(r["day_fraction"] == 1.0 for r in sunday_rows))
+
+    def test_all_absent_when_no_records(self):
+        result = svc.compute_summary("e001", "2026-04")
+        # 30 天 - 4 周日 = 26 缺勤
+        self.assertEqual(result["absent_days"], 26)
+        self.assertEqual(result["worked_days"], 4.0)  # 4 周日
+
+    def test_normal_day_records(self):
+        svc.set_day("e001", "2026-04-01", {"start": "09:30", "end": "20:00"})
+        svc.set_day("e001", "2026-04-03", {"start": "09:30", "end": "15:30"})
+        result = svc.compute_summary("e001", "2026-04")
+        # 4 周日 + 1.0 + 0.571 = 5.571
+        self.assertAlmostEqual(result["worked_days"], 4.0 + 1.0 + 6.0 / 10.5, places=3)
+        # 30 天 - 4 周日 - 2 已录 = 24 缺勤
+        self.assertEqual(result["absent_days"], 24)
+
+    def test_total_workdays_excludes_absent(self):
+        svc.set_day("e001", "2026-04-01", {"start": "09:30", "end": "20:00"})
+        result = svc.compute_summary("e001", "2026-04")
+        # 30 - 24 缺勤 = 6
+        self.assertEqual(result["total_workdays"], 30 - result["absent_days"])
+
+    def test_detail_contains_all_days(self):
+        result = svc.compute_summary("e001", "2026-04")
+        self.assertEqual(len(result["detail"]), 30)

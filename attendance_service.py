@@ -1,7 +1,8 @@
 """考勤服务：员工 CRUD、月度 CRUD、summary 计算。"""
 
 import json
-from datetime import datetime
+from calendar import monthrange
+from datetime import date as date_cls, datetime
 from pathlib import Path
 
 _ATTENDANCE_DIR = Path(__file__).resolve().parent / "attendance"
@@ -113,3 +114,78 @@ def clear_day(employee_id: str, date: str) -> None:
         if not data[employee_id]:
             del data[employee_id]
         _write_json(_month_path(month), data)
+
+
+_WEEKDAY_CN = ["一", "二", "三", "四", "五", "六", "日"]
+
+
+def _iter_month_days(month: str):
+    """Yields (date_str, weekday_int, weekday_cn) for each day in YYYY-MM."""
+    year, mon = int(month[:4]), int(month[5:7])
+    _, days = monthrange(year, mon)
+    for d in range(1, days + 1):
+        dt = date_cls(year, mon, d)
+        yield dt.isoformat(), dt.weekday(), _WEEKDAY_CN[dt.weekday()]
+
+
+def compute_summary(employee_id: str, month: str) -> dict:
+    """计算员工月度总结：周日自动作为 1.0，缺勤推断。
+
+    Args:
+        employee_id: 员工 ID
+        month: 月份，格式 "YYYY-MM"
+
+    Returns:
+        {
+            "worked_days": float,     # 总工作日数
+            "absent_days": int,       # 缺勤天数
+            "total_workdays": int,    # 计入考勤的总天数（不含周日）
+            "detail": [               # 每日详情
+                {
+                    "date": "2026-04-01",
+                    "weekday": "一",
+                    "start": "09:30" or "",
+                    "end": "20:00" or "",
+                    "day_fraction": 1.0,
+                    "status": "normal" | "sunday" | "absent"
+                },
+                ...
+            ]
+        }
+    """
+    month_data = load_month(month).get(employee_id, {})
+    detail = []
+    worked_days = 0.0
+    absent_days = 0
+    for date_str, wd_int, wd_cn in _iter_month_days(month):
+        if wd_int == 6:  # Sunday
+            detail.append({
+                "date": date_str, "weekday": wd_cn,
+                "start": "", "end": "",
+                "day_fraction": 1.0, "status": "sunday",
+            })
+            worked_days += 1.0
+            continue
+        rec = month_data.get(date_str)
+        if rec:
+            frac = day_fraction(rec["start"], rec["end"])
+            detail.append({
+                "date": date_str, "weekday": wd_cn,
+                "start": rec["start"], "end": rec["end"],
+                "day_fraction": round(frac, 3), "status": "normal",
+            })
+            worked_days += frac
+        else:
+            detail.append({
+                "date": date_str, "weekday": wd_cn,
+                "start": "", "end": "",
+                "day_fraction": 0.0, "status": "absent",
+            })
+            absent_days += 1
+    total_days = len(detail)
+    return {
+        "worked_days": round(worked_days, 3),
+        "absent_days": absent_days,
+        "total_workdays": total_days - absent_days,
+        "detail": detail,
+    }
