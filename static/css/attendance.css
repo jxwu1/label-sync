@@ -1,4 +1,5 @@
-.attn-wrap{display:flex;flex-direction:column;gap:12px;padding:16px;overflow:auto}
+#pageAttendance.active{grid-template-columns:1fr;grid-template-rows:1fr;min-height:0}
+.attn-wrap{display:flex;flex-direction:column;gap:12px;padding:16px;overflow:auto;min-height:0;height:100%}
 .attn-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .attn-top label{color:#94a3b8;font-size:13px}
 .attn-inp{padding:4px 8px;border-radius:4px;border:1px solid #334155;background:#0f172a;color:#e2e8f0}
