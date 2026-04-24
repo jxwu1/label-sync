@@ -166,7 +166,8 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
         品名: <input class="pur-inp pur-new-name" data-i="${i}" data-field="name" value="${escapeAttr(e.name)}" placeholder="第4列">
         发票品名: <input class="pur-inp pur-new-name" data-i="${i}" data-field="invoice_name" value="${escapeAttr(e.invoice_name)}" placeholder="第5列">
         <button class="pur-new-mod" data-i="${i}">修改</button>
-        <button class="pur-new-del" data-i="${i}">删除</button>
+        <button class="pur-new-del" data-i="${i}">修正</button>
+        <button class="pur-new-remove" data-i="${i}">删除</button>
       </div>`).join('');
     list.querySelectorAll('.pur-new-name').forEach(el => {
       el.addEventListener('input', ev => {
@@ -202,7 +203,22 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     list.querySelectorAll('.pur-new-del').forEach(el => {
       el.addEventListener('click', ev => startDelete(+ev.target.dataset.i));
     });
+    list.querySelectorAll('.pur-new-remove').forEach(el => {
+      el.addEventListener('click', ev => removeNewEntry(+ev.target.dataset.i));
+    });
     updateButtons();
+  }
+
+  function removeNewEntry(i) {
+    const entry = newEntries[i];
+    if (!entry) return;
+    if (!confirm(`确认彻底删除条码 ${entry.barcode}？该条目将不会出现在导出中。`)) return;
+    const bc = entry.barcode;
+    rows = rows.filter(r => r.barcode !== bc);
+    newEntries.splice(i, 1);
+    renderResults();
+    renderNewBox();
+    setStatus(`已删除条码 ${bc}`);
   }
 
   function startDelete(i) {
