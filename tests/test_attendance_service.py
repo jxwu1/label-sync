@@ -130,3 +130,48 @@ class TestComputeSummary(unittest.TestCase):
     def test_detail_contains_all_days(self):
         result = svc.compute_summary("e001", "2026-04")
         self.assertEqual(len(result["detail"]), 30)
+
+
+class TestHolidays(unittest.TestCase):
+    def setUp(self):
+        _TEST_DIR.mkdir(exist_ok=True)
+        svc._ATTENDANCE_DIR = _TEST_DIR
+
+    def tearDown(self):
+        shutil.rmtree(_TEST_DIR, ignore_errors=True)
+
+    def test_empty_holidays_initially(self):
+        self.assertEqual(svc.list_holidays(), [])
+
+    def test_add_and_list_holiday(self):
+        svc.add_holiday("2026-05-01")
+        self.assertEqual(svc.list_holidays(), ["2026-05-01"])
+
+    def test_add_duplicate_is_idempotent(self):
+        svc.add_holiday("2026-05-01")
+        svc.add_holiday("2026-05-01")
+        self.assertEqual(svc.list_holidays(), ["2026-05-01"])
+
+    def test_remove_holiday(self):
+        svc.add_holiday("2026-05-01")
+        svc.remove_holiday("2026-05-01")
+        self.assertEqual(svc.list_holidays(), [])
+
+    def test_holiday_counts_as_one_day_in_summary(self):
+        svc.add_holiday("2026-04-01")  # 周三
+        result = svc.compute_summary("e001", "2026-04")
+        row = next(d for d in result["detail"] if d["date"] == "2026-04-01")
+        self.assertEqual(row["status"], "holiday")
+        self.assertEqual(row["day_fraction"], 1.0)
+
+    def test_sunday_takes_priority_over_holiday(self):
+        svc.add_holiday("2026-04-05")  # 周日
+        result = svc.compute_summary("e001", "2026-04")
+        row = next(d for d in result["detail"] if d["date"] == "2026-04-05")
+        self.assertEqual(row["status"], "sunday")
+
+    def test_holiday_does_not_count_as_absent(self):
+        svc.add_holiday("2026-04-01")
+        result = svc.compute_summary("e001", "2026-04")
+        # 30 天 - 4 周日 - 1 节假日 = 25 缺勤
+        self.assertEqual(result["absent_days"], 25)

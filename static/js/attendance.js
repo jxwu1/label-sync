@@ -14,6 +14,7 @@
           <label>员工 <select class="attn-inp" id="attnEmployee"></select></label>
           <button class="attn-btn" id="attnEmpNew">+ 新建</button>
           <button class="attn-btn attn-btn-danger" id="attnEmpDel">删除员工</button>
+          <button class="attn-btn" id="attnHolidays">节假日</button>
           <button class="attn-btn attn-btn-dl" id="attnPdf">下载 PDF</button>
           <button class="attn-btn attn-btn-dl" id="attnCsv">下载 CSV</button>
         </div>
@@ -24,6 +25,19 @@
           <span>本月天数 <b id="attnMonthDays">0</b></span>
         </div>
         <div id="attnGridWrap"></div>
+      </div>
+      <div class="pur-modal-overlay" id="attnHolidayOverlay" style="display:none;">
+        <div class="pur-modal">
+          <div class="pur-modal-hd">节假日管理</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input class="attn-inp" id="attnHolidayInput" type="date">
+            <button class="attn-btn attn-btn-dl" id="attnHolidayAdd">添加</button>
+          </div>
+          <div id="attnHolidayList" class="pur-mgr-list"></div>
+          <div class="pur-modal-actions">
+            <button class="attn-btn" id="attnHolidayClose">关闭</button>
+          </div>
+        </div>
       </div>`;
 
     document.getElementById('attnEmpNew').addEventListener('click', createEmployee);
@@ -32,6 +46,11 @@
     document.getElementById('attnMonth').addEventListener('change', onMonthChange);
     document.getElementById('attnPdf').addEventListener('click', downloadPdf);
     document.getElementById('attnCsv').addEventListener('click', downloadCsv);
+    document.getElementById('attnHolidays').addEventListener('click', openHolidays);
+    document.getElementById('attnHolidayAdd').addEventListener('click', addHoliday);
+    document.getElementById('attnHolidayClose').addEventListener('click', () => {
+      document.getElementById('attnHolidayOverlay').style.display = 'none';
+    });
 
     document.getElementById('attnMonth').value = new Date().toISOString().slice(0, 7);
     currentMonth = document.getElementById('attnMonth').value;
@@ -120,13 +139,16 @@
   function renderGrid(detail) {
     const wrap = document.getElementById('attnGridWrap');
     const rows = detail.map(r => {
-      const cls = r.status === 'sunday' ? 'sunday' : (r.status === 'absent' ? 'absent' : '');
-      const startCell = r.status === 'sunday'
-        ? '<td colspan="2">自动（周日）</td>'
+      const autoRow = r.status === 'sunday' || r.status === 'holiday';
+      const cls = r.status === 'sunday' ? 'sunday' : (r.status === 'holiday' ? 'holiday' : (r.status === 'absent' ? 'absent' : ''));
+      const autoLabel = r.status === 'sunday' ? '自动（周日）' : '自动（节假日）';
+      const startCell = autoRow
+        ? `<td colspan="2">${autoLabel}</td>`
         : `<td><input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" data-date="${r.date}" data-field="start" value="${r.start}"></td>
            <td><input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" data-date="${r.date}" data-field="end" value="${r.end}"></td>`;
-      const statusText = r.status === 'sunday' ? '周日' : (r.status === 'absent' ? '缺勤' : '正常');
-      const actionCell = r.status === 'sunday'
+      const statusMap = { sunday: '周日', holiday: '节假日', absent: '缺勤', normal: '正常' };
+      const statusText = statusMap[r.status] || r.status;
+      const actionCell = autoRow
         ? '<td></td>'
         : `<td><button class="attn-btn attn-fill" data-date="${r.date}">正常</button></td>`;
       return `<tr class="${cls}" data-date="${r.date}">
@@ -205,6 +227,61 @@
     document.getElementById('attnAbsent').textContent = summary ? summary.absent_days : 0;
     document.getElementById('attnTotal').textContent = summary ? summary.total_workdays : 0;
     document.getElementById('attnMonthDays').textContent = summary ? summary.month_days : 0;
+  }
+
+  async function openHolidays() {
+    document.getElementById('attnHolidayInput').value = '';
+    await renderHolidayList();
+    document.getElementById('attnHolidayOverlay').style.display = 'flex';
+  }
+
+  async function renderHolidayList() {
+    try {
+      const res = await fetch('/attendance/holidays');
+      const body = await res.json();
+      const list = document.getElementById('attnHolidayList');
+      const holidays = body.holidays || [];
+      if (!holidays.length) {
+        list.innerHTML = '<div class="empty">暂无节假日</div>';
+        return;
+      }
+      list.innerHTML = holidays.map(d => `
+        <div class="pur-mgr-row">
+          <div class="pur-mgr-cell">${escapeHtml(d)}</div>
+          <button class="pur-btn-copy pur-mgr-del" data-date="${d}">删除</button>
+        </div>`).join('');
+      list.querySelectorAll('.pur-mgr-del').forEach(btn => {
+        btn.addEventListener('click', () => deleteHoliday(btn.dataset.date));
+      });
+    } catch (e) { alert('加载节假日失败：' + e.message); }
+  }
+
+  async function addHoliday() {
+    const date = document.getElementById('attnHolidayInput').value;
+    if (!date) { alert('请选择日期'); return; }
+    try {
+      const res = await fetch('/attendance/holidays', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date }),
+      });
+      const body = await res.json();
+      if (!body.ok) { alert(body.msg); return; }
+    } catch (e) { alert('添加失败：' + e.message); return; }
+    document.getElementById('attnHolidayInput').value = '';
+    await renderHolidayList();
+    await loadMonth();
+  }
+
+  async function deleteHoliday(date) {
+    if (!confirm(`删除节假日 ${date}？`)) return;
+    try {
+      const res = await fetch(`/attendance/holidays/${date}`, { method: 'DELETE' });
+      const body = await res.json();
+      if (!body.ok) { alert(body.msg); return; }
+    } catch (e) { alert('删除失败：' + e.message); return; }
+    await renderHolidayList();
+    await loadMonth();
   }
 
   function downloadPdf() {

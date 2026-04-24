@@ -7,6 +7,7 @@ from pathlib import Path
 
 _ATTENDANCE_DIR = Path(__file__).resolve().parent / "attendance"
 _EMPLOYEES_FILE = "employees.json"
+_HOLIDAYS_FILE = "holidays.json"
 _METADATA_FILE = "metadata.json"
 
 
@@ -51,6 +52,25 @@ def create_employee(name: str) -> dict:
     employees.append(emp)
     _write_json(_employees_path(), employees)
     return emp
+
+
+def _holidays_path() -> Path:
+    return _ATTENDANCE_DIR / _HOLIDAYS_FILE
+
+
+def list_holidays() -> list[str]:
+    return sorted(_read_json(_holidays_path(), []))
+
+
+def add_holiday(date: str) -> None:
+    holidays = set(list_holidays())
+    holidays.add(date)
+    _write_json(_holidays_path(), sorted(holidays))
+
+
+def remove_holiday(date: str) -> None:
+    holidays = [d for d in list_holidays() if d != date]
+    _write_json(_holidays_path(), holidays)
 
 
 def delete_employee(employee_id: str) -> None:
@@ -154,6 +174,7 @@ def compute_summary(employee_id: str, month: str) -> dict:
         }
     """
     month_data = load_month(month).get(employee_id, {})
+    holidays = set(list_holidays())
     detail = []
     worked_days = 0.0
     absent_days = 0
@@ -163,6 +184,14 @@ def compute_summary(employee_id: str, month: str) -> dict:
                 "date": date_str, "weekday": wd_cn,
                 "start": "", "end": "",
                 "day_fraction": 1.0, "status": "sunday",
+            })
+            worked_days += 1.0
+            continue
+        if date_str in holidays:
+            detail.append({
+                "date": date_str, "weekday": wd_cn,
+                "start": "", "end": "",
+                "day_fraction": 1.0, "status": "holiday",
             })
             worked_days += 1.0
             continue

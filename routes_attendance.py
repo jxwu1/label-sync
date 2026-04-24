@@ -30,6 +30,27 @@ def delete_employee(employee_id: str):
     return jsonify({"ok": True})
 
 
+@bp.get("/holidays")
+def list_holidays():
+    return jsonify({"ok": True, "holidays": attendance_service.list_holidays()})
+
+
+@bp.post("/holidays")
+def add_holiday():
+    data = request.get_json(silent=True) or {}
+    date = (data.get("date") or "").strip()
+    if not date:
+        return jsonify({"ok": False, "msg": "缺少 date"}), 400
+    attendance_service.add_holiday(date)
+    return jsonify({"ok": True, "holidays": attendance_service.list_holidays()})
+
+
+@bp.delete("/holidays/<date>")
+def remove_holiday(date: str):
+    attendance_service.remove_holiday(date)
+    return jsonify({"ok": True, "holidays": attendance_service.list_holidays()})
+
+
 @bp.get("/month/<employee_id>/<month>")
 def month_summary(employee_id: str, month: str):
     try:
