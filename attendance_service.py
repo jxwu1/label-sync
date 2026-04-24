@@ -85,3 +85,31 @@ def day_fraction(start: str, end: str) -> float:
         raise ValueError(f"下班时间必须晚于上班时间：start={start} end={end}")
     hours = (end_min - start_min) / 60
     return min(hours / STANDARD_HOURS, 1.0)
+
+
+def _month_path(month: str) -> Path:
+    return _ATTENDANCE_DIR / f"{month}.json"
+
+
+def load_month(month: str) -> dict:
+    return _read_json(_month_path(month), {})
+
+
+def set_day(employee_id: str, date: str, times: dict) -> None:
+    month = date[:7]
+    data = load_month(month)
+    data.setdefault(employee_id, {})[date] = {
+        "start": times["start"],
+        "end": times["end"],
+    }
+    _write_json(_month_path(month), data)
+
+
+def clear_day(employee_id: str, date: str) -> None:
+    month = date[:7]
+    data = load_month(month)
+    if employee_id in data and date in data[employee_id]:
+        del data[employee_id][date]
+        if not data[employee_id]:
+            del data[employee_id]
+        _write_json(_month_path(month), data)

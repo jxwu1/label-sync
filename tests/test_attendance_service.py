@@ -60,3 +60,32 @@ class TestDayFraction(unittest.TestCase):
     def test_rejects_equal_times(self):
         with self.assertRaises(ValueError):
             svc.day_fraction("09:30", "09:30")
+
+
+class TestDayCrud(unittest.TestCase):
+    def setUp(self):
+        _TEST_DIR.mkdir(exist_ok=True)
+        svc._ATTENDANCE_DIR = _TEST_DIR
+
+    def tearDown(self):
+        shutil.rmtree(_TEST_DIR, ignore_errors=True)
+
+    def test_set_day_creates_entry(self):
+        svc.set_day("e001", "2026-04-01", {"start": "09:30", "end": "20:00"})
+        data = svc.load_month("2026-04")
+        self.assertEqual(data["e001"]["2026-04-01"], {"start": "09:30", "end": "20:00"})
+
+    def test_set_day_overwrites_existing(self):
+        svc.set_day("e001", "2026-04-01", {"start": "09:30", "end": "20:00"})
+        svc.set_day("e001", "2026-04-01", {"start": "10:00", "end": "18:00"})
+        data = svc.load_month("2026-04")
+        self.assertEqual(data["e001"]["2026-04-01"]["start"], "10:00")
+
+    def test_clear_day_removes_entry(self):
+        svc.set_day("e001", "2026-04-01", {"start": "09:30", "end": "20:00"})
+        svc.clear_day("e001", "2026-04-01")
+        data = svc.load_month("2026-04")
+        self.assertNotIn("2026-04-01", data.get("e001", {}))
+
+    def test_load_empty_month(self):
+        self.assertEqual(svc.load_month("2099-01"), {})
