@@ -160,11 +160,22 @@
     await onCellChange(date);
   }
 
+  function normalizeTime(raw) {
+    const s = String(raw || '').trim();
+    if (!s) return '';
+    const digits = s.replace(/\D/g, '');
+    if (digits.length === 3) return `0${digits[0]}:${digits.slice(1)}`;
+    if (digits.length === 4) return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+    return s;
+  }
+
   async function onCellChange(date) {
     const row = document.querySelector(`tr[data-date="${date}"]`);
     if (!row) return;
     const startInp = row.querySelector('input[data-field="start"]');
     const endInp = row.querySelector('input[data-field="end"]');
+    if (startInp) startInp.value = normalizeTime(startInp.value);
+    if (endInp) endInp.value = normalizeTime(endInp.value);
     const start = startInp ? startInp.value : '';
     const end = endInp ? endInp.value : '';
     const timeRe = /^([01]\d|2[0-3]):([0-5]\d)$/;
