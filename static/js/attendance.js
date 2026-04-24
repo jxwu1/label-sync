@@ -125,22 +125,39 @@
         : `<td><input type="time" data-date="${r.date}" data-field="start" value="${r.start}"></td>
            <td><input type="time" data-date="${r.date}" data-field="end" value="${r.end}"></td>`;
       const statusText = r.status === 'sunday' ? '🔒' : (r.status === 'absent' ? '缺勤' : '✓');
+      const actionCell = r.status === 'sunday'
+        ? '<td></td>'
+        : `<td><button class="attn-btn attn-fill" data-date="${r.date}">正常</button></td>`;
       return `<tr class="${cls}" data-date="${r.date}">
         <td>${r.date.slice(5)}</td>
         <td>${r.weekday}</td>
         ${startCell}
         <td>${r.day_fraction.toFixed(2)}</td>
         <td class="attn-status">${statusText}</td>
+        ${actionCell}
       </tr>`;
     }).join('');
     wrap.innerHTML = `
       <table class="attn-grid">
-        <thead><tr><th>日期</th><th>星期</th><th>上班</th><th>下班</th><th>天数</th><th>状态</th></tr></thead>
+        <thead><tr><th>日期</th><th>星期</th><th>上班</th><th>下班</th><th>天数</th><th>状态</th><th>快填</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
     wrap.querySelectorAll('input[type=time]').forEach(inp => {
       inp.addEventListener('change', () => onCellChange(inp.dataset.date));
     });
+    wrap.querySelectorAll('.attn-fill').forEach(btn => {
+      btn.addEventListener('click', () => fillNormal(btn.dataset.date));
+    });
+  }
+
+  async function fillNormal(date) {
+    const row = document.querySelector(`tr[data-date="${date}"]`);
+    if (!row) return;
+    const startInp = row.querySelector('input[data-field="start"]');
+    const endInp = row.querySelector('input[data-field="end"]');
+    if (startInp) startInp.value = '09:30';
+    if (endInp) endInp.value = '20:00';
+    await onCellChange(date);
   }
 
   async function onCellChange(date) {

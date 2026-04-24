@@ -17,3 +17,5 @@
 .attn-grid tr.sunday td{background:#1e1b4b;color:#a5b4fc}
 .attn-grid tr.absent td{background:#1a0f0f;color:#fca5a5}
 .attn-grid .attn-status{font-size:12px}
+.attn-grid .attn-fill{padding:2px 8px;font-size:12px;background:#059669;border-color:#059669;color:#fff}
+.attn-grid .attn-fill:hover{background:#047857}
