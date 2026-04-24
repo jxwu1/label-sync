@@ -32,7 +32,7 @@ def list_employees() -> list[dict]:
     return _read_json(_employees_path(), [])
 
 
-def _next_employee_id(employees: list[dict]) -> str:
+def _next_employee_id() -> str:
     metadata = _read_json(_metadata_path(), {"next_id_num": 0})
     next_num = metadata.get("next_id_num", 0) + 1
     metadata["next_id_num"] = next_num
@@ -43,7 +43,7 @@ def _next_employee_id(employees: list[dict]) -> str:
 def create_employee(name: str) -> dict:
     employees = list_employees()
     emp = {
-        "id": _next_employee_id(employees),
+        "id": _next_employee_id(),
         "name": name,
         "created_at": datetime.now().isoformat(timespec="seconds"),
     }
