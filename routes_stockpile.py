@@ -1,22 +1,24 @@
 import os
+from typing import Callable
 
-from flask import Blueprint, jsonify, request, send_file
+from flask import Blueprint, jsonify, request
 
 import stockpile_db
 from file_io import read_input_file
 from path_safety import safe_filename
-from schemas import ServiceResult
 from state import INPUT_DIR
 
 bp = Blueprint("stockpile", __name__)
 
 
-@bp.post("/stockpile/init")
-def init_stockpile():
+def _with_uploaded_dataframe(handler: Callable[[object], dict]) -> tuple:
+    """统一处理 stockpile 上传：取文件 → 读 dataframe → 调 handler → 保证清理临时文件。
+
+    handler 接收 dataframe，返回成功 payload（不含 ok 字段）。
+    """
     files = request.files.getlist("files")
     if not files:
         return jsonify({"ok": False, "msg": "没有收到文件"}), 400
-
     file_storage = files[0]
     if not file_storage.filename:
         return jsonify({"ok": False, "msg": "文件名为空"}), 400
@@ -25,86 +27,32 @@ def init_stockpile():
     file_path = INPUT_DIR / filename
     file_storage.save(file_path)
 
-    dataframe = read_input_file(file_path)
-    if dataframe is None:
+    try:
+        dataframe = read_input_file(file_path)
+        if dataframe is None:
+            return jsonify({"ok": False, "msg": "无法读取文件，支持 .xlsx/.xls/.csv"}), 400
+        payload = handler(dataframe)
+        return jsonify({"ok": True, **payload})
+    finally:
         try:
             os.remove(file_path)
         except OSError:
             pass
-        return jsonify({"ok": False, "msg": "无法读取文件，支持 .xlsx/.xls/.csv"}), 400
 
-    count = stockpile_db.import_from_dataframe(dataframe)
 
-    try:
-        os.remove(file_path)
-    except OSError:
-        pass
-
-    return jsonify({"ok": True, "count": count})
+@bp.post("/stockpile/init")
+def init_stockpile():
+    return _with_uploaded_dataframe(lambda df: {"count": stockpile_db.import_from_dataframe(df)})
 
 
 @bp.post("/stockpile/compare")
 def compare_stockpile():
-    files = request.files.getlist("files")
-    if not files:
-        return jsonify({"ok": False, "msg": "没有收到文件"}), 400
-
-    file_storage = files[0]
-    if not file_storage.filename:
-        return jsonify({"ok": False, "msg": "文件名为空"}), 400
-
-    filename = safe_filename(file_storage.filename)
-    file_path = INPUT_DIR / filename
-    file_storage.save(file_path)
-
-    dataframe = read_input_file(file_path)
-    if dataframe is None:
-        try:
-            os.remove(file_path)
-        except OSError:
-            pass
-        return jsonify({"ok": False, "msg": "无法读取文件，支持 .xlsx/.xls/.csv"}), 400
-
-    diff = stockpile_db.compare_with_dataframe(dataframe)
-
-    try:
-        os.remove(file_path)
-    except OSError:
-        pass
-
-    return jsonify({"ok": True, "diff": diff})
+    return _with_uploaded_dataframe(lambda df: {"diff": stockpile_db.compare_with_dataframe(df)})
 
 
 @bp.post("/stockpile/apply-export")
 def apply_export():
-    files = request.files.getlist("files")
-    if not files:
-        return jsonify({"ok": False, "msg": "没有收到文件"}), 400
-
-    file_storage = files[0]
-    if not file_storage.filename:
-        return jsonify({"ok": False, "msg": "文件名为空"}), 400
-
-    filename = safe_filename(file_storage.filename)
-    file_path = INPUT_DIR / filename
-    file_storage.save(file_path)
-
-    dataframe = read_input_file(file_path)
-    if dataframe is None:
-        try:
-            os.remove(file_path)
-        except OSError:
-            pass
-        return jsonify({"ok": False, "msg": "无法读取文件，支持 .xlsx/.xls/.csv"}), 400
-
-    updated = stockpile_db.apply_export_updates(dataframe)
-
-    try:
-        os.remove(file_path)
-    except OSError:
-        pass
-
-    return jsonify({"ok": True, "updated": updated})
+    return _with_uploaded_dataframe(lambda df: {"updated": stockpile_db.apply_export_updates(df)})
 
 
 @bp.get("/stockpile/status")
