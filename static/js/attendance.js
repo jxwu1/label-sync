@@ -24,6 +24,7 @@
           <span>缺勤 <b id="attnAbsent">0</b> 天</span>
           <span>总工作日 <b id="attnTotal">0</b></span>
           <span>本月天数 <b id="attnMonthDays">0</b></span>
+          <span>请假 <b id="attnLeaveH">0</b> 小时（约 <b id="attnLeaveD">0</b> 天）</span>
         </div>
         <div id="attnGridWrap"></div>
       </div>
@@ -163,7 +164,8 @@
     const rows = detail.map(r => {
       const autoRow = r.status === 'sunday' || r.status === 'holiday';
       const isSpecial = r.status === 'special' || r.status === 'special_absent';
-      const clsMap = { sunday: 'sunday', holiday: 'holiday', absent: 'absent', special: 'special', special_absent: 'special absent' };
+      const isLeave = r.status === 'leave';
+      const clsMap = { sunday: 'sunday', holiday: 'holiday', absent: 'absent', special: 'special', special_absent: 'special absent', leave: 'leave' };
       const cls = clsMap[r.status] || '';
       const autoLabel = r.status === 'sunday' ? '自动（周日）' : '自动（节假日）';
       const specialHint = isSpecial ? `<span class="attn-hint">缩短 ${r.special_start}-${r.special_end}</span>` : '';
@@ -171,24 +173,31 @@
         ? `<td colspan="2">${autoLabel}</td>`
         : `<td><input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" data-date="${r.date}" data-field="start" value="${r.start}">${specialHint ? '<br>'+specialHint : ''}</td>
            <td><input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" data-date="${r.date}" data-field="end" value="${r.end}"></td>`;
-      const statusMap = { sunday: '周日', holiday: '节假日', absent: '缺勤', normal: '正常', special: '特殊日', special_absent: '特殊日缺勤' };
-      const statusText = statusMap[r.status] || r.status;
+      const statusMap = { sunday: '周日', holiday: '节假日', absent: '缺勤', normal: '正常', special: '特殊日', special_absent: '特殊日缺勤', leave: '请假' };
+      const baseStatus = statusMap[r.status] || r.status;
+      const leaveH = r.leave_hours || 0;
+      const statusText = isLeave ? `请假 ${leaveH}h` : baseStatus;
+      const leaveCell = autoRow
+        ? `<td>${leaveH ? leaveH + 'h' : ''}</td>`
+        : (leaveH > 0
+            ? `<td>${leaveH}h <button class="attn-btn attn-leave-clear" data-date="${r.date}">取消</button></td>`
+            : `<td><button class="attn-btn attn-leave-add" data-date="${r.date}" data-special="${isSpecial ? 1 : 0}">请假</button></td>`);
       const fillBtn = isSpecial
         ? `<td><button class="attn-btn attn-fill" data-date="${r.date}" data-start="${r.special_start}" data-end="${r.special_end}">按标准</button></td>`
         : (autoRow ? '<td></td>' : `<td><button class="attn-btn attn-fill" data-date="${r.date}" data-start="09:30" data-end="20:00">正常</button></td>`);
-      const actionCell = fillBtn;
       return `<tr class="${cls}" data-date="${r.date}">
         <td>${r.date.slice(5)}</td>
         <td>${r.weekday}</td>
         ${startCell}
         <td>${r.day_fraction.toFixed(2)}</td>
+        ${leaveCell}
         <td class="attn-status">${statusText}</td>
-        ${actionCell}
+        ${fillBtn}
       </tr>`;
     }).join('');
     wrap.innerHTML = `
       <table class="attn-grid">
-        <thead><tr><th>日期</th><th>星期</th><th>上班</th><th>下班</th><th>天数</th><th>状态</th><th>快填</th></tr></thead>
+        <thead><tr><th>日期</th><th>星期</th><th>上班</th><th>下班</th><th>天数</th><th>请假</th><th>状态</th><th>快填</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
     wrap.querySelectorAll('input[data-field]').forEach(inp => {
@@ -197,6 +206,43 @@
     wrap.querySelectorAll('.attn-fill').forEach(btn => {
       btn.addEventListener('click', () => fillNormal(btn.dataset.date, btn.dataset.start, btn.dataset.end));
     });
+    wrap.querySelectorAll('.attn-leave-add').forEach(btn => {
+      btn.addEventListener('click', () => addLeave(btn.dataset.date, btn.dataset.special === '1'));
+    });
+    wrap.querySelectorAll('.attn-leave-clear').forEach(btn => {
+      btn.addEventListener('click', () => clearLeave(btn.dataset.date));
+    });
+  }
+
+  async function addLeave(date, isSpecial) {
+    const standard = isSpecial ? null : 10.5;
+    const hint = standard
+      ? `请假小时数（全天 ${standard}，半天 ${standard / 2}）：`
+      : '请假小时数：';
+    const raw = prompt(hint, standard ? String(standard) : '');
+    if (raw == null) return;
+    const hours = parseFloat(raw);
+    if (!isFinite(hours) || hours <= 0) { alert('请输入大于 0 的小时数'); return; }
+    try {
+      const res = await fetch(`/attendance/leave/${currentEmployeeId}/${date}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hours }),
+      });
+      const body = await res.json();
+      if (!body.ok) { alert(body.msg); return; }
+    } catch (e) { alert('请假失败：' + e.message); return; }
+    await loadMonth();
+  }
+
+  async function clearLeave(date) {
+    if (!confirm(`取消 ${date} 的请假？`)) return;
+    try {
+      const res = await fetch(`/attendance/leave/${currentEmployeeId}/${date}`, { method: 'DELETE' });
+      const body = await res.json();
+      if (!body.ok) { alert(body.msg); return; }
+    } catch (e) { alert('取消失败：' + e.message); return; }
+    await loadMonth();
   }
 
   async function fillNormal(date, start, end) {
@@ -253,6 +299,8 @@
     document.getElementById('attnAbsent').textContent = summary ? summary.absent_days : 0;
     document.getElementById('attnTotal').textContent = summary ? summary.total_workdays : 0;
     document.getElementById('attnMonthDays').textContent = summary ? summary.month_days : 0;
+    document.getElementById('attnLeaveH').textContent = summary ? (summary.leave_hours_total || 0) : 0;
+    document.getElementById('attnLeaveD').textContent = summary ? (summary.leave_days_equivalent || 0) : 0;
   }
 
   async function openHolidays() {
