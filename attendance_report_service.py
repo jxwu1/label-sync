@@ -140,19 +140,21 @@ def build_payroll_pdf(month: str) -> bytes:
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=landscape(A4),
-        topMargin=15 * mm, bottomMargin=15 * mm,
-        leftMargin=15 * mm, rightMargin=15 * mm,
+        topMargin=10 * mm, bottomMargin=10 * mm,
+        leftMargin=12 * mm, rightMargin=12 * mm,
     )
     styles = getSampleStyleSheet()
     title_style = styles["Title"].clone("payroll_title")
     title_style.fontName = _FONT_NAME
+    title_style.fontSize = 16
+    title_style.spaceAfter = 4
     name_style = styles["Normal"].clone("payroll_name")
     name_style.fontName = _FONT_NAME
-    name_style.fontSize = 11
+    name_style.fontSize = 10
 
     elements = [
         Paragraph(f"{month} 月度工资单", title_style),
-        Spacer(1, 6 * mm),
+        Spacer(1, 3 * mm),
     ]
 
     if not employees:
@@ -173,21 +175,21 @@ def build_payroll_pdf(month: str) -> bytes:
                 "",
                 "",
             ])
-        # 横版 A4 可用宽 ~267mm
-        col_widths = [40 * mm, 26 * mm, 26 * mm, 26 * mm, 26 * mm, 26 * mm, 36 * mm, 36 * mm]
+        # 横版 A4 可用宽 ~273mm
+        col_widths = [38 * mm, 25 * mm, 25 * mm, 25 * mm, 25 * mm, 25 * mm, 35 * mm, 35 * mm]
         table = Table(rows, colWidths=col_widths)
         table.setStyle(TableStyle([
             ("FONTNAME", (0, 0), (-1, -1), _FONT_NAME),
-            ("FONTSIZE", (0, 0), (-1, -1), 11),
+            ("FONTSIZE", (0, 0), (-1, -1), 10),
             ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
             ("BACKGROUND", (0, 0), (-1, 0), colors.Color(0.9, 0.9, 0.9)),
             ("ALIGN", (1, 1), (-1, -1), "CENTER"),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.Color(0.97, 0.97, 0.97)]),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ("TOPPADDING", (0, 0), (-1, -1), 8),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ("LEFTPADDING", (0, 0), (-1, -1), 5),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
         ]))
         elements.append(table)
 
