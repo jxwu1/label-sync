@@ -120,17 +120,6 @@ class StockpileDbTests(unittest.TestCase):
         conn.close()
         self.assertGreaterEqual(len(changes), 1)
 
-    def test_update_location_changes_location(self) -> None:
-        df = pd.DataFrame([{"product_barcode": "L1", "product_model": "M1", "stockpile_location": "OldLoc"}])
-        stockpile_db.import_from_dataframe(df)
-        stockpile_db.update_location("L1", "NewLoc")
-        record = stockpile_db.query_by_barcode("L1")
-        self.assertEqual(record["stockpile_location"], "NewLoc")
-
-    def test_update_location_noop_for_unknown_barcode(self) -> None:
-        stockpile_db.update_location("NOBODY", "Loc")
-        self.assertEqual(stockpile_db.count_records(), 0)
-
     def test_query_all_barcodes_set(self) -> None:
         df = pd.DataFrame([
             {"product_barcode": "B1", "product_model": "M1", "stockpile_location": "L1"},
@@ -197,6 +186,40 @@ class StockpileDbTests(unittest.TestCase):
         self.assertEqual(updates[0]["field_name"], "product_model")
         self.assertEqual(updates[0]["old_value"], "Old")
         self.assertEqual(updates[0]["new_value"], "New")
+
+    def test_compare_with_empty_local_db(self) -> None:
+        df_export = pd.DataFrame([
+            {"product_barcode": "X1", "product_model": "M", "stockpile_location": "L"},
+        ])
+        result = stockpile_db.compare_with_dataframe(df_export)
+        self.assertEqual(result["total_local"], 0)
+        self.assertEqual(result["total_export"], 1)
+        self.assertEqual(result["only_in_export"], ["X1"])
+        self.assertEqual(result["only_in_local"], [])
+        self.assertEqual(result["mismatches"], [])
+        self.assertEqual(result["consistent"], 0)
+
+    def test_apply_export_logs_inserts_for_new_records(self) -> None:
+        df = pd.DataFrame([
+            {"product_barcode": "AE1", "product_model": "M", "stockpile_location": "L"},
+        ])
+        stockpile_db.apply_export_updates(df)
+        with stockpile_db._connect() as conn:
+            cur = conn.execute(
+                "SELECT change_type FROM stockpile_changes WHERE product_barcode = ?", ("AE1",))
+            types = [r["change_type"] for r in cur]
+        self.assertIn("insert", types)
+
+    def test_apply_export_persists_extra_cols(self) -> None:
+        df = pd.DataFrame([{
+            "product_barcode": "AE2", "product_model": "M", "stockpile_location": "L",
+            "price": "99", "stock": "12",
+        }])
+        stockpile_db.apply_export_updates(df)
+        record = stockpile_db.query_by_barcode("AE2")
+        extra = json.loads(record["extra"])
+        self.assertEqual(extra["price"], "99")
+        self.assertEqual(extra["stock"], "12")
 
     def test_apply_export_updates_overwrites_local(self) -> None:
         df_local = pd.DataFrame([

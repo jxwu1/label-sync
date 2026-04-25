@@ -18,6 +18,7 @@ VALID_LOCATION_PREFIXES = {"A", "B", "C", "X", "Z"}
 
 INPUT_DIR = CONFIG.input_dir
 TEMP_MAPPING_FILE = CONFIG.temp_mapping_file
+TEMPLATE_PATH = Path(__file__).resolve().parent / "static" / "templates" / "产品信息导入模板.csv"
 
 _BARCODE_LENGTH_TOLERANCE = 2
 
@@ -130,11 +131,10 @@ def save_temp_mapping(
 
 
 def main() -> int:
-    _TEMPLATE_PATH = Path(__file__).resolve().parent / "static" / "templates" / "产品信息导入模板.csv"
-    template_file = _TEMPLATE_PATH
-    if not template_file.exists():
+    if not TEMPLATE_PATH.exists():
         print("ERROR: missing template csv")
         return 1
+    template_file = TEMPLATE_PATH
     print(f"TEMPLATE {template_file.name}")
 
     stockpile_file = find_latest_stockpile_file_or_exit()
