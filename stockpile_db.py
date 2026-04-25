@@ -163,9 +163,15 @@ def compare_with_dataframe(df: pd.DataFrame) -> dict:
         barcode = str(row.get("product_barcode", "")).strip()
         if not barcode or barcode == "nan":
             continue
+        model = str(row.get("product_model", "")).strip()
+        if model == "nan":
+            model = ""
+        location = str(row.get("stockpile_location", "")).strip()
+        if location == "nan":
+            location = ""
         export_records[barcode] = {
-            "product_model": str(row.get("product_model", "")).strip(),
-            "stockpile_location": str(row.get("stockpile_location", "")).strip(),
+            "product_model": model,
+            "stockpile_location": location,
         }
 
     export_barcodes = set(export_records.keys())
@@ -209,7 +215,11 @@ def apply_export_updates(df: pd.DataFrame) -> int:
             if not barcode or barcode == "nan":
                 continue
             model = str(row.get("product_model", "")).strip()
+            if model == "nan":
+                model = ""
             location = str(row.get("stockpile_location", "")).strip()
+            if location == "nan":
+                location = ""
             extra = {c: str(row.get(c, "")) for c in extra_cols}
             existing = conn.execute("SELECT * FROM stockpile WHERE product_barcode = ?", (barcode,)).fetchone()
             if existing:
