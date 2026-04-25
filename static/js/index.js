@@ -287,11 +287,13 @@ spCmpBtn.addEventListener('click', async () => {
             const d = data.diff;
             let html = '<b>比对结果：</b><br>';
             html += '本地记录：' + d.total_local + ' &nbsp; 导出记录：' + d.total_export + ' &nbsp; 一致：' + d.consistent + '<br>';
-            if (d.only_in_local.length) html += '<span style="color:#e65100">仅本地有：' + d.only_in_local.join(', ') + '</span><br>';
-            if (d.only_in_export.length) html += '<span style="color:#1565c0">仅导出有：' + d.only_in_export.join(', ') + '</span><br>';
+            if (d.only_in_local.length) html += '<span style="color:#e65100">仅本地有：' + esc(d.only_in_local.join(', ')) + '</span><br>';
+            if (d.only_in_export.length) html += '<span style="color:#1565c0">仅导出有：' + esc(d.only_in_export.join(', ')) + '</span><br>';
             if (d.mismatches.length) {
                 html += '<span style="color:#c62828">不一致条数：' + d.mismatches.length + '</span><br>';
-                html += d.mismatches.slice(0, 5).map(m => m.barcode + ': 型号(' + m.local_model + '→' + m.export_model + ')').join('<br>');
+                html += d.mismatches.slice(0, 5).map(m =>
+                    esc(m.barcode) + ': 型号(' + esc(m.local_model) + '→' + esc(m.export_model) + ')'
+                ).join('<br>');
                 if (d.mismatches.length > 5) html += '<br>...等共' + d.mismatches.length + '条';
             }
             if (!d.only_in_local.length && !d.only_in_export.length && !d.mismatches.length) {
@@ -299,7 +301,7 @@ spCmpBtn.addEventListener('click', async () => {
             }
             spCmpRes.innerHTML = html;
         } else {
-            spCmpRes.innerHTML = '<span style="color:#c62828">比对失败：' + data.msg + '</span>';
+            spCmpRes.innerHTML = '<span style="color:#c62828">比对失败：' + esc(data.msg || '') + '</span>';
         }
     } catch (e) {
         spCmpRes.innerHTML = '<span style="color:#c62828">网络错误</span>';
