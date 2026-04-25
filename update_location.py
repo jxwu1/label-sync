@@ -125,7 +125,6 @@ def main() -> int:
     employee_name = results_data["employee_name"]
     scan_files = [Path(path) for path in results_data["scan_files"]]
     barcode_model_map = results_data["barcode_model_map"]
-    stockpile_path = Path(results_data["stockpile_path"])
 
     print(f"EMPLOYEE {employee_name}")
     print(f"RESULT_COUNT {len(results)}")

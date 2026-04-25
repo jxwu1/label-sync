@@ -2,8 +2,6 @@ import json
 import sys
 from pathlib import Path
 
-import pandas as pd
-
 from config import CONFIG
 from file_io import write_phase2_results
 from location_parser import categorize_locations, categorize_stockpile, compose_if_single
@@ -98,24 +96,6 @@ def load_phase1_mapping() -> dict | None:
     TEMP_MAPPING_FILE.unlink()
     return data
 
-
-def build_system_records(
-    dataframe: pd.DataFrame,
-) -> tuple[dict[str, str], dict[str, dict[str, str]]]:
-    barcode_model_map: dict[str, str] = {}
-    system_records: dict[str, dict[str, str]] = {}
-    for _, row in dataframe.iterrows():
-        barcode = str(row.get("product_barcode", "")).strip()
-        if not barcode:
-            continue
-        model = str(row.get("product_model", "")).strip()
-        stockpile_location = str(row.get("stockpile_location", "")).strip()
-        barcode_model_map[barcode] = "" if model == "nan" else model
-        system_records[barcode] = {
-            "model": barcode_model_map[barcode],
-            "stockpile_location": "" if stockpile_location == "nan" else stockpile_location,
-        }
-    return barcode_model_map, system_records
 
 
 def main() -> int:
