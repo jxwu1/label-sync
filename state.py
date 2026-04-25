@@ -13,6 +13,7 @@ PHASE2_SCRIPT = CONFIG.phase2_script
 PHASE3_SCRIPT = CONFIG.phase3_script
 TEMP_MAPPING_FILE = CONFIG.temp_mapping_file
 TEMP_RESULTS_FILE = CONFIG.temp_results_file
+STOCKPILE_DB = CONFIG.stockpile_db
 
 BARCODE_WARNING_PATTERN = r"\[BARCODE_WARNING\] (\S+) length=(\d+) normal=(\d+)"
 LOCATION_WARNING_PATTERN = r"\[LOCATION_WARNING\] (\S+)"
