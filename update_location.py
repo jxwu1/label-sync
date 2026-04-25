@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 
 from config import CONFIG
-from file_io import find_latest_stockpile_file, read_csv
+from file_io import read_csv
 
 INPUT_DIR = CONFIG.input_dir
 OUTPUT_DIR = CONFIG.output_dir
@@ -150,9 +150,8 @@ def main() -> int:
     trash_suffix = datetime.now().strftime("%Y%m%d_%H%M%S")
     archive_scan_files(scan_files, package_dir, barcode_model_map, trash_suffix)
 
-    system_trash_path = TRASH_DIR / f"{stockpile_path.stem}_{trash_suffix}.csv"
-    shutil.move(stockpile_path, system_trash_path)
-    print(f"TRASH_STOCKPILE {system_trash_path.name}")
+    # stockpile is now in local database, no CSV file to archive
+    print("TRASH_STOCKPILE (database, skipped)")
     return 0
 
 
