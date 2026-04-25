@@ -21,7 +21,7 @@ _FONT_CANDIDATES = [
 ]
 
 _PDF_TABLE_HEADER = ["日期", "星期", "上班", "下班", "天数", "请假", "状态"]
-_OVERVIEW_HEADER = ["员工", "累计天数", "缺勤天数", "总工作日", "本月天数", "请假天数"]
+_OVERVIEW_HEADER = ["员工", "本月天数", "总工作日", "缺勤天数", "请假天数", "累计天数"]
 _STATUS_CN = {
     "normal": "正常", "absent": "缺勤", "sunday": "周日",
     "holiday": "节假日", "special": "特殊日", "special_absent": "特殊日缺勤",
@@ -34,15 +34,15 @@ def _employee_anchor(emp_id: str) -> str:
 
 
 def _format_leave_pdf(row: dict) -> str:
-    h = row.get("leave_hours", 0) or 0
-    t = row.get("leave_type", "")
-    s = row.get("leave_start", "")
-    e = row.get("leave_end", "")
-    if t == "range" and s and e:
-        return f"{s}-{e}\n{h:.2f}h"
-    if t == "left" and s:
-        return f"{s}起\n{h:.2f}h"
-    return f"{h:.2f}h"
+    hours = row.get("leave_hours", 0) or 0
+    ltype = row.get("leave_type", "")
+    start = row.get("leave_start", "")
+    end = row.get("leave_end", "")
+    if ltype == "range" and start and end:
+        return f"{start}-{end}\n{hours:.2f}h"
+    if ltype == "left" and start:
+        return f"{start}起\n{hours:.2f}h"
+    return f"{hours:.2f}h"
 
 
 def _build_overview(month: str, employees: list, summaries: dict, font_name: str) -> list:
@@ -57,19 +57,19 @@ def _build_overview(month: str, employees: list, summaries: dict, font_name: str
         Spacer(1, 6 * mm),
     ]
     rows = [_OVERVIEW_HEADER]
-    for emp in employees:
+    for idx, emp in enumerate(employees, start=1):
         s = summaries[emp["id"]]
         name_link = (
             f'<link href="#{_employee_anchor(emp["id"])}" color="blue">'
-            f'<u>{emp["name"]}</u></link>'
+            f'<u>{idx}. {emp["name"]}</u></link>'
         )
         rows.append([
             Paragraph(name_link, name_style),
-            f"{s['worked_days']}",
-            f"{s['absent_days']}",
-            f"{s['total_workdays']}",
             f"{s['month_days']}",
+            f"{s['total_workdays']}",
+            f"{s['absent_days']}",
             f"{s.get('leave_days_equivalent', 0):.1f}",
+            f"{s['worked_days']}",
         ])
     table = Table(rows, colWidths=[36 * mm, 22 * mm, 22 * mm, 22 * mm, 22 * mm, 22 * mm])
     table.setStyle(TableStyle([
@@ -167,7 +167,7 @@ def build_payroll_pdf(month: str) -> bytes:
             s = attendance_service.compute_summary(emp["id"], month)
             leave_h = s.get("leave_hours_total", 0)
             leave_d = s.get("leave_days_equivalent", 0)
-            leave_text = f"{leave_h} 小时\n(约 {leave_d:.2f} 天)" if leave_h else "—"
+            leave_text = f"{leave_h:.2f} 小时\n(约 {leave_d:.2f} 天)" if leave_h else "—"
             rows.append([
                 Paragraph(f"{idx}. {emp['name']}", name_style),
                 f"{s['month_days']}",
