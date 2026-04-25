@@ -17,13 +17,14 @@
           <button class="attn-btn" id="attnHolidays">节假日</button>
           <button class="attn-btn" id="attnSpecial">特殊日</button>
           <button class="attn-btn attn-btn-dl" id="attnPdf">下载 PDF</button>
-          <button class="attn-btn attn-btn-dl" id="attnCsv">下载 CSV</button>
+          <button class="attn-btn attn-btn-dl" id="attnPayrollPdf">下载工资单 PDF</button>
         </div>
         <div class="attn-stats">
           <span>累计 <b id="attnWorked">0</b> 天</span>
           <span>缺勤 <b id="attnAbsent">0</b> 天</span>
           <span>总工作日 <b id="attnTotal">0</b></span>
           <span>本月天数 <b id="attnMonthDays">0</b></span>
+          <span>请假 <b id="attnLeaveH">0</b> 小时（约 <b id="attnLeaveD">0</b> 天）</span>
         </div>
         <div id="attnGridWrap"></div>
       </div>
@@ -40,6 +41,25 @@
           <div id="attnSpecialList" class="pur-mgr-list"></div>
           <div class="pur-modal-actions">
             <button class="attn-btn" id="attnSpecialClose">关闭</button>
+          </div>
+        </div>
+      </div>
+      <div class="pur-modal-overlay" id="attnLeaveOverlay" style="display:none;">
+        <div class="pur-modal">
+          <div class="pur-modal-hd">请假 <span id="attnLeaveDate"></span></div>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <label><input type="radio" name="attnLeaveType" value="full" checked> 全天</label>
+            <label><input type="radio" name="attnLeaveType" value="range"> 离开后回来：
+              <input class="attn-inp" id="attnLeaveStart" type="text" placeholder="HH:MM" maxlength="5" style="width:70px;"> —
+              <input class="attn-inp" id="attnLeaveEnd" type="text" placeholder="HH:MM" maxlength="5" style="width:70px;">
+            </label>
+            <label><input type="radio" name="attnLeaveType" value="left"> 离开未回来：
+              <input class="attn-inp" id="attnLeaveLeftStart" type="text" placeholder="HH:MM" maxlength="5" style="width:70px;">
+            </label>
+          </div>
+          <div class="pur-modal-actions">
+            <button class="attn-btn attn-btn-dl" id="attnLeaveSubmit">确认</button>
+            <button class="attn-btn" id="attnLeaveCancel">取消</button>
           </div>
         </div>
       </div>
@@ -62,7 +82,7 @@
     document.getElementById('attnEmployee').addEventListener('change', onEmployeeChange);
     document.getElementById('attnMonth').addEventListener('change', onMonthChange);
     document.getElementById('attnPdf').addEventListener('click', downloadPdf);
-    document.getElementById('attnCsv').addEventListener('click', downloadCsv);
+    document.getElementById('attnPayrollPdf').addEventListener('click', downloadPayrollPdf);
     document.getElementById('attnHolidays').addEventListener('click', openHolidays);
     document.getElementById('attnHolidayAdd').addEventListener('click', addHoliday);
     document.getElementById('attnHolidayClose').addEventListener('click', () => {
@@ -72,6 +92,10 @@
     document.getElementById('attnSpecialAdd').addEventListener('click', addSpecial);
     document.getElementById('attnSpecialClose').addEventListener('click', () => {
       document.getElementById('attnSpecialOverlay').style.display = 'none';
+    });
+    document.getElementById('attnLeaveSubmit').addEventListener('click', submitLeave);
+    document.getElementById('attnLeaveCancel').addEventListener('click', () => {
+      document.getElementById('attnLeaveOverlay').style.display = 'none';
     });
 
     document.getElementById('attnMonth').value = new Date().toISOString().slice(0, 7);
@@ -163,7 +187,8 @@
     const rows = detail.map(r => {
       const autoRow = r.status === 'sunday' || r.status === 'holiday';
       const isSpecial = r.status === 'special' || r.status === 'special_absent';
-      const clsMap = { sunday: 'sunday', holiday: 'holiday', absent: 'absent', special: 'special', special_absent: 'special absent' };
+      const isLeave = r.status === 'leave';
+      const clsMap = { sunday: 'sunday', holiday: 'holiday', absent: 'absent', special: 'special', special_absent: 'special absent', leave: 'leave' };
       const cls = clsMap[r.status] || '';
       const autoLabel = r.status === 'sunday' ? '自动（周日）' : '自动（节假日）';
       const specialHint = isSpecial ? `<span class="attn-hint">缩短 ${r.special_start}-${r.special_end}</span>` : '';
@@ -171,24 +196,32 @@
         ? `<td colspan="2">${autoLabel}</td>`
         : `<td><input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" data-date="${r.date}" data-field="start" value="${r.start}">${specialHint ? '<br>'+specialHint : ''}</td>
            <td><input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" data-date="${r.date}" data-field="end" value="${r.end}"></td>`;
-      const statusMap = { sunday: '周日', holiday: '节假日', absent: '缺勤', normal: '正常', special: '特殊日', special_absent: '特殊日缺勤' };
-      const statusText = statusMap[r.status] || r.status;
+      const statusMap = { sunday: '周日', holiday: '节假日', absent: '缺勤', normal: '正常', special: '特殊日', special_absent: '特殊日缺勤', leave: '请假' };
+      const baseStatus = statusMap[r.status] || r.status;
+      const leaveH = r.leave_hours || 0;
+      const leaveLabel = formatLeave(r);
+      const statusText = isLeave ? `请假 ${leaveH}h` : baseStatus;
+      const leaveCell = autoRow
+        ? `<td>${leaveH ? leaveLabel : ''}</td>`
+        : (leaveH > 0
+            ? `<td>${leaveLabel} <button class="attn-btn attn-leave-clear" data-date="${r.date}">取消</button></td>`
+            : `<td><button class="attn-btn attn-leave-add" data-date="${r.date}">请假</button></td>`);
       const fillBtn = isSpecial
         ? `<td><button class="attn-btn attn-fill" data-date="${r.date}" data-start="${r.special_start}" data-end="${r.special_end}">按标准</button></td>`
         : (autoRow ? '<td></td>' : `<td><button class="attn-btn attn-fill" data-date="${r.date}" data-start="09:30" data-end="20:00">正常</button></td>`);
-      const actionCell = fillBtn;
       return `<tr class="${cls}" data-date="${r.date}">
         <td>${r.date.slice(5)}</td>
         <td>${r.weekday}</td>
         ${startCell}
         <td>${r.day_fraction.toFixed(2)}</td>
+        ${leaveCell}
         <td class="attn-status">${statusText}</td>
-        ${actionCell}
+        ${fillBtn}
       </tr>`;
     }).join('');
     wrap.innerHTML = `
       <table class="attn-grid">
-        <thead><tr><th>日期</th><th>星期</th><th>上班</th><th>下班</th><th>天数</th><th>状态</th><th>快填</th></tr></thead>
+        <thead><tr><th>日期</th><th>星期</th><th>上班</th><th>下班</th><th>天数</th><th>请假</th><th>状态</th><th>快填</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
     wrap.querySelectorAll('input[data-field]').forEach(inp => {
@@ -197,6 +230,64 @@
     wrap.querySelectorAll('.attn-fill').forEach(btn => {
       btn.addEventListener('click', () => fillNormal(btn.dataset.date, btn.dataset.start, btn.dataset.end));
     });
+    wrap.querySelectorAll('.attn-leave-add').forEach(btn => {
+      btn.addEventListener('click', () => addLeave(btn.dataset.date));
+    });
+    wrap.querySelectorAll('.attn-leave-clear').forEach(btn => {
+      btn.addEventListener('click', () => clearLeave(btn.dataset.date));
+    });
+  }
+
+  let pendingLeaveDate = '';
+
+  function addLeave(date) {
+    pendingLeaveDate = date;
+    document.getElementById('attnLeaveDate').textContent = date;
+    document.querySelector('input[name="attnLeaveType"][value="full"]').checked = true;
+    document.getElementById('attnLeaveStart').value = '';
+    document.getElementById('attnLeaveEnd').value = '';
+    document.getElementById('attnLeaveLeftStart').value = '';
+    document.getElementById('attnLeaveOverlay').style.display = 'flex';
+  }
+
+  async function submitLeave() {
+    const date = pendingLeaveDate;
+    if (!date) return;
+    const type = document.querySelector('input[name="attnLeaveType"]:checked').value;
+    const payload = { type };
+    const timeRe = /^([01]\d|2[0-3]):([0-5]\d)$/;
+    if (type === 'range') {
+      const s = normalizeTime(document.getElementById('attnLeaveStart').value);
+      const e = normalizeTime(document.getElementById('attnLeaveEnd').value);
+      if (!timeRe.test(s) || !timeRe.test(e)) { alert('请填写正确的离开/回来时间（HH:MM）'); return; }
+      payload.start = s;
+      payload.end = e;
+    } else if (type === 'left') {
+      const s = normalizeTime(document.getElementById('attnLeaveLeftStart').value);
+      if (!timeRe.test(s)) { alert('请填写正确的离开时间（HH:MM）'); return; }
+      payload.start = s;
+    }
+    try {
+      const res = await fetch(`/attendance/leave/${currentEmployeeId}/${date}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json();
+      if (!body.ok) { alert(body.msg); return; }
+    } catch (e) { alert('请假失败：' + e.message); return; }
+    document.getElementById('attnLeaveOverlay').style.display = 'none';
+    await loadMonth();
+  }
+
+  async function clearLeave(date) {
+    if (!confirm(`取消 ${date} 的请假？`)) return;
+    try {
+      const res = await fetch(`/attendance/leave/${currentEmployeeId}/${date}`, { method: 'DELETE' });
+      const body = await res.json();
+      if (!body.ok) { alert(body.msg); return; }
+    } catch (e) { alert('取消失败：' + e.message); return; }
+    await loadMonth();
   }
 
   async function fillNormal(date, start, end) {
@@ -207,6 +298,19 @@
     if (startInp) startInp.value = start || '09:30';
     if (endInp) endInp.value = end || '20:00';
     await onCellChange(date);
+  }
+
+  function formatLeave(r) {
+    const h = r.leave_hours || 0;
+    if (!h) return '';
+    const t = r.leave_type || '';
+    if (t === 'range' && r.leave_start && r.leave_end) {
+      return `${r.leave_start}-${r.leave_end} (${h}h)`;
+    }
+    if (t === 'left' && r.leave_start) {
+      return `${r.leave_start} 起 (${h}h)`;
+    }
+    return `${h}h`;
   }
 
   function normalizeTime(raw) {
@@ -253,6 +357,8 @@
     document.getElementById('attnAbsent').textContent = summary ? summary.absent_days : 0;
     document.getElementById('attnTotal').textContent = summary ? summary.total_workdays : 0;
     document.getElementById('attnMonthDays').textContent = summary ? summary.month_days : 0;
+    document.getElementById('attnLeaveH').textContent = summary ? (summary.leave_hours_total || 0) : 0;
+    document.getElementById('attnLeaveD').textContent = summary ? (summary.leave_days_equivalent || 0) : 0;
   }
 
   async function openHolidays() {
@@ -377,9 +483,9 @@
     window.location.href = `/attendance/pdf/${currentMonth}`;
   }
 
-  function downloadCsv() {
+  function downloadPayrollPdf() {
     if (!currentMonth) return;
-    window.location.href = `/attendance/csv/${currentMonth}`;
+    window.location.href = `/attendance/payroll-pdf/${currentMonth}`;
   }
 
   function escapeHtml(s) {

@@ -112,6 +112,34 @@ def clear_day(employee_id: str, date: str):
     return jsonify({"ok": True, **summary})
 
 
+@bp.get("/leaves/<month>")
+def list_leaves(month: str):
+    return jsonify({"ok": True, "leaves": attendance_service.list_leaves(month)})
+
+
+@bp.post("/leave/<employee_id>/<date>")
+def set_leave(employee_id: str, date: str):
+    data = request.get_json(silent=True) or {}
+    leave_type = (data.get("type") or "").strip()
+    start = (data.get("start") or "").strip()
+    end = (data.get("end") or "").strip()
+    if leave_type not in ("full", "range", "left"):
+        return jsonify({"ok": False, "msg": "type 必须为 full / range / left"}), 400
+    try:
+        attendance_service.set_leave(employee_id, date, leave_type, start=start, end=end)
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
+    summary = attendance_service.compute_summary(employee_id, date[:7])
+    return jsonify({"ok": True, **summary})
+
+
+@bp.delete("/leave/<employee_id>/<date>")
+def clear_leave(employee_id: str, date: str):
+    attendance_service.clear_leave(employee_id, date)
+    summary = attendance_service.compute_summary(employee_id, date[:7])
+    return jsonify({"ok": True, **summary})
+
+
 @bp.get("/pdf/<month>")
 def download_pdf(month: str):
     try:
@@ -126,15 +154,15 @@ def download_pdf(month: str):
     )
 
 
-@bp.get("/csv/<month>")
-def download_csv(month: str):
+@bp.get("/payroll-pdf/<month>")
+def download_payroll_pdf(month: str):
     try:
-        data = attendance_report_service.build_csv(month)
+        data = attendance_report_service.build_payroll_pdf(month)
     except Exception as exc:
-        return jsonify({"ok": False, "msg": f"生成 CSV 失败：{exc}"}), 500
+        return jsonify({"ok": False, "msg": f"生成工资单 PDF 失败：{exc}"}), 500
     return send_file(
         io.BytesIO(data),
-        mimetype="text/csv",
+        mimetype="application/pdf",
         as_attachment=True,
-        download_name=f"月度考勤_{month}.csv",
+        download_name=f"月度工资单_{month}.pdf",
     )
