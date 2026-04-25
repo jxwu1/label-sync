@@ -13,38 +13,42 @@ def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.executescript(_SCHEMA)
     return conn
 
 
+_SCHEMA = """
+    CREATE TABLE IF NOT EXISTS stockpile (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_barcode TEXT NOT NULL UNIQUE,
+        product_model TEXT NOT NULL,
+        stockpile_location TEXT NOT NULL,
+        extra TEXT DEFAULT '{}',
+        source TEXT DEFAULT 'system_export',
+        created_at TEXT DEFAULT (datetime('now','localtime')),
+        updated_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+    CREATE TABLE IF NOT EXISTS stockpile_changes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_barcode TEXT NOT NULL,
+        field_name TEXT NOT NULL,
+        old_value TEXT,
+        new_value TEXT,
+        change_type TEXT,
+        created_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_stockpile_barcode ON stockpile(product_barcode);
+    CREATE INDEX IF NOT EXISTS idx_changes_barcode ON stockpile_changes(product_barcode);
+"""
+
+
 def ensure_db() -> None:
-    with _connect() as conn:
-        conn.executescript("""
-            CREATE TABLE IF NOT EXISTS stockpile (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                product_barcode TEXT NOT NULL UNIQUE,
-                product_model TEXT NOT NULL,
-                stockpile_location TEXT NOT NULL,
-                extra TEXT DEFAULT '{}',
-                source TEXT DEFAULT 'system_export',
-                created_at TEXT DEFAULT (datetime('now','localtime')),
-                updated_at TEXT DEFAULT (datetime('now','localtime'))
-            );
-            CREATE TABLE IF NOT EXISTS stockpile_changes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                product_barcode TEXT NOT NULL,
-                field_name TEXT NOT NULL,
-                old_value TEXT,
-                new_value TEXT,
-                change_type TEXT,
-                created_at TEXT DEFAULT (datetime('now','localtime'))
-            );
-            CREATE INDEX IF NOT EXISTS idx_stockpile_barcode ON stockpile(product_barcode);
-            CREATE INDEX IF NOT EXISTS idx_changes_barcode ON stockpile_changes(product_barcode);
-        """)
+    """显式触发 schema 创建（一般不需要调用，_connect 自动会做）。"""
+    with _connect():
+        pass
 
 
 def is_initialized() -> bool:
-    ensure_db()
     return count_records() > 0
 
 
@@ -240,6 +244,3 @@ def apply_export_updates(df: pd.DataFrame) -> int:
                 _log_change(conn, barcode, "product_barcode", None, barcode, "insert")
             updated += 1
     return updated
-
-
-ensure_db()
