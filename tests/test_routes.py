@@ -18,7 +18,7 @@ class RouteTests(unittest.TestCase):
             "routes_pages_tasks.task_state.is_waiting",
             return_value=False,
         ), patch(
-            "routes_pages_tasks.storage_service.validate_stockpile_is_today",
+            "routes_pages_tasks.storage_service.validate_stockpile_is_ready",
             return_value=(False, "系统导出文件不是当天的"),
         ):
             response = self.client.post("/run")
@@ -31,7 +31,7 @@ class RouteTests(unittest.TestCase):
             "routes_pages_tasks.task_state.is_waiting",
             return_value=False,
         ), patch(
-            "routes_pages_tasks.storage_service.validate_stockpile_is_today",
+            "routes_pages_tasks.storage_service.validate_stockpile_is_ready",
             return_value=(True, None),
         ), patch("routes_pages_tasks.task_service.start_background_task") as start_task:
             response = self.client.post("/run")
