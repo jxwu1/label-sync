@@ -1,20 +1,11 @@
 import json
 import sqlite3
-from pathlib import Path
 
 import pandas as pd
 
 from config import CONFIG
 
 DB_PATH = CONFIG.stockpile_db
-
-
-def _connect() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.executescript(_SCHEMA)
-    return conn
 
 
 _SCHEMA = """
@@ -42,50 +33,108 @@ _SCHEMA = """
 """
 
 
+_KNOWN_COLS = frozenset({"product_barcode", "product_model", "stockpile_location"})
+
+
+class Source:
+    SYSTEM_EXPORT = "system_export"
+    USER_CORRECTION = "user_correction"
+
+
+def _connect() -> sqlite3.Connection:
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.executescript(_SCHEMA)
+    return conn
+
+
 def ensure_db() -> None:
     """显式触发 schema 创建（一般不需要调用，_connect 自动会做）。"""
     with _connect():
         pass
 
 
+def _clean(value) -> str:
+    """规范化 DataFrame 单元值：处理 NaN、float、空白；统一返回 str。"""
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    s = str(value).strip()
+    return "" if s == "nan" else s
+
+
+def _extra_cols(df: pd.DataFrame) -> list[str]:
+    return [c for c in (str(c).strip() for c in df.columns) if c not in _KNOWN_COLS]
+
+
+def _normalize_row(row, extra_cols: list[str]) -> tuple[str, str, str, dict] | None:
+    """返回 (barcode, model, location, extra)；barcode 为空时返回 None。"""
+    barcode = _clean(row.get("product_barcode", ""))
+    if not barcode:
+        return None
+    model = _clean(row.get("product_model", ""))
+    location = _clean(row.get("stockpile_location", ""))
+    extra = {c: _clean(row.get(c, "")) for c in extra_cols}
+    return barcode, model, location, extra
+
+
+def _log_change(conn: sqlite3.Connection, barcode: str, field: str,
+                old_val: str | None, new_val: str | None, change_type: str) -> None:
+    conn.execute(
+        "INSERT INTO stockpile_changes (product_barcode, field_name, old_value, new_value, change_type) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (barcode, field, old_val, new_val, change_type),
+    )
+
+
+def _upsert(conn: sqlite3.Connection, barcode: str, model: str, location: str,
+            extra: dict, source: str, log_changes: bool = True) -> None:
+    """写入或更新一条 stockpile 记录。log_changes=True 时记录变更。"""
+    existing = conn.execute(
+        "SELECT product_model, stockpile_location FROM stockpile WHERE product_barcode = ?",
+        (barcode,),
+    ).fetchone()
+    extra_json = json.dumps(extra, ensure_ascii=False)
+    if existing:
+        if log_changes:
+            if existing["product_model"] != model:
+                _log_change(conn, barcode, "product_model", existing["product_model"], model, "update")
+            if existing["stockpile_location"] != location:
+                _log_change(conn, barcode, "stockpile_location", existing["stockpile_location"], location, "update")
+        conn.execute(
+            "UPDATE stockpile SET product_model=?, stockpile_location=?, source=?, extra=?, "
+            "updated_at=datetime('now','localtime') WHERE product_barcode=?",
+            (model, location, source, extra_json, barcode),
+        )
+    else:
+        conn.execute(
+            "INSERT INTO stockpile (product_barcode, product_model, stockpile_location, extra, source) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (barcode, model, location, extra_json, source),
+        )
+        if log_changes:
+            _log_change(conn, barcode, "product_barcode", None, barcode, "insert")
+
+
 def is_initialized() -> bool:
     return count_records() > 0
 
 
-def import_from_dataframe(df: pd.DataFrame) -> int:
-    columns = [str(c).strip() for c in df.columns]
-    known_cols = {"product_barcode", "product_model", "stockpile_location"}
-    extra_cols = [c for c in columns if c not in known_cols]
-
+def count_records() -> int:
     with _connect() as conn:
-        inserted = 0
-        for _, row in df.iterrows():
-            barcode = str(row.get("product_barcode", "")).strip()
-            if not barcode or barcode == "nan":
-                continue
-            model = str(row.get("product_model", "")).strip()
-            if model == "nan":
-                model = ""
-            location = str(row.get("stockpile_location", "")).strip()
-            if location == "nan":
-                location = ""
-            extra = {c: str(row.get(c, "")) for c in extra_cols}
-            conn.execute(
-                "INSERT OR REPLACE INTO stockpile (product_barcode, product_model, stockpile_location, extra, source, updated_at) "
-                "VALUES (?, ?, ?, ?, 'system_export', datetime('now','localtime'))",
-                (barcode, model, location, json.dumps(extra, ensure_ascii=False)),
-            )
-            inserted += 1
-    return inserted
+        cur = conn.execute("SELECT COUNT(*) FROM stockpile")
+        return cur.fetchone()[0]
 
 
 def query_by_barcode(barcode: str) -> dict | None:
     with _connect() as conn:
-        cur = conn.execute("SELECT * FROM stockpile WHERE product_barcode = ?", (barcode,))
-        row = cur.fetchone()
-    if row is None:
-        return None
-    return dict(row)
+        row = conn.execute("SELECT * FROM stockpile WHERE product_barcode = ?", (barcode,)).fetchone()
+    return dict(row) if row else None
 
 
 def query_all_as_system_records() -> tuple[dict[str, str], dict[str, dict[str, str]]]:
@@ -95,109 +144,101 @@ def query_all_as_system_records() -> tuple[dict[str, str], dict[str, dict[str, s
         system_records: dict[str, dict[str, str]] = {}
         for row in cur:
             barcode = row["product_barcode"]
-            model = row["product_model"]
-            location = row["stockpile_location"]
-            barcode_model_map[barcode] = model
-            system_records[barcode] = {"model": model, "stockpile_location": location}
+            barcode_model_map[barcode] = row["product_model"]
+            system_records[barcode] = {
+                "model": row["product_model"],
+                "stockpile_location": row["stockpile_location"],
+            }
     return barcode_model_map, system_records
 
 
 def query_all_barcodes_set() -> set[str]:
     with _connect() as conn:
         cur = conn.execute("SELECT product_barcode FROM stockpile")
-        result = {row["product_barcode"] for row in cur}
-    return result
+        return {row["product_barcode"] for row in cur}
 
 
-def _log_change(conn: sqlite3.Connection, barcode: str, field: str, old_val: str | None, new_val: str | None, change_type: str) -> None:
-    conn.execute(
-        "INSERT INTO stockpile_changes (product_barcode, field_name, old_value, new_value, change_type) VALUES (?, ?, ?, ?, ?)",
-        (barcode, field, old_val, new_val, change_type),
-    )
-
-
-def insert_or_update(barcode: str, model: str, location: str, source: str = "user_correction", extra: dict | None = None) -> None:
+def insert_or_update(barcode: str, model: str, location: str,
+                     source: str = Source.USER_CORRECTION, extra: dict | None = None) -> None:
     with _connect() as conn:
-        existing = conn.execute("SELECT * FROM stockpile WHERE product_barcode = ?", (barcode,)).fetchone()
-
-        if existing:
-            for field_key, field_name in [("product_model", "product_model"), ("stockpile_location", "stockpile_location")]:
-                new_value = model if field_key == "product_model" else location
-                old_value = existing[field_key]
-                if old_value != new_value:
-                    _log_change(conn, barcode, field_name, old_value, new_value, "update")
-            conn.execute(
-                "UPDATE stockpile SET product_model=?, stockpile_location=?, source=?, extra=?, updated_at=datetime('now','localtime') WHERE product_barcode=?",
-                (model, location, source, json.dumps(extra or {}, ensure_ascii=False), barcode),
-            )
-        else:
-            conn.execute(
-                "INSERT INTO stockpile (product_barcode, product_model, stockpile_location, extra, source) VALUES (?, ?, ?, ?, ?)",
-                (barcode, model, location, json.dumps(extra or {}, ensure_ascii=False), source),
-            )
-            _log_change(conn, barcode, "product_barcode", None, barcode, "insert")
+        _upsert(conn, barcode, model, location, extra or {}, source, log_changes=True)
 
 
 def update_location(barcode: str, new_location: str) -> None:
     with _connect() as conn:
-        existing = conn.execute("SELECT * FROM stockpile WHERE product_barcode = ?", (barcode,)).fetchone()
+        existing = conn.execute(
+            "SELECT stockpile_location FROM stockpile WHERE product_barcode = ?", (barcode,)
+        ).fetchone()
         if not existing:
             return
         old_location = existing["stockpile_location"]
-        if old_location != new_location:
-            _log_change(conn, barcode, "stockpile_location", old_location, new_location, "update")
-            conn.execute(
-                "UPDATE stockpile SET stockpile_location=?, source='user_correction', updated_at=datetime('now','localtime') WHERE product_barcode=?",
-                (new_location, barcode),
-            )
+        if old_location == new_location:
+            return
+        _log_change(conn, barcode, "stockpile_location", old_location, new_location, "update")
+        conn.execute(
+            "UPDATE stockpile SET stockpile_location=?, source=?, updated_at=datetime('now','localtime') "
+            "WHERE product_barcode=?",
+            (new_location, Source.USER_CORRECTION, barcode),
+        )
 
 
-def count_records() -> int:
+def import_from_dataframe(df: pd.DataFrame) -> int:
+    extra_cols = _extra_cols(df)
+    inserted = 0
     with _connect() as conn:
-        cur = conn.execute("SELECT COUNT(*) FROM stockpile")
-        count = cur.fetchone()[0]
-    return count
+        for _, row in df.iterrows():
+            normalized = _normalize_row(row, extra_cols)
+            if not normalized:
+                continue
+            barcode, model, location, extra = normalized
+            _upsert(conn, barcode, model, location, extra, Source.SYSTEM_EXPORT, log_changes=True)
+            inserted += 1
+    return inserted
+
+
+def apply_export_updates(df: pd.DataFrame) -> int:
+    extra_cols = _extra_cols(df)
+    updated = 0
+    with _connect() as conn:
+        for _, row in df.iterrows():
+            normalized = _normalize_row(row, extra_cols)
+            if not normalized:
+                continue
+            barcode, model, location, extra = normalized
+            _upsert(conn, barcode, model, location, extra, Source.SYSTEM_EXPORT, log_changes=True)
+            updated += 1
+    return updated
 
 
 def compare_with_dataframe(df: pd.DataFrame) -> dict:
-    local_barcodes = query_all_barcodes_set()
-
+    extra_cols: list[str] = []  # 比对不读 extra
     export_records: dict[str, dict[str, str]] = {}
     for _, row in df.iterrows():
-        barcode = str(row.get("product_barcode", "")).strip()
-        if not barcode or barcode == "nan":
+        normalized = _normalize_row(row, extra_cols)
+        if not normalized:
             continue
-        model = str(row.get("product_model", "")).strip()
-        if model == "nan":
-            model = ""
-        location = str(row.get("stockpile_location", "")).strip()
-        if location == "nan":
-            location = ""
-        export_records[barcode] = {
-            "product_model": model,
-            "stockpile_location": location,
-        }
+        barcode, model, location, _ = normalized
+        export_records[barcode] = {"product_model": model, "stockpile_location": location}
 
+    _, local_records = query_all_as_system_records()
+    local_barcodes = set(local_records.keys())
     export_barcodes = set(export_records.keys())
 
-    only_local = sorted(barcode for barcode in local_barcodes if barcode not in export_barcodes)
-    only_export = sorted(barcode for barcode in export_barcodes if barcode not in local_barcodes)
+    only_local = sorted(local_barcodes - export_barcodes)
+    only_export = sorted(export_barcodes - local_barcodes)
 
     mismatches: list[dict] = []
-    with _connect() as conn:
-        for barcode in local_barcodes & export_barcodes:
-            local = conn.execute("SELECT product_model, stockpile_location FROM stockpile WHERE product_barcode = ?", (barcode,)).fetchone()
-            if local is None:
-                continue
-            export = export_records[barcode]
-            if local["product_model"] != export["product_model"] or local["stockpile_location"] != export["stockpile_location"]:
-                mismatches.append({
-                    "barcode": barcode,
-                    "local_model": local["product_model"],
-                    "export_model": export["product_model"],
-                    "local_location": local["stockpile_location"],
-                    "export_location": export["stockpile_location"],
-                })
+    for barcode in local_barcodes & export_barcodes:
+        local = local_records[barcode]
+        export = export_records[barcode]
+        if local["model"] != export["product_model"] or local["stockpile_location"] != export["stockpile_location"]:
+            mismatches.append({
+                "barcode": barcode,
+                "local_model": local["model"],
+                "export_model": export["product_model"],
+                "local_location": local["stockpile_location"],
+                "export_location": export["stockpile_location"],
+            })
 
     return {
         "total_local": len(local_barcodes),
@@ -207,40 +248,3 @@ def compare_with_dataframe(df: pd.DataFrame) -> dict:
         "mismatches": mismatches,
         "consistent": len(local_barcodes & export_barcodes) - len(mismatches),
     }
-
-
-def apply_export_updates(df: pd.DataFrame) -> int:
-    columns = [str(c).strip() for c in df.columns]
-    extra_cols = [c for c in columns if c not in {"product_barcode", "product_model", "stockpile_location"}]
-    with _connect() as conn:
-        updated = 0
-        for _, row in df.iterrows():
-            barcode = str(row.get("product_barcode", "")).strip()
-            if not barcode or barcode == "nan":
-                continue
-            model = str(row.get("product_model", "")).strip()
-            if model == "nan":
-                model = ""
-            location = str(row.get("stockpile_location", "")).strip()
-            if location == "nan":
-                location = ""
-            extra = {c: str(row.get(c, "")) for c in extra_cols}
-            existing = conn.execute("SELECT * FROM stockpile WHERE product_barcode = ?", (barcode,)).fetchone()
-            if existing:
-                for field_key, field_name in [("product_model", "product_model"), ("stockpile_location", "stockpile_location")]:
-                    new_value = model if field_key == "product_model" else location
-                    old_value = existing[field_key]
-                    if old_value != new_value:
-                        _log_change(conn, barcode, field_name, old_value, new_value, "update")
-                conn.execute(
-                    "UPDATE stockpile SET product_model=?, stockpile_location=?, extra=?, source='system_export', updated_at=datetime('now','localtime') WHERE product_barcode=?",
-                    (model, location, json.dumps(extra, ensure_ascii=False), barcode),
-                )
-            else:
-                conn.execute(
-                    "INSERT INTO stockpile (product_barcode, product_model, stockpile_location, extra, source) VALUES (?, ?, ?, ?, 'system_export')",
-                    (barcode, model, location, json.dumps(extra, ensure_ascii=False)),
-                )
-                _log_change(conn, barcode, "product_barcode", None, barcode, "insert")
-            updated += 1
-    return updated

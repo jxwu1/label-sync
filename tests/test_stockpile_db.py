@@ -161,6 +161,43 @@ class StockpileDbTests(unittest.TestCase):
         self.assertEqual(result["mismatches"][0]["barcode"], "A2")
         self.assertEqual(result["consistent"], 1)
 
+    def test_extra_excludes_nan_strings(self) -> None:
+        # A3: NaN 输入应清洗为 ""，不应在 extra JSON 中保留 "nan" 字面串
+        df = pd.DataFrame([{
+            "product_barcode": "E1", "product_model": "M",
+            "stockpile_location": "L", "price": float("nan"), "stock": "5"
+        }])
+        stockpile_db.import_from_dataframe(df)
+        record = stockpile_db.query_by_barcode("E1")
+        extra = json.loads(record["extra"])
+        self.assertEqual(extra["price"], "")
+        self.assertEqual(extra["stock"], "5")
+
+    def test_initial_import_logs_inserts(self) -> None:
+        # A2: 初次 import 也走 _upsert，应记录 insert 审计
+        df = pd.DataFrame([{"product_barcode": "I1", "product_model": "M", "stockpile_location": "L"}])
+        stockpile_db.import_from_dataframe(df)
+        with stockpile_db._connect() as conn:
+            cur = conn.execute("SELECT change_type FROM stockpile_changes WHERE product_barcode = ?", ("I1",))
+            types = [row["change_type"] for row in cur]
+        self.assertIn("insert", types)
+
+    def test_reimport_logs_field_updates(self) -> None:
+        # A2: 二次 import 修改了字段，应记录 update
+        df1 = pd.DataFrame([{"product_barcode": "R1", "product_model": "Old", "stockpile_location": "L"}])
+        stockpile_db.import_from_dataframe(df1)
+        df2 = pd.DataFrame([{"product_barcode": "R1", "product_model": "New", "stockpile_location": "L"}])
+        stockpile_db.import_from_dataframe(df2)
+        with stockpile_db._connect() as conn:
+            cur = conn.execute(
+                "SELECT field_name, old_value, new_value FROM stockpile_changes "
+                "WHERE product_barcode = ? AND change_type = 'update'", ("R1",))
+            updates = list(cur)
+        self.assertEqual(len(updates), 1)
+        self.assertEqual(updates[0]["field_name"], "product_model")
+        self.assertEqual(updates[0]["old_value"], "Old")
+        self.assertEqual(updates[0]["new_value"], "New")
+
     def test_apply_export_updates_overwrites_local(self) -> None:
         df_local = pd.DataFrame([
             {"product_barcode": "X1", "product_model": "Old", "stockpile_location": "OldLoc"},
