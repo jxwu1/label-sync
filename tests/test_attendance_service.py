@@ -1,19 +1,24 @@
 import shutil
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import attendance_service as svc
 
-_TEST_DIR = Path(__file__).resolve().parent / "_test_attendance"
+_TEST_ROOT = Path(__file__).resolve().parent
 
 
 class TestEmployeeCrud(unittest.TestCase):
     def setUp(self):
-        _TEST_DIR.mkdir(exist_ok=True)
-        svc._ATTENDANCE_DIR = _TEST_DIR
+        self.test_dir = _TEST_ROOT / f"_test_attendance_{self._testMethodName}"
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+        self.test_dir.mkdir(parents=True, exist_ok=True)
+        self.patch_dir = mock.patch.object(svc, "_ATTENDANCE_DIR", self.test_dir)
+        self.patch_dir.start()
+        self.addCleanup(self.patch_dir.stop)
 
     def tearDown(self):
-        shutil.rmtree(_TEST_DIR, ignore_errors=True)
+        shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_list_empty_initially(self):
         self.assertEqual(svc.list_employees(), [])
@@ -64,11 +69,15 @@ class TestDayFraction(unittest.TestCase):
 
 class TestDayCrud(unittest.TestCase):
     def setUp(self):
-        _TEST_DIR.mkdir(exist_ok=True)
-        svc._ATTENDANCE_DIR = _TEST_DIR
+        self.test_dir = _TEST_ROOT / f"_test_attendance_{self._testMethodName}"
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+        self.test_dir.mkdir(parents=True, exist_ok=True)
+        self.patch_dir = mock.patch.object(svc, "_ATTENDANCE_DIR", self.test_dir)
+        self.patch_dir.start()
+        self.addCleanup(self.patch_dir.stop)
 
     def tearDown(self):
-        shutil.rmtree(_TEST_DIR, ignore_errors=True)
+        shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_set_day_creates_entry(self):
         svc.set_day("e001", "2026-04-01", {"start": "09:30", "end": "20:00"})
@@ -93,11 +102,15 @@ class TestDayCrud(unittest.TestCase):
 
 class TestComputeSummary(unittest.TestCase):
     def setUp(self):
-        _TEST_DIR.mkdir(exist_ok=True)
-        svc._ATTENDANCE_DIR = _TEST_DIR
+        self.test_dir = _TEST_ROOT / f"_test_attendance_{self._testMethodName}"
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+        self.test_dir.mkdir(parents=True, exist_ok=True)
+        self.patch_dir = mock.patch.object(svc, "_ATTENDANCE_DIR", self.test_dir)
+        self.patch_dir.start()
+        self.addCleanup(self.patch_dir.stop)
 
     def tearDown(self):
-        shutil.rmtree(_TEST_DIR, ignore_errors=True)
+        shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_sunday_auto_one(self):
         # 2026-04 有 4 个周日: 5, 12, 19, 26
@@ -134,11 +147,15 @@ class TestComputeSummary(unittest.TestCase):
 
 class TestHolidays(unittest.TestCase):
     def setUp(self):
-        _TEST_DIR.mkdir(exist_ok=True)
-        svc._ATTENDANCE_DIR = _TEST_DIR
+        self.test_dir = _TEST_ROOT / f"_test_attendance_{self._testMethodName}"
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+        self.test_dir.mkdir(parents=True, exist_ok=True)
+        self.patch_dir = mock.patch.object(svc, "_ATTENDANCE_DIR", self.test_dir)
+        self.patch_dir.start()
+        self.addCleanup(self.patch_dir.stop)
 
     def tearDown(self):
-        shutil.rmtree(_TEST_DIR, ignore_errors=True)
+        shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_empty_holidays_initially(self):
         self.assertEqual(svc.list_holidays(), [])
@@ -179,11 +196,15 @@ class TestHolidays(unittest.TestCase):
 
 class TestSpecialDays(unittest.TestCase):
     def setUp(self):
-        _TEST_DIR.mkdir(exist_ok=True)
-        svc._ATTENDANCE_DIR = _TEST_DIR
+        self.test_dir = _TEST_ROOT / f"_test_attendance_{self._testMethodName}"
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+        self.test_dir.mkdir(parents=True, exist_ok=True)
+        self.patch_dir = mock.patch.object(svc, "_ATTENDANCE_DIR", self.test_dir)
+        self.patch_dir.start()
+        self.addCleanup(self.patch_dir.stop)
 
     def tearDown(self):
-        shutil.rmtree(_TEST_DIR, ignore_errors=True)
+        shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_list_empty_initially(self):
         self.assertEqual(svc.list_special_days(), {})
@@ -235,11 +256,15 @@ class TestSpecialDays(unittest.TestCase):
 
 class TestLeaves(unittest.TestCase):
     def setUp(self):
-        _TEST_DIR.mkdir(exist_ok=True)
-        svc._ATTENDANCE_DIR = _TEST_DIR
+        self.test_dir = _TEST_ROOT / f"_test_attendance_{self._testMethodName}"
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+        self.test_dir.mkdir(parents=True, exist_ok=True)
+        self.patch_dir = mock.patch.object(svc, "_ATTENDANCE_DIR", self.test_dir)
+        self.patch_dir.start()
+        self.addCleanup(self.patch_dir.stop)
 
     def tearDown(self):
-        shutil.rmtree(_TEST_DIR, ignore_errors=True)
+        shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_list_empty_initially(self):
         self.assertEqual(svc.list_leaves("2026-04"), {})

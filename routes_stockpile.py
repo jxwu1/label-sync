@@ -60,3 +60,24 @@ def stockpile_status():
     initialized = stockpile_db.is_initialized()
     count = stockpile_db.count_records() if initialized else 0
     return jsonify({"ok": True, "initialized": initialized, "count": count})
+
+
+@bp.get("/stockpile/inactive")
+def stockpile_inactive():
+    limit = request.args.get("limit", default=100, type=int) or 100
+    limit = max(1, min(limit, 500))
+    records = stockpile_db.list_inactive_records(limit=limit)
+    return jsonify({"ok": True, "count": len(records), "records": records})
+
+
+@bp.get("/stockpile/changes")
+def stockpile_changes():
+    limit = request.args.get("limit", default=100, type=int) or 100
+    limit = max(1, min(limit, 500))
+    changes = stockpile_db.list_changes(limit=limit)
+    return jsonify({"ok": True, "count": len(changes), "changes": changes})
+
+
+@bp.get("/stockpile/schema")
+def stockpile_schema():
+    return jsonify({"ok": True, "version": stockpile_db.get_schema_version()})

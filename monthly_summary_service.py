@@ -1,5 +1,7 @@
 import io
 import json
+import os
+import time
 from datetime import date, datetime
 from pathlib import Path
 
@@ -14,6 +16,21 @@ from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Space
 _SUMMARY_DIR = Path(__file__).resolve().parent / "monthly_summary"
 
 _MONTHS_TO_KEEP = 6
+_IO_RETRY_COUNT = 5
+_IO_RETRY_DELAY_SEC = 0.02
+
+
+def _iter_recent_months(reference_date: date, months_to_keep: int) -> list[str]:
+    months: list[str] = []
+    year = reference_date.year
+    month = reference_date.month
+    for _ in range(months_to_keep):
+        months.append(f"{year:04d}-{month:02d}")
+        month -= 1
+        if month == 0:
+            year -= 1
+            month = 12
+    return months
 
 
 def _month_file(month: str) -> Path:
@@ -23,12 +40,50 @@ def _month_file(month: str) -> Path:
 def _read_json(path: Path) -> list[dict]:
     if not path.exists():
         return []
-    return json.loads(path.read_text(encoding="utf-8"))
+    last_error = None
+    for _ in range(_IO_RETRY_COUNT):
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except PermissionError as exc:
+            last_error = exc
+            time.sleep(_IO_RETRY_DELAY_SEC)
+    raise last_error
 
 
 def _write_json(path: Path, data: list[dict]) -> None:
-    path.parent.mkdir(exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(data, ensure_ascii=False, indent=2)
+    temp_path = path.with_name(f"{path.name}.tmp")
+    last_error = None
+    for _ in range(_IO_RETRY_COUNT):
+        try:
+            temp_path.write_text(payload, encoding="utf-8")
+            os.replace(temp_path, path)
+            return
+        except PermissionError as exc:
+            last_error = exc
+            time.sleep(_IO_RETRY_DELAY_SEC)
+        finally:
+            if temp_path.exists():
+                try:
+                    temp_path.unlink()
+                except PermissionError:
+                    pass
+    raise last_error
+
+
+def _unlink_with_retry(path: Path) -> None:
+    last_error = None
+    for _ in range(_IO_RETRY_COUNT):
+        try:
+            path.unlink()
+            return
+        except FileNotFoundError:
+            return
+        except PermissionError as exc:
+            last_error = exc
+            time.sleep(_IO_RETRY_DELAY_SEC)
+    raise last_error
 
 
 def save_record(
@@ -66,7 +121,7 @@ def delete_record(month: str, index: int) -> dict:
     if records:
         _write_json(path, records)
     elif path.exists():
-        path.unlink()
+        _unlink_with_retry(path)
     return removed
 
 
@@ -83,17 +138,12 @@ def list_months() -> list[str]:
 
 def cleanup_expired(reference_date: date | None = None) -> None:
     ref = reference_date or date.today()
-    cutoff_year = ref.year
-    cutoff_month = ref.month - _MONTHS_TO_KEEP
-    if cutoff_month <= 0:
-        cutoff_year -= 1
-        cutoff_month += 12
-    cutoff = f"{cutoff_year:04d}-{cutoff_month:02d}"
+    months_to_keep = set(_iter_recent_months(ref, _MONTHS_TO_KEEP))
     if not _SUMMARY_DIR.exists():
         return
-    for f in _SUMMARY_DIR.glob("*.json"):
-        if f.stem < cutoff:
-            f.unlink()
+    for f in list(_SUMMARY_DIR.glob("*.json")):
+        if f.stem not in months_to_keep:
+            _unlink_with_retry(f)
 
 
 _FONT_NAME = "NotoSansSC"

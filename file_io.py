@@ -1,9 +1,48 @@
 import json
+import os
+import time
 from pathlib import Path
 
 import pandas as pd
 
 from config import CONFIG
+
+_IO_RETRY_COUNT = 5
+_IO_RETRY_DELAY_SEC = 0.02
+
+
+def _read_json_with_retry(path: Path):
+    last_error = None
+    for _ in range(_IO_RETRY_COUNT):
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                return json.load(f)
+        except PermissionError as exc:
+            last_error = exc
+            time.sleep(_IO_RETRY_DELAY_SEC)
+    raise last_error
+
+
+def _write_json_with_retry(path: Path, data) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_name(f"{path.name}.tmp")
+    last_error = None
+    for _ in range(_IO_RETRY_COUNT):
+        try:
+            with temp_path.open("w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            os.replace(temp_path, path)
+            return
+        except PermissionError as exc:
+            last_error = exc
+            time.sleep(_IO_RETRY_DELAY_SEC)
+        finally:
+            if temp_path.exists():
+                try:
+                    temp_path.unlink()
+                except PermissionError:
+                    pass
+    raise last_error
 
 
 def read_csv(path: Path) -> pd.DataFrame:
@@ -44,11 +83,9 @@ def find_single_file(directory: Path, pattern: str) -> Path | None:
 
 
 def update_json_file(path: Path, modifier_fn) -> dict | list:
-    with path.open("r", encoding="utf-8") as f:
-        data = json.load(f)
+    data = _read_json_with_retry(path)
     modifier_fn(data)
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    _write_json_with_retry(path, data)
     return data
 
 
@@ -63,22 +100,19 @@ def write_phase2_results(
     barcode_model_map: dict[str, str],
     stockpile_path: Path,
 ) -> None:
-    with path.open("w", encoding="utf-8") as file:
-        json.dump(
-            {
-                "results": results,
-                "new_barcodes": new_barcodes,
-                "exceptions": [
-                    [entry[0], entry[1], entry[2]] if len(entry) > 2 else [entry[0], entry[1]]
-                    for entry in exceptions
-                ],
-                "unmatched_barcodes": unmatched_barcodes,
-                "employee_name": employee_name,
-                "scan_files": scan_files,
-                "barcode_model_map": barcode_model_map,
-                "stockpile_path": str(stockpile_path),
-            },
-            file,
-            ensure_ascii=False,
-            indent=2,
-        )
+    _write_json_with_retry(
+        path,
+        {
+            "results": results,
+            "new_barcodes": new_barcodes,
+            "exceptions": [
+                [entry[0], entry[1], entry[2]] if len(entry) > 2 else [entry[0], entry[1]]
+                for entry in exceptions
+            ],
+            "unmatched_barcodes": unmatched_barcodes,
+            "employee_name": employee_name,
+            "scan_files": scan_files,
+            "barcode_model_map": barcode_model_map,
+            "stockpile_path": str(stockpile_path),
+        },
+    )

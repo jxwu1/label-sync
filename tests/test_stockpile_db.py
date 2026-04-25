@@ -1,4 +1,5 @@
 import json
+import shutil
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -7,8 +8,7 @@ import pandas as pd
 
 import stockpile_db
 
-TEST_TMP_DIR = Path(__file__).resolve().parent / "_tmp"
-TEST_DB = TEST_TMP_DIR / "test_stockpile.db"
+TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_stockpile_db"
 
 
 def _clean_tables() -> None:
@@ -16,19 +16,25 @@ def _clean_tables() -> None:
     conn = stockpile_db._connect()
     conn.execute("DELETE FROM stockpile")
     conn.execute("DELETE FROM stockpile_changes")
+    conn.execute("DELETE FROM schema_meta")
     conn.commit()
     conn.close()
 
 
 class StockpileDbTests(unittest.TestCase):
     def setUp(self) -> None:
-        TEST_TMP_DIR.mkdir(exist_ok=True)
-        self.patch = mock.patch.object(stockpile_db, "DB_PATH", TEST_DB)
+        self.test_dir = TEST_TMP_DIR / f"_test_stockpile_db_{self._testMethodName}"
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+        self.test_dir.mkdir(parents=True, exist_ok=True)
+        self.test_db = self.test_dir / "test_stockpile.db"
+        self.patch = mock.patch.object(stockpile_db, "DB_PATH", self.test_db)
         self.patch.start()
+        self.addCleanup(self.patch.stop)
         _clean_tables()
 
     def tearDown(self) -> None:
-        self.patch.stop()
+        _clean_tables()
+        shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_ensure_db_creates_tables(self) -> None:
         stockpile_db.ensure_db()
@@ -37,6 +43,61 @@ class StockpileDbTests(unittest.TestCase):
             tables = [row["name"] for row in cur]
         self.assertIn("stockpile", tables)
         self.assertIn("stockpile_changes", tables)
+        self.assertIn("schema_meta", tables)
+
+    def test_ensure_db_creates_is_active_column(self) -> None:
+        stockpile_db.ensure_db()
+        with stockpile_db._connect() as conn:
+            cur = conn.execute("PRAGMA table_info(stockpile)")
+            columns = {row["name"] for row in cur}
+        self.assertIn("is_active", columns)
+
+    def test_get_schema_version_returns_current_version(self) -> None:
+        stockpile_db.ensure_db()
+        self.assertEqual(stockpile_db.get_schema_version(), stockpile_db.SCHEMA_VERSION)
+
+    def test_migrate_legacy_db_sets_schema_version_and_adds_is_active(self) -> None:
+        conn = stockpile_db._connect()
+        conn.execute("DROP TABLE IF EXISTS stockpile")
+        conn.execute("DROP TABLE IF EXISTS stockpile_changes")
+        conn.execute("DROP TABLE IF EXISTS schema_meta")
+        conn.execute(
+            """
+            CREATE TABLE stockpile (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_barcode TEXT NOT NULL UNIQUE,
+                product_model TEXT NOT NULL,
+                stockpile_location TEXT NOT NULL,
+                extra TEXT DEFAULT '{}',
+                source TEXT DEFAULT 'system_export',
+                created_at TEXT DEFAULT (datetime('now','localtime')),
+                updated_at TEXT DEFAULT (datetime('now','localtime'))
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE stockpile_changes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_barcode TEXT NOT NULL,
+                field_name TEXT NOT NULL,
+                old_value TEXT,
+                new_value TEXT,
+                change_type TEXT,
+                created_at TEXT DEFAULT (datetime('now','localtime'))
+            )
+            """
+        )
+        conn.commit()
+        conn.close()
+
+        stockpile_db.ensure_db()
+
+        with stockpile_db._connect() as conn:
+            cur = conn.execute("PRAGMA table_info(stockpile)")
+            columns = {row["name"] for row in cur}
+        self.assertIn("is_active", columns)
+        self.assertEqual(stockpile_db.get_schema_version(), stockpile_db.SCHEMA_VERSION)
 
     def test_is_initialized_returns_false_for_empty_db(self) -> None:
         stockpile_db.ensure_db()
@@ -82,6 +143,7 @@ class StockpileDbTests(unittest.TestCase):
         record = stockpile_db.query_by_barcode("X99")
         self.assertIsNotNone(record)
         self.assertEqual(record["product_model"], "MX")
+        self.assertEqual(record["is_active"], 1)
 
     def test_query_all_as_system_records_returns_maps(self) -> None:
         df = pd.DataFrame([
@@ -240,6 +302,120 @@ class StockpileDbTests(unittest.TestCase):
 
         r2 = stockpile_db.query_by_barcode("X2")
         self.assertIsNotNone(r2)
+
+    def test_import_from_dataframe_deactivates_missing_records(self) -> None:
+        stockpile_db.import_from_dataframe(pd.DataFrame([
+            {"product_barcode": "A1", "product_model": "M1", "stockpile_location": "L1"},
+            {"product_barcode": "A2", "product_model": "M2", "stockpile_location": "L2"},
+        ]))
+
+        imported = stockpile_db.import_from_dataframe(pd.DataFrame([
+            {"product_barcode": "A1", "product_model": "M1", "stockpile_location": "L1"},
+        ]))
+
+        self.assertEqual(imported, 1)
+        self.assertEqual(stockpile_db.count_records(), 1)
+        self.assertEqual(stockpile_db.query_all_barcodes_set(), {"A1"})
+        removed = stockpile_db.query_by_barcode("A2")
+        self.assertIsNotNone(removed)
+        self.assertEqual(removed["is_active"], 0)
+
+    def test_apply_export_updates_deactivates_missing_records(self) -> None:
+        stockpile_db.import_from_dataframe(pd.DataFrame([
+            {"product_barcode": "A1", "product_model": "M1", "stockpile_location": "L1"},
+            {"product_barcode": "A2", "product_model": "M2", "stockpile_location": "L2"},
+        ]))
+
+        updated = stockpile_db.apply_export_updates(pd.DataFrame([
+            {"product_barcode": "A1", "product_model": "M1", "stockpile_location": "L1"},
+        ]))
+
+        self.assertEqual(updated, 1)
+        self.assertEqual(stockpile_db.count_records(), 1)
+        self.assertEqual(stockpile_db.query_all_barcodes_set(), {"A1"})
+        inactive = stockpile_db.query_by_barcode("A2")
+        self.assertIsNotNone(inactive)
+        self.assertEqual(inactive["is_active"], 0)
+
+    def test_insert_or_update_reactivates_inactive_record(self) -> None:
+        stockpile_db.import_from_dataframe(pd.DataFrame([
+            {"product_barcode": "A1", "product_model": "M1", "stockpile_location": "L1"},
+        ]))
+        stockpile_db.apply_export_updates(pd.DataFrame([]))
+
+        stockpile_db.insert_or_update("A1", "M1-new", "L1-new")
+
+        record = stockpile_db.query_by_barcode("A1")
+        self.assertIsNotNone(record)
+        self.assertEqual(record["is_active"], 1)
+        self.assertEqual(record["product_model"], "M1-new")
+
+    def test_compare_ignores_inactive_records(self) -> None:
+        stockpile_db.import_from_dataframe(pd.DataFrame([
+            {"product_barcode": "A1", "product_model": "M1", "stockpile_location": "L1"},
+            {"product_barcode": "A2", "product_model": "M2", "stockpile_location": "L2"},
+        ]))
+        stockpile_db.apply_export_updates(pd.DataFrame([
+            {"product_barcode": "A1", "product_model": "M1", "stockpile_location": "L1"},
+        ]))
+
+        result = stockpile_db.compare_with_dataframe(pd.DataFrame([
+            {"product_barcode": "A1", "product_model": "M1", "stockpile_location": "L1"},
+        ]))
+
+        self.assertEqual(result["total_local"], 1)
+        self.assertEqual(result["only_in_local"], [])
+
+    def test_deactivation_is_logged(self) -> None:
+        stockpile_db.import_from_dataframe(pd.DataFrame([
+            {"product_barcode": "A1", "product_model": "M1", "stockpile_location": "L1"},
+            {"product_barcode": "A2", "product_model": "M2", "stockpile_location": "L2"},
+        ]))
+
+        stockpile_db.apply_export_updates(pd.DataFrame([
+            {"product_barcode": "A1", "product_model": "M1", "stockpile_location": "L1"},
+        ]))
+
+        with stockpile_db._connect() as conn:
+            cur = conn.execute(
+                "SELECT field_name, old_value, new_value, change_type "
+                "FROM stockpile_changes WHERE product_barcode = ? ORDER BY id DESC",
+                ("A2",),
+            )
+            changes = list(cur)
+
+        self.assertTrue(any(
+            row["field_name"] == "is_active"
+            and row["old_value"] == "1"
+            and row["new_value"] == "0"
+            and row["change_type"] == "deactivate"
+            for row in changes
+        ))
+
+    def test_list_inactive_records_returns_inactive_only(self) -> None:
+        stockpile_db.import_from_dataframe(pd.DataFrame([
+            {"product_barcode": "A1", "product_model": "M1", "stockpile_location": "L1"},
+            {"product_barcode": "A2", "product_model": "M2", "stockpile_location": "L2"},
+        ]))
+        stockpile_db.apply_export_updates(pd.DataFrame([
+            {"product_barcode": "A1", "product_model": "M1", "stockpile_location": "L1"},
+        ]))
+
+        records = stockpile_db.list_inactive_records()
+
+        self.assertEqual([record["product_barcode"] for record in records], ["A2"])
+        self.assertEqual(records[0]["is_active"], 0)
+
+    def test_list_changes_returns_latest_first(self) -> None:
+        stockpile_db.import_from_dataframe(pd.DataFrame([
+            {"product_barcode": "A1", "product_model": "M1", "stockpile_location": "L1"},
+        ]))
+        stockpile_db.insert_or_update("A1", "M1-new", "L1-new")
+
+        changes = stockpile_db.list_changes(limit=2)
+
+        self.assertEqual(len(changes), 2)
+        self.assertGreater(changes[0]["id"], changes[1]["id"])
 
 
 if __name__ == "__main__":

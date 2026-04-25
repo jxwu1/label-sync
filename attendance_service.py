@@ -1,6 +1,8 @@
 """考勤服务：员工 CRUD、月度 CRUD、summary 计算。"""
 
 import json
+import os
+import time
 from calendar import monthrange
 from datetime import date as date_cls, datetime
 from pathlib import Path
@@ -10,6 +12,8 @@ _EMPLOYEES_FILE = "employees.json"
 _HOLIDAYS_FILE = "holidays.json"
 _SPECIAL_DAYS_FILE = "special_days.json"
 _METADATA_FILE = "metadata.json"
+_IO_RETRY_COUNT = 5
+_IO_RETRY_DELAY_SEC = 0.02
 
 
 def _employees_path() -> Path:
@@ -23,12 +27,43 @@ def _metadata_path() -> Path:
 def _read_json(path: Path, default):
     if not path.exists():
         return default
-    return json.loads(path.read_text(encoding="utf-8"))
+    last_error = None
+    for _ in range(_IO_RETRY_COUNT):
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except PermissionError as exc:
+            last_error = exc
+            time.sleep(_IO_RETRY_DELAY_SEC)
+    raise last_error
 
 
 def _write_json(path: Path, data) -> None:
-    path.parent.mkdir(exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except FileExistsError:
+        pass
+    payload = json.dumps(data, ensure_ascii=False, indent=2)
+    temp_path = path.with_name(f"{path.name}.tmp")
+    last_error = None
+    for _ in range(_IO_RETRY_COUNT):
+        try:
+            temp_path.write_text(payload, encoding="utf-8")
+            os.replace(temp_path, path)
+            return
+        except (FileNotFoundError, PermissionError) as exc:
+            last_error = exc
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+            except FileExistsError:
+                pass
+            time.sleep(_IO_RETRY_DELAY_SEC)
+        finally:
+            if temp_path.exists():
+                try:
+                    temp_path.unlink()
+                except PermissionError:
+                    pass
+    raise last_error
 
 
 def list_employees() -> list[dict]:

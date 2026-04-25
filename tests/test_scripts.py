@@ -1,4 +1,6 @@
 import json
+import shutil
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -19,22 +21,46 @@ from update_location_phase2 import (
     write_phase2_results,
 )
 
-TEST_TMP_DIR = Path(__file__).resolve().parent / "_tmp"
+TEST_TMP_DIR = Path(__file__).resolve().parent / "_tmp_scripts"
+
+
+def _write_text_with_retry(path: Path, text: str) -> None:
+    last_error = None
+    for _ in range(5):
+        try:
+            path.write_text(text, encoding="utf-8")
+            return
+        except PermissionError as exc:
+            last_error = exc
+            time.sleep(0.02)
+    raise last_error
+
+
+def _to_csv_with_retry(dataframe: pd.DataFrame, path: Path) -> None:
+    last_error = None
+    for _ in range(5):
+        try:
+            dataframe.to_csv(path, index=False, encoding="utf-8-sig")
+            return
+        except PermissionError as exc:
+            last_error = exc
+            time.sleep(0.02)
+    raise last_error
 
 
 class CheckDuplicatesTests(unittest.TestCase):
     def setUp(self) -> None:
-        TEST_TMP_DIR.mkdir(exist_ok=True)
+        self.test_dir = TEST_TMP_DIR / self._testMethodName
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+        self.test_dir.mkdir(parents=True, exist_ok=True)
 
     def tearDown(self) -> None:
-        for path in TEST_TMP_DIR.iterdir():
-            if path.is_file():
-                path.unlink()
+        shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_check_duplicates_reports_duplicate_rows_from_csv(self) -> None:
-        csv_path = TEST_TMP_DIR / "duplicates.csv"
+        csv_path = self.test_dir / "duplicates.csv"
         dataframe = pd.DataFrame({"barcode": ["A1", "B2", "A1", "", "B2"]})
-        dataframe.to_csv(csv_path, index=False, encoding="utf-8-sig")
+        _to_csv_with_retry(dataframe, csv_path)
 
         result = check_duplicates(csv_path)
 
@@ -198,8 +224,10 @@ class PhaseTwoTests(unittest.TestCase):
 
 class WritePhase2ResultsTests(unittest.TestCase):
     def setUp(self) -> None:
-        TEST_TMP_DIR.mkdir(exist_ok=True)
-        self.temp_results = TEST_TMP_DIR / "phase2_results_test.json"
+        self.test_dir = TEST_TMP_DIR / self._testMethodName
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+        self.test_dir.mkdir(parents=True, exist_ok=True)
+        self.temp_results = self.test_dir / "phase2_results_test.json"
         self.patch_file = mock.patch.object(
             update_location_phase2, "TEMP_RESULTS_FILE", self.temp_results
         )
@@ -207,8 +235,7 @@ class WritePhase2ResultsTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.patch_file.stop()
-        if self.temp_results.exists():
-            self.temp_results.unlink()
+        shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_write_preserves_multi_location_payload_in_exceptions(self) -> None:
         exceptions = [
@@ -276,8 +303,10 @@ class WritePhase2ResultsTests(unittest.TestCase):
 
 class LoadPhase2ResultsTests(unittest.TestCase):
     def setUp(self) -> None:
-        TEST_TMP_DIR.mkdir(exist_ok=True)
-        self.temp_results = TEST_TMP_DIR / "phase3_results_test.json"
+        self.test_dir = TEST_TMP_DIR / self._testMethodName
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+        self.test_dir.mkdir(parents=True, exist_ok=True)
+        self.temp_results = self.test_dir / "phase3_results_test.json"
         self.patch_file = mock.patch.object(
             update_location, "TEMP_RESULTS_FILE", self.temp_results
         )
@@ -285,8 +314,7 @@ class LoadPhase2ResultsTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.patch_file.stop()
-        if self.temp_results.exists():
-            self.temp_results.unlink()
+        shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_load_phase2_results_handles_3_element_exceptions(self) -> None:
         data = {
@@ -302,7 +330,7 @@ class LoadPhase2ResultsTests(unittest.TestCase):
             "barcode_model_map": {},
             "stockpile_path": "stockpile.csv",
         }
-        self.temp_results.write_text(json.dumps(data), encoding="utf-8")
+        _write_text_with_retry(self.temp_results, json.dumps(data))
         loaded = update_location.load_phase2_results()
         self.assertIsNotNone(loaded)
         self.assertEqual(len(loaded["exceptions"]), 2)

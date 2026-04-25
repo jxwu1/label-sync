@@ -12,7 +12,6 @@ import stockpile_db
 from routes_stockpile import bp as stockpile_bp
 
 _TEST_DIR = Path(__file__).resolve().parent / "_test_stockpile_routes"
-_TEST_DB = _TEST_DIR / "test.db"
 
 
 def _make_csv_bytes(rows: list[dict]) -> bytes:
@@ -22,17 +21,22 @@ def _make_csv_bytes(rows: list[dict]) -> bytes:
 
 class StockpileRoutesTests(unittest.TestCase):
     def setUp(self) -> None:
-        _TEST_DIR.mkdir(exist_ok=True)
+        self.test_dir = _TEST_DIR / f"_test_stockpile_routes_{self._testMethodName}"
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+        self.test_dir.mkdir(parents=True, exist_ok=True)
+        self.test_db = self.test_dir / "test.db"
         self._patches = [
-            mock.patch.object(stockpile_db, "DB_PATH", _TEST_DB),
-            mock.patch("routes_stockpile.INPUT_DIR", _TEST_DIR),
+            mock.patch.object(stockpile_db, "DB_PATH", self.test_db),
+            mock.patch("routes_stockpile.INPUT_DIR", self.test_dir),
         ]
         for p in self._patches:
             p.start()
+            self.addCleanup(p.stop)
         # 清空 DB
         with stockpile_db._connect() as conn:
             conn.execute("DELETE FROM stockpile")
             conn.execute("DELETE FROM stockpile_changes")
+            conn.execute("DELETE FROM schema_meta")
 
         app = Flask(__name__)
         app.config["TESTING"] = True
@@ -40,9 +44,7 @@ class StockpileRoutesTests(unittest.TestCase):
         self.client = app.test_client()
 
     def tearDown(self) -> None:
-        for p in self._patches:
-            p.stop()
-        shutil.rmtree(_TEST_DIR, ignore_errors=True)
+        shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_status_uninitialized(self):
         res = self.client.get("/stockpile/status")
@@ -71,7 +73,7 @@ class StockpileRoutesTests(unittest.TestCase):
         )
         self.assertEqual(res.status_code, 400)
         # 临时文件应已清理
-        self.assertEqual(list(_TEST_DIR.glob("junk.txt")), [])
+        self.assertEqual(list(self.test_dir.glob("junk.txt")), [])
 
     def test_init_imports_csv_and_status_reflects(self):
         csv_bytes = _make_csv_bytes([
@@ -86,7 +88,7 @@ class StockpileRoutesTests(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.get_json()["count"], 2)
         # 临时文件被清理
-        self.assertEqual(list(_TEST_DIR.glob("init.csv")), [])
+        self.assertEqual(list(self.test_dir.glob("init.csv")), [])
 
         status = self.client.get("/stockpile/status").get_json()
         self.assertTrue(status["initialized"])
@@ -140,6 +142,41 @@ class StockpileRoutesTests(unittest.TestCase):
         rec = stockpile_db.query_by_barcode("A1")
         self.assertEqual(rec["product_model"], "New")
 
+    def test_inactive_endpoint_returns_inactive_records(self):
+        stockpile_db.import_from_dataframe(pd.DataFrame([
+            {"product_barcode": "A1", "product_model": "M1", "stockpile_location": "L1"},
+            {"product_barcode": "A2", "product_model": "M2", "stockpile_location": "L2"},
+        ]))
+        stockpile_db.apply_export_updates(pd.DataFrame([
+            {"product_barcode": "A1", "product_model": "M1", "stockpile_location": "L1"},
+        ]))
+
+        res = self.client.get("/stockpile/inactive")
+
+        self.assertEqual(res.status_code, 200)
+        payload = res.get_json()
+        self.assertEqual(payload["count"], 1)
+        self.assertEqual(payload["records"][0]["product_barcode"], "A2")
+
+    def test_changes_endpoint_returns_recent_change_log(self):
+        stockpile_db.import_from_dataframe(pd.DataFrame([
+            {"product_barcode": "A1", "product_model": "M1", "stockpile_location": "L1"},
+        ]))
+        stockpile_db.insert_or_update("A1", "M1-new", "L1-new")
+
+        res = self.client.get("/stockpile/changes?limit=2")
+
+        self.assertEqual(res.status_code, 200)
+        payload = res.get_json()
+        self.assertGreaterEqual(payload["count"], 1)
+        self.assertEqual(payload["changes"][0]["product_barcode"], "A1")
+
+    def test_schema_endpoint_returns_current_version(self):
+        res = self.client.get("/stockpile/schema")
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["version"], stockpile_db.SCHEMA_VERSION)
+
     def test_temp_file_cleaned_when_handler_raises(self):
         # 注入异常确认 finally 清理生效
         bad_csv = _make_csv_bytes([
@@ -152,7 +189,7 @@ class StockpileRoutesTests(unittest.TestCase):
                     data={"files": (io.BytesIO(bad_csv), "boom.csv")},
                     content_type="multipart/form-data",
                 )
-        self.assertEqual(list(_TEST_DIR.glob("boom.csv")), [])
+        self.assertEqual(list(self.test_dir.glob("boom.csv")), [])
 
 
 if __name__ == "__main__":

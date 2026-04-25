@@ -1,4 +1,5 @@
 import json
+import shutil
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -7,7 +8,7 @@ import pandas as pd
 
 import barcode_service
 
-TEST_TMP_DIR = Path(__file__).resolve().parent / "_tmp"
+TEST_TMP_DIR = Path(__file__).resolve().parent / "_tmp_barcode"
 
 
 def _write_stockpile(path: Path, records: list[dict]) -> None:
@@ -33,9 +34,11 @@ def _results_fixture(stockpile_path: Path) -> dict:
 
 class NewBarcodeCorrectionTests(unittest.TestCase):
     def setUp(self) -> None:
-        TEST_TMP_DIR.mkdir(exist_ok=True)
-        self.temp_results = TEST_TMP_DIR / "phase2_results.json"
-        self.stockpile = TEST_TMP_DIR / "stockpile.csv"
+        self.test_dir = TEST_TMP_DIR / self._testMethodName
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+        self.test_dir.mkdir(parents=True, exist_ok=True)
+        self.temp_results = self.test_dir / "phase2_results.json"
+        self.stockpile = self.test_dir / "stockpile.csv"
         _write_stockpile(self.stockpile, [
             {"product_barcode": "EXISTING", "product_model": "MODEL_X", "stockpile_location": "A5/X5"},
         ])
@@ -59,9 +62,7 @@ class NewBarcodeCorrectionTests(unittest.TestCase):
         self.patch_file.stop()
         self.patch_state.stop()
         self.patch_db.stop()
-        for path in TEST_TMP_DIR.iterdir():
-            if path.is_file():
-                path.unlink()
+        shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_correct_to_stockpile_barcode_composes_location_and_drops_from_new(self) -> None:
         result = barcode_service.correct_barcode("NEW_A", "EXISTING")

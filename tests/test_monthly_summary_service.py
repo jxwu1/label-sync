@@ -1,21 +1,36 @@
 import json
 import shutil
+import time
 import unittest
 from datetime import date
 from pathlib import Path
 
 import monthly_summary_service as svc
 
-_TEST_DIR = Path(__file__).resolve().parent / "_test_monthly_summary"
+_TEST_ROOT = Path(__file__).resolve().parent
+
+
+def _write_text_with_retry(path: Path, text: str) -> None:
+    last_error = None
+    for _ in range(5):
+        try:
+            path.write_text(text, encoding="utf-8")
+            return
+        except PermissionError as exc:
+            last_error = exc
+            time.sleep(0.02)
+    raise last_error
 
 
 class TestSaveRecord(unittest.TestCase):
     def setUp(self):
-        _TEST_DIR.mkdir(exist_ok=True)
-        svc._SUMMARY_DIR = _TEST_DIR
+        self.test_dir = _TEST_ROOT / f"_test_monthly_summary_{self._testMethodName}"
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+        self.test_dir.mkdir(exist_ok=True)
+        svc._SUMMARY_DIR = self.test_dir
 
     def tearDown(self):
-        shutil.rmtree(_TEST_DIR, ignore_errors=True)
+        shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_save_creates_file_and_appends_record(self):
         record = svc.save_record(
@@ -50,11 +65,13 @@ class TestSaveRecord(unittest.TestCase):
 
 class TestListMonths(unittest.TestCase):
     def setUp(self):
-        _TEST_DIR.mkdir(exist_ok=True)
-        svc._SUMMARY_DIR = _TEST_DIR
+        self.test_dir = _TEST_ROOT / f"_test_monthly_summary_{self._testMethodName}"
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+        self.test_dir.mkdir(exist_ok=True)
+        svc._SUMMARY_DIR = self.test_dir
 
     def tearDown(self):
-        shutil.rmtree(_TEST_DIR, ignore_errors=True)
+        shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_lists_months_sorted_descending(self):
         svc.save_record("A", 100.0, 10.0, "2026-02-01", "2026-02")
@@ -66,29 +83,62 @@ class TestListMonths(unittest.TestCase):
 
 class TestCleanupExpired(unittest.TestCase):
     def setUp(self):
-        _TEST_DIR.mkdir(exist_ok=True)
-        svc._SUMMARY_DIR = _TEST_DIR
+        self.test_dir = _TEST_ROOT / f"_test_monthly_summary_{self._testMethodName}"
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+        self.test_dir.mkdir(exist_ok=True)
+        svc._SUMMARY_DIR = self.test_dir
 
     def tearDown(self):
-        shutil.rmtree(_TEST_DIR, ignore_errors=True)
+        shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_removes_files_older_than_six_months(self):
-        old_file = _TEST_DIR / "2025-08.json"
-        old_file.write_text("[]", encoding="utf-8")
-        recent_file = _TEST_DIR / "2026-04.json"
-        recent_file.write_text("[]", encoding="utf-8")
+        old_file = self.test_dir / "2025-08.json"
+        _write_text_with_retry(old_file, "[]")
+        recent_file = self.test_dir / "2026-04.json"
+        _write_text_with_retry(recent_file, "[]")
         svc.cleanup_expired(reference_date=date(2026, 4, 1))
         self.assertFalse(old_file.exists())
         self.assertTrue(recent_file.exists())
 
+    def test_keeps_current_month_and_previous_five_months(self):
+        for month in [
+            "2025-09", "2025-10", "2025-11", "2025-12",
+            "2026-01", "2026-02", "2026-03", "2026-04",
+        ]:
+            _write_text_with_retry(self.test_dir / f"{month}.json", "[]")
+
+        svc.cleanup_expired(reference_date=date(2026, 4, 1))
+
+        remaining = sorted(path.stem for path in self.test_dir.glob("*.json"))
+        self.assertEqual(
+            remaining,
+            ["2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04"],
+        )
+
+    def test_keeps_six_month_window_across_year_boundary(self):
+        for month in [
+            "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01",
+        ]:
+            _write_text_with_retry(self.test_dir / f"{month}.json", "[]")
+
+        svc.cleanup_expired(reference_date=date(2026, 1, 15))
+
+        remaining = sorted(path.stem for path in self.test_dir.glob("*.json"))
+        self.assertEqual(
+            remaining,
+            ["2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01"],
+        )
+
 
 class TestBuildPdf(unittest.TestCase):
     def setUp(self):
-        _TEST_DIR.mkdir(exist_ok=True)
-        svc._SUMMARY_DIR = _TEST_DIR
+        self.test_dir = _TEST_ROOT / f"_test_monthly_summary_{self._testMethodName}"
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+        self.test_dir.mkdir(exist_ok=True)
+        svc._SUMMARY_DIR = self.test_dir
 
     def tearDown(self):
-        shutil.rmtree(_TEST_DIR, ignore_errors=True)
+        shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_builds_pdf_bytes(self):
         svc.save_record("ABC贸易", 12000.0, 1560.0, "2026-04-15", "2026-04")
