@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 
 from config import CONFIG
-from file_io import find_latest_stockpile_file, read_csv
+from file_io import read_csv
 
 INPUT_DIR = CONFIG.input_dir
 OUTPUT_DIR = CONFIG.output_dir
@@ -66,12 +66,14 @@ def load_phase2_results() -> dict | None:
     return data
 
 
+_TEMPLATE_PATH = Path(__file__).resolve().parent / "static" / "templates" / "产品信息导入模板.csv"
+
+
 def find_template_path() -> Path | None:
-    template_files = sorted(INPUT_DIR.glob("*模板*.csv"))
-    if not template_files:
+    if not _TEMPLATE_PATH.exists():
         print("ERROR: missing template csv")
         return None
-    return template_files[0]
+    return _TEMPLATE_PATH
 
 
 def write_output_package(
@@ -123,7 +125,6 @@ def main() -> int:
     employee_name = results_data["employee_name"]
     scan_files = [Path(path) for path in results_data["scan_files"]]
     barcode_model_map = results_data["barcode_model_map"]
-    stockpile_path = Path(results_data["stockpile_path"])
 
     print(f"EMPLOYEE {employee_name}")
     print(f"RESULT_COUNT {len(results)}")
@@ -148,9 +149,8 @@ def main() -> int:
     trash_suffix = datetime.now().strftime("%Y%m%d_%H%M%S")
     archive_scan_files(scan_files, package_dir, barcode_model_map, trash_suffix)
 
-    system_trash_path = TRASH_DIR / f"{stockpile_path.stem}_{trash_suffix}.csv"
-    shutil.move(stockpile_path, system_trash_path)
-    print(f"TRASH_STOCKPILE {system_trash_path.name}")
+    # stockpile is now in local database, no CSV file to archive
+    print("TRASH_STOCKPILE (database, skipped)")
     return 0
 
 

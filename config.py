@@ -69,5 +69,9 @@ class AppConfig:
     def temp_results_file(self) -> Path:
         return self.input_dir / "_temp_results.json"
 
+    @property
+    def stockpile_db(self) -> Path:
+        return self.base_dir / "stockpile.db"
+
 
 CONFIG = AppConfig(base_dir=_data_dir(), resource_dir=_resource_dir())

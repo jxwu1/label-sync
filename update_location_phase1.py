@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 from config import CONFIG
-from file_io import find_latest_stockpile_file, find_single_file
+from file_io import find_latest_stockpile_file
 from state import (
     PHASE_EXIT_LOCATION_FORMAT_ERROR,
     PHASE_EXIT_OK,
@@ -130,9 +130,10 @@ def save_temp_mapping(
 
 
 def main() -> int:
-    template_file = find_single_file(INPUT_DIR, "*模板*.csv")
-    if template_file is None:
-        print("ERROR: missing template csv in input/")
+    _TEMPLATE_PATH = Path(__file__).resolve().parent / "static" / "templates" / "产品信息导入模板.csv"
+    template_file = _TEMPLATE_PATH
+    if not template_file.exists():
+        print("ERROR: missing template csv")
         return 1
     print(f"TEMPLATE {template_file.name}")
 

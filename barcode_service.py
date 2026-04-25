@@ -5,6 +5,7 @@ from file_io import update_json_file
 from output_repository import latest_output_csv
 from schemas import ServiceResult
 from state import TEMP_MAPPING_FILE, TEMP_RESULTS_FILE, task_state
+import stockpile_db
 
 
 def _correct_in_phase1_mapping(old_barcode: str, new_barcode: str) -> ServiceResult:
@@ -43,9 +44,7 @@ def _correct_in_output_csv(old_barcode: str, new_barcode: str) -> ServiceResult:
 
 
 def _load_stockpile_records(stockpile_path: str) -> dict[str, dict[str, str]]:
-    from file_io import read_csv
-    from update_location_phase2 import build_system_records
-    _, records = build_system_records(read_csv(Path(stockpile_path)))
+    _, records = stockpile_db.query_all_as_system_records()
     return records
 
 
@@ -100,6 +99,14 @@ def _correct_new_barcode(old_barcode: str, new_barcode: str) -> ServiceResult:
             task_state.replace_new_barcode(old_barcode, new_barcode)
 
         data["new_barcodes"] = new_list
+        if not mismatch:
+            if entry_idx is not None:
+                location = data["results"][entry_idx]["location"]
+                model = data["results"][entry_idx]["model"]
+            else:
+                location = ""
+                model = new_barcode
+            stockpile_db.insert_or_update(new_barcode, model, location, source="user_correction")
 
     try:
         update_json_file(TEMP_RESULTS_FILE, _modifier)

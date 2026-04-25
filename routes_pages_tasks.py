@@ -34,7 +34,7 @@ def run():
     if task_state.is_running() or task_state.is_waiting():
         return jsonify({"ok": False, "msg": "已有任务在运行或等待中"}), 400
 
-    is_valid, error_message = storage_service.validate_stockpile_is_today()
+    is_valid, error_message = storage_service.validate_stockpile_is_ready()
     if not is_valid:
         return jsonify({"ok": False, "msg": error_message}), 400
 

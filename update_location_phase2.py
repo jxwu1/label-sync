@@ -2,10 +2,8 @@ import json
 import sys
 from pathlib import Path
 
-import pandas as pd
-
 from config import CONFIG
-from file_io import find_latest_stockpile_file, read_csv, write_phase2_results
+from file_io import write_phase2_results
 from location_parser import categorize_locations, categorize_stockpile, compose_if_single
 from state import PHASE_EXIT_OK, PHASE_EXIT_REVIEW_REQUIRED
 
@@ -99,24 +97,6 @@ def load_phase1_mapping() -> dict | None:
     return data
 
 
-def build_system_records(
-    dataframe: pd.DataFrame,
-) -> tuple[dict[str, str], dict[str, dict[str, str]]]:
-    barcode_model_map: dict[str, str] = {}
-    system_records: dict[str, dict[str, str]] = {}
-    for _, row in dataframe.iterrows():
-        barcode = str(row.get("product_barcode", "")).strip()
-        if not barcode:
-            continue
-        model = str(row.get("product_model", "")).strip()
-        stockpile_location = str(row.get("stockpile_location", "")).strip()
-        barcode_model_map[barcode] = "" if model == "nan" else model
-        system_records[barcode] = {
-            "model": barcode_model_map[barcode],
-            "stockpile_location": "" if stockpile_location == "nan" else stockpile_location,
-        }
-    return barcode_model_map, system_records
-
 
 def main() -> int:
     temp_data = load_phase1_mapping()
@@ -130,20 +110,24 @@ def main() -> int:
     print(f"EMPLOYEE {employee_name}")
     print(f"SCAN_COUNT {len(location_map)}")
 
-    stockpile_path = find_latest_stockpile_file(INPUT_DIR)
-    if stockpile_path is None:
-        print("ERROR: missing stockpile csv")
-        return 1
-    print(f"STOCKPILE {stockpile_path.name}")
+    from stockpile_db import query_all_as_system_records
 
-    barcode_model_map, system_records = build_system_records(read_csv(stockpile_path))
+    if not INPUT_DIR.exists():
+        print("ERROR: input directory not found")
+        return 1
+
+    barcode_model_map, system_records = query_all_as_system_records()
+    if not system_records:
+        print("ERROR: stockpile database is empty, please initialize it first")
+        return 1
+    print(f"STOCKPILE_DB {len(system_records)} records")
     results, new_barcodes, exceptions, unmatched_barcodes = build_phase_two_results(
         location_map, system_records
     )
 
     write_phase2_results(
         TEMP_RESULTS_FILE, results, new_barcodes, exceptions, unmatched_barcodes,
-        employee_name, scan_files, barcode_model_map, stockpile_path,
+        employee_name, scan_files, barcode_model_map, Path("stockpile.db"),
     )
 
     matched_count = len(results) - len(new_barcodes)
