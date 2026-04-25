@@ -103,6 +103,7 @@ def delete_employee(employee_id: str) -> None:
 
 
 STANDARD_HOURS = 10.5
+STANDARD_END = "20:00"
 
 
 def _parse_hm(hm: str) -> int:
@@ -148,17 +149,59 @@ def load_month(month: str) -> dict:
 
 
 def list_leaves(month: str) -> dict:
-    """{employee_id: {date: hours}}"""
+    """{employee_id: {date: {type, start?, end?, hours}}}"""
     return _read_json(_leaves_path(month), {})
 
 
-def set_leave(employee_id: str, date: str, hours: float) -> None:
+def _compute_leave_hours(leave_type: str, start: str, end: str, day_standard_hours: float, day_end: str) -> float:
+    if leave_type == "full":
+        return day_standard_hours
+    if leave_type == "range":
+        if not start or not end:
+            raise ValueError("range 类型必须提供 start 和 end")
+        s, e = _parse_hm(start), _parse_hm(end)
+        if e <= s:
+            raise ValueError(f"end 必须晚于 start：{start}-{end}")
+        return (e - s) / 60
+    if leave_type == "left":
+        if not start:
+            raise ValueError("left 类型必须提供 start")
+        s, e = _parse_hm(start), _parse_hm(day_end)
+        if e <= s:
+            raise ValueError(f"离开时间必须早于下班时间 {day_end}：{start}")
+        return (e - s) / 60
+    raise ValueError(f"未知请假类型：{leave_type}")
+
+
+def set_leave(employee_id: str, date: str, leave_type: str, start: str = "", end: str = "") -> dict:
+    """记录请假。返回写入的条目（含 hours）。
+
+    leave_type:
+      - "full": 全天，hours = 当天标准时长
+      - "range": 离开后回来，需 start + end
+      - "left":  离开未回来，需 start
+    """
+    special_days = list_special_days()
+    sd = special_days.get(date)
+    if sd:
+        day_hours = (_parse_hm(sd["end"]) - _parse_hm(sd["start"])) / 60
+        day_end = sd["end"]
+    else:
+        day_hours = STANDARD_HOURS
+        day_end = STANDARD_END
+    hours = _compute_leave_hours(leave_type, start, end, day_hours, day_end)
     if hours <= 0:
         raise ValueError(f"请假小时数必须 > 0：{hours}")
+    entry = {"type": leave_type, "hours": round(hours, 3)}
+    if start:
+        entry["start"] = start
+    if end:
+        entry["end"] = end
     month = date[:7]
     data = list_leaves(month)
-    data.setdefault(employee_id, {})[date] = float(hours)
+    data.setdefault(employee_id, {})[date] = entry
     _write_json(_leaves_path(month), data)
+    return entry
 
 
 def clear_leave(employee_id: str, date: str) -> None:
@@ -237,7 +280,8 @@ def compute_summary(employee_id: str, month: str) -> dict:
     absent_days = 0
     leave_hours_total = 0.0
     for date_str, wd_int, wd_cn in _iter_month_days(month):
-        leave_h = leaves.get(date_str, 0.0)
+        leave_entry = leaves.get(date_str)
+        leave_h = leave_entry["hours"] if leave_entry else 0.0
         if wd_int == 6:  # Sunday
             detail.append({
                 "date": date_str, "weekday": wd_cn,
@@ -318,6 +362,12 @@ def compute_summary(employee_id: str, month: str) -> dict:
                 "leave_hours": 0.0,
             })
             absent_days += 1
+    for row in detail:
+        entry = leaves.get(row["date"])
+        if entry:
+            row["leave_type"] = entry.get("type", "")
+            row["leave_start"] = entry.get("start", "")
+            row["leave_end"] = entry.get("end", "")
     total_days = len(detail)
     return {
         "worked_days": round(worked_days, 3),

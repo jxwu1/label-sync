@@ -120,12 +120,13 @@ def list_leaves(month: str):
 @bp.post("/leave/<employee_id>/<date>")
 def set_leave(employee_id: str, date: str):
     data = request.get_json(silent=True) or {}
+    leave_type = (data.get("type") or "").strip()
+    start = (data.get("start") or "").strip()
+    end = (data.get("end") or "").strip()
+    if leave_type not in ("full", "range", "left"):
+        return jsonify({"ok": False, "msg": "type 必须为 full / range / left"}), 400
     try:
-        hours = float(data.get("hours"))
-    except (TypeError, ValueError):
-        return jsonify({"ok": False, "msg": "hours 必须为数字"}), 400
-    try:
-        attendance_service.set_leave(employee_id, date, hours)
+        attendance_service.set_leave(employee_id, date, leave_type, start=start, end=end)
     except ValueError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 400
     summary = attendance_service.compute_summary(employee_id, date[:7])

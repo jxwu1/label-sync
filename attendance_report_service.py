@@ -36,6 +36,30 @@ def _employee_anchor(emp_id: str) -> str:
     return f"emp_{emp_id}"
 
 
+def _format_leave_pdf(row: dict) -> str:
+    h = row.get("leave_hours", 0) or 0
+    t = row.get("leave_type", "")
+    s = row.get("leave_start", "")
+    e = row.get("leave_end", "")
+    if t == "range" and s and e:
+        return f"{s}-{e}\n{h:.2f}h"
+    if t == "left" and s:
+        return f"{s}起\n{h:.2f}h"
+    return f"{h:.2f}h"
+
+
+def _format_leave_csv(row: dict) -> str:
+    h = row.get("leave_hours", 0) or 0
+    t = row.get("leave_type", "")
+    s = row.get("leave_start", "")
+    e = row.get("leave_end", "")
+    if t == "range" and s and e:
+        return f"{s}-{e} ({h:.2f}h)"
+    if t == "left" and s:
+        return f"{s}起 ({h:.2f}h)"
+    return f"{h:.2f}h"
+
+
 def _build_overview(month: str, employees: list, summaries: dict, font_name: str) -> list:
     styles = getSampleStyleSheet()
     title_style = styles["Title"].clone("attn_overview_title")
@@ -87,7 +111,7 @@ def build_csv(month: str) -> bytes:
                 emp["name"], row["date"], row["weekday"],
                 row["start"], row["end"],
                 row["day_fraction"],
-                f"{leave_h:.2f}" if leave_h else "",
+                _format_leave_csv(row) if leave_h else "",
                 _STATUS_CN.get(row["status"], row["status"]),
             ])
     return b"\xef\xbb\xbf" + buf.getvalue().encode("utf-8")
@@ -126,7 +150,7 @@ def _build_employee_block(emp: dict, summary: dict) -> list:
         rows.append([
             r["date"], r["weekday"], r["start"] or "—", r["end"] or "—",
             f"{r['day_fraction']:.2f}",
-            f"{leave_h:.2f}" if leave_h else "—",
+            _format_leave_pdf(r) if leave_h else "—",
             _STATUS_CN.get(r["status"], r["status"]),
         ])
     table = Table(rows, colWidths=[26 * mm, 12 * mm, 18 * mm, 18 * mm, 14 * mm, 14 * mm, 18 * mm])

@@ -44,6 +44,25 @@
           </div>
         </div>
       </div>
+      <div class="pur-modal-overlay" id="attnLeaveOverlay" style="display:none;">
+        <div class="pur-modal">
+          <div class="pur-modal-hd">请假 <span id="attnLeaveDate"></span></div>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <label><input type="radio" name="attnLeaveType" value="full" checked> 全天</label>
+            <label><input type="radio" name="attnLeaveType" value="range"> 离开后回来：
+              <input class="attn-inp" id="attnLeaveStart" type="text" placeholder="HH:MM" maxlength="5" style="width:70px;"> —
+              <input class="attn-inp" id="attnLeaveEnd" type="text" placeholder="HH:MM" maxlength="5" style="width:70px;">
+            </label>
+            <label><input type="radio" name="attnLeaveType" value="left"> 离开未回来：
+              <input class="attn-inp" id="attnLeaveLeftStart" type="text" placeholder="HH:MM" maxlength="5" style="width:70px;">
+            </label>
+          </div>
+          <div class="pur-modal-actions">
+            <button class="attn-btn attn-btn-dl" id="attnLeaveSubmit">确认</button>
+            <button class="attn-btn" id="attnLeaveCancel">取消</button>
+          </div>
+        </div>
+      </div>
       <div class="pur-modal-overlay" id="attnHolidayOverlay" style="display:none;">
         <div class="pur-modal">
           <div class="pur-modal-hd">节假日管理</div>
@@ -73,6 +92,10 @@
     document.getElementById('attnSpecialAdd').addEventListener('click', addSpecial);
     document.getElementById('attnSpecialClose').addEventListener('click', () => {
       document.getElementById('attnSpecialOverlay').style.display = 'none';
+    });
+    document.getElementById('attnLeaveSubmit').addEventListener('click', submitLeave);
+    document.getElementById('attnLeaveCancel').addEventListener('click', () => {
+      document.getElementById('attnLeaveOverlay').style.display = 'none';
     });
 
     document.getElementById('attnMonth').value = new Date().toISOString().slice(0, 7);
@@ -176,12 +199,13 @@
       const statusMap = { sunday: '周日', holiday: '节假日', absent: '缺勤', normal: '正常', special: '特殊日', special_absent: '特殊日缺勤', leave: '请假' };
       const baseStatus = statusMap[r.status] || r.status;
       const leaveH = r.leave_hours || 0;
+      const leaveLabel = formatLeave(r);
       const statusText = isLeave ? `请假 ${leaveH}h` : baseStatus;
       const leaveCell = autoRow
-        ? `<td>${leaveH ? leaveH + 'h' : ''}</td>`
+        ? `<td>${leaveH ? leaveLabel : ''}</td>`
         : (leaveH > 0
-            ? `<td>${leaveH}h <button class="attn-btn attn-leave-clear" data-date="${r.date}">取消</button></td>`
-            : `<td><button class="attn-btn attn-leave-add" data-date="${r.date}" data-special="${isSpecial ? 1 : 0}">请假</button></td>`);
+            ? `<td>${leaveLabel} <button class="attn-btn attn-leave-clear" data-date="${r.date}">取消</button></td>`
+            : `<td><button class="attn-btn attn-leave-add" data-date="${r.date}">请假</button></td>`);
       const fillBtn = isSpecial
         ? `<td><button class="attn-btn attn-fill" data-date="${r.date}" data-start="${r.special_start}" data-end="${r.special_end}">按标准</button></td>`
         : (autoRow ? '<td></td>' : `<td><button class="attn-btn attn-fill" data-date="${r.date}" data-start="09:30" data-end="20:00">正常</button></td>`);
@@ -207,31 +231,52 @@
       btn.addEventListener('click', () => fillNormal(btn.dataset.date, btn.dataset.start, btn.dataset.end));
     });
     wrap.querySelectorAll('.attn-leave-add').forEach(btn => {
-      btn.addEventListener('click', () => addLeave(btn.dataset.date, btn.dataset.special === '1'));
+      btn.addEventListener('click', () => addLeave(btn.dataset.date));
     });
     wrap.querySelectorAll('.attn-leave-clear').forEach(btn => {
       btn.addEventListener('click', () => clearLeave(btn.dataset.date));
     });
   }
 
-  async function addLeave(date, isSpecial) {
-    const standard = isSpecial ? null : 10.5;
-    const hint = standard
-      ? `请假小时数（全天 ${standard}，半天 ${standard / 2}）：`
-      : '请假小时数：';
-    const raw = prompt(hint, standard ? String(standard) : '');
-    if (raw == null) return;
-    const hours = parseFloat(raw);
-    if (!isFinite(hours) || hours <= 0) { alert('请输入大于 0 的小时数'); return; }
+  let pendingLeaveDate = '';
+
+  function addLeave(date) {
+    pendingLeaveDate = date;
+    document.getElementById('attnLeaveDate').textContent = date;
+    document.querySelector('input[name="attnLeaveType"][value="full"]').checked = true;
+    document.getElementById('attnLeaveStart').value = '';
+    document.getElementById('attnLeaveEnd').value = '';
+    document.getElementById('attnLeaveLeftStart').value = '';
+    document.getElementById('attnLeaveOverlay').style.display = 'flex';
+  }
+
+  async function submitLeave() {
+    const date = pendingLeaveDate;
+    if (!date) return;
+    const type = document.querySelector('input[name="attnLeaveType"]:checked').value;
+    const payload = { type };
+    const timeRe = /^([01]\d|2[0-3]):([0-5]\d)$/;
+    if (type === 'range') {
+      const s = normalizeTime(document.getElementById('attnLeaveStart').value);
+      const e = normalizeTime(document.getElementById('attnLeaveEnd').value);
+      if (!timeRe.test(s) || !timeRe.test(e)) { alert('请填写正确的离开/回来时间（HH:MM）'); return; }
+      payload.start = s;
+      payload.end = e;
+    } else if (type === 'left') {
+      const s = normalizeTime(document.getElementById('attnLeaveLeftStart').value);
+      if (!timeRe.test(s)) { alert('请填写正确的离开时间（HH:MM）'); return; }
+      payload.start = s;
+    }
     try {
       const res = await fetch(`/attendance/leave/${currentEmployeeId}/${date}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hours }),
+        body: JSON.stringify(payload),
       });
       const body = await res.json();
       if (!body.ok) { alert(body.msg); return; }
     } catch (e) { alert('请假失败：' + e.message); return; }
+    document.getElementById('attnLeaveOverlay').style.display = 'none';
     await loadMonth();
   }
 
@@ -253,6 +298,19 @@
     if (startInp) startInp.value = start || '09:30';
     if (endInp) endInp.value = end || '20:00';
     await onCellChange(date);
+  }
+
+  function formatLeave(r) {
+    const h = r.leave_hours || 0;
+    if (!h) return '';
+    const t = r.leave_type || '';
+    if (t === 'range' && r.leave_start && r.leave_end) {
+      return `${r.leave_start}-${r.leave_end} (${h}h)`;
+    }
+    if (t === 'left' && r.leave_start) {
+      return `${r.leave_start} 起 (${h}h)`;
+    }
+    return `${h}h`;
   }
 
   function normalizeTime(raw) {
