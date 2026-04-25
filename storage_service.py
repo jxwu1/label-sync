@@ -95,7 +95,7 @@ def validate_stockpile_is_ready() -> tuple[bool, str | None]:
     from stockpile_db import is_initialized
 
     if not is_initialized():
-        return False, "stockpile 数据库尚未初始化，请先通过"初始化 stockpile 数据库"上传系统导出文件"
+        return False, 'stockpile 数据库尚未初始化，请先通过"初始化 stockpile 数据库"上传系统导出文件'
     return True, None
 
 
