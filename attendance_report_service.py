@@ -13,7 +13,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-_CSV_HEADER = ["员工", "日期", "星期", "上班", "下班", "天数", "状态"]
+_CSV_HEADER = ["员工", "日期", "星期", "上班", "下班", "天数", "请假小时", "状态"]
 
 _FONT_NAME = "AttnSC"
 _FONT_REGISTERED = False
@@ -23,11 +23,12 @@ _FONT_CANDIDATES = [
     Path("C:/Windows/Fonts/simsun.ttc"),
 ]
 
-_PDF_TABLE_HEADER = ["日期", "星期", "上班", "下班", "天数", "状态"]
-_OVERVIEW_HEADER = ["员工", "累计天数", "缺勤天数", "总工作日", "本月天数"]
+_PDF_TABLE_HEADER = ["日期", "星期", "上班", "下班", "天数", "请假", "状态"]
+_OVERVIEW_HEADER = ["员工", "累计天数", "缺勤天数", "总工作日", "本月天数", "请假天数"]
 _STATUS_CN = {
     "normal": "正常", "absent": "缺勤", "sunday": "周日",
     "holiday": "节假日", "special": "特殊日", "special_absent": "特殊日缺勤",
+    "leave": "请假",
 }
 
 
@@ -59,8 +60,9 @@ def _build_overview(month: str, employees: list, summaries: dict, font_name: str
             f"{s['absent_days']}",
             f"{s['total_workdays']}",
             f"{s['month_days']}",
+            f"{s.get('leave_days_equivalent', 0):.1f}",
         ])
-    table = Table(rows, colWidths=[40 * mm, 26 * mm, 26 * mm, 26 * mm, 26 * mm])
+    table = Table(rows, colWidths=[36 * mm, 22 * mm, 22 * mm, 22 * mm, 22 * mm, 22 * mm])
     table.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (-1, -1), font_name),
         ("FONTSIZE", (0, 0), (-1, -1), 10),
@@ -80,10 +82,13 @@ def build_csv(month: str) -> bytes:
     for emp in employees:
         summary = attendance_service.compute_summary(emp["id"], month)
         for row in summary["detail"]:
+            leave_h = row.get("leave_hours", 0) or 0
             writer.writerow([
                 emp["name"], row["date"], row["weekday"],
                 row["start"], row["end"],
-                row["day_fraction"], _STATUS_CN.get(row["status"], row["status"]),
+                row["day_fraction"],
+                f"{leave_h:.2f}" if leave_h else "",
+                _STATUS_CN.get(row["status"], row["status"]),
             ])
     return b"\xef\xbb\xbf" + buf.getvalue().encode("utf-8")
 
@@ -112,16 +117,19 @@ def _build_employee_block(emp: dict, summary: dict) -> list:
     normal.fontName = _FONT_NAME
 
     header = Paragraph(
-        f'<a name="{_employee_anchor(emp["id"])}"/>{emp["name"]} — 累计 {summary["worked_days"]} 天 / 缺勤 {summary["absent_days"]} 天 / 总工作日 {summary["total_workdays"]}',
+        f'<a name="{_employee_anchor(emp["id"])}"/>{emp["name"]} — 累计 {summary["worked_days"]} 天 / 缺勤 {summary["absent_days"]} 天 / 总工作日 {summary["total_workdays"]} / 请假 {summary.get("leave_hours_total", 0)} 小时',
         title,
     )
     rows = [_PDF_TABLE_HEADER]
     for r in summary["detail"]:
+        leave_h = r.get("leave_hours", 0) or 0
         rows.append([
             r["date"], r["weekday"], r["start"] or "—", r["end"] or "—",
-            f"{r['day_fraction']:.2f}", _STATUS_CN.get(r["status"], r["status"]),
+            f"{r['day_fraction']:.2f}",
+            f"{leave_h:.2f}" if leave_h else "—",
+            _STATUS_CN.get(r["status"], r["status"]),
         ])
-    table = Table(rows, colWidths=[28 * mm, 14 * mm, 20 * mm, 20 * mm, 16 * mm, 20 * mm])
+    table = Table(rows, colWidths=[26 * mm, 12 * mm, 18 * mm, 18 * mm, 14 * mm, 14 * mm, 18 * mm])
     table.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (-1, -1), _FONT_NAME),
         ("FONTSIZE", (0, 0), (-1, -1), 9),
