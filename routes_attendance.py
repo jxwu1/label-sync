@@ -112,6 +112,33 @@ def clear_day(employee_id: str, date: str):
     return jsonify({"ok": True, **summary})
 
 
+@bp.get("/leaves/<month>")
+def list_leaves(month: str):
+    return jsonify({"ok": True, "leaves": attendance_service.list_leaves(month)})
+
+
+@bp.post("/leave/<employee_id>/<date>")
+def set_leave(employee_id: str, date: str):
+    data = request.get_json(silent=True) or {}
+    try:
+        hours = float(data.get("hours"))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "msg": "hours 必须为数字"}), 400
+    try:
+        attendance_service.set_leave(employee_id, date, hours)
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
+    summary = attendance_service.compute_summary(employee_id, date[:7])
+    return jsonify({"ok": True, **summary})
+
+
+@bp.delete("/leave/<employee_id>/<date>")
+def clear_leave(employee_id: str, date: str):
+    attendance_service.clear_leave(employee_id, date)
+    summary = attendance_service.compute_summary(employee_id, date[:7])
+    return jsonify({"ok": True, **summary})
+
+
 @bp.get("/pdf/<month>")
 def download_pdf(month: str):
     try:
