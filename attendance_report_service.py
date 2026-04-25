@@ -1,19 +1,16 @@
-"""考勤报表：PDF + CSV。"""
+"""考勤报表：PDF（详情 + 工资单总览）。"""
 
-import csv
 import io
 from pathlib import Path
 
 import attendance_service
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
-
-_CSV_HEADER = ["员工", "日期", "星期", "上班", "下班", "天数", "请假小时", "状态"]
 
 _FONT_NAME = "AttnSC"
 _FONT_REGISTERED = False
@@ -45,18 +42,6 @@ def _format_leave_pdf(row: dict) -> str:
         return f"{s}-{e}\n{h:.2f}h"
     if t == "left" and s:
         return f"{s}起\n{h:.2f}h"
-    return f"{h:.2f}h"
-
-
-def _format_leave_csv(row: dict) -> str:
-    h = row.get("leave_hours", 0) or 0
-    t = row.get("leave_type", "")
-    s = row.get("leave_start", "")
-    e = row.get("leave_end", "")
-    if t == "range" and s and e:
-        return f"{s}-{e} ({h:.2f}h)"
-    if t == "left" and s:
-        return f"{s}起 ({h:.2f}h)"
     return f"{h:.2f}h"
 
 
@@ -96,25 +81,6 @@ def _build_overview(month: str, employees: list, summaries: dict, font_name: str
     ]))
     elements.append(table)
     return elements
-
-
-def build_csv(month: str) -> bytes:
-    employees = attendance_service.list_employees()
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow(_CSV_HEADER)
-    for emp in employees:
-        summary = attendance_service.compute_summary(emp["id"], month)
-        for row in summary["detail"]:
-            leave_h = row.get("leave_hours", 0) or 0
-            writer.writerow([
-                emp["name"], row["date"], row["weekday"],
-                row["start"], row["end"],
-                row["day_fraction"],
-                _format_leave_csv(row) if leave_h else "",
-                _STATUS_CN.get(row["status"], row["status"]),
-            ])
-    return b"\xef\xbb\xbf" + buf.getvalue().encode("utf-8")
 
 
 def _register_font() -> None:
@@ -161,6 +127,72 @@ def _build_employee_block(emp: dict, summary: dict) -> list:
         ("BACKGROUND", (0, 0), (-1, 0), colors.Color(0.9, 0.9, 0.9)),
     ]))
     return [header, Spacer(1, 4 * mm), table, Spacer(1, 10 * mm)]
+
+
+_PAYROLL_HEADER = ["员工", "累计天数", "缺勤天数", "总工作日", "本月天数", "请假天数", "实际工资", "应付工资"]
+
+
+def build_payroll_pdf(month: str) -> bytes:
+    """工资单 PDF：仅总览页，横版 A4，含两列空白工资栏供手填。"""
+    _register_font()
+    employees = attendance_service.list_employees()
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=landscape(A4),
+        topMargin=15 * mm, bottomMargin=15 * mm,
+        leftMargin=15 * mm, rightMargin=15 * mm,
+    )
+    styles = getSampleStyleSheet()
+    title_style = styles["Title"].clone("payroll_title")
+    title_style.fontName = _FONT_NAME
+    name_style = styles["Normal"].clone("payroll_name")
+    name_style.fontName = _FONT_NAME
+    name_style.fontSize = 11
+
+    elements = [
+        Paragraph(f"{month} 月度工资单", title_style),
+        Spacer(1, 6 * mm),
+    ]
+
+    if not employees:
+        empty = styles["Normal"].clone("payroll_empty")
+        empty.fontName = _FONT_NAME
+        elements.append(Paragraph("暂无员工", empty))
+    else:
+        rows = [_PAYROLL_HEADER]
+        for emp in employees:
+            s = attendance_service.compute_summary(emp["id"], month)
+            rows.append([
+                Paragraph(emp["name"], name_style),
+                f"{s['worked_days']}",
+                f"{s['absent_days']}",
+                f"{s['total_workdays']}",
+                f"{s['month_days']}",
+                f"{s.get('leave_days_equivalent', 0):.1f}",
+                "",
+                "",
+            ])
+        # 横版 A4 可用宽 ~267mm
+        col_widths = [40 * mm, 26 * mm, 26 * mm, 26 * mm, 26 * mm, 26 * mm, 36 * mm, 36 * mm]
+        table = Table(rows, colWidths=col_widths)
+        table.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, -1), _FONT_NAME),
+            ("FONTSIZE", (0, 0), (-1, -1), 11),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.Color(0.9, 0.9, 0.9)),
+            ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.Color(0.97, 0.97, 0.97)]),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ]))
+        elements.append(table)
+
+    doc.build(elements)
+    return buf.getvalue()
 
 
 def build_pdf(month: str) -> bytes:

@@ -17,7 +17,7 @@
           <button class="attn-btn" id="attnHolidays">节假日</button>
           <button class="attn-btn" id="attnSpecial">特殊日</button>
           <button class="attn-btn attn-btn-dl" id="attnPdf">下载 PDF</button>
-          <button class="attn-btn attn-btn-dl" id="attnCsv">下载 CSV</button>
+          <button class="attn-btn attn-btn-dl" id="attnPayrollPdf">下载工资单 PDF</button>
         </div>
         <div class="attn-stats">
           <span>累计 <b id="attnWorked">0</b> 天</span>
@@ -82,7 +82,7 @@
     document.getElementById('attnEmployee').addEventListener('change', onEmployeeChange);
     document.getElementById('attnMonth').addEventListener('change', onMonthChange);
     document.getElementById('attnPdf').addEventListener('click', downloadPdf);
-    document.getElementById('attnCsv').addEventListener('click', downloadCsv);
+    document.getElementById('attnPayrollPdf').addEventListener('click', downloadPayrollPdf);
     document.getElementById('attnHolidays').addEventListener('click', openHolidays);
     document.getElementById('attnHolidayAdd').addEventListener('click', addHoliday);
     document.getElementById('attnHolidayClose').addEventListener('click', () => {
@@ -483,9 +483,9 @@
     window.location.href = `/attendance/pdf/${currentMonth}`;
   }
 
-  function downloadCsv() {
+  function downloadPayrollPdf() {
     if (!currentMonth) return;
-    window.location.href = `/attendance/csv/${currentMonth}`;
+    window.location.href = `/attendance/payroll-pdf/${currentMonth}`;
   }
 
   function escapeHtml(s) {

@@ -154,15 +154,15 @@ def download_pdf(month: str):
     )
 
 
-@bp.get("/csv/<month>")
-def download_csv(month: str):
+@bp.get("/payroll-pdf/<month>")
+def download_payroll_pdf(month: str):
     try:
-        data = attendance_report_service.build_csv(month)
+        data = attendance_report_service.build_payroll_pdf(month)
     except Exception as exc:
-        return jsonify({"ok": False, "msg": f"生成 CSV 失败：{exc}"}), 500
+        return jsonify({"ok": False, "msg": f"生成工资单 PDF 失败：{exc}"}), 500
     return send_file(
         io.BytesIO(data),
-        mimetype="text/csv",
+        mimetype="application/pdf",
         as_attachment=True,
-        download_name=f"月度考勤_{month}.csv",
+        download_name=f"月度工资单_{month}.pdf",
     )
