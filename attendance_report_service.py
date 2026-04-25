@@ -129,7 +129,7 @@ def _build_employee_block(emp: dict, summary: dict) -> list:
     return [header, Spacer(1, 4 * mm), table, Spacer(1, 10 * mm)]
 
 
-_PAYROLL_HEADER = ["员工", "累计天数", "缺勤天数", "总工作日", "本月天数", "请假天数", "实际工资", "应付工资"]
+_PAYROLL_HEADER = ["员工", "累计天数", "缺勤天数", "总工作日", "本月天数", "请假", "实际工资", "应付工资"]
 
 
 def build_payroll_pdf(month: str) -> bytes:
@@ -165,13 +165,16 @@ def build_payroll_pdf(month: str) -> bytes:
         rows = [_PAYROLL_HEADER]
         for emp in employees:
             s = attendance_service.compute_summary(emp["id"], month)
+            leave_h = s.get("leave_hours_total", 0)
+            leave_d = s.get("leave_days_equivalent", 0)
+            leave_text = f"{leave_h} 小时\n(约 {leave_d:.2f} 天)" if leave_h else "—"
             rows.append([
                 Paragraph(emp["name"], name_style),
                 f"{s['worked_days']}",
                 f"{s['absent_days']}",
                 f"{s['total_workdays']}",
                 f"{s['month_days']}",
-                f"{s.get('leave_days_equivalent', 0):.1f}",
+                leave_text,
                 "",
                 "",
             ])
