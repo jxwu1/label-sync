@@ -183,3 +183,146 @@ async function restore() {
 
 setupDupZone(); setupTransferZone(); loadTransferUI(); loadMsgsUI(); restore();
 setInterval(loadTransferUI, 5000); setInterval(loadMsgsUI, 5000);
+
+// --- stockpile database management ---
+const spStatus = document.getElementById('spStatus');
+const spInitDrop = document.getElementById('spInitDrop');
+const spInitInput = document.getElementById('spInitInput');
+const spInitBtn = document.getElementById('spInitBtn');
+const spInitMsg = document.getElementById('spInitMsg');
+const spCmpDrop = document.getElementById('spCmpDrop');
+const spCmpInput = document.getElementById('spCmpInput');
+const spCmpBtn = document.getElementById('spCmpBtn');
+const spCmpRes = document.getElementById('spCmpRes');
+
+let spInitFile = null;
+let spCmpFile = null;
+
+spInitDrop.addEventListener('click', () => spInitInput.click());
+spCmpDrop.addEventListener('click', () => spCmpInput.click());
+
+spInitDrop.addEventListener('dragover', e => { e.preventDefault(); spInitDrop.classList.add('drag'); });
+spInitDrop.addEventListener('dragleave', () => spInitDrop.classList.remove('drag'));
+spInitDrop.addEventListener('drop', e => {
+    e.preventDefault();
+    spInitDrop.classList.remove('drag');
+    if (e.dataTransfer.files.length) {
+        spInitInput.files = e.dataTransfer.files;
+        spInitFile = e.dataTransfer.files[0];
+        spInitBtn.disabled = false;
+        spInitDrop.querySelector('div').textContent = spInitFile.name;
+    }
+});
+
+spCmpDrop.addEventListener('dragover', e => { e.preventDefault(); spCmpDrop.classList.add('drag'); });
+spCmpDrop.addEventListener('dragleave', () => spCmpDrop.classList.remove('drag'));
+spCmpDrop.addEventListener('drop', e => {
+    e.preventDefault();
+    spCmpDrop.classList.remove('drag');
+    if (e.dataTransfer.files.length) {
+        spCmpInput.files = e.dataTransfer.files;
+        spCmpFile = e.dataTransfer.files[0];
+        spCmpBtn.disabled = false;
+        spCmpDrop.querySelector('div').textContent = spCmpFile.name;
+    }
+});
+
+spInitInput.addEventListener('change', () => {
+    if (spInitInput.files.length) {
+        spInitFile = spInitInput.files[0];
+        spInitBtn.disabled = false;
+        spInitDrop.querySelector('div').textContent = spInitFile.name;
+    }
+});
+
+spCmpInput.addEventListener('change', () => {
+    if (spCmpInput.files.length) {
+        spCmpFile = spCmpInput.files[0];
+        spCmpBtn.disabled = false;
+        spCmpDrop.querySelector('div').textContent = spCmpFile.name;
+    }
+});
+
+spInitBtn.addEventListener('click', async () => {
+    if (!spInitFile) return;
+    spInitBtn.disabled = true;
+    spInitBtn.textContent = '导入中...';
+    spInitMsg.textContent = '';
+
+    const form = new FormData();
+    form.append('files', spInitFile);
+
+    try {
+        const res = await fetch('/stockpile/init', { method: 'POST', body: form });
+        const data = await res.json();
+        if (data.ok) {
+            spInitMsg.textContent = '导入成功，共 ' + data.count + ' 条记录';
+            spInitMsg.style.color = '#2e7d32';
+            refreshSpStatus();
+        } else {
+            spInitMsg.textContent = '导入失败：' + data.msg;
+            spInitMsg.style.color = '#c62828';
+        }
+    } catch (e) {
+        spInitMsg.textContent = '网络错误';
+        spInitMsg.style.color = '#c62828';
+    }
+    spInitBtn.disabled = false;
+    spInitBtn.textContent = '初始化';
+});
+
+spCmpBtn.addEventListener('click', async () => {
+    if (!spCmpFile) return;
+    spCmpBtn.disabled = true;
+    spCmpBtn.textContent = '比对中...';
+    spCmpRes.innerHTML = '';
+
+    const form = new FormData();
+    form.append('files', spCmpFile);
+
+    try {
+        const res = await fetch('/stockpile/compare', { method: 'POST', body: form });
+        const data = await res.json();
+        if (data.ok) {
+            const d = data.diff;
+            let html = '<b>比对结果：</b><br>';
+            html += '本地记录：' + d.total_local + ' &nbsp; 导出记录：' + d.total_export + ' &nbsp; 一致：' + d.consistent + '<br>';
+            if (d.only_in_local.length) html += '<span style="color:#e65100">仅本地有：' + d.only_in_local.join(', ') + '</span><br>';
+            if (d.only_in_export.length) html += '<span style="color:#1565c0">仅导出有：' + d.only_in_export.join(', ') + '</span><br>';
+            if (d.mismatches.length) {
+                html += '<span style="color:#c62828">不一致条数：' + d.mismatches.length + '</span><br>';
+                html += d.mismatches.slice(0, 5).map(m => m.barcode + ': 型号(' + m.local_model + '→' + m.export_model + ')').join('<br>');
+                if (d.mismatches.length > 5) html += '<br>...等共' + d.mismatches.length + '条';
+            }
+            if (!d.only_in_local.length && !d.only_in_export.length && !d.mismatches.length) {
+                html += '<b style="color:#2e7d32">完全一致</b>';
+            }
+            spCmpRes.innerHTML = html;
+        } else {
+            spCmpRes.innerHTML = '<span style="color:#c62828">比对失败：' + data.msg + '</span>';
+        }
+    } catch (e) {
+        spCmpRes.innerHTML = '<span style="color:#c62828">网络错误</span>';
+    }
+    spCmpBtn.disabled = false;
+    spCmpBtn.textContent = '比对';
+});
+
+async function refreshSpStatus() {
+    try {
+        const res = await fetch('/stockpile/status');
+        const data = await res.json();
+        if (data.initialized) {
+            spStatus.textContent = '状态：已初始化，共 ' + data.count + ' 条记录';
+            spStatus.style.color = '#2e7d32';
+        } else {
+            spStatus.textContent = '状态：未初始化，请先上传系统导出文件';
+            spStatus.style.color = '#c62828';
+        }
+    } catch (e) {
+        spStatus.textContent = '状态：检查失败';
+        spStatus.style.color = '#999';
+    }
+}
+
+refreshSpStatus();
