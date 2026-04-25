@@ -3,6 +3,7 @@ import socket
 from flask import Flask
 
 import monthly_summary_service
+import stockpile_db
 import storage_service
 from config import CONFIG
 from routes import register_routes
@@ -19,6 +20,7 @@ def create_app() -> Flask:
         folder.mkdir(exist_ok=True)
 
     storage_service.startup_cleanup()
+    stockpile_db.ensure_db()
     monthly_summary_service.cleanup_expired()
     register_routes(app)
     return app
