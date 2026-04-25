@@ -48,10 +48,17 @@ class NewBarcodeCorrectionTests(unittest.TestCase):
         self.mock_state = self.patch_state.start()
         self.mock_state.is_waiting.return_value = True
         self.mock_state.waiting_stage.return_value = "phase2_review"
+        self.patch_db = mock.patch.object(barcode_service, "stockpile_db")
+        self.mock_db_stockpile = self.patch_db.start()
+        self.mock_db_stockpile.query_all_as_system_records.return_value = (
+            {"EXISTING": "MODEL_X"},
+            {"EXISTING": {"model": "MODEL_X", "stockpile_location": "A5/X5"}},
+        )
 
     def tearDown(self) -> None:
         self.patch_file.stop()
         self.patch_state.stop()
+        self.patch_db.stop()
         for path in TEST_TMP_DIR.iterdir():
             if path.is_file():
                 path.unlink()
