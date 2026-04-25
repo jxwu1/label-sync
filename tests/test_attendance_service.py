@@ -231,3 +231,77 @@ class TestSpecialDays(unittest.TestCase):
         self.assertAlmostEqual(svc.day_fraction("09:30", "12:30", standard_hours=5.0), 0.6, places=3)
         # 10h with custom 5h -> 1.0 cap
         self.assertAlmostEqual(svc.day_fraction("09:00", "19:00", standard_hours=5.0), 1.0)
+
+
+class TestLeaves(unittest.TestCase):
+    def setUp(self):
+        _TEST_DIR.mkdir(exist_ok=True)
+        svc._ATTENDANCE_DIR = _TEST_DIR
+
+    def tearDown(self):
+        shutil.rmtree(_TEST_DIR, ignore_errors=True)
+
+    def test_list_empty_initially(self):
+        self.assertEqual(svc.list_leaves("2026-04"), {})
+
+    def test_set_and_list(self):
+        svc.set_leave("e001", "2026-04-15", 10.5)
+        self.assertEqual(svc.list_leaves("2026-04"), {"e001": {"2026-04-15": 10.5}})
+
+    def test_set_overwrites(self):
+        svc.set_leave("e001", "2026-04-15", 10.5)
+        svc.set_leave("e001", "2026-04-15", 5.25)
+        self.assertEqual(svc.list_leaves("2026-04")["e001"]["2026-04-15"], 5.25)
+
+    def test_clear_removes(self):
+        svc.set_leave("e001", "2026-04-15", 10.5)
+        svc.clear_leave("e001", "2026-04-15")
+        self.assertEqual(svc.list_leaves("2026-04"), {})
+
+    def test_set_rejects_zero_or_negative(self):
+        with self.assertRaises(ValueError):
+            svc.set_leave("e001", "2026-04-15", 0)
+        with self.assertRaises(ValueError):
+            svc.set_leave("e001", "2026-04-15", -1)
+
+    def test_leave_not_counted_as_absent(self):
+        svc.set_leave("e001", "2026-04-01", 10.5)  # 周三，全天请假
+        result = svc.compute_summary("e001", "2026-04")
+        row = next(d for d in result["detail"] if d["date"] == "2026-04-01")
+        self.assertEqual(row["status"], "leave")
+        self.assertEqual(row["leave_hours"], 10.5)
+        # 30 天 - 4 周日 - 1 请假（不计缺勤） = 25 缺勤
+        self.assertEqual(result["absent_days"], 25)
+
+    def test_leave_does_not_inflate_worked_days(self):
+        svc.set_leave("e001", "2026-04-01", 10.5)
+        result = svc.compute_summary("e001", "2026-04")
+        # 仅 4 个周日，不含请假
+        self.assertEqual(result["worked_days"], 4.0)
+
+    def test_leave_hours_total(self):
+        svc.set_leave("e001", "2026-04-01", 10.5)
+        svc.set_leave("e001", "2026-04-02", 5.25)
+        result = svc.compute_summary("e001", "2026-04")
+        self.assertAlmostEqual(result["leave_hours_total"], 15.75)
+        self.assertAlmostEqual(result["leave_days_equivalent"], 15.75 / 10.5, places=3)
+
+    def test_holiday_priority_over_leave(self):
+        svc.add_holiday("2026-04-01")
+        svc.set_leave("e001", "2026-04-01", 10.5)
+        result = svc.compute_summary("e001", "2026-04")
+        row = next(d for d in result["detail"] if d["date"] == "2026-04-01")
+        self.assertEqual(row["status"], "holiday")
+
+    def test_leave_with_clock_in_same_day(self):
+        # 上午请假 3h, 下午正常打卡
+        svc.set_leave("e001", "2026-04-01", 3.0)
+        svc.set_day("e001", "2026-04-01", {"start": "13:00", "end": "20:00"})
+        result = svc.compute_summary("e001", "2026-04")
+        row = next(d for d in result["detail"] if d["date"] == "2026-04-01")
+        self.assertEqual(row["status"], "leave")  # leave 优先于 normal
+        self.assertEqual(row["leave_hours"], 3.0)
+        self.assertEqual(row["start"], "13:00")
+        self.assertEqual(row["end"], "20:00")
+        # day_fraction 仍按打卡算（7h / 10.5 ≈ 0.667），但 worked_days 累加
+        self.assertAlmostEqual(row["day_fraction"], 7.0 / 10.5, places=3)

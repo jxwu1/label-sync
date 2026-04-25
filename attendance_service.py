@@ -139,8 +139,36 @@ def _month_path(month: str) -> Path:
     return _ATTENDANCE_DIR / f"{month}.json"
 
 
+def _leaves_path(month: str) -> Path:
+    return _ATTENDANCE_DIR / f"{month}.leaves.json"
+
+
 def load_month(month: str) -> dict:
     return _read_json(_month_path(month), {})
+
+
+def list_leaves(month: str) -> dict:
+    """{employee_id: {date: hours}}"""
+    return _read_json(_leaves_path(month), {})
+
+
+def set_leave(employee_id: str, date: str, hours: float) -> None:
+    if hours <= 0:
+        raise ValueError(f"请假小时数必须 > 0：{hours}")
+    month = date[:7]
+    data = list_leaves(month)
+    data.setdefault(employee_id, {})[date] = float(hours)
+    _write_json(_leaves_path(month), data)
+
+
+def clear_leave(employee_id: str, date: str) -> None:
+    month = date[:7]
+    data = list_leaves(month)
+    if employee_id in data and date in data[employee_id]:
+        del data[employee_id][date]
+        if not data[employee_id]:
+            del data[employee_id]
+        _write_json(_leaves_path(month), data)
 
 
 def set_day(employee_id: str, date: str, times: dict) -> None:
@@ -203,25 +231,32 @@ def compute_summary(employee_id: str, month: str) -> dict:
     month_data = load_month(month).get(employee_id, {})
     holidays = set(list_holidays())
     special_days = list_special_days()
+    leaves = list_leaves(month).get(employee_id, {})
     detail = []
     worked_days = 0.0
     absent_days = 0
+    leave_hours_total = 0.0
     for date_str, wd_int, wd_cn in _iter_month_days(month):
+        leave_h = leaves.get(date_str, 0.0)
         if wd_int == 6:  # Sunday
             detail.append({
                 "date": date_str, "weekday": wd_cn,
                 "start": "", "end": "",
                 "day_fraction": 1.0, "status": "sunday",
+                "leave_hours": leave_h,
             })
             worked_days += 1.0
+            leave_hours_total += leave_h
             continue
         if date_str in holidays:
             detail.append({
                 "date": date_str, "weekday": wd_cn,
                 "start": "", "end": "",
                 "day_fraction": 1.0, "status": "holiday",
+                "leave_hours": leave_h,
             })
             worked_days += 1.0
+            leave_hours_total += leave_h
             continue
         if date_str in special_days:
             sd = special_days[date_str]
@@ -234,6 +269,7 @@ def compute_summary(employee_id: str, month: str) -> dict:
                     "start": rec["start"], "end": rec["end"],
                     "day_fraction": round(frac, 3), "status": "special",
                     "special_start": sd["start"], "special_end": sd["end"],
+                    "leave_hours": leave_h,
                 })
                 worked_days += frac
             else:
@@ -242,16 +278,36 @@ def compute_summary(employee_id: str, month: str) -> dict:
                     "start": "", "end": "",
                     "day_fraction": 0.0, "status": "special_absent",
                     "special_start": sd["start"], "special_end": sd["end"],
+                    "leave_hours": leave_h,
                 })
-                absent_days += 1
+                if leave_h <= 0:
+                    absent_days += 1
+            leave_hours_total += leave_h
             continue
         rec = month_data.get(date_str)
+        if leave_h > 0:
+            row = {
+                "date": date_str, "weekday": wd_cn,
+                "start": rec["start"] if rec else "",
+                "end": rec["end"] if rec else "",
+                "day_fraction": 0.0,
+                "status": "leave",
+                "leave_hours": leave_h,
+            }
+            if rec:
+                frac = day_fraction(rec["start"], rec["end"])
+                row["day_fraction"] = round(frac, 3)
+                worked_days += frac
+            detail.append(row)
+            leave_hours_total += leave_h
+            continue
         if rec:
             frac = day_fraction(rec["start"], rec["end"])
             detail.append({
                 "date": date_str, "weekday": wd_cn,
                 "start": rec["start"], "end": rec["end"],
                 "day_fraction": round(frac, 3), "status": "normal",
+                "leave_hours": 0.0,
             })
             worked_days += frac
         else:
@@ -259,6 +315,7 @@ def compute_summary(employee_id: str, month: str) -> dict:
                 "date": date_str, "weekday": wd_cn,
                 "start": "", "end": "",
                 "day_fraction": 0.0, "status": "absent",
+                "leave_hours": 0.0,
             })
             absent_days += 1
     total_days = len(detail)
@@ -267,5 +324,7 @@ def compute_summary(employee_id: str, month: str) -> dict:
         "absent_days": absent_days,
         "total_workdays": total_days - absent_days,
         "month_days": total_days,
+        "leave_hours_total": round(leave_hours_total, 3),
+        "leave_days_equivalent": round(leave_hours_total / STANDARD_HOURS, 3),
         "detail": detail,
     }
