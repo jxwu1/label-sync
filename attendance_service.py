@@ -246,6 +246,27 @@ def _iter_month_days(month: str):
         yield dt.isoformat(), dt.weekday(), _WEEKDAY_CN[dt.weekday()]
 
 
+def _make_row(date: str, weekday: str, status: str, *,
+              start: str = "", end: str = "",
+              day_fraction: float = 0.0,
+              leave_entry: dict | None = None,
+              special: dict | None = None) -> dict:
+    """构造单日 detail 行：保证字段完整，避免分散 dict 字面量遗漏字段。"""
+    row = {
+        "date": date, "weekday": weekday, "status": status,
+        "start": start, "end": end,
+        "day_fraction": day_fraction,
+        "leave_hours": leave_entry["hours"] if leave_entry else 0.0,
+        "leave_type": leave_entry["type"] if leave_entry else "",
+        "leave_start": leave_entry.get("start", "") if leave_entry else "",
+        "leave_end": leave_entry.get("end", "") if leave_entry else "",
+    }
+    if special:
+        row["special_start"] = special["start"]
+        row["special_end"] = special["end"]
+    return row
+
+
 def compute_summary(employee_id: str, month: str) -> dict:
     """计算员工月度总结：周日自动作为 1.0，缺勤推断。
 
@@ -282,25 +303,14 @@ def compute_summary(employee_id: str, month: str) -> dict:
     for date_str, wd_int, wd_cn in _iter_month_days(month):
         leave_entry = leaves.get(date_str)
         leave_h = leave_entry["hours"] if leave_entry else 0.0
+        leave_hours_total += leave_h
         if wd_int == 6:  # Sunday
-            detail.append({
-                "date": date_str, "weekday": wd_cn,
-                "start": "", "end": "",
-                "day_fraction": 1.0, "status": "sunday",
-                "leave_hours": leave_h,
-            })
+            detail.append(_make_row(date_str, wd_cn, "sunday", day_fraction=1.0, leave_entry=leave_entry))
             worked_days += 1.0
-            leave_hours_total += leave_h
             continue
         if date_str in holidays:
-            detail.append({
-                "date": date_str, "weekday": wd_cn,
-                "start": "", "end": "",
-                "day_fraction": 1.0, "status": "holiday",
-                "leave_hours": leave_h,
-            })
+            detail.append(_make_row(date_str, wd_cn, "holiday", day_fraction=1.0, leave_entry=leave_entry))
             worked_days += 1.0
-            leave_hours_total += leave_h
             continue
         if date_str in special_days:
             sd = special_days[date_str]
@@ -308,66 +318,36 @@ def compute_summary(employee_id: str, month: str) -> dict:
             rec = month_data.get(date_str)
             if rec:
                 frac = day_fraction(rec["start"], rec["end"], standard_hours=sd_hours)
-                detail.append({
-                    "date": date_str, "weekday": wd_cn,
-                    "start": rec["start"], "end": rec["end"],
-                    "day_fraction": round(frac, 3), "status": "special",
-                    "special_start": sd["start"], "special_end": sd["end"],
-                    "leave_hours": leave_h,
-                })
+                detail.append(_make_row(date_str, wd_cn, "special",
+                                        start=rec["start"], end=rec["end"],
+                                        day_fraction=round(frac, 3),
+                                        leave_entry=leave_entry, special=sd))
                 worked_days += frac
             else:
-                detail.append({
-                    "date": date_str, "weekday": wd_cn,
-                    "start": "", "end": "",
-                    "day_fraction": 0.0, "status": "special_absent",
-                    "special_start": sd["start"], "special_end": sd["end"],
-                    "leave_hours": leave_h,
-                })
+                detail.append(_make_row(date_str, wd_cn, "special_absent",
+                                        leave_entry=leave_entry, special=sd))
                 if leave_h <= 0:
                     absent_days += 1
-            leave_hours_total += leave_h
             continue
         rec = month_data.get(date_str)
         if leave_h > 0:
-            row = {
-                "date": date_str, "weekday": wd_cn,
-                "start": rec["start"] if rec else "",
-                "end": rec["end"] if rec else "",
-                "day_fraction": 0.0,
-                "status": "leave",
-                "leave_hours": leave_h,
-            }
+            frac = round(day_fraction(rec["start"], rec["end"]), 3) if rec else 0.0
+            detail.append(_make_row(date_str, wd_cn, "leave",
+                                    start=rec["start"] if rec else "",
+                                    end=rec["end"] if rec else "",
+                                    day_fraction=frac, leave_entry=leave_entry))
             if rec:
-                frac = day_fraction(rec["start"], rec["end"])
-                row["day_fraction"] = round(frac, 3)
                 worked_days += frac
-            detail.append(row)
-            leave_hours_total += leave_h
             continue
         if rec:
             frac = day_fraction(rec["start"], rec["end"])
-            detail.append({
-                "date": date_str, "weekday": wd_cn,
-                "start": rec["start"], "end": rec["end"],
-                "day_fraction": round(frac, 3), "status": "normal",
-                "leave_hours": 0.0,
-            })
+            detail.append(_make_row(date_str, wd_cn, "normal",
+                                    start=rec["start"], end=rec["end"],
+                                    day_fraction=round(frac, 3)))
             worked_days += frac
         else:
-            detail.append({
-                "date": date_str, "weekday": wd_cn,
-                "start": "", "end": "",
-                "day_fraction": 0.0, "status": "absent",
-                "leave_hours": 0.0,
-            })
+            detail.append(_make_row(date_str, wd_cn, "absent"))
             absent_days += 1
-    for row in detail:
-        entry = leaves.get(row["date"])
-        if entry:
-            row["leave_type"] = entry.get("type", "")
-            row["leave_start"] = entry.get("start", "")
-            row["leave_end"] = entry.get("end", "")
     total_days = len(detail)
     return {
         "worked_days": round(worked_days, 3),

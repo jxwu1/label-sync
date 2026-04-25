@@ -244,6 +244,17 @@ class TestLeaves(unittest.TestCase):
     def test_list_empty_initially(self):
         self.assertEqual(svc.list_leaves("2026-04"), {})
 
+    def test_summary_has_leave_fields_when_no_leaves(self):
+        # 无请假月份，service 仍须返回完整字段
+        result = svc.compute_summary("e001", "2026-04")
+        self.assertEqual(result["leave_hours_total"], 0.0)
+        self.assertEqual(result["leave_days_equivalent"], 0.0)
+        for row in result["detail"]:
+            self.assertEqual(row["leave_hours"], 0.0)
+            self.assertEqual(row["leave_type"], "")
+            self.assertEqual(row["leave_start"], "")
+            self.assertEqual(row["leave_end"], "")
+
     def test_set_full_day(self):
         entry = svc.set_leave("e001", "2026-04-15", "full")
         self.assertEqual(entry["type"], "full")
