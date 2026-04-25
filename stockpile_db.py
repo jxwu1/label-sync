@@ -244,9 +244,11 @@ def apply_export_updates(df: pd.DataFrame) -> int:
         extra = {c: str(row.get(c, "")) for c in extra_cols}
         existing = conn.execute("SELECT * FROM stockpile WHERE product_barcode = ?", (barcode,)).fetchone()
         if existing:
-            if existing["product_model"] != model or existing["stockpile_location"] != location:
-                _log_change(conn, barcode, "product_model", existing["product_model"], model, "update")
-                _log_change(conn, barcode, "stockpile_location", existing["stockpile_location"], location, "update")
+            for field_key, field_name in [("product_model", "product_model"), ("stockpile_location", "stockpile_location")]:
+                new_value = model if field_key == "product_model" else location
+                old_value = existing[field_key]
+                if old_value != new_value:
+                    _log_change(conn, barcode, field_name, old_value, new_value, "update")
             conn.execute(
                 "UPDATE stockpile SET product_model=?, stockpile_location=?, extra=?, source='system_export', updated_at=datetime('now','localtime') WHERE product_barcode=?",
                 (model, location, json.dumps(extra, ensure_ascii=False), barcode),
