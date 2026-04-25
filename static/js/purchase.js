@@ -560,15 +560,5 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
 
   document.addEventListener('DOMContentLoaded', function () {
     init();
-    const orig = window.switchPage;
-    window.switchPage = function (pg) {
-      if (typeof orig === 'function') orig(pg);
-      if (pg === 'purchase') {
-        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-        document.getElementById('navPurchase')?.classList.add('active');
-        document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
-        document.getElementById('pagePurchase')?.classList.add('active');
-      }
-    };
   });
 })();

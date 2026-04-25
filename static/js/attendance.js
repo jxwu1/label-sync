@@ -496,15 +496,5 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     init();
-    const orig = window.switchPage;
-    window.switchPage = function (pg) {
-      if (typeof orig === 'function') orig(pg);
-      if (pg === 'attendance') {
-        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-        document.getElementById('navAttendance')?.classList.add('active');
-        document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
-        document.getElementById('pageAttendance')?.classList.add('active');
-      }
-    };
   });
 })();

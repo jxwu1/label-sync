@@ -66,12 +66,14 @@ def load_phase2_results() -> dict | None:
     return data
 
 
+_TEMPLATE_PATH = Path(__file__).resolve().parent / "static" / "templates" / "产品信息导入模板.csv"
+
+
 def find_template_path() -> Path | None:
-    template_files = sorted(INPUT_DIR.glob("*模板*.csv"))
-    if not template_files:
+    if not _TEMPLATE_PATH.exists():
         print("ERROR: missing template csv")
         return None
-    return template_files[0]
+    return _TEMPLATE_PATH
 
 
 def write_output_package(

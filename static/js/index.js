@@ -25,8 +25,14 @@ function renderFiles() {
 function rmFile(i) { selected.splice(i, 1); renderFiles(); } window.rmFile = rmFile;
 
 function switchPage(p) {
-  $("#pageMain").classList.toggle("active", p === "main"); $("#pageDup").classList.toggle("active", p === "dup");
-  $("#navMain").classList.toggle("active", p === "main"); $("#navDup").classList.toggle("active", p === "dup");
+  document.querySelectorAll(".page").forEach((el) => el.classList.remove("active"));
+  document.querySelectorAll(".nav-item").forEach((el) => el.classList.remove("active"));
+  const pageMap = { main: "pageMain", dup: "pageDup", purchase: "pagePurchase", attendance: "pageAttendance" };
+  const navMap = { main: "navMain", dup: "navDup", purchase: "navPurchase", attendance: "navAttendance" };
+  const pageId = pageMap[p];
+  const navId = navMap[p];
+  if (pageId) document.getElementById(pageId)?.classList.add("active");
+  if (navId) document.getElementById(navId)?.classList.add("active");
 } window.switchPage = switchPage;
 
 $("#hamb").onclick = () => $("#nav").classList.toggle("hide");
