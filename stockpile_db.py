@@ -164,24 +164,6 @@ def insert_or_update(barcode: str, model: str, location: str,
         _upsert(conn, barcode, model, location, extra or {}, source, log_changes=True)
 
 
-def update_location(barcode: str, new_location: str) -> None:
-    with _connect() as conn:
-        existing = conn.execute(
-            "SELECT stockpile_location FROM stockpile WHERE product_barcode = ?", (barcode,)
-        ).fetchone()
-        if not existing:
-            return
-        old_location = existing["stockpile_location"]
-        if old_location == new_location:
-            return
-        _log_change(conn, barcode, "stockpile_location", old_location, new_location, "update")
-        conn.execute(
-            "UPDATE stockpile SET stockpile_location=?, source=?, updated_at=datetime('now','localtime') "
-            "WHERE product_barcode=?",
-            (new_location, Source.USER_CORRECTION, barcode),
-        )
-
-
 def import_from_dataframe(df: pd.DataFrame) -> int:
     extra_cols = _extra_cols(df)
     inserted = 0
