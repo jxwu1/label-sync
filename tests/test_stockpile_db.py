@@ -32,7 +32,11 @@ class StockpileDbTests(unittest.TestCase):
 
     def test_ensure_db_creates_tables(self) -> None:
         stockpile_db.ensure_db()
-        self.assertTrue(TEST_DB.exists())
+        with stockpile_db._connect() as conn:
+            cur = conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+            tables = [row["name"] for row in cur]
+        self.assertIn("stockpile", tables)
+        self.assertIn("stockpile_changes", tables)
 
     def test_is_initialized_returns_false_for_empty_db(self) -> None:
         stockpile_db.ensure_db()
@@ -125,7 +129,7 @@ class StockpileDbTests(unittest.TestCase):
 
     def test_update_location_noop_for_unknown_barcode(self) -> None:
         stockpile_db.update_location("NOBODY", "Loc")
-        self.assertTrue(True)
+        self.assertEqual(stockpile_db.count_records(), 0)
 
     def test_query_all_barcodes_set(self) -> None:
         df = pd.DataFrame([
