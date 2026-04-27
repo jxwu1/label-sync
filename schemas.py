@@ -33,6 +33,7 @@ class Phase2Warning:
     stockpile_warehouses: list[str] = field(default_factory=list)
     scan_stores: list[str] = field(default_factory=list)
     scan_warehouses: list[str] = field(default_factory=list)
+    warehouse_only_location: str | None = None
     resolved: bool = False
     resolution: str | None = None
 

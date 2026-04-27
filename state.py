@@ -100,6 +100,7 @@ class TaskState:
         stockpile_warehouses: list[str] | None = None,
         scan_stores: list[str] | None = None,
         scan_warehouses: list[str] | None = None,
+        warehouse_only_location: str | None = None,
     ) -> None:
         with self._lock:
             self._data.phase2_warnings.append(
@@ -111,6 +112,7 @@ class TaskState:
                     stockpile_warehouses=stockpile_warehouses or [],
                     scan_stores=scan_stores or [],
                     scan_warehouses=scan_warehouses or [],
+                    warehouse_only_location=warehouse_only_location,
                 )
             )
 

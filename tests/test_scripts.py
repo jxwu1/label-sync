@@ -143,13 +143,18 @@ class PhaseTwoTests(unittest.TestCase):
             results,
             [
                 {"barcode": "111", "model": "M-111", "location": "B-02-02/X-01-01"},
-                {"barcode": "222", "model": "222", "location": "X-03-03"},
             ],
         )
-        self.assertEqual(new_barcodes, ["222"])
-        self.assertEqual(
-            exceptions, [("333", "system issue: invalid system location: A-01-01/")]
-        )
+        self.assertEqual(new_barcodes, [])
+        self.assertEqual(len(exceptions), 2)
+        no_store = [e for e in exceptions if e[1] == "no_store_location"]
+        self.assertEqual(len(no_store), 1)
+        self.assertEqual(no_store[0][0], "222")
+        self.assertEqual(no_store[0][2]["warehouse_only_location"], "X-03-03")
+        self.assertEqual(no_store[0][2]["scan_warehouses"], ["X-03-03"])
+        system_issue = [e for e in exceptions if "system issue" in str(e[1])]
+        self.assertEqual(len(system_issue), 1)
+        self.assertEqual(system_issue[0][0], "333")
         self.assertEqual(unmatched_barcodes, ["444"])
 
     def test_build_phase_two_results_emits_multi_location_payload(self) -> None:
@@ -184,6 +189,47 @@ class PhaseTwoTests(unittest.TestCase):
         self.assertEqual(len(exceptions), 1)
         self.assertEqual(exceptions[0][1], "multi_location")
         self.assertEqual(exceptions[0][2]["stockpile_stores"], ["A-01-01", "A-02-02"])
+
+    def test_build_phase_two_results_flags_no_store_location(self) -> None:
+        location_map = {"111": ["X-03-03"]}
+        system_records = {"111": {"model": "M-111", "stockpile_location": "X-01-01"}}
+
+        results, _, exceptions, _ = build_phase_two_results(location_map, system_records)
+
+        self.assertEqual(results, [])
+        self.assertEqual(len(exceptions), 1)
+        self.assertEqual(exceptions[0][0], "111")
+        self.assertEqual(exceptions[0][1], "no_store_location")
+        self.assertEqual(exceptions[0][2]["scan_warehouses"], ["X-03-03"])
+        self.assertEqual(exceptions[0][2]["stockpile_warehouses"], ["X-01-01"])
+        self.assertEqual(exceptions[0][2]["scan_stores"], [])
+        self.assertEqual(exceptions[0][2]["stockpile_stores"], [])
+        self.assertEqual(exceptions[0][2]["warehouse_only_location"], "X-03-03")
+
+    def test_build_phase_two_results_new_barcode_no_store_location(self) -> None:
+        location_map = {"222": ["X-03-03"]}
+        system_records = {}
+
+        results, new_barcodes, exceptions, _ = build_phase_two_results(
+            location_map, system_records
+        )
+
+        self.assertEqual(results, [])
+        self.assertEqual(new_barcodes, [])
+        self.assertEqual(len(exceptions), 1)
+        self.assertEqual(exceptions[0][0], "222")
+        self.assertEqual(exceptions[0][1], "no_store_location")
+        self.assertEqual(exceptions[0][2]["warehouse_only_location"], "X-03-03")
+
+    def test_build_phase_two_results_has_store_not_flagged(self) -> None:
+        location_map = {"111": ["A-01-01", "X-03-03"]}
+        system_records = {"111": {"model": "M-111", "stockpile_location": "X-01-01"}}
+
+        results, _, exceptions, _ = build_phase_two_results(location_map, system_records)
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["location"], "A-01-01/X-03-03")
+        self.assertEqual(exceptions, [])
 
     def test_parse_locations_splits_store_and_warehouse(self) -> None:
         store, warehouse, issue = parse_locations(["A-01-01", "X-02-03"])

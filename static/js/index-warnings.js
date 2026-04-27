@@ -87,7 +87,7 @@ function parseP2WFromLog(log) {
       let payload;
       try { payload = JSON.parse(match[2]); } catch (_) { payload = null; }
       if (payload && typeof payload === "object") {
-        return { barcode, reason: payload.reason || match[2], locations: [], stockpile_stores: payload.stockpile_stores || [], stockpile_warehouses: payload.stockpile_warehouses || [], scan_stores: payload.scan_stores || [], scan_warehouses: payload.scan_warehouses || [], resolved: false, resolution: null };
+        return { barcode, reason: payload.reason || match[2], locations: [], stockpile_stores: payload.stockpile_stores || [], stockpile_warehouses: payload.stockpile_warehouses || [], scan_stores: payload.scan_stores || [], scan_warehouses: payload.scan_warehouses || [], warehouse_only_location: payload.warehouse_only_location || "", resolved: false, resolution: null };
       }
       const reason = match[2];
       const locations = reason.match(/'([^']+)'/g) || [];
@@ -107,6 +107,16 @@ async function submitExLoc(barcode, inputId, buttonId) {
   try { await resolveEx(barcode, value); } catch (error) { if (button) { button.disabled = false; button.textContent = "提交新库位"; } alert("提交失败：" + error); }
 }
 
+async function submitNoStore(barcode, warehouseLocation, inputId, buttonId) {
+  const input = document.getElementById(inputId);
+  const store = input ? input.value.trim() : "";
+  if (!store) { if (input) input.focus(); return; }
+  const button = document.getElementById(buttonId);
+  const fullLocation = store + "/" + warehouseLocation;
+  if (button) { button.disabled = true; button.textContent = "提交中..."; }
+  try { await resolveEx(barcode, fullLocation); } catch (error) { if (button) { button.disabled = false; button.textContent = "填充店面"; } alert("提交失败：" + error); }
+}
+
 function renderUnknownPrefixCard(warning) {
   const barcode = warning.barcode;
   const key = barcode.replace(/\W/g, "_");
@@ -115,12 +125,28 @@ function renderUnknownPrefixCard(warning) {
   return `<div class="warn"><div class="row"><div class="col"><span class="code">${esc(barcode)}</span><span class="sub text-warn-amber">${esc(warning.reason)}</span></div></div><div class="actions u-mt-2"><input id="${inputId}" class="form-input-text" placeholder="填写正确库位" /><button id="${buttonId}" class="btn-s is-warn-solid" onclick="submitExLoc('${jesc(barcode)}','${inputId}','${buttonId}')">提交新库位</button><button class="btn-s is-danger" onclick="resolveEx('${jesc(barcode)}','ignore')">删除</button></div></div>`;
 }
 
+function renderNoStoreCard(warning) {
+  const barcode = warning.barcode;
+  const key = barcode.replace(/\W/g, "_");
+  const inputId = `nsli_${key}`;
+  const buttonId = `nslf_${key}`;
+  const warehouseOnly = warning.warehouse_only_location || "";
+  const scanWh = (warning.scan_warehouses || []).join(", ");
+  const stockWh = (warning.stockpile_warehouses || []).join(", ");
+  const whInfo = [
+    scanWh ? `扫描仓库：${scanWh}` : "",
+    stockWh ? `系统仓库：${stockWh}` : "",
+  ].filter(Boolean).join(" / ");
+  return `<div class="warn"><div class="row"><div class="col"><span class="code">${esc(barcode)}</span><span class="sub text-warn-amber">缺少店面位置${whInfo ? "，当前 " + whInfo : ""}</span></div></div><div class="actions u-mt-2"><input id="${inputId}" class="form-input-text" placeholder="填写店面位置，如 A-01-01" /><button id="${buttonId}" class="btn-s is-warn-solid" onclick="submitNoStore('${jesc(barcode)}','${jesc(warehouseOnly)}','${inputId}','${buttonId}')">填充店面</button><button class="btn-s is-danger" onclick="resolveEx('${jesc(barcode)}','${jesc(warehouseOnly)}')">仅保留仓库</button></div></div>`;
+}
+
 function renderP2Warnings(items) {
   if (!items.length) return "";
   return '<div class="warn"><div class="col"><span class="sub text-danger-light">以下条码存在数据异常，请选择处理方式后继续：</span></div></div>' +
     items.map((warning) => {
       if (warning.resolved) return `<div class="warn"><div class="row"><div class="col"><span class="code code--struck">${esc(warning.barcode)}</span><span class="sub">${esc(warning.reason)}</span></div><span class="${warning.resolution === "ignore" ? "tag-del" : "tag-ok"}">${warning.resolution === "ignore" ? "已忽略" : "已选 " + esc(warning.resolution)}</span></div></div>`;
       if (warning.reason === "multi_location") return renderDupCard(warning);
+      if (warning.reason === "no_store_location") return renderNoStoreCard(warning);
       if (isUnknownPrefixWarning(warning)) return renderUnknownPrefixCard(warning);
       return `<div class="warn"><div class="row"><div class="col"><span class="code">${esc(warning.barcode)}</span><span class="sub">${esc(warning.reason)}</span></div><div class="actions">${(warning.locations || []).map((loc) => `<button class="btn-s is-warn" onclick="resolveEx('${jesc(warning.barcode)}','${jesc(loc)}')">选 ${esc(loc)}</button>`).join("")}<button class="btn-s is-danger" onclick="resolveEx('${jesc(warning.barcode)}','ignore')">忽略</button></div></div></div>`;
     }).join("");
@@ -211,6 +237,7 @@ window.copyAllNewBc = copyAllNewBc;
 window.submitNewBc = submitNewBc;
 window.delNewBc = delNewBc;
 window.submitExLoc = submitExLoc;
+window.submitNoStore = submitNoStore;
 window.showBc = showBc;
 window.hideBc = hideBc;
 window.showLoc = showLoc;

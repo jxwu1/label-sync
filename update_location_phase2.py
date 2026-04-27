@@ -50,6 +50,22 @@ def _classify_barcode_entry(
             },
         )
 
+    if not scan_stores and not stockpile_stores and (scan_warehouses or stockpile_warehouses):
+        warehouse_only_location = compose_if_single(
+            stockpile_stores, stockpile_warehouses, scan_stores, scan_warehouses
+        )
+        return "exception", (
+            barcode,
+            "no_store_location",
+            {
+                "stockpile_stores": stockpile_stores,
+                "stockpile_warehouses": stockpile_warehouses,
+                "scan_stores": scan_stores,
+                "scan_warehouses": scan_warehouses,
+                "warehouse_only_location": warehouse_only_location,
+            },
+        )
+
     final_location = compose_if_single(
         stockpile_stores, stockpile_warehouses, scan_stores, scan_warehouses
     )

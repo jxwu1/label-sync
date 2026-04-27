@@ -110,6 +110,7 @@ def handle_phase_two_line(text: str) -> None:
                 stockpile_warehouses=payload.get("stockpile_warehouses", []),
                 scan_stores=payload.get("scan_stores", []),
                 scan_warehouses=payload.get("scan_warehouses", []),
+                warehouse_only_location=payload.get("warehouse_only_location"),
             )
             return
         locations = re.findall(r"'([^']+)'", payload_text)
