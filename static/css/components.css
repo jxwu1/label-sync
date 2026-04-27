@@ -135,6 +135,31 @@
 
 .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+/* ========== Tabs ========== */
+.tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--c-border);
+  margin-bottom: var(--sp-3);
+}
+.tabs__tab {
+  padding: 6px 12px;
+  font-size: var(--fs-md);
+  color: var(--c-text-dim);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color var(--t-fast), border-color var(--t-fast);
+  background: transparent;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  font-family: inherit;
+}
+.tabs__tab:hover { color: var(--c-text-muted); }
+.tabs__tab.active { color: var(--c-accent-fg); border-bottom-color: var(--c-accent); }
+.tabs__panel { display: none; }
+.tabs__panel.active { display: block; }
 .code { font-weight: 700; color: var(--c-code); word-break: break-all; }
 .loc { color: var(--c-loc); }
 .sub { color: var(--c-text-muted); font-size: var(--fs-md); }

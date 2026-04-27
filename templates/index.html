@@ -52,43 +52,61 @@
     </div>
   </div>
 
-  <!-- 右列：操作 + Stockpile（M4 会改 tab） -->
-  <div class="panel" id="stockpilePanel">
-    <div class="panel-hd">文件与 Stockpile</div>
-    <div class="panel-bd">
-      <div class="files" id="files"></div>
-      <button class="btn btn-secondary" id="upload" disabled>上传文件</button>
-      <button class="btn btn-warning" id="cont">继续处理</button>
-      <button class="btn btn-success" id="download">下载结果</button>
-      <button class="btn btn-info" id="copyModels">复制所有型号</button>
-      <button class="btn btn-info" id="copyModelsAll" hidden>复制所有型号（含重复）</button>
-      <button class="btn btn-ghost" id="reset">清空界面，准备下一批</button>
-      <div class="status" id="status">请先上传文件</div>
+  <div class="right-stack">
 
-      <hr style="border:0;border-top:1px solid var(--c-border);margin:14px 0">
-
-      <div class="stockpile-status" id="spStatus">检查中...</div>
-      <div class="row">
-        <div class="drop" id="spInitDrop" style="flex:1">
-          <input type="file" id="spInitInput" accept=".xlsx,.csv">
-          <div>拖入系统导出文件初始化数据库</div>
-        </div>
-        <button class="btn-s is-ghost" id="spInitBtn" disabled>初始化</button>
-      </div>
-      <div id="spInitMsg" class="hint"></div>
-      <div class="row" style="margin-top:8px">
-        <div class="drop" id="spCmpDrop" style="flex:1">
-          <input type="file" id="spCmpInput" accept=".xlsx,.csv">
-          <div>拖入系统导出文件进行月度比对</div>
-        </div>
-        <button class="btn-s is-ghost" id="spCmpBtn" disabled>比对</button>
-      </div>
-      <div id="spCmpRes" class="hint"></div>
-      <div style="margin-top:8px">
-        <input type="text" id="spSearchInput" class="form-input-text" placeholder="搜索条码或型号（至少2个字符）">
-        <div id="spSearchRes" class="hint" style="max-height:200px;overflow-y:auto"></div>
+    <div class="panel" id="filesPanel">
+      <div class="panel-hd">文件管理</div>
+      <div class="panel-bd">
+        <div class="files" id="files"></div>
+        <button class="btn btn-secondary" id="upload" disabled>上传文件</button>
+        <button class="btn btn-warning" id="cont">继续处理</button>
+        <button class="btn btn-success" id="download">下载结果</button>
+        <button class="btn btn-info" id="copyModels">复制所有型号</button>
+        <button class="btn btn-info" id="copyModelsAll" hidden>复制所有型号（含重复）</button>
+        <button class="btn btn-ghost" id="reset">清空界面，准备下一批</button>
+        <div class="status" id="status">请先上传文件</div>
       </div>
     </div>
+
+    <div class="panel" id="stockpilePanel">
+      <div class="panel-hd">Stockpile 数据库</div>
+      <div class="panel-bd">
+        <div class="tabs" id="spTabs">
+          <button class="tabs__tab active" data-tab="status" type="button">状态</button>
+          <button class="tabs__tab" data-tab="init" type="button">初始化</button>
+          <button class="tabs__tab" data-tab="cmp" type="button">月度比对</button>
+          <button class="tabs__tab" data-tab="search" type="button">搜索</button>
+        </div>
+
+        <div class="tabs__panel active" data-tab-panel="status">
+          <div class="stockpile-status" id="spStatus">检查中...</div>
+        </div>
+
+        <div class="tabs__panel" data-tab-panel="init">
+          <div class="drop" id="spInitDrop">
+            <input type="file" id="spInitInput" accept=".xlsx,.csv">
+            <div>拖入系统导出文件初始化数据库</div>
+          </div>
+          <button class="btn btn-secondary" id="spInitBtn" disabled>初始化</button>
+          <div id="spInitMsg" class="hint"></div>
+        </div>
+
+        <div class="tabs__panel" data-tab-panel="cmp">
+          <div class="drop" id="spCmpDrop">
+            <input type="file" id="spCmpInput" accept=".xlsx,.csv">
+            <div>拖入系统导出文件进行月度比对</div>
+          </div>
+          <button class="btn btn-secondary" id="spCmpBtn" disabled>比对</button>
+          <div id="spCmpRes" class="hint"></div>
+        </div>
+
+        <div class="tabs__panel" data-tab-panel="search">
+          <input type="text" id="spSearchInput" class="form-input-text" placeholder="搜索条码或型号（至少2个字符）">
+          <div id="spSearchRes" class="hint stockpile-search-results"></div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
       <div class="page" id="pageDup">

@@ -1,6 +1,6 @@
 /* ========== Page: 标签处理（T3 重排） ========== */
 #pageMain.active {
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: 1fr 340px;
   grid-template-rows: auto 1fr;
   height: calc(100vh - 84px);
 }
@@ -15,11 +15,21 @@
 .top-action-bar .drop { flex: 1; padding: var(--sp-3) var(--sp-4); margin: 0; }
 .top-action-bar .btn { width: auto; padding: 0 var(--sp-5); margin: 0; min-width: 140px; }
 
-/* 异常处理面板：占左列、撑满 2 行 */
+/* 异常处理面板：占左列、撑满下方一行 */
 #warnPanel { grid-column: 1; grid-row: 2; }
 
-/* Stockpile 面板：占右列 */
-#stockpilePanel { grid-column: 2; grid-row: 2; }
+/* 右列：上 #filesPanel + 下 #stockpilePanel */
+.right-stack {
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-height: 0;
+}
+#filesPanel { flex: 0 0 auto; }
+#stockpilePanel { flex: 1; min-height: 0; }
+.stockpile-search-results { max-height: 200px; overflow-y: auto; margin-top: 6px; }
 
 /* ========== Page: 重复检查 ========== */
 #pageDup.active { grid-template-columns: 1fr; height: calc(100vh - 84px); }
