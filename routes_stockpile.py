@@ -91,6 +91,51 @@ def stockpile_search():
     return jsonify({"ok": True, "count": len(records), "records": records})
 
 
+@bp.post("/stockpile/update-location")
+def stockpile_update_location():
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"ok": False, "msg": "请求格式错误"}), 400
+    barcode = data.get("barcode", "").strip()
+    location = data.get("location", "").strip()
+    if not barcode:
+        return jsonify({"ok": False, "msg": "缺少条码"}), 400
+    existing = stockpile_db.query_by_barcode(barcode)
+    if not existing:
+        return jsonify({"ok": False, "msg": "条码不存在"}), 404
+    stockpile_db.insert_or_update(
+        barcode=barcode,
+        model=existing["product_model"],
+        location=location,
+        source=stockpile_db.Source.USER_CORRECTION,
+    )
+    return jsonify({"ok": True})
+
+
+@bp.post("/stockpile/overwrite-locations")
+def stockpile_overwrite_locations():
+    data = request.get_json(silent=True)
+    if not data or not data.get("entries"):
+        return jsonify({"ok": False, "msg": "请提供覆盖列表"}), 400
+    updated = 0
+    for entry in data["entries"]:
+        barcode = entry.get("barcode", "").strip()
+        location = entry.get("location", "").strip()
+        if not barcode:
+            continue
+        existing = stockpile_db.query_by_barcode(barcode)
+        if not existing:
+            continue
+        stockpile_db.insert_or_update(
+            barcode=barcode,
+            model=existing["product_model"],
+            location=location,
+            source=stockpile_db.Source.USER_CORRECTION,
+        )
+        updated += 1
+    return jsonify({"ok": True, "updated": updated})
+
+
 @bp.get("/stockpile/schema")
 def stockpile_schema():
     return jsonify({"ok": True, "version": stockpile_db.get_schema_version()})

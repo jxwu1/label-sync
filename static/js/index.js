@@ -195,8 +195,116 @@ const spCmpInput = document.getElementById('spCmpInput');
 const spCmpBtn = document.getElementById('spCmpBtn');
 const spCmpRes = document.getElementById('spCmpRes');
 
+spCmpRes.addEventListener('click', e => {
+    if (e.target.id === 'spOverwriteBtn') {
+        overwriteLocations();
+        return;
+    }
+    const btn = e.target.closest('.sp-edit-btn');
+    if (!btn) return;
+    const row = btn.closest('.sp-mismatch-row');
+
+    if (btn.classList.contains('sp-saving')) {
+        const inp = row.querySelector('input');
+        if (inp) { saveLocation(btn, inp); }
+        return;
+    }
+
+    const span = row.querySelector('.sp-loc-val');
+    if (!span) return;
+
+    const barcode = btn.dataset.barcode;
+    const curLoc = btn.dataset.local;
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.value = curLoc;
+    inp.style.cssText = 'width:80px;padding:2px 4px;font-size:12px;border:1px solid #1976d2;border-radius:3px;margin:0 2px';
+    span.replaceWith(inp);
+    btn.textContent = '保存';
+    btn.classList.add('sp-saving');
+
+    inp.addEventListener('keydown', ev => {
+        if (ev.key === 'Enter') saveLocation(btn, inp);
+        if (ev.key === 'Escape') {
+            const ns = document.createElement('span');
+            ns.className = 'sp-loc-val';
+            ns.textContent = curLoc;
+            inp.replaceWith(ns);
+            btn.textContent = '编辑';
+            btn.classList.remove('sp-saving');
+        }
+    });
+    inp.focus();
+});
+
+async function saveLocation(btn, inp) {
+    const barcode = btn.dataset.barcode;
+    const newLoc = inp.value.trim();
+    btn.disabled = true;
+    btn.textContent = '保存中...';
+    try {
+        const res = await fetch('/stockpile/update-location', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ barcode, location: newLoc }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+            const newSpan = document.createElement('span');
+            newSpan.className = 'sp-loc-val';
+            newSpan.textContent = newLoc;
+            inp.replaceWith(newSpan);
+            btn.textContent = '已保存 ✓';
+            btn.className = 'sp-edit-btn saved';
+            btn.dataset.local = newLoc;
+            setTimeout(() => { btn.textContent = '编辑'; btn.className = 'sp-edit-btn'; btn.disabled = false; }, 2000);
+        } else {
+            btn.textContent = '失败';
+            btn.className = 'sp-edit-btn err';
+            setTimeout(() => { btn.textContent = '保存'; btn.className = 'sp-edit-btn sp-saving'; btn.disabled = false; }, 2000);
+        }
+    } catch (ex) {
+        btn.textContent = '网络错误';
+        btn.className = 'sp-edit-btn err';
+        setTimeout(() => { btn.textContent = '保存'; btn.className = 'sp-edit-btn sp-saving'; btn.disabled = false; }, 2000);
+    }
+}
+
+async function overwriteLocations() {
+    if (!cmpMismatches.length) return;
+    if (!confirm('确认用导出文件的库位覆盖本地数据库？\n将更新 ' + cmpMismatches.length + ' 条记录。')) return;
+    const btn = document.getElementById('spOverwriteBtn');
+    btn.disabled = true;
+    btn.textContent = '覆盖中...';
+    try {
+        const entries = cmpMismatches.map(m => ({ barcode: m.barcode, location: m.export_location }));
+        const res = await fetch('/stockpile/overwrite-locations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ entries }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+            btn.textContent = '已覆盖 ' + data.updated + ' 条 ✓';
+            btn.className = 'sp-edit-btn saved';
+            spCmpRes.querySelectorAll('.sp-loc-val').forEach(span => { span.textContent = ''; });
+            cmpMismatches = [];
+            setTimeout(() => { if (btn) { btn.remove(); } }, 3000);
+        } else {
+            btn.textContent = '失败';
+            btn.className = 'sp-edit-btn err';
+            btn.disabled = false;
+        }
+    } catch (ex) {
+        btn.textContent = '网络错误';
+        btn.className = 'sp-edit-btn err';
+        btn.disabled = false;
+    }
+}
+
 let spInitFile = null;
 let spCmpFile = null;
+let cmpMismatches = [];
 
 spInitDrop.addEventListener('click', () => spInitInput.click());
 spCmpDrop.addEventListener('click', () => spCmpInput.click());
@@ -290,15 +398,19 @@ spCmpBtn.addEventListener('click', async () => {
             if (d.only_in_local.length) html += '<span style="color:#e65100">仅本地有：' + esc(d.only_in_local.join(', ')) + '</span><br>';
             if (d.only_in_export.length) html += '<span style="color:#1565c0">仅导出有：' + esc(d.only_in_export.join(', ')) + '</span><br>';
             if (d.mismatches.length) {
-                html += '<span style="color:#c62828">不一致条数：' + d.mismatches.length + '</span><br>';
-                html += d.mismatches.slice(0, 10).map(m => {
-                    let line = esc(m.barcode) + ': 型号(' + esc(m.local_model) + '→' + esc(m.export_model) + ')';
-                    if (m.local_location !== m.export_location) {
-                        line += ' 库位(' + esc(m.local_location) + '→' + esc(m.export_location) + ')';
-                    }
-                    return line;
-                }).join('<br>');
-                if (d.mismatches.length > 10) html += '<br>...等共' + d.mismatches.length + '条';
+                cmpMismatches = d.mismatches;
+                html += '<span style="color:#c62828">不一致条数：' + d.mismatches.length;
+                html += ' <button class="sp-edit-btn" id="spOverwriteBtn">一键覆盖全部库位</button></span><br>';
+                let showCount = Math.min(d.mismatches.length, 20);
+                for (let i = 0; i < showCount; i++) {
+                    const m = d.mismatches[i];
+                    html += '<div class="sp-mismatch-row" data-barcode="' + esc(m.barcode) + '">';
+                    html += esc(m.barcode) + ': 型号(' + esc(m.local_model) + '→' + esc(m.export_model) + ')';
+                    html += ' 库位(<span class="sp-loc-val">' + esc(m.local_location) + '</span>→' + esc(m.export_location) + ')';
+                    html += ' <button class="sp-edit-btn" data-barcode="' + esc(m.barcode) + '" data-local="' + esc(m.local_location) + '">编辑</button>';
+                    html += '</div>';
+                }
+                if (d.mismatches.length > 20) html += '<br>...等共' + d.mismatches.length + '条';
             }
             if (!d.only_in_local.length && !d.only_in_export.length && !d.mismatches.length) {
                 html += '<b style="color:#2e7d32">完全一致</b>';
