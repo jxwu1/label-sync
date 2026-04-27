@@ -43,7 +43,11 @@
              <div class="drop" id="spCmpDrop" style="flex:1;min-width:200px"><input type="file" id="spCmpInput" accept=".xlsx,.csv"><div>拖入系统导出文件进行月度比对</div></div>
              <button class="btn u" id="spCmpBtn" disabled>比对</button>
            </div>
-           <div id="spCmpRes" style="margin-top:8px;font-size:12px"></div>
+            <div id="spCmpRes" style="margin-top:8px;font-size:12px"></div>
+            <div style="margin-top:8px">
+              <input type="text" id="spSearchInput" placeholder="搜索条码或型号（至少2个字符）" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:4px;font-size:13px;box-sizing:border-box">
+              <div id="spSearchRes" style="margin-top:4px;font-size:12px;max-height:200px;overflow-y:auto"></div>
+            </div>
          </div></div>
        </div>
       <div class="page" id="pageDup">

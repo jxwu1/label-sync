@@ -78,6 +78,19 @@ def stockpile_changes():
     return jsonify({"ok": True, "count": len(changes), "changes": changes})
 
 
+@bp.get("/stockpile/search")
+def stockpile_search():
+    q = request.args.get("q", default="", type=str).strip()
+    if not q:
+        return jsonify({"ok": False, "msg": "请输入搜索关键词"}), 400
+    if len(q) < 2:
+        return jsonify({"ok": False, "msg": "关键词至少2个字符"}), 400
+    limit = request.args.get("limit", default=50, type=int) or 50
+    limit = max(1, min(limit, 200))
+    records = stockpile_db.search_stockpile(q, limit=limit)
+    return jsonify({"ok": True, "count": len(records), "records": records})
+
+
 @bp.get("/stockpile/schema")
 def stockpile_schema():
     return jsonify({"ok": True, "version": stockpile_db.get_schema_version()})

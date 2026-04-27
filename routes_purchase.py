@@ -5,20 +5,9 @@ from datetime import date
 from flask import Blueprint, jsonify, request, send_file
 
 import purchase_service
+import stockpile_db
 
 bp = Blueprint("purchase", __name__, url_prefix="/purchase")
-
-
-def _classify_files(files):
-    stockpile, supplier = None, None
-    for f in files:
-        if not f or not f.filename:
-            continue
-        if f.filename.lower().startswith("stockpile"):
-            stockpile = f
-        else:
-            supplier = f
-    return supplier, stockpile
 
 
 @bp.post("/process")
@@ -28,14 +17,14 @@ def process():
         single = request.files.get("file")
         if single:
             files = [single]
-    if len(files) < 2:
-        return jsonify({"ok": False, "msg": "请同时上传供应商 Excel 和 stockpile CSV"}), 400
-    supplier, stockpile = _classify_files(files)
-    if not supplier or not stockpile:
-        return jsonify({"ok": False, "msg": "缺少供应商 Excel 或 stockpile CSV"}), 400
+    if not files:
+        return jsonify({"ok": False, "msg": "请上传供应商 Excel 文件"}), 400
+    supplier = files[0]
+    if not supplier or not supplier.filename:
+        return jsonify({"ok": False, "msg": "请上传供应商 Excel 文件"}), 400
     try:
         rows = purchase_service.parse_purchase_excel(supplier.read())
-        system_set = purchase_service.parse_stockpile_csv(stockpile.read())
+        system_set = stockpile_db.query_all_barcodes_set()
         new_bcs = purchase_service.find_new_barcodes(rows, system_set)
     except Exception as exc:
         return jsonify({"ok": False, "msg": f"解析失败：{exc}"}), 500
@@ -45,6 +34,18 @@ def process():
         "system_barcodes": list(system_set),
         "new_barcodes": new_bcs,
     })
+
+
+@bp.post("/import-to-stockpile")
+def import_to_stockpile():
+    data = request.get_json(silent=True)
+    if not data or not data.get("entries"):
+        return jsonify({"ok": False, "msg": "请提供条码列表"}), 400
+    try:
+        count = purchase_service.import_new_barcodes(data["entries"])
+    except Exception as exc:
+        return jsonify({"ok": False, "msg": f"入库失败：{exc}"}), 500
+    return jsonify({"ok": True, "count": count})
 
 
 @bp.post("/export")

@@ -2,6 +2,7 @@ import csv
 import io
 import unittest
 import zipfile
+from unittest.mock import patch
 
 import openpyxl
 
@@ -11,8 +12,8 @@ from purchase_service import (
     build_template_csv,
     build_zip,
     find_new_barcodes,
+    import_new_barcodes,
     parse_purchase_excel,
-    parse_stockpile_csv,
 )
 
 
@@ -106,47 +107,6 @@ class TestBuildOutputExcel(unittest.TestCase):
         self.assertAlmostEqual(ws.cell(row=2, column=3).value, 9.48)
 
 
-def _stockpile_bytes(rows, encoding="utf-8"):
-    lines = [",".join(r) for r in rows]
-    return "\n".join(lines).encode(encoding)
-
-
-class TestParseStockpileCsv(unittest.TestCase):
-    def test_header_only_returns_empty_set(self):
-        data = _stockpile_bytes([["c1", "c2", "c3", "barcode"]])
-        self.assertEqual(parse_stockpile_csv(data), set())
-
-    def test_reads_column_4_barcodes(self):
-        data = _stockpile_bytes([
-            ["c1", "c2", "c3", "barcode"],
-            ["a", "b", "c", "1234567890123"],
-            ["a", "b", "c", "9876543210987"],
-        ])
-        self.assertEqual(parse_stockpile_csv(data), {"1234567890123", "9876543210987"})
-
-    def test_falls_back_to_gbk_when_not_utf8(self):
-        data = _stockpile_bytes([
-            ["型号", "c2", "c3", "条码"],
-            ["甲", "b", "c", "1111111111111"],
-        ], encoding="gbk")
-        self.assertEqual(parse_stockpile_csv(data), {"1111111111111"})
-
-    def test_skips_rows_shorter_than_4_columns(self):
-        data = _stockpile_bytes([
-            ["c1", "c2", "c3", "barcode"],
-            ["a", "b"],
-            ["a", "b", "c", "1234567890123"],
-        ])
-        self.assertEqual(parse_stockpile_csv(data), {"1234567890123"})
-
-    def test_strips_whitespace(self):
-        data = _stockpile_bytes([
-            ["c1", "c2", "c3", "barcode"],
-            ["a", "b", "c", "  1234567890123  "],
-        ])
-        self.assertEqual(parse_stockpile_csv(data), {"1234567890123"})
-
-
 class TestFindNewBarcodes(unittest.TestCase):
     def _row(self, barcode):
         return PurchaseRow(barcode=barcode, price_raw="1", price=1.0, quantity=1, price_flagged=False)
@@ -165,6 +125,37 @@ class TestFindNewBarcodes(unittest.TestCase):
 
     def test_empty_rows_returns_empty(self):
         self.assertEqual(find_new_barcodes([], {"X"}), [])
+
+
+class TestImportNewBarcodes(unittest.TestCase):
+    def _entry(self, barcode):
+        return {"barcode": barcode}
+
+    @patch("purchase_service.stockpile_db.insert_or_update")
+    def test_inserts_each_entry(self, mock_insert):
+        entries = [self._entry("BC1"), self._entry("BC2")]
+        count = import_new_barcodes(entries)
+        self.assertEqual(count, 2)
+        self.assertEqual(mock_insert.call_count, 2)
+        mock_insert.assert_any_call(
+            barcode="BC1", model="BC1", location="", source="purchase_import"
+        )
+        mock_insert.assert_any_call(
+            barcode="BC2", model="BC2", location="", source="purchase_import"
+        )
+
+    @patch("purchase_service.stockpile_db.insert_or_update")
+    def test_skips_empty_barcode(self, mock_insert):
+        entries = [self._entry("BC1"), self._entry(""), self._entry("BC2")]
+        count = import_new_barcodes(entries)
+        self.assertEqual(count, 2)
+
+    @patch("purchase_service.stockpile_db.insert_or_update")
+    def test_skips_whitespace_only(self, mock_insert):
+        entries = [self._entry("  ")]
+        count = import_new_barcodes(entries)
+        self.assertEqual(count, 0)
+        mock_insert.assert_not_called()
 
 
 class TestBuildTemplateCsv(unittest.TestCase):

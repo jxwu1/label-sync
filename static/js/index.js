@@ -291,10 +291,14 @@ spCmpBtn.addEventListener('click', async () => {
             if (d.only_in_export.length) html += '<span style="color:#1565c0">仅导出有：' + esc(d.only_in_export.join(', ')) + '</span><br>';
             if (d.mismatches.length) {
                 html += '<span style="color:#c62828">不一致条数：' + d.mismatches.length + '</span><br>';
-                html += d.mismatches.slice(0, 5).map(m =>
-                    esc(m.barcode) + ': 型号(' + esc(m.local_model) + '→' + esc(m.export_model) + ')'
-                ).join('<br>');
-                if (d.mismatches.length > 5) html += '<br>...等共' + d.mismatches.length + '条';
+                html += d.mismatches.slice(0, 10).map(m => {
+                    let line = esc(m.barcode) + ': 型号(' + esc(m.local_model) + '→' + esc(m.export_model) + ')';
+                    if (m.local_location !== m.export_location) {
+                        line += ' 库位(' + esc(m.local_location) + '→' + esc(m.export_location) + ')';
+                    }
+                    return line;
+                }).join('<br>');
+                if (d.mismatches.length > 10) html += '<br>...等共' + d.mismatches.length + '条';
             }
             if (!d.only_in_local.length && !d.only_in_export.length && !d.mismatches.length) {
                 html += '<b style="color:#2e7d32">完全一致</b>';
@@ -324,6 +328,43 @@ async function refreshSpStatus() {
     } catch (e) {
         spStatus.textContent = '状态：检查失败';
         spStatus.style.color = '#999';
+    }
+}
+
+const spSearchInput = document.getElementById('spSearchInput');
+const spSearchRes = document.getElementById('spSearchRes');
+
+let spSearchTimer = null;
+spSearchInput.addEventListener('input', () => {
+    clearTimeout(spSearchTimer);
+    const q = spSearchInput.value.trim();
+    if (q.length < 2) {
+        spSearchRes.innerHTML = '';
+        return;
+    }
+    spSearchTimer = setTimeout(() => doSearch(q), 300);
+});
+
+async function doSearch(q) {
+    spSearchRes.innerHTML = '<span style="color:#999">搜索中...</span>';
+    try {
+        const res = await fetch('/stockpile/search?q=' + encodeURIComponent(q));
+        const data = await res.json();
+        if (!data.ok) {
+            spSearchRes.innerHTML = '<span style="color:#c62828">' + esc(data.msg) + '</span>';
+            return;
+        }
+        if (!data.records.length) {
+            spSearchRes.innerHTML = '<span style="color:#999">无匹配结果</span>';
+            return;
+        }
+        let html = '<b>找到 ' + data.count + ' 条：</b><br>';
+        html += data.records.map(r =>
+            esc(r.product_barcode) + ' | ' + esc(r.product_model) + ' | ' + esc(r.stockpile_location)
+        ).join('<br>');
+        spSearchRes.innerHTML = html;
+    } catch (e) {
+        spSearchRes.innerHTML = '<span style="color:#c62828">网络错误</span>';
     }
 }
 

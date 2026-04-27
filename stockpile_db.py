@@ -45,6 +45,7 @@ _KNOWN_COLS = frozenset({"product_barcode", "product_model", "stockpile_location
 class Source:
     SYSTEM_EXPORT = "system_export"
     USER_CORRECTION = "user_correction"
+    SCAN_IMPORT = "scan_import"
 
 
 def _connect() -> sqlite3.Connection:
@@ -268,6 +269,19 @@ def list_changes(limit: int = 100) -> list[dict]:
         cur = conn.execute(
             "SELECT * FROM stockpile_changes ORDER BY id DESC LIMIT ?",
             (limit,),
+        )
+        return [dict(row) for row in cur]
+
+
+def search_stockpile(keyword: str, limit: int = 50) -> list[dict]:
+    pattern = f"%{keyword}%"
+    with _connect() as conn:
+        cur = conn.execute(
+            "SELECT product_barcode, product_model, stockpile_location, is_active, source, updated_at "
+            "FROM stockpile "
+            "WHERE is_active = 1 AND (product_barcode LIKE ? OR product_model LIKE ?) "
+            "ORDER BY product_barcode LIMIT ?",
+            (pattern, pattern, limit),
         )
         return [dict(row) for row in cur]
 

@@ -42,44 +42,16 @@ class TestPurchaseRoutes(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
 
 
-def _stockpile_bytes():
-    return b"c1,c2,c3,barcode\na,b,c,EXIST-IN-SYSTEM\n"
-
-
-class TestProcessTwoFiles(unittest.TestCase):
+class TestProcessSingleFile(unittest.TestCase):
     def setUp(self):
         self.client = make_app().test_client()
 
-    def test_requires_two_files(self):
+    @patch("routes_purchase.stockpile_db.query_all_barcodes_set")
+    def test_single_file_succeeds(self, mock_query):
+        mock_query.return_value = {"EXIST-IN-SYSTEM"}
         response = self.client.post(
             "/purchase/process",
             data={"files": (io.BytesIO(_excel_bytes()), "supplier.xlsx")},
-            content_type="multipart/form-data",
-        )
-        self.assertEqual(response.status_code, 400)
-
-    def test_requires_stockpile_file(self):
-        response = self.client.post(
-            "/purchase/process",
-            data={
-                "files": [
-                    (io.BytesIO(_excel_bytes()), "supplier.xlsx"),
-                    (io.BytesIO(b"x,y"), "other.csv"),
-                ]
-            },
-            content_type="multipart/form-data",
-        )
-        self.assertEqual(response.status_code, 400)
-
-    def test_returns_rows_and_new_barcodes(self):
-        response = self.client.post(
-            "/purchase/process",
-            data={
-                "files": [
-                    (io.BytesIO(_excel_bytes()), "supplier.xlsx"),
-                    (io.BytesIO(_stockpile_bytes()), "stockpile_export.csv"),
-                ]
-            },
             content_type="multipart/form-data",
         )
         self.assertEqual(response.status_code, 200)
@@ -88,6 +60,45 @@ class TestProcessTwoFiles(unittest.TestCase):
         self.assertEqual(len(body["rows"]), 1)
         self.assertEqual(body["new_barcodes"], ["1234567890123"])
         self.assertIn("EXIST-IN-SYSTEM", body["system_barcodes"])
+
+    @patch("routes_purchase.stockpile_db.query_all_barcodes_set")
+    def test_all_existing_returns_no_new(self, mock_query):
+        mock_query.return_value = {"1234567890123"}
+        response = self.client.post(
+            "/purchase/process",
+            data={"files": (io.BytesIO(_excel_bytes()), "supplier.xlsx")},
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.get_json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["new_barcodes"], [])
+
+
+class TestImportToStockpile(unittest.TestCase):
+    def setUp(self):
+        self.client = make_app().test_client()
+
+    def test_requires_entries(self):
+        response = self.client.post(
+            "/purchase/import-to-stockpile",
+            json={},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    @patch("routes_purchase.purchase_service.import_new_barcodes")
+    def test_returns_count_on_success(self, mock_import):
+        mock_import.return_value = 3
+        response = self.client.post(
+            "/purchase/import-to-stockpile",
+            json={"entries": [{"barcode": "A"}, {"barcode": "B"}, {"barcode": "C"}]},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.get_json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["count"], 3)
 
 
 class TestExportZip(unittest.TestCase):

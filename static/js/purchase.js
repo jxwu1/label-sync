@@ -5,6 +5,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
   let rows = [];
   let systemBarcodes = new Set();
   let newEntries = [];
+  let savedNewEntries = [];
   let supplierInfo = { id: '', name: '' };
 
   function init() {
@@ -13,8 +14,8 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     page.innerHTML = `
       <div class="pur-drop" id="purDrop">
         <input type="file" id="purInput" accept=".xlsx,.xls,.csv" multiple>
-        <div>拖入或点击选择：供应商 Excel + 系统 stockpile CSV</div>
-        <div class="hint">供应商：第1列条码 · 第3列价格 · 第6列数量　|　系统：文件名以 stockpile 开头</div>
+        <div>拖入或点击选择供应商 Excel</div>
+        <div class="hint">供应商：第1列条码/型号 · 第3列价格 · 第6列数量</div>
       </div>
       <div class="pur-results" id="purResults"><div class="empty">上传文件后显示结果</div></div>
       <div class="pur-newbox" id="purNewBox" style="display:none">
@@ -28,6 +29,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
       <div class="pur-actions">
         <div class="pur-status" id="purStatus"></div>
         <button class="pur-btn-copy" id="purCopy" disabled>一键复制</button>
+        <button class="pur-btn-dl" id="purImport" disabled>一键入库</button>
         <button class="pur-btn-dl" id="purDl" disabled>下载全部</button>
       </div>
       <div class="pur-modal-overlay" id="purModalOverlay" style="display:none">
@@ -70,6 +72,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     const input = document.getElementById('purInput');
     setupDropZone(drop, input, (files) => handleFiles(files));
     document.getElementById('purCopy').addEventListener('click', copyAll);
+    document.getElementById('purImport').addEventListener('click', importToStockpile);
     document.getElementById('purNewCopyAll').addEventListener('click', copyNewBarcodes);
     document.getElementById('purDl').addEventListener('click', downloadZip);
     document.getElementById('purSupId').addEventListener('input', (e) => { supplierInfo.id = e.target.value.trim(); updateButtons(); });
@@ -93,18 +96,11 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
 
   async function handleFiles(files) {
     files = Array.from(files || []);
-    if (files.length < 2) { setStatus('需要 2 个文件：供应商 Excel + stockpile CSV', true); return; }
-    let supplier = null, stockpile = null;
-    for (const f of files) {
-      if (f.name.toLowerCase().startsWith('stockpile')) stockpile = f;
-      else supplier = f;
-    }
-    if (!supplier || !stockpile) { setStatus('未能识别：需要 1 个 stockpile 开头的 csv + 1 个供应商文件', true); return; }
-    storedSupplierFile = supplier;
+    if (files.length < 1) { setStatus('请上传供应商 Excel 文件', true); return; }
+    storedSupplierFile = files[0];
     setStatus('解析中...');
     const fd = new FormData();
-    fd.append('files', supplier);
-    fd.append('files', stockpile);
+    fd.append('files', storedSupplierFile);
     try {
       const res = await fetch('/purchase/process', { method: 'POST', body: fd });
       const body = await res.json();
@@ -112,6 +108,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
       rows = body.rows;
       systemBarcodes = new Set(body.system_barcodes);
       newEntries = body.new_barcodes.map(bc => ({ barcode: bc, name: '', invoice_name: '' }));
+      savedNewEntries = [];
       renderResults();
       renderNewBox();
       const flagCount = rows.filter(r => r.price_flagged).length;
@@ -279,10 +276,12 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
   function updateButtons() {
     const anyFlagged = rows.some(r => r.price_flagged);
     const hasRows = rows.length > 0;
-    const newOk = newEntries.length === 0 ||
+    const hasNew = newEntries.length > 0;
+    const newOk = hasNew &&
       (supplierInfo.id && supplierInfo.name && newEntries.every(e => e.name && e.invoice_name));
     document.getElementById('purCopy').disabled = anyFlagged || !hasRows;
-    document.getElementById('purDl').disabled = anyFlagged || !hasRows || !newOk;
+    document.getElementById('purImport').disabled = anyFlagged || !hasNew;
+    document.getElementById('purDl').disabled = anyFlagged || !hasRows || (hasNew && !newOk);
   }
 
   async function copyAll() {
@@ -296,6 +295,39 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
       await copyToClip(text);
       done();
     } catch (e) { setStatus('复制失败：' + e.message, true); }
+  }
+
+  async function importToStockpile() {
+    if (!newEntries.length) return;
+    const btn = document.getElementById('purImport');
+    btn.disabled = true;
+    btn.textContent = '入库中...';
+    try {
+      const res = await fetch('/purchase/import-to-stockpile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entries: newEntries }),
+      });
+      const body = await res.json();
+      if (!body.ok) { setStatus('入库失败：' + body.msg, true); return; }
+      setStatus(`入库成功，${body.count} 条新条码已写入本地数据库`);
+      savedNewEntries = newEntries.map(e => ({ ...e }));
+      newEntries.forEach(e => systemBarcodes.add(e.barcode));
+      newEntries = [];
+      renderNewBox();
+      updateButtons();
+      btn.textContent = '已入库 ✓';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = '一键入库';
+        btn.classList.remove('copied');
+        btn.disabled = true;
+      }, 2000);
+    } catch (e) {
+      setStatus('入库失败：' + e.message, true);
+      btn.disabled = false;
+      btn.textContent = '一键入库';
+    }
   }
 
   async function downloadZip() {
@@ -364,7 +396,8 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     const fd = new FormData();
     fd.append('file', storedSupplierFile);
     fd.append('rows', JSON.stringify(rows));
-    const entriesForExport = newEntries.map(e => ({
+    const sourceEntries = newEntries.length ? newEntries : savedNewEntries;
+    const entriesForExport = sourceEntries.map(e => ({
       barcode: e.barcode, name: e.name, invoice_name: e.invoice_name,
       supplier_id: supplierInfo.id, supplier_name: supplierInfo.name,
     }));

@@ -9,6 +9,7 @@ from pathlib import Path
 import openpyxl
 import pandas as pd
 
+import stockpile_db
 from config import CONFIG
 
 _TEMPLATE_PATH = Path(__file__).resolve().parent / "static" / "templates" / "产品信息导入模板.csv"
@@ -17,9 +18,6 @@ _TEMPLATE_PATH = Path(__file__).resolve().parent / "static" / "templates" / "产
 _SUPPLIER_BARCODE_COL = 0
 _SUPPLIER_PRICE_COL = 2
 _SUPPLIER_QUANTITY_COL = 5
-
-# stockpile CSV 中条码所在列
-_STOCKPILE_BARCODE_COL = 3
 
 # 产品信息导入模板列索引（同一字段需要写入多列）
 _TEMPLATE_BARCODE_COLS = (0, 1, 10)
@@ -105,22 +103,20 @@ def build_output_excel(file_bytes: bytes, rows_data: list[dict]) -> bytes:
     return buf.getvalue()
 
 
-def parse_stockpile_csv(file_bytes: bytes) -> set[str]:
-    try:
-        text = file_bytes.decode("utf-8")
-    except UnicodeDecodeError:
-        text = file_bytes.decode(CONFIG.csv_fallback_encoding)
-    reader = csv.reader(io.StringIO(text))
-    result: set[str] = set()
-    for i, row in enumerate(reader):
-        if i == 0:
+def import_new_barcodes(entries: list[dict]) -> int:
+    count = 0
+    for entry in entries:
+        barcode = entry.get("barcode", "").strip()
+        if not barcode:
             continue
-        if len(row) <= _STOCKPILE_BARCODE_COL:
-            continue
-        bc = row[_STOCKPILE_BARCODE_COL].strip()
-        if bc:
-            result.add(bc)
-    return result
+        stockpile_db.insert_or_update(
+            barcode=barcode,
+            model=barcode,
+            location="",
+            source="purchase_import",
+        )
+        count += 1
+    return count
 
 
 def find_new_barcodes(rows: list[PurchaseRow], system_set: set[str]) -> list[str]:
