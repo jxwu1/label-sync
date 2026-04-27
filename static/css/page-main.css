@@ -1,0 +1,25 @@
+/* ========== Page: 标签处理（T3 重排） ========== */
+#pageMain.active {
+  grid-template-columns: 1fr 320px;
+  grid-template-rows: auto 1fr;
+  height: calc(100vh - 84px);
+}
+
+/* 顶部 action bar 跨两列 */
+.top-action-bar {
+  grid-column: 1 / 3;
+  display: flex;
+  gap: var(--sp-3);
+  align-items: stretch;
+}
+.top-action-bar .drop { flex: 1; padding: var(--sp-3) var(--sp-4); margin: 0; }
+.top-action-bar .btn { width: auto; padding: 0 var(--sp-5); margin: 0; min-width: 140px; }
+
+/* 异常处理面板：占左列、撑满 2 行 */
+#warnPanel { grid-column: 1; grid-row: 2; }
+
+/* Stockpile 面板：占右列 */
+#stockpilePanel { grid-column: 2; grid-row: 2; }
+
+/* ========== Page: 重复检查 ========== */
+#pageDup.active { grid-template-columns: 1fr; height: calc(100vh - 84px); }

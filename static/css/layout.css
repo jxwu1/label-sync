@@ -1,0 +1,45 @@
+/* ========== App header ========== */
+.app-header {
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-4);
+  background: var(--c-surface-elev);
+  border-bottom: 1px solid var(--c-border);
+}
+.app-header__title { flex: 1; font-size: var(--fs-lg); font-weight: 700; }
+
+/* ========== App layout ========== */
+.app-layout { display: flex; flex: 1; overflow: hidden; }
+
+/* ========== Side nav (slim) ========== */
+.app-nav {
+  width: 56px;
+  background: var(--c-surface-deep);
+  border-right: 1px solid var(--c-border);
+  padding: var(--sp-3) var(--sp-1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.app-nav.hide { width: 0; padding: 0; border-right: none; overflow: hidden; }
+.app-nav__item {
+  padding: var(--sp-2) 0;
+  color: var(--c-text-muted);
+  cursor: pointer;
+  border-radius: var(--r-md);
+  text-align: center;
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  transition: background var(--t-fast);
+}
+.app-nav__item:hover { background: var(--c-surface-elev); color: var(--c-text); }
+.app-nav__item.active { background: var(--c-accent-soft); color: var(--c-accent-fg); }
+.app-nav__icon { display: block; font-size: 16px; margin-bottom: 2px; }
+
+/* ========== Main + pages ========== */
+.app-main { flex: 1; display: flex; overflow: hidden; }
+.app-pages { flex: 1; padding: var(--sp-4); overflow: hidden; min-height: 0; }
+.page { display: none; height: 100%; }
+.page.active { display: grid; gap: var(--sp-4); overflow-y: auto; min-height: 0; }

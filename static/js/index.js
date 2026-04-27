@@ -26,7 +26,7 @@ function rmFile(i) { selected.splice(i, 1); renderFiles(); } window.rmFile = rmF
 
 function switchPage(p) {
   document.querySelectorAll(".page").forEach((el) => el.classList.remove("active"));
-  document.querySelectorAll(".nav-item").forEach((el) => el.classList.remove("active"));
+  document.querySelectorAll(".app-nav__item").forEach((el) => el.classList.remove("active"));
   const pageMap = { main: "pageMain", dup: "pageDup", purchase: "pagePurchase", attendance: "pageAttendance" };
   const navMap = { main: "navMain", dup: "navDup", purchase: "navPurchase", attendance: "navAttendance" };
   const pageId = pageMap[p];
