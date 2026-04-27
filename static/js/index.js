@@ -16,6 +16,14 @@ function renderLog() {
   const tbod = $("#tbod");
   tbod.innerHTML = logs.length ? logs.map((i) => `<div class="${i.src === "dc" ? "log-dc" : "log-lp"} ${i.cls}">${esc(i.text)}</div>`).join("") : '<span class="log-dim">等待操作</span>';
   tbod.scrollTop = tbod.scrollHeight;
+
+  const count = $("#termFabCount");
+  if (count) {
+    count.textContent = String(logs.length);
+    count.classList.remove("is-pulse");
+    void count.offsetWidth;
+    count.classList.add("is-pulse");
+  }
 }
 function clearLog() { logs = []; renderLog(); } window.clearLog = clearLog;
 
@@ -185,3 +193,10 @@ async function restore() {
 setupDupZone(); setupTransferZone(); loadTransferUI(); loadMsgsUI(); restore();
 setInterval(loadTransferUI, 5000); setInterval(loadMsgsUI, 5000);
 initStockpile();
+
+$("#termFab")?.addEventListener("click", () => {
+  $("#termDrawer").classList.toggle("hide");
+});
+$("#termClose")?.addEventListener("click", () => {
+  $("#termDrawer").classList.add("hide");
+});

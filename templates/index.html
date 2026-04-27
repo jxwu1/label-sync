@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/purchase.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/attendance.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/terminal-log.css') }}">
 </head>
 <body>
 <div class="app-header"><button class="btn-mini" id="hamb">☰</button><div class="app-header__title">A端 - 双端处理</div><span class="badge badge-idle" id="badge">空闲</span></div>
@@ -131,6 +132,23 @@
     </div>
   </div>
 </div>
+<button class="term-fab" id="termFab" type="button">
+  <span>▸ 终端日志</span>
+  <span class="term-fab__count" id="termFabCount">0</span>
+</button>
+
+<div class="terminal-log hide" id="termDrawer">
+  <div class="terminal-log__head">
+    <span class="terminal-log__dot"></span>
+    <span class="terminal-log__title">终端日志</span>
+    <button class="terminal-log__clear" type="button" onclick="clearLog()">清空</button>
+    <button class="terminal-log__close" id="termClose" type="button">收起</button>
+  </div>
+  <div class="terminal-log__body" id="tbod">
+    <span class="log-dim">等待操作</span>
+  </div>
+</div>
+
 <script type="module" src="{{ url_for('static', filename='js/index.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/purchase.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/attendance.js') }}"></script>
