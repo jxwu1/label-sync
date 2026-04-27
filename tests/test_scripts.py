@@ -142,8 +142,8 @@ class PhaseTwoTests(unittest.TestCase):
         self.assertEqual(
             results,
             [
-                {"model": "M-111", "location": "B-02-02/X-01-01"},
-                {"model": "222", "location": "X-03-03"},
+                {"barcode": "111", "model": "M-111", "location": "B-02-02/X-01-01"},
+                {"barcode": "222", "model": "222", "location": "X-03-03"},
             ],
         )
         self.assertEqual(new_barcodes, ["222"])
@@ -249,7 +249,7 @@ class WritePhase2ResultsTests(unittest.TestCase):
         ]
         write_phase2_results(
             self.temp_results,
-            results=[{"model": "M1", "location": "A-01/X-01"}],
+            results=[{"barcode": "M1", "model": "M1", "location": "A-01/X-01"}],
             new_barcodes=[],
             exceptions=exceptions,
             unmatched_barcodes=["333"],
@@ -318,7 +318,7 @@ class LoadPhase2ResultsTests(unittest.TestCase):
 
     def test_load_phase2_results_handles_3_element_exceptions(self) -> None:
         data = {
-            "results": [{"model": "M1", "location": "A-01/X-01"}],
+            "results": [{"barcode": "M1", "model": "M1", "location": "A-01/X-01"}],
             "new_barcodes": [],
             "exceptions": [
                 ["555", "multi_location", {"stockpile_stores": ["A-01"], "scan_warehouses": ["X-02"]}],

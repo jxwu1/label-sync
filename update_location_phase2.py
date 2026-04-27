@@ -62,8 +62,8 @@ def _classify_barcode_entry(
         return "exception", (barcode, reason)
 
     if system_item is None:
-        return "new", {"model": barcode, "location": final_location}
-    return "matched", {"model": system_item["model"], "location": final_location}
+        return "new", {"barcode": barcode, "model": barcode, "location": final_location}
+    return "matched", {"barcode": barcode, "model": system_item["model"], "location": final_location}
 
 
 def build_phase_two_results(

@@ -85,14 +85,14 @@ def _correct_new_barcode(old_barcode: str, new_barcode: str) -> ServiceResult:
                 mismatch = "合成最终库位失败"
                 return
             if entry_idx is not None:
-                data["results"][entry_idx] = {"model": system_item["model"], "location": final_location}
+                data["results"][entry_idx] = {"barcode": new_barcode, "model": system_item["model"], "location": final_location}
             new_list.remove(old_barcode)
             barcode_model_map.pop(old_barcode, None)
             barcode_model_map[new_barcode] = system_item["model"]
             task_state.remove_new_barcode(old_barcode)
         else:
             if entry_idx is not None:
-                data["results"][entry_idx]["model"] = new_barcode
+                data["results"][entry_idx] = {"barcode": new_barcode, "model": new_barcode, "location": data["results"][entry_idx]["location"]}
             new_list[new_list.index(old_barcode)] = new_barcode
             barcode_model_map.pop(old_barcode, None)
             barcode_model_map[new_barcode] = new_barcode
@@ -240,7 +240,7 @@ def resolve_phase2_exception(barcode: str, resolution: str) -> ServiceResult:
         data["exceptions"] = [exc for exc in data["exceptions"] if exc[0] != barcode]
         if resolution != "ignore":
             model = data.get("barcode_model_map", {}).get(barcode, barcode)
-            data["results"].append({"model": model, "location": resolution})
+            data["results"].append({"barcode": barcode, "model": model, "location": resolution})
 
     try:
         update_json_file(TEMP_RESULTS_FILE, _modifier)

@@ -18,9 +18,9 @@ def _write_stockpile(path: Path, records: list[dict]) -> None:
 def _results_fixture(stockpile_path: Path) -> dict:
     return {
         "results": [
-            {"model": "NEW_A", "location": "A1/X1"},
-            {"model": "NEW_B", "location": "B2"},
-            {"model": "MATCHED", "location": "A9/X9"},
+            {"barcode": "NEW_A", "model": "NEW_A", "location": "A1/X1"},
+            {"barcode": "NEW_B", "model": "NEW_B", "location": "B2"},
+            {"barcode": "MATCHED", "model": "MATCHED", "location": "A9/X9"},
         ],
         "new_barcodes": ["NEW_A", "NEW_B"],
         "exceptions": [],
