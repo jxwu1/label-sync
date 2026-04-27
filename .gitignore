@@ -22,3 +22,19 @@ transfer/*
 _temp_mapping.json
 _temp_results.json
 stockpile.db
+
+# Secrets
+.env
+
+# Tooling artifacts
+.claude/
+.superpowers/
+
+# Test temp dirs
+.test_tmp/
+tests/_test_*/
+tests/_tmp_*/
+
+# Runtime data
+attendance/
+monthly_summary/
