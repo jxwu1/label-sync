@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 from config import CONFIG
-from file_io import find_latest_stockpile_file
+
 from state import (
     PHASE_EXIT_LOCATION_FORMAT_ERROR,
     PHASE_EXIT_OK,
@@ -21,14 +21,6 @@ TEMP_MAPPING_FILE = CONFIG.temp_mapping_file
 TEMPLATE_PATH = Path(__file__).resolve().parent / "static" / "templates" / "产品信息导入模板.csv"
 
 _BARCODE_LENGTH_TOLERANCE = 2
-
-
-def find_latest_stockpile_file_or_exit() -> Path:
-    result = find_latest_stockpile_file(INPUT_DIR)
-    if result is None:
-        print("ERROR: missing stockpile csv in input/")
-        raise SystemExit(1)
-    return result
 
 
 def collect_location_map(scan_files: list[Path]) -> dict[str, list[str]]:
@@ -137,8 +129,6 @@ def main() -> int:
     template_file = TEMPLATE_PATH
     print(f"TEMPLATE {template_file.name}")
 
-    stockpile_file = find_latest_stockpile_file_or_exit()
-    print(f"STOCKPILE {stockpile_file.name}")
 
     scan_files = sorted(INPUT_DIR.glob("*.xlsx"))
     if not scan_files:
