@@ -19,7 +19,7 @@ function renderBarcodes(items) {
   return items.map((warning, index) => {
     if (warning.deleted) return `<div class="warn"><div class="row"><div class="col"><span class="code" style="text-decoration:line-through;opacity:.45">${esc(warning.barcode)}</span></div><span class="tag-del">已删除</span></div></div>`;
     if (warning.corrected) return `<div class="warn"><div class="row"><div class="col"><span class="code" style="text-decoration:line-through;opacity:.45">${esc(warning.barcode)}</span></div><span class="tag-ok">已校正为 ${esc(warning.new_barcode || "")}</span></div></div>`;
-    return `<div class="warn" id="bc_${index}"><div class="row"><div class="col"><span class="code">${esc(warning.barcode)}</span><span class="sub">长度 ${warning.length} 位，正常长度 ${warning.normal} 位</span></div><div class="actions"><button class="btn-s bc" onclick="showBc(${index})">校正</button><button class="btn-s bd" onclick="delBc('${jesc(warning.barcode)}',${index})">删除</button><button class="btn-s bi" onclick="ignoreBc(${index})">忽略</button></div></div><div class="form" id="bcf_${index}"><input id="bci_${index}" placeholder="输入正确条码"><button class="btn-s bf" onclick="submitBc('${jesc(warning.barcode)}',${index})">确认</button><button class="btn-s cx" onclick="hideBc(${index})">取消</button></div></div>`;
+    return `<div class="warn" id="bc_${index}"><div class="row"><div class="col"><span class="code">${esc(warning.barcode)}</span><span class="sub">长度 ${warning.length} 位，正常长度 ${warning.normal} 位</span></div><div class="actions"><button class="btn-s is-warn" onclick="showBc(${index})">校正</button><button class="btn-s is-danger" onclick="delBc('${jesc(warning.barcode)}',${index})">删除</button><button class="btn-s is-ghost" onclick="ignoreBc(${index})">忽略</button></div></div><div class="form" id="bcf_${index}"><input id="bci_${index}" placeholder="输入正确条码"><button class="btn-s is-warn-solid" onclick="submitBc('${jesc(warning.barcode)}',${index})">确认</button><button class="btn-s is-ghost-strong" onclick="hideBc(${index})">取消</button></div></div>`;
   }).join("");
 }
 
@@ -27,15 +27,15 @@ function renderLocs(items) {
   if (!items.length) return '<div class="empty">暂无库位异常</div>';
   return items.map((warning, index) => {
     if (warning.corrected) return `<div class="warn"><div class="row"><div class="col"><span class="code loc" style="text-decoration:line-through;opacity:.45">${esc(warning.location)}</span></div><span class="tag-ok">已校正为 ${esc(warning.new_location || "")}</span></div></div>`;
-    return `<div class="warn"><div class="row"><div class="col"><span class="code loc">${esc(warning.location)}</span><span class="sub">库位格式不符合要求，请手工校正</span></div><div class="actions"><button class="btn-s bc" onclick="showLoc(${index})">校正库位</button></div></div><div class="form" id="lf_${index}"><input id="li_${index}" placeholder="输入正确库位，例如 A01"><button class="btn-s bf" onclick="submitLoc('${jesc(warning.location)}',${index})">确认</button><button class="btn-s cx" onclick="hideLoc(${index})">取消</button></div></div>`;
+    return `<div class="warn"><div class="row"><div class="col"><span class="code loc">${esc(warning.location)}</span><span class="sub">库位格式不符合要求，请手工校正</span></div><div class="actions"><button class="btn-s is-warn" onclick="showLoc(${index})">校正库位</button></div></div><div class="form" id="lf_${index}"><input id="li_${index}" placeholder="输入正确库位，例如 A01"><button class="btn-s is-warn-solid" onclick="submitLoc('${jesc(warning.location)}',${index})">确认</button><button class="btn-s is-ghost-strong" onclick="hideLoc(${index})">取消</button></div></div>`;
   }).join("");
 }
 
 function renderNew(items) {
   if (!items.length) return "";
-  const header = `<div class="warn"><div class="row"><div class="col"><span class="sub">以下条码未在 stockpile 中找到，可校正、删除或保留后继续：</span></div><div class="actions"><button class="btn-s bc" id="nbcopyall" onclick="copyAllNewBc()">一键复制</button></div></div></div>`;
+  const header = `<div class="warn"><div class="row"><div class="col"><span class="sub">以下条码未在 stockpile 中找到，可校正、删除或保留后继续：</span></div><div class="actions"><button class="btn-s is-warn" id="nbcopyall" onclick="copyAllNewBc()">一键复制</button></div></div></div>`;
   return header + items.map((barcode, index) =>
-    `<div class="warn" id="nb_${index}"><div class="row"><div class="col"><span class="code">${esc(barcode)}</span></div><div class="actions"><button class="btn-s bc" onclick="showNbEdit(${index})">校正</button><button class="btn-s bd" onclick="delNewBc('${jesc(barcode)}',${index})">删除</button></div></div><div class="form" id="nbf_${index}" style="display:none"><input id="nbi_${index}" placeholder="输入正确条码"><button class="btn-s bf" onclick="submitNewBc('${jesc(barcode)}',${index})">确认</button><button class="btn-s cx" onclick="hideNbEdit(${index})">取消</button></div></div>`
+    `<div class="warn" id="nb_${index}"><div class="row"><div class="col"><span class="code">${esc(barcode)}</span></div><div class="actions"><button class="btn-s is-warn" onclick="showNbEdit(${index})">校正</button><button class="btn-s is-danger" onclick="delNewBc('${jesc(barcode)}',${index})">删除</button></div></div><div class="form" id="nbf_${index}" style="display:none"><input id="nbi_${index}" placeholder="输入正确条码"><button class="btn-s is-warn-solid" onclick="submitNewBc('${jesc(barcode)}',${index})">确认</button><button class="btn-s is-ghost-strong" onclick="hideNbEdit(${index})">取消</button></div></div>`
   ).join("");
 }
 
@@ -56,7 +56,7 @@ async function submitNewBc(oldBarcode, index) {
   const input = $("#nbi_" + index);
   const newBarcode = input.value.trim();
   if (!newBarcode) { input.focus(); return; }
-  const button = document.querySelector(`#nbf_${index} .bf`);
+  const button = document.querySelector(`#nbf_${index} .is-warn-solid`);
   button.disabled = true; button.textContent = "提交中...";
   try {
     const data = await postJSON("/correct", { old_barcode: oldBarcode, new_barcode: newBarcode });
@@ -67,7 +67,7 @@ async function submitNewBc(oldBarcode, index) {
 }
 
 async function delNewBc(barcode, index) {
-  const button = document.querySelector(`#nb_${index} .bd`);
+  const button = document.querySelector(`#nb_${index} .is-danger`);
   button.disabled = true; button.textContent = "删除中...";
   try {
     const data = await postJSON("/delete_barcode", { barcode });
@@ -112,7 +112,7 @@ function renderUnknownPrefixCard(warning) {
   const key = barcode.replace(/\W/g, "_");
   const inputId = `exli_${key}`;
   const buttonId = `exlf_${key}`;
-  return `<div class="warn"><div class="row"><div class="col"><span class="code">${esc(barcode)}</span><span class="sub" style="color:#fbbf24">${esc(warning.reason)}</span></div></div><div class="actions" style="margin-top:8px"><input id="${inputId}" class="inp" placeholder="填写正确库位" /><button id="${buttonId}" class="btn-s bf" onclick="submitExLoc('${jesc(barcode)}','${inputId}','${buttonId}')">提交新库位</button><button class="btn-s bd" onclick="resolveEx('${jesc(barcode)}','ignore')">删除</button></div></div>`;
+  return `<div class="warn"><div class="row"><div class="col"><span class="code">${esc(barcode)}</span><span class="sub" style="color:#fbbf24">${esc(warning.reason)}</span></div></div><div class="actions" style="margin-top:8px"><input id="${inputId}" class="inp" placeholder="填写正确库位" /><button id="${buttonId}" class="btn-s is-warn-solid" onclick="submitExLoc('${jesc(barcode)}','${inputId}','${buttonId}')">提交新库位</button><button class="btn-s is-danger" onclick="resolveEx('${jesc(barcode)}','ignore')">删除</button></div></div>`;
 }
 
 function renderP2Warnings(items) {
@@ -122,7 +122,7 @@ function renderP2Warnings(items) {
       if (warning.resolved) return `<div class="warn"><div class="row"><div class="col"><span class="code" style="text-decoration:line-through;opacity:.45">${esc(warning.barcode)}</span><span class="sub">${esc(warning.reason)}</span></div><span class="${warning.resolution === "ignore" ? "tag-del" : "tag-ok"}">${warning.resolution === "ignore" ? "已忽略" : "已选 " + esc(warning.resolution)}</span></div></div>`;
       if (warning.reason === "multi_location") return renderDupCard(warning);
       if (isUnknownPrefixWarning(warning)) return renderUnknownPrefixCard(warning);
-      return `<div class="warn"><div class="row"><div class="col"><span class="code">${esc(warning.barcode)}</span><span class="sub">${esc(warning.reason)}</span></div><div class="actions">${(warning.locations || []).map((loc) => `<button class="btn-s bc" onclick="resolveEx('${jesc(warning.barcode)}','${jesc(loc)}')">选 ${esc(loc)}</button>`).join("")}<button class="btn-s bd" onclick="resolveEx('${jesc(warning.barcode)}','ignore')">忽略</button></div></div></div>`;
+      return `<div class="warn"><div class="row"><div class="col"><span class="code">${esc(warning.barcode)}</span><span class="sub">${esc(warning.reason)}</span></div><div class="actions">${(warning.locations || []).map((loc) => `<button class="btn-s is-warn" onclick="resolveEx('${jesc(warning.barcode)}','${jesc(loc)}')">选 ${esc(loc)}</button>`).join("")}<button class="btn-s is-danger" onclick="resolveEx('${jesc(warning.barcode)}','ignore')">忽略</button></div></div></div>`;
     }).join("");
 }
 
@@ -167,7 +167,7 @@ async function resolveEx(barcode, resolution) {
 initDup({ resolveEx });
 
 async function delBc(barcode, index) {
-  const button = document.querySelector(`#bc_${index} .bd`);
+  const button = document.querySelector(`#bc_${index} .is-danger`);
   button.disabled = true; button.textContent = "删除中...";
   try {
     const data = await postJSON("/delete_barcode", { barcode });
@@ -181,7 +181,7 @@ async function submitBc(oldBarcode, index) {
   const input = $("#bci_" + index);
   const newBarcode = input.value.trim();
   if (!newBarcode) { input.focus(); return; }
-  const button = document.querySelector(`#bcf_${index} .bf`);
+  const button = document.querySelector(`#bcf_${index} .is-warn-solid`);
   button.disabled = true; button.textContent = "提交中...";
   try {
     const data = await postJSON("/correct", { old_barcode: oldBarcode, new_barcode: newBarcode });
@@ -195,7 +195,7 @@ async function submitLoc(oldLocation, index) {
   const input = $("#li_" + index);
   const newLocation = input.value.trim();
   if (!newLocation) { input.focus(); return; }
-  const button = document.querySelector(`#lf_${index} .bf`);
+  const button = document.querySelector(`#lf_${index} .is-warn-solid`);
   button.disabled = true; button.textContent = "提交中...";
   try {
     const data = await postJSON("/correct_location", { old_location: oldLocation, new_location: newLocation });

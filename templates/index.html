@@ -6,6 +6,7 @@
 <title>A端 - 双端处理</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/purchase.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/attendance.css') }}">
@@ -24,13 +25,13 @@
         <div class="panel"><div class="panel-hd">文件上传与处理</div><div class="panel-bd">
           <div class="drop" id="drop"><input type="file" id="fileInput" multiple accept=".xlsx,.csv"><div>拖入文件或点击选择</div><div class="hint">支持扫描文件 .xlsx、系统 stockpile .csv、模板 .csv</div></div>
           <div class="files" id="files"></div>
-          <button class="btn u" id="upload" disabled>上传文件</button>
-          <button class="btn r" id="run" disabled>开始处理</button>
-          <button class="btn c" id="cont">继续处理</button>
-          <button class="btn d" id="download">下载结果</button>
-          <button class="btn m" id="copyModels">复制所有型号</button>
-          <button class="btn m" id="copyModelsAll" style="display:none">复制所有型号（含重复）</button>
-          <button class="btn x" id="reset">清空界面，准备下一批</button>
+          <button class="btn btn-secondary" id="upload" disabled>上传文件</button>
+          <button class="btn btn-primary" id="run" disabled>开始处理</button>
+          <button class="btn btn-warning" id="cont">继续处理</button>
+          <button class="btn btn-success" id="download">下载结果</button>
+          <button class="btn btn-info" id="copyModels">复制所有型号</button>
+          <button class="btn btn-info" id="copyModelsAll" style="display:none">复制所有型号（含重复）</button>
+          <button class="btn btn-ghost" id="reset">清空界面，准备下一批</button>
            <div class="status" id="status">请先上传文件</div>
          </div></div>
 
@@ -38,12 +39,12 @@
            <div class="stockpile-status" id="spStatus" style="margin-bottom:8px;color:#666">检查中...</div>
            <div style="display:flex;gap:8px;flex-wrap:wrap">
              <div class="drop" id="spInitDrop" style="flex:1;min-width:200px"><input type="file" id="spInitInput" accept=".xlsx,.csv"><div>拖入系统导出文件初始化数据库</div></div>
-             <button class="btn u" id="spInitBtn" disabled>初始化</button>
+             <button class="btn btn-secondary" id="spInitBtn" disabled>初始化</button>
            </div>
            <div id="spInitMsg" style="margin-top:4px;font-size:12px;color:#999"></div>
            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
              <div class="drop" id="spCmpDrop" style="flex:1;min-width:200px"><input type="file" id="spCmpInput" accept=".xlsx,.csv"><div>拖入系统导出文件进行月度比对</div></div>
-             <button class="btn u" id="spCmpBtn" disabled>比对</button>
+             <button class="btn btn-secondary" id="spCmpBtn" disabled>比对</button>
            </div>
             <div id="spCmpRes" style="margin-top:8px;font-size:12px"></div>
             <div style="margin-top:8px">
