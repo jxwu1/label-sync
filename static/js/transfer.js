@@ -60,7 +60,7 @@ export async function deleteTransferFile(filename) {
 }
 
 export function renderTransferItems(items, options = {}) {
-  const { showDelete = true, cssClass = { file: "tf", name: "tname", size: "ts", download: "tdl", delete: "tdel" } } = options;
+  const { showDelete = true, cssClass = { file: "transfer-file", name: "transfer-file__name", size: "transfer-file__size", download: "transfer-file__dl", delete: "tdel" } } = options;
   if (!items || !items.length) {
     return `<div class="empty">暂无</div>`;
   }

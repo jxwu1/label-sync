@@ -1,0 +1,41 @@
+/* ========== Page: 重复检查 ========== */
+.dup-top {
+  border: 2px dashed var(--c-border);
+  border-radius: var(--r-md);
+  padding: 28px;
+  text-align: center;
+  cursor: pointer;
+}
+.dup-top:hover, .dup-top.drag {
+  border-color: var(--c-accent);
+  background: #1e1b4b22;
+}
+.dup-top input { display: none; }
+.dup-res { margin-top: 14px; overflow: auto; }
+
+.sum {
+  font-size: var(--fs-base);
+  color: var(--c-text-muted);
+  margin-bottom: var(--sp-3);
+  padding: 10px 14px;
+  background: var(--c-surface-elev);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+}
+.sum .hl { color: var(--c-danger); font-weight: 700; }
+.sum .ok { color: var(--c-success); font-weight: 700; }
+
+table { width: 100%; border-collapse: collapse; font-size: var(--fs-base); }
+th {
+  text-align: left;
+  padding: 8px 12px;
+  background: var(--c-surface-elev);
+  color: var(--c-text-dim);
+  font-size: var(--fs-sm);
+  border-bottom: 1px solid var(--c-border);
+}
+td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--c-surface-elev);
+  color: var(--c-text-mute2);
+}
