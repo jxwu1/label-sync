@@ -264,3 +264,24 @@
   border-radius: 3px;
   margin: 0 2px;
 }
+
+/* ========== Warning card ========== */
+.warn { padding: 10px 0; border-bottom: 1px solid var(--c-border); }
+.warn:last-child { border-bottom: none; }
+
+/* ========== Stockpile compare inline edit ========== */
+.sp-mismatch-row { font-size: var(--fs-md); padding: 2px 0; }
+.sp-edit-btn {
+  font-size: var(--fs-sm);
+  padding: 1px 6px;
+  margin-left: 4px;
+  cursor: pointer;
+  background: #1e2433;
+  border: 1px solid var(--c-border);
+  color: var(--c-text-muted);
+  border-radius: 3px;
+}
+.sp-edit-btn:hover { background: var(--c-border); color: #fff; }
+.sp-edit-btn.saved { background: var(--c-success-bg); border-color: #22c55e; color: var(--c-success); }
+.sp-edit-btn.err { background: var(--c-danger-bg); border-color: #ef4444; color: var(--c-danger); }
+.sp-edit-btn.sp-saving { background: var(--c-info-bg); border-color: #3b82f6; color: var(--c-info); }

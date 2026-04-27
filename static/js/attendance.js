@@ -28,10 +28,10 @@
         </div>
         <div id="attnGridWrap"></div>
       </div>
-      <div class="pur-modal-overlay" id="attnSpecialOverlay" style="display:none;">
+      <div class="pur-modal-overlay attn-hidden" id="attnSpecialOverlay">
         <div class="pur-modal">
           <div class="pur-modal-hd">特殊日管理（缩短工时）</div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <div class="attn-time-row">
             <input class="attn-inp" id="attnSpecialDate" type="date">
             <input class="attn-inp" id="attnSpecialStart" type="text" placeholder="09:30" maxlength="5">
             <span>—</span>
@@ -44,17 +44,17 @@
           </div>
         </div>
       </div>
-      <div class="pur-modal-overlay" id="attnLeaveOverlay" style="display:none;">
+      <div class="pur-modal-overlay attn-hidden" id="attnLeaveOverlay">
         <div class="pur-modal">
           <div class="pur-modal-hd">请假 <span id="attnLeaveDate"></span></div>
-          <div style="display:flex;flex-direction:column;gap:10px;">
+          <div class="attn-stack">
             <label><input type="radio" name="attnLeaveType" value="full" checked> 全天</label>
             <label><input type="radio" name="attnLeaveType" value="range"> 离开后回来：
-              <input class="attn-inp" id="attnLeaveStart" type="text" placeholder="HH:MM" maxlength="5" style="width:70px;"> —
-              <input class="attn-inp" id="attnLeaveEnd" type="text" placeholder="HH:MM" maxlength="5" style="width:70px;">
+              <input class="attn-inp attn-narrow" id="attnLeaveStart" type="text" placeholder="HH:MM" maxlength="5"> —
+              <input class="attn-inp attn-narrow" id="attnLeaveEnd" type="text" placeholder="HH:MM" maxlength="5">
             </label>
             <label><input type="radio" name="attnLeaveType" value="left"> 离开未回来：
-              <input class="attn-inp" id="attnLeaveLeftStart" type="text" placeholder="HH:MM" maxlength="5" style="width:70px;">
+              <input class="attn-inp attn-narrow" id="attnLeaveLeftStart" type="text" placeholder="HH:MM" maxlength="5">
             </label>
           </div>
           <div class="pur-modal-actions">
@@ -63,10 +63,10 @@
           </div>
         </div>
       </div>
-      <div class="pur-modal-overlay" id="attnHolidayOverlay" style="display:none;">
+      <div class="pur-modal-overlay attn-hidden" id="attnHolidayOverlay">
         <div class="pur-modal">
           <div class="pur-modal-hd">节假日管理</div>
-          <div style="display:flex;gap:8px;align-items:center;">
+          <div class="attn-time-row">
             <input class="attn-inp" id="attnHolidayInput" type="date">
             <button class="attn-btn attn-btn-dl" id="attnHolidayAdd">添加</button>
           </div>
@@ -168,18 +168,18 @@
   async function loadMonth() {
     const wrap = document.getElementById('attnGridWrap');
     if (!currentEmployeeId || !currentMonth) {
-      wrap.innerHTML = '<div style="color:#64748b;padding:20px;">请先选择员工和月份</div>';
+      wrap.innerHTML = '<div class="attn-empty-msg">请先选择员工和月份</div>';
       updateStats(null);
       return;
     }
     try {
       const res = await fetch(`/attendance/month/${currentEmployeeId}/${currentMonth}`);
       const body = await res.json();
-      if (!body.ok) { wrap.innerHTML = `<div style="color:#fca5a5;">${body.msg}</div>`; return; }
+      if (!body.ok) { wrap.innerHTML = `<div class="attn-error-msg">${body.msg}</div>`; return; }
       currentSummary = body;
       renderGrid(body.detail);
       updateStats(body);
-    } catch (e) { wrap.innerHTML = `<div style="color:#fca5a5;">加载失败：${e.message}</div>`; }
+    } catch (e) { wrap.innerHTML = `<div class="attn-error-msg">加载失败：${e.message}</div>`; }
   }
 
   function renderGrid(detail) {

@@ -18,7 +18,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
         <div class="hint">供应商：第1列条码/型号 · 第3列价格 · 第6列数量</div>
       </div>
       <div class="pur-results" id="purResults"><div class="empty">上传文件后显示结果</div></div>
-      <div class="pur-newbox" id="purNewBox" style="display:none">
+      <div class="pur-newbox pur-hidden" id="purNewBox">
         <div class="pur-newbox-hd">新条码处理 <button class="pur-new-copy-all" id="purNewCopyAll">复制全部条码</button></div>
         <div class="pur-supplier">
           供应商 ID: <input class="pur-inp" id="purSupId" placeholder="必填">
@@ -32,7 +32,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
         <button class="pur-btn-dl" id="purImport" disabled>一键入库</button>
         <button class="pur-btn-dl" id="purDl" disabled>下载全部</button>
       </div>
-      <div class="pur-modal-overlay" id="purModalOverlay" style="display:none">
+      <div class="pur-modal-overlay pur-hidden" id="purModalOverlay">
         <div class="pur-modal">
           <div class="pur-modal-title">记录到月度总结</div>
           <label>供应商名称<input class="pur-inp" id="purMsSupplier" placeholder="必填"></label>
@@ -58,7 +58,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
           <button class="pur-btn-dl" id="purSumDl">下载 PDF</button>
         </div>
       </div>
-      <div class="pur-modal-overlay" id="purMgrOverlay" style="display:none;">
+      <div class="pur-modal-overlay pur-hidden" id="purMgrOverlay">
         <div class="pur-modal">
           <div class="pur-modal-hd">月度记录管理 <span id="purMgrMonth"></span></div>
           <input class="pur-inp" id="purMgrSearch" placeholder="搜索供应商/日期/金额">
@@ -155,8 +155,8 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
   function renderNewBox() {
     const box = document.getElementById('purNewBox');
     const list = document.getElementById('purNewList');
-    if (!newEntries.length) { box.style.display = 'none'; updateButtons(); return; }
-    box.style.display = '';
+    if (!newEntries.length) { box.classList.add('pur-hidden'); updateButtons(); return; }
+    box.classList.remove('pur-hidden');
     list.innerHTML = newEntries.map((e, i) => `
       <div class="pur-new-row" data-i="${i}">
         <span class="pur-new-bc">${escapeHtml(e.barcode)}</span>
