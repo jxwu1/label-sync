@@ -8,6 +8,7 @@ import pandas as pd
 
 from config import CONFIG
 from file_io import read_csv
+import stockpile_db
 
 INPUT_DIR = CONFIG.input_dir
 OUTPUT_DIR = CONFIG.output_dir
@@ -135,6 +136,18 @@ def main() -> int:
     print(f"TEMPLATE {template_path.name}")
 
     package_dir = write_output_package(employee_name, template_path, results)
+
+    synced = 0
+    for item in results:
+        barcode = item.get("barcode", item["model"])
+        stockpile_db.insert_or_update(
+            barcode,
+            item["model"],
+            item["location"],
+            source=stockpile_db.Source.SCAN_IMPORT,
+        )
+        synced += 1
+    print(f"STOCKPILE_SYNC {synced}")
 
     print(f"MATCHED {len(results) - len(new_barcodes)}")
     print(f"NEW {len(new_barcodes)}")
