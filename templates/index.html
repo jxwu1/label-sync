@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/purchase.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/attendance.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/terminal-log.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/transfer-drawer.css') }}">
 </head>
 <body>
 <div class="app-header"><button class="btn-mini" id="hamb">☰</button><div class="app-header__title">A端 - 双端处理</div><span class="badge badge-idle" id="badge">空闲</span></div>
@@ -119,19 +120,38 @@
       <div class="page" id="pagePurchase"></div>
       <div class="page" id="pageAttendance"></div>
     </div>
-    <div class="transfer">
-      <div class="tt">文件互传</div>
-      <div class="t-drop" id="tDrop"><input type="file" id="tInput" multiple><div>拖入或点击，发送文件给 B 端</div></div>
-      <div class="msg" id="tMsg"></div>
-      <div class="tt">B 端共享文件</div>
-      <div id="tList"><div class="empty">暂无</div></div>
-      <div class="tt">文字互传</div>
-      <textarea class="txt" id="textInput" rows="3" placeholder="输入消息，发送给 B 端（Ctrl+Enter）"></textarea>
-      <div class="ta"><button class="tb" id="copyText">复制</button><button class="tsend" id="sendText">发送</button></div>
-      <div class="list" id="msgList"><div class="empty">暂无消息</div></div>
-    </div>
   </div>
 </div>
+<button class="transfer-fab" id="transferFab" type="button">
+  <span>📨 文件互传</span>
+  <span class="transfer-fab__dot" id="transferFabDot"></span>
+</button>
+
+<aside class="transfer-drawer" id="transferDrawer">
+  <div class="transfer-drawer__head">
+    <span class="transfer-drawer__title">文件互传</span>
+    <button class="transfer-drawer__close" id="transferDrawerClose" type="button">关闭</button>
+  </div>
+
+  <div class="section-label">发送文件给 B 端</div>
+  <div class="t-drop" id="tDrop">
+    <input type="file" id="tInput" multiple>
+    <div>拖入或点击，发送文件给 B 端</div>
+  </div>
+  <div class="msg" id="tMsg"></div>
+
+  <div class="section-label">B 端共享文件</div>
+  <div id="tList"><div class="empty">暂无</div></div>
+
+  <div class="section-label">文字互传</div>
+  <textarea class="text-msg-input" id="textInput" rows="3" placeholder="输入消息，发送给 B 端（Ctrl+Enter）"></textarea>
+  <div class="text-msg-actions">
+    <button class="text-msg-btn" id="copyText" type="button">复制</button>
+    <button class="text-msg-send" id="sendText" type="button">发送</button>
+  </div>
+  <div class="message-list" id="msgList"><div class="empty">暂无消息</div></div>
+</aside>
+
 <button class="term-fab" id="termFab" type="button">
   <span>▸ 终端日志</span>
   <span class="term-fab__count" id="termFabCount">0</span>

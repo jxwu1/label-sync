@@ -29,11 +29,11 @@ export function renderMessages(messages, selfSender = "A") {
   }
   const selfLabel = selfSender === "A" ? "我（A）" : "我（B）";
   const otherLabel = selfSender === "A" ? "B 端" : "A 端";
-  const selfClass = selfSender === "A" ? "self" : "from-self";
+  const selfClass = selfSender === "A" ? "is-self" : "from-self";
   return messages
     .map((message) => {
       const isSelf = message.sender === selfSender;
-      return `<div class="mi${isSelf ? " " + selfClass : ""}"><div class="mh"><span class="ms">${isSelf ? selfLabel : otherLabel}</span><span><span class="mt">${esc(message.time)}</span><button class="md" onclick="delMsg(${message.id})">×</button></span></div><div class="mb">${esc(message.text)}</div></div>`;
+      return `<div class="message${isSelf ? " " + selfClass : ""}"><div class="message__head"><span class="message__source">${isSelf ? selfLabel : otherLabel}</span><span><span class="message__time">${esc(message.time)}</span><button class="message__del" onclick="delMsg(${message.id})">×</button></span></div><div class="message__body">${esc(message.text)}</div></div>`;
     })
     .join("");
 }
