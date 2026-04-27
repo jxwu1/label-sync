@@ -23,7 +23,7 @@
 .btn-warning:hover:not(:disabled) { background: #9a3412; }
 
 .btn-success { background: #059669; color: #fff; display: none; }
-.btn-success:hover { background: #047857; }
+.btn-success:hover:not(:disabled) { background: #047857; }
 
 .btn-info { background: #0e7490; color: #fff; display: none; }
 .btn-info:hover:not(:disabled) { background: #0c6578; }

@@ -112,7 +112,7 @@ function renderUnknownPrefixCard(warning) {
   const key = barcode.replace(/\W/g, "_");
   const inputId = `exli_${key}`;
   const buttonId = `exlf_${key}`;
-  return `<div class="warn"><div class="row"><div class="col"><span class="code">${esc(barcode)}</span><span class="sub text-warn-amber">${esc(warning.reason)}</span></div></div><div class="actions u-mt-2"><input id="${inputId}" class="inp" placeholder="填写正确库位" /><button id="${buttonId}" class="btn-s is-warn-solid" onclick="submitExLoc('${jesc(barcode)}','${inputId}','${buttonId}')">提交新库位</button><button class="btn-s is-danger" onclick="resolveEx('${jesc(barcode)}','ignore')">删除</button></div></div>`;
+  return `<div class="warn"><div class="row"><div class="col"><span class="code">${esc(barcode)}</span><span class="sub text-warn-amber">${esc(warning.reason)}</span></div></div><div class="actions u-mt-2"><input id="${inputId}" class="form-input-text" placeholder="填写正确库位" /><button id="${buttonId}" class="btn-s is-warn-solid" onclick="submitExLoc('${jesc(barcode)}','${inputId}','${buttonId}')">提交新库位</button><button class="btn-s is-danger" onclick="resolveEx('${jesc(barcode)}','ignore')">删除</button></div></div>`;
 }
 
 function renderP2Warnings(items) {
