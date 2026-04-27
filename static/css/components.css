@@ -213,3 +213,54 @@
   box-sizing: border-box;
 }
 .form-input-text:focus { border-color: var(--c-accent); }
+
+/* ========== Utilities ========== */
+.u-mt-1 { margin-top: var(--sp-1); }
+.u-mt-2 { margin-top: var(--sp-2); }
+.u-mb-1 { margin-bottom: var(--sp-1); }
+.u-gap-2 { gap: var(--sp-2); }
+
+/* ========== Source badges (dup card) ========== */
+.src-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: var(--fs-sm);
+  margin-left: 4px;
+  color: #fff;
+  font-weight: 500;
+}
+.src-badge--both { background: var(--c-accent-hover); }
+.src-badge--stockpile { background: #6b7280; }
+.src-badge--scan { background: #059669; }
+
+/* ========== Selected button state (dup card pick) ========== */
+.btn-s.is-warn.is-selected { background: #c2410c; color: #fff; }
+.btn-s.is-success.is-selected { background: #047857; color: #fff; }
+
+/* ========== Struck-through code (deleted / corrected items) ========== */
+.code--struck { text-decoration: line-through; opacity: .45; }
+
+/* ========== Contextual text colours ========== */
+.text-warn-amber { color: var(--c-warn); }
+.text-danger-light { color: #f87171; }
+.text-danger-bright { color: #c62828; }
+.text-success-bright { color: #2e7d32; }
+.text-only-local { color: #e65100; }
+.text-only-export { color: #1565c0; }
+.text-dim-gray { color: #4a5568; }
+.text-muted-faint { color: #999; }
+
+/* ========== State modifiers (stockpile status messages) ========== */
+.is-success { color: #2e7d32; }
+.is-error { color: #c62828; }
+
+/* ========== Inline edit input (stockpile compare row) ========== */
+.sp-edit-input {
+  width: 80px;
+  padding: 2px 4px;
+  font-size: 12px;
+  border: 1px solid #1976d2;
+  border-radius: 3px;
+  margin: 0 2px;
+}

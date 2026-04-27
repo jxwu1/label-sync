@@ -17,9 +17,9 @@ function dedupeWithSources(stockpileLocs, scanLocs) {
 }
 
 function badgeFor(sourceSet) {
-  if (sourceSet.has("stockpile") && sourceSet.has("scan")) return '<span style="background:#4338ca;color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;margin-left:4px">两者</span>';
-  if (sourceSet.has("stockpile")) return '<span style="background:#6b7280;color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;margin-left:4px">原库位</span>';
-  return '<span style="background:#059669;color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;margin-left:4px">扫描</span>';
+  if (sourceSet.has("stockpile") && sourceSet.has("scan")) return '<span class="src-badge src-badge--both">两者</span>';
+  if (sourceSet.has("stockpile")) return '<span class="src-badge src-badge--stockpile">原库位</span>';
+  return '<span class="src-badge src-badge--scan">扫描</span>';
 }
 
 function effectiveSingle(side) {
@@ -62,8 +62,7 @@ function dupHighlight(barcode, type) {
     const loc = button.dataset.loc;
     const isKeep = loc === KEEP_ALL;
     const active = isKeep ? allSelected : (chosen && chosen.has(loc));
-    button.style.background = active ? (isKeep ? "#047857" : "#c2410c") : "transparent";
-    button.style.color = active ? "#fff" : "#fb923c";
+    button.classList.toggle("is-selected", active);
   });
 }
 
@@ -103,16 +102,16 @@ function renderDupSide(barcode, key, type, side, label, keepLabel) {
   if (side.uniques.length === 0) return "";
   if (side.uniques.length === 1) {
     const loc = side.uniques[0];
-    return `<span class="sub">${label}：<span class="loc">${esc(loc)}</span>${badgeFor(side.sources[loc])} <span style="color:#4a5568">（自动保留）</span></span>`;
+    return `<span class="sub">${label}：<span class="loc">${esc(loc)}</span>${badgeFor(side.sources[loc])} <span class="text-dim-gray">（自动保留）</span></span>`;
   }
   const chosen = (p2DupSel[barcode] || {})[type];
   const btns = side.uniques.map((loc) => {
     const selected = chosen && chosen.has(loc);
-    return `<button class="btn-s is-warn dpbtn-${type}-${key}" data-loc="${esc(loc)}" style="${selected ? "background:#c2410c;color:#fff" : ""}" onclick="toggleDupLoc('${jesc(barcode)}','${type}','${jesc(loc)}')">${esc(loc)}${badgeFor(side.sources[loc])}</button>`;
+    return `<button class="btn-s is-warn dpbtn-${type}-${key}${selected ? " is-selected" : ""}" data-loc="${esc(loc)}" onclick="toggleDupLoc('${jesc(barcode)}','${type}','${jesc(loc)}')">${esc(loc)}${badgeFor(side.sources[loc])}</button>`;
   }).join("");
   const allSelected = chosen && chosen.size === side.uniques.length;
-  const keepBtn = `<button class="btn-s is-success dpbtn-${type}-${key}" data-loc="${KEEP_ALL}" style="${allSelected ? "background:#047857;color:#fff" : ""}" onclick="keepAllDupLoc('${jesc(barcode)}','${type}')">${keepLabel}</button>`;
-  return `<div><div class="sub" style="margin-bottom:4px">选择${label}库位：</div><div class="actions">${btns}${keepBtn}</div></div>`;
+  const keepBtn = `<button class="btn-s is-success dpbtn-${type}-${key}${allSelected ? " is-selected" : ""}" data-loc="${KEEP_ALL}" onclick="keepAllDupLoc('${jesc(barcode)}','${type}')">${keepLabel}</button>`;
+  return `<div><div class="sub u-mb-1">选择${label}库位：</div><div class="actions">${btns}${keepBtn}</div></div>`;
 }
 
 export function renderDupCard(warning) {
@@ -124,7 +123,7 @@ export function renderDupCard(warning) {
   const storeHtml = renderDupSide(barcode, key, "store", storeSide, "店面", "保留全部店面");
   const warehouseHtml = renderDupSide(barcode, key, "warehouse", warehouseSide, "仓库", "保留全部仓库");
   setTimeout(() => dupTryResolve(barcode), 0);
-  return `<div class="warn"><div class="row"><div class="col"><span class="code">${esc(barcode)}</span><span class="sub" style="color:#fbbf24">多库位冲突，请手动选择</span></div></div><div class="col" style="gap:8px;margin-top:8px">${storeHtml}${warehouseHtml}</div><div class="actions" style="margin-top:8px"><button class="btn-s is-warn-solid" id="dpconf_${key}" disabled onclick="confirmDupLoc('${jesc(barcode)}')">确认选择</button></div></div>`;
+  return `<div class="warn"><div class="row"><div class="col"><span class="code">${esc(barcode)}</span><span class="sub text-warn-amber">多库位冲突，请手动选择</span></div></div><div class="col u-gap-2 u-mt-2">${storeHtml}${warehouseHtml}</div><div class="actions u-mt-2"><button class="btn-s is-warn-solid" id="dpconf_${key}" disabled onclick="confirmDupLoc('${jesc(barcode)}')">确认选择</button></div></div>`;
 }
 
 window.toggleDupLoc = toggleDupLoc;

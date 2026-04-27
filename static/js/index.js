@@ -145,11 +145,11 @@ async function runDup(file) {
   const formData = new FormData(); formData.append("file", file);
   try {
     const data = await (await fetch("/check_dup", { method: "POST", body: formData })).json();
-    if (!data.ok) { dupRes.innerHTML = `<div class="empty" style="color:#f87171">错误：${esc(data.msg)}</div>`; term("检查失败：" + data.msg, "log-err", "dc"); return; }
+    if (!data.ok) { dupRes.innerHTML = `<div class="empty text-danger-light">错误：${esc(data.msg)}</div>`; term("检查失败：" + data.msg, "log-err", "dc"); return; }
     if (data.dup_count === 0) { dupRes.innerHTML = `<div class="sum">列名：<b>${esc(data.column)}</b> | 总条数：<b>${data.total}</b> | <span class="ok">无重复</span></div>`; term("重复检查完成：无重复", "log-ok", "dc"); return; }
     dupRes.innerHTML = `<div class="sum">列名：<b>${esc(data.column)}</b> | 总条数：<b>${data.total}</b> | 重复值：<span class="hl">${data.dup_count}</span></div><table><thead><tr><th>值</th><th>出现次数</th><th>行号</th></tr></thead><tbody>${data.duplicates.map((i) => `<tr><td>${esc(i.value)}</td><td>${i.count}</td><td>${i.rows.join(", ")}</td></tr>`).join("")}</tbody></table>`;
     term("重复检查完成：发现 " + data.dup_count + " 个重复值", "log-warn", "dc");
-  } catch (e) { dupRes.innerHTML = `<div class="empty" style="color:#f87171">请求失败：${esc(String(e))}</div>`; term("请求失败：" + e, "log-err", "dc"); }
+  } catch (e) { dupRes.innerHTML = `<div class="empty text-danger-light">请求失败：${esc(String(e))}</div>`; term("请求失败：" + e, "log-err", "dc"); }
 }
 
 function setupTransferZone() { setupDropZone($("#tDrop"), $("#tInput"), async (files) => { await uploadTransferFiles(files, $("#tMsg")); loadTransferUI(); }); }

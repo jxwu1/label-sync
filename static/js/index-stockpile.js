@@ -48,7 +48,7 @@ export function initStockpile() {
       const inp = document.createElement('input');
       inp.type = 'text';
       inp.value = curLoc;
-      inp.style.cssText = 'width:80px;padding:2px 4px;font-size:12px;border:1px solid #1976d2;border-radius:3px;margin:0 2px';
+      inp.className = 'sp-edit-input';
       span.replaceWith(inp);
       btn.textContent = '保存';
       btn.classList.add('sp-saving');
@@ -195,15 +195,15 @@ export function initStockpile() {
           const data = await res.json();
           if (data.ok) {
               spInitMsg.textContent = '导入成功，共 ' + data.count + ' 条记录';
-              spInitMsg.style.color = '#2e7d32';
+              spInitMsg.classList.remove('is-error'); spInitMsg.classList.add('is-success');
               refreshSpStatus();
           } else {
               spInitMsg.textContent = '导入失败：' + data.msg;
-              spInitMsg.style.color = '#c62828';
+              spInitMsg.classList.remove('is-success'); spInitMsg.classList.add('is-error');
           }
       } catch (e) {
           spInitMsg.textContent = '网络错误';
-          spInitMsg.style.color = '#c62828';
+          spInitMsg.classList.remove('is-success'); spInitMsg.classList.add('is-error');
       }
       spInitBtn.disabled = false;
       spInitBtn.textContent = '初始化';
@@ -225,11 +225,11 @@ export function initStockpile() {
               const d = data.diff;
               let html = '<b>比对结果：</b><br>';
               html += '本地记录：' + d.total_local + ' &nbsp; 导出记录：' + d.total_export + ' &nbsp; 一致：' + d.consistent + '<br>';
-              if (d.only_in_local.length) html += '<span style="color:#e65100">仅本地有：' + esc(d.only_in_local.join(', ')) + '</span><br>';
-              if (d.only_in_export.length) html += '<span style="color:#1565c0">仅导出有：' + esc(d.only_in_export.join(', ')) + '</span><br>';
+              if (d.only_in_local.length) html += '<span class="text-only-local">仅本地有：' + esc(d.only_in_local.join(', ')) + '</span><br>';
+              if (d.only_in_export.length) html += '<span class="text-only-export">仅导出有：' + esc(d.only_in_export.join(', ')) + '</span><br>';
               if (d.mismatches.length) {
                   cmpMismatches = d.mismatches;
-                  html += '<span style="color:#c62828">不一致条数：' + d.mismatches.length;
+                  html += '<span class="text-danger-bright">不一致条数：' + d.mismatches.length;
                   html += ' <button class="sp-edit-btn" id="spOverwriteBtn">一键覆盖全部库位</button></span><br>';
                   let showCount = Math.min(d.mismatches.length, 20);
                   for (let i = 0; i < showCount; i++) {
@@ -243,14 +243,14 @@ export function initStockpile() {
                   if (d.mismatches.length > 20) html += '<br>...等共' + d.mismatches.length + '条';
               }
               if (!d.only_in_local.length && !d.only_in_export.length && !d.mismatches.length) {
-                  html += '<b style="color:#2e7d32">完全一致</b>';
+                  html += '<b class="text-success-bright">完全一致</b>';
               }
               spCmpRes.innerHTML = html;
           } else {
-              spCmpRes.innerHTML = '<span style="color:#c62828">比对失败：' + esc(data.msg || '') + '</span>';
+              spCmpRes.innerHTML = '<span class="text-danger-bright">比对失败：' + esc(data.msg || '') + '</span>';
           }
       } catch (e) {
-          spCmpRes.innerHTML = '<span style="color:#c62828">网络错误</span>';
+          spCmpRes.innerHTML = '<span class="text-danger-bright">网络错误</span>';
       }
       spCmpBtn.disabled = false;
       spCmpBtn.textContent = '比对';
@@ -262,14 +262,14 @@ export function initStockpile() {
           const data = await res.json();
           if (data.initialized) {
               spStatus.textContent = '状态：已初始化，共 ' + data.count + ' 条记录';
-              spStatus.style.color = '#2e7d32';
+              spStatus.classList.remove('is-error', 'text-muted-faint'); spStatus.classList.add('is-success');
           } else {
               spStatus.textContent = '状态：未初始化，请先上传系统导出文件';
-              spStatus.style.color = '#c62828';
+              spStatus.classList.remove('is-success', 'text-muted-faint'); spStatus.classList.add('is-error');
           }
       } catch (e) {
           spStatus.textContent = '状态：检查失败';
-          spStatus.style.color = '#999';
+          spStatus.classList.remove('is-success', 'is-error'); spStatus.classList.add('text-muted-faint');
       }
   }
 
@@ -289,16 +289,16 @@ export function initStockpile() {
   });
 
   async function doSearch(q) {
-      spSearchRes.innerHTML = '<span style="color:#999">搜索中...</span>';
+      spSearchRes.innerHTML = '<span class="text-muted-faint">搜索中...</span>';
       try {
           const res = await fetch('/stockpile/search?q=' + encodeURIComponent(q));
           const data = await res.json();
           if (!data.ok) {
-              spSearchRes.innerHTML = '<span style="color:#c62828">' + esc(data.msg) + '</span>';
+              spSearchRes.innerHTML = '<span class="text-danger-bright">' + esc(data.msg) + '</span>';
               return;
           }
           if (!data.records.length) {
-              spSearchRes.innerHTML = '<span style="color:#999">无匹配结果</span>';
+              spSearchRes.innerHTML = '<span class="text-muted-faint">无匹配结果</span>';
               return;
           }
           let html = '<b>找到 ' + data.count + ' 条：</b><br>';
@@ -307,7 +307,7 @@ export function initStockpile() {
           ).join('<br>');
           spSearchRes.innerHTML = html;
       } catch (e) {
-          spSearchRes.innerHTML = '<span style="color:#c62828">网络错误</span>';
+          spSearchRes.innerHTML = '<span class="text-danger-bright">网络错误</span>';
       }
   }
 
