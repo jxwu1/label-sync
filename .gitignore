@@ -27,6 +27,7 @@ stockpile.db-shm
 
 # Local-only throwaway scripts
 _bench_csv.py
+_bench_stockpile.py
 
 # Secrets
 .env

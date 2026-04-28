@@ -41,6 +41,12 @@ Stockpile = Base.classes.stockpile
 StockpileChange = Base.classes.stockpile_changes
 SchemaMeta = Base.classes.schema_meta
 
+# SQLite 把 INTEGER PRIMARY KEY AUTOINCREMENT 列反射成 nullable=True，
+# 这会触发 SQLAlchemy 2.0 的 sentinel-column 检查并抛 InvalidRequestError。
+# 显式标 NOT NULL，与实际 schema 一致（PK 不可为 NULL）。
+for _cls in (Stockpile, StockpileChange):
+    _cls.__table__.c.id.nullable = False
+
 _SessionFactory = sessionmaker(bind=_engine, future=True, expire_on_commit=False)
 
 
