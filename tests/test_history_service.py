@@ -148,3 +148,30 @@ def test_aggregate_orders_events_desc_by_time(memdb):
     events = history_service.aggregate_events(bc)
     assert len(events) == 3
     assert events[0]["at"] > events[1]["at"] > events[2]["at"]
+
+
+def test_build_response_found(memdb):
+    import history_service
+    _insert_stockpile(
+        memdb,
+        product_barcode="5828079100248",
+        product_model="10024",
+        stockpile_location="A22-04-04",
+        is_active=1,
+        source="scan_import",
+    )
+    _insert_change(memdb, "5828079100248", "stockpile_location", "X", "A22-04-04", "update", "2026-04-27 10:00:00")
+    resp = history_service.build_response("10024")
+    assert resp["found"] is True
+    assert resp["current"]["barcode"] == "5828079100248"
+    assert len(resp["events"]) == 1
+    # source 注入：events[i]["source"] 应等于 current.source
+    assert resp["events"][0]["source"] == "scan_import"
+
+
+def test_build_response_not_found(memdb):
+    import history_service
+    resp = history_service.build_response("nope")
+    assert resp["found"] is False
+    assert "current" not in resp
+    assert "events" not in resp

@@ -103,3 +103,19 @@ def aggregate_events(barcode: str) -> list[dict]:
     if current is not None:
         events.append(current)
     return events
+
+
+def build_response(query: str) -> dict:
+    """供 routes_history.py 直接 jsonify 的顶层结构。
+
+    found=False  →  { "found": False }
+    found=True   →  { "found": True, "current": {...}, "events": [...] }
+    """
+    record = find_record(query)
+    if record is None:
+        return {"found": False}
+    events = aggregate_events(record["barcode"])
+    # source 来自主表，注入到每个事件方便前端显示
+    for e in events:
+        e["source"] = record["source"]
+    return {"found": True, "current": record, "events": events}
