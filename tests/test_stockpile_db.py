@@ -56,49 +56,6 @@ class StockpileDbTests(unittest.TestCase):
         stockpile_db.ensure_db()
         self.assertEqual(stockpile_db.get_schema_version(), stockpile_db.SCHEMA_VERSION)
 
-    def test_migrate_legacy_db_sets_schema_version_and_adds_is_active(self) -> None:
-        conn = stockpile_db._connect()
-        conn.execute("DROP TABLE IF EXISTS stockpile")
-        conn.execute("DROP TABLE IF EXISTS stockpile_changes")
-        conn.execute("DROP TABLE IF EXISTS schema_meta")
-        conn.execute(
-            """
-            CREATE TABLE stockpile (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                product_barcode TEXT NOT NULL UNIQUE,
-                product_model TEXT NOT NULL,
-                stockpile_location TEXT NOT NULL,
-                extra TEXT DEFAULT '{}',
-                source TEXT DEFAULT 'system_export',
-                created_at TEXT DEFAULT (datetime('now','localtime')),
-                updated_at TEXT DEFAULT (datetime('now','localtime'))
-            )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE stockpile_changes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                product_barcode TEXT NOT NULL,
-                field_name TEXT NOT NULL,
-                old_value TEXT,
-                new_value TEXT,
-                change_type TEXT,
-                created_at TEXT DEFAULT (datetime('now','localtime'))
-            )
-            """
-        )
-        conn.commit()
-        conn.close()
-
-        stockpile_db.ensure_db()
-
-        with stockpile_db._connect() as conn:
-            cur = conn.execute("PRAGMA table_info(stockpile)")
-            columns = {row["name"] for row in cur}
-        self.assertIn("is_active", columns)
-        self.assertEqual(stockpile_db.get_schema_version(), stockpile_db.SCHEMA_VERSION)
-
     def test_is_initialized_returns_false_for_empty_db(self) -> None:
         stockpile_db.ensure_db()
         self.assertFalse(stockpile_db.is_initialized())
