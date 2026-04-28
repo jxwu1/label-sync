@@ -16,15 +16,17 @@
           <button class="attn-btn attn-btn-danger" id="attnEmpDel">删除员工</button>
           <button class="attn-btn" id="attnHolidays">节假日</button>
           <button class="attn-btn" id="attnSpecial">特殊日</button>
+          <span class="attn-spacer"></span>
+          <button class="attn-btn" id="attnFillAll">一键填全月正常</button>
           <button class="attn-btn attn-btn-dl" id="attnPdf">下载 PDF</button>
           <button class="attn-btn attn-btn-dl" id="attnPayrollPdf">下载工资单 PDF</button>
         </div>
         <div class="attn-stats">
-          <span>累计 <b id="attnWorked">0</b> 天</span>
-          <span>缺勤 <b id="attnAbsent">0</b> 天</span>
-          <span>总工作日 <b id="attnTotal">0</b></span>
-          <span>本月天数 <b id="attnMonthDays">0</b></span>
-          <span>请假 <b id="attnLeaveH">0</b> 小时（约 <b id="attnLeaveD">0</b> 天）</span>
+          <div class="attn-stat"><div class="attn-stat-k">累计</div><div class="attn-stat-v"><span id="attnWorked">0</span> <small>天</small></div></div>
+          <div class="attn-stat"><div class="attn-stat-k">缺勤</div><div class="attn-stat-v"><span id="attnAbsent">0</span> <small>天</small></div></div>
+          <div class="attn-stat"><div class="attn-stat-k">总工作日</div><div class="attn-stat-v" id="attnTotal">0</div></div>
+          <div class="attn-stat"><div class="attn-stat-k">本月天数</div><div class="attn-stat-v" id="attnMonthDays">0</div></div>
+          <div class="attn-stat"><div class="attn-stat-k">请假</div><div class="attn-stat-v"><span id="attnLeaveH">0</span> <small>h ≈ <span id="attnLeaveD">0</span> 天</small></div></div>
         </div>
         <div id="attnGridWrap"></div>
       </div>
@@ -97,6 +99,7 @@
     document.getElementById('attnLeaveCancel').addEventListener('click', () => {
       document.getElementById('attnLeaveOverlay').style.display = 'none';
     });
+    document.getElementById('attnFillAll').addEventListener('click', fillAllNormal);
 
     document.getElementById('attnMonth').value = new Date().toISOString().slice(0, 7);
     currentMonth = document.getElementById('attnMonth').value;
