@@ -1,4 +1,6 @@
 flask
 pandas
 openpyxl
+python-calamine
+pyarrow
 reportlab

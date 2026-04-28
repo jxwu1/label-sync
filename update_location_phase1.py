@@ -30,7 +30,7 @@ def collect_location_map(scan_files: list[Path]) -> dict[str, list[str]]:
     for scan_file in scan_files:
         print(f"READ {scan_file.name}")
         try:
-            dataframe = pd.read_excel(scan_file, header=None, dtype=str)
+            dataframe = pd.read_excel(scan_file, header=None, dtype=str, engine="calamine")
             values = dataframe.iloc[:, 0].dropna().astype(str).str.strip()
         except Exception as exc:
             print(f"SKIP {scan_file.name}: {exc}")

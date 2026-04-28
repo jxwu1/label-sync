@@ -74,7 +74,7 @@ class PurchaseRow:
 
 
 def parse_purchase_excel(file_bytes: bytes) -> list[PurchaseRow]:
-    df = pd.read_excel(io.BytesIO(file_bytes), header=0, dtype=str)
+    df = pd.read_excel(io.BytesIO(file_bytes), header=0, dtype=str, engine="calamine")
     rows = []
     for _, row in df.iterrows():
         barcode = str(row.iloc[_SUPPLIER_BARCODE_COL]).strip()
