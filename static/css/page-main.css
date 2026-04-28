@@ -2,7 +2,7 @@
 #pageMain.active {
   grid-template-columns: 1fr 340px;
   grid-template-rows: auto 1fr;
-  height: calc(100vh - 84px);
+  height: 100%;
 }
 
 /* 顶部 action bar 跨两列 */
@@ -32,7 +32,7 @@
 .stockpile-search-results { max-height: 200px; overflow-y: auto; margin-top: 6px; }
 
 /* ========== Page: 重复检查 ========== */
-#pageDup.active { grid-template-columns: 1fr; height: calc(100vh - 84px); }
+#pageDup.active { grid-template-columns: 1fr; height: 100%; }
 
 @media (max-width: 1100px) {
   #pageMain.active { grid-template-columns: 1fr; }
