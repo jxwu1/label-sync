@@ -1,9 +1,9 @@
-"""
-SQLAlchemy ORM 映射层（automap 反射现有 stockpile.db）。
+"""SQLAlchemy 声明式 ORM 模型层。
 
-阶段 1.0 准备文件：本模块只做反射 + 引擎工厂，不引入业务逻辑。
-后续阶段会用本模块导出的 Stockpile / StockpileChange 类替换 stockpile_db.py
-里 raw sqlite3 + 字符串 SQL 的实现。
+阶段 1.0 起步用了 automap_base 反射现有 stockpile.db，导致 import 时强依赖
+DB 存在，与测试 fixture 冲突（fixture 在 import 前已 patch CONFIG 指向空目录）。
+1.2 阶段切回声明式：schema 写在代码里，与 stockpile_db._SCHEMA 字符串保持手动一致。
+1.3 阶段会删 _SCHEMA，由 Alembic 用本模块的 metadata 自动 autogenerate。
 
 使用方式：
     from models import Stockpile, StockpileChange, get_session
@@ -13,12 +13,11 @@ SQLAlchemy ORM 映射层（automap 反射现有 stockpile.db）。
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Iterator
+from typing import Iterator, Optional
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import Integer, String, create_engine, event
 from sqlalchemy.engine import Engine
-from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 from config import CONFIG
 
@@ -34,18 +33,42 @@ def _enable_wal(dbapi_conn, _) -> None:
     cursor.close()
 
 
-Base = automap_base()
-Base.prepare(autoload_with=_engine)
+class Base(DeclarativeBase):
+    pass
 
-Stockpile = Base.classes.stockpile
-StockpileChange = Base.classes.stockpile_changes
-SchemaMeta = Base.classes.schema_meta
 
-# SQLite 把 INTEGER PRIMARY KEY AUTOINCREMENT 列反射成 nullable=True，
-# 这会触发 SQLAlchemy 2.0 的 sentinel-column 检查并抛 InvalidRequestError。
-# 显式标 NOT NULL，与实际 schema 一致（PK 不可为 NULL）。
-for _cls in (Stockpile, StockpileChange):
-    _cls.__table__.c.id.nullable = False
+class Stockpile(Base):
+    __tablename__ = "stockpile"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    product_barcode: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    product_model: Mapped[str] = mapped_column(String, nullable=False)
+    stockpile_location: Mapped[str] = mapped_column(String, nullable=False)
+    is_active: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    extra: Mapped[Optional[str]] = mapped_column(String, default="{}")
+    source: Mapped[Optional[str]] = mapped_column(String, default="system_export")
+    created_at: Mapped[Optional[str]] = mapped_column(String)
+    updated_at: Mapped[Optional[str]] = mapped_column(String)
+
+
+class StockpileChange(Base):
+    __tablename__ = "stockpile_changes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    product_barcode: Mapped[str] = mapped_column(String, nullable=False)
+    field_name: Mapped[str] = mapped_column(String, nullable=False)
+    old_value: Mapped[Optional[str]] = mapped_column(String)
+    new_value: Mapped[Optional[str]] = mapped_column(String)
+    change_type: Mapped[Optional[str]] = mapped_column(String)
+    created_at: Mapped[Optional[str]] = mapped_column(String)
+
+
+class SchemaMeta(Base):
+    __tablename__ = "schema_meta"
+
+    key: Mapped[str] = mapped_column(String, primary_key=True)
+    value: Mapped[str] = mapped_column(String, nullable=False)
+
 
 _SessionFactory = sessionmaker(bind=_engine, future=True, expire_on_commit=False)
 
