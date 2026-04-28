@@ -212,3 +212,85 @@ def test_route_history_not_found(memdb):
     assert resp.status_code == 200
     body = resp.get_json()
     assert body["found"] is False
+
+
+# ===== split_location 单测：纯函数，无需 fixture =====
+
+def test_split_location_empty():
+    import history_service
+    assert history_service.split_location("") == {"stores": [], "warehouses": []}
+    assert history_service.split_location(None) == {"stores": [], "warehouses": []}
+
+
+def test_split_location_store_only():
+    import history_service
+    assert history_service.split_location("A22-04-04") == {
+        "stores": ["A22-04-04"], "warehouses": []
+    }
+
+
+def test_split_location_warehouse_only():
+    import history_service
+    assert history_service.split_location("X11-02") == {
+        "stores": [], "warehouses": ["X11-02"]
+    }
+
+
+def test_split_location_store_plus_warehouse():
+    import history_service
+    assert history_service.split_location("A22-04-04/X11-02") == {
+        "stores": ["A22-04-04"], "warehouses": ["X11-02"]
+    }
+
+
+def test_split_location_multi_store_future_compat():
+    """阶段 1.5 schema 改造后可能出现的多段——展示层提前兼容。"""
+    import history_service
+    assert history_service.split_location("A22/B13/X11") == {
+        "stores": ["A22", "B13"], "warehouses": ["X11"]
+    }
+
+
+def test_split_location_unknown_prefix_dropped():
+    """异常数据不让 UI 崩，未知前缀静默丢弃。"""
+    import history_service
+    assert history_service.split_location("A22/Q99/X11") == {
+        "stores": ["A22"], "warehouses": ["X11"]
+    }
+
+
+# ===== build_response 注入拆分字段 =====
+
+def test_build_response_injects_split_into_current(memdb):
+    import history_service
+    _insert_stockpile(
+        memdb,
+        product_barcode="BC1",
+        product_model="M1",
+        stockpile_location="A22-04-04/X11-02",
+        is_active=1,
+        source="scan_import",
+    )
+    resp = history_service.build_response("BC1")
+    assert resp["current"]["location"] == "A22-04-04/X11-02"  # 原字段保留
+    assert resp["current"]["store_locations"] == ["A22-04-04"]
+    assert resp["current"]["warehouse_locations"] == ["X11-02"]
+
+
+def test_build_response_injects_split_into_location_changes(memdb):
+    import history_service
+    _insert_stockpile(memdb, product_barcode="BC2", product_model="M2",
+                      stockpile_location="A22/X11", is_active=1, source="scan_import")
+    _insert_change(memdb, "BC2", "stockpile_location", "A22", "A22/X11",
+                   "update", "2026-04-27 10:00:00")
+    _insert_change(memdb, "BC2", "product_model", "M0", "M2",
+                   "update", "2026-04-27 10:00:00")
+    resp = history_service.build_response("BC2")
+    changes = resp["events"][0]["changes"]
+    loc_change = next(c for c in changes if c["field"] == "stockpile_location")
+    model_change = next(c for c in changes if c["field"] == "product_model")
+    assert loc_change["old_split"] == {"stores": ["A22"], "warehouses": []}
+    assert loc_change["new_split"] == {"stores": ["A22"], "warehouses": ["X11"]}
+    # 非 location 的 change 不该被注入 split
+    assert "old_split" not in model_change
+    assert "new_split" not in model_change

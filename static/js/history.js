@@ -46,11 +46,14 @@ function renderResult(data) {
   $("historyTimelinePanel").hidden = false;
 
   const c = data.current;
+  const stores = (c.store_locations || []).map(escapeHtml).join(", ") || '<span class="empty-val">—</span>';
+  const warehouses = (c.warehouse_locations || []).map(escapeHtml).join(", ") || '<span class="empty-val">—</span>';
   $("historyCurrent").innerHTML = `
     <div class="kv-grid">
       <div><span class="k">型号</span><span class="v">${escapeHtml(c.model)}</span></div>
       <div><span class="k">条码</span><span class="v">${escapeHtml(c.barcode)}</span></div>
-      <div><span class="k">库位</span><span class="v">${escapeHtml(c.location) || '<span class="empty-val">空</span>'}</span></div>
+      <div><span class="k">店面位置</span><span class="v">${stores}</span></div>
+      <div><span class="k">仓库位置</span><span class="v">${warehouses}</span></div>
       <div><span class="k">状态</span><span class="v">${c.is_active ? "在架" : "下架"}</span></div>
       <div><span class="k">来源</span><span class="v">${escapeHtml(SOURCE_CN[c.source] || c.source)}</span></div>
       <div><span class="k">最后更新</span><span class="v">${escapeHtml(c.updated_at)}</span></div>

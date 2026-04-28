@@ -10,6 +10,39 @@ import stockpile_db
 
 _AGGREGATE_WINDOW_SECONDS = 5
 
+# 当前 schema 下：A/B/C 开头是店面，X/Z 开头是仓库
+# 写成多段兼容：未来 schema 改造支持 "A22/B13/X11" 时无需改动展示层
+_STORE_PREFIXES = {"A", "B", "C"}
+_WAREHOUSE_PREFIXES = {"X", "Z"}
+
+
+def split_location(loc_str: Optional[str]) -> dict:
+    """把 stockpile_location 字符串拆成 {stores, warehouses}。
+
+    支持任意段数：
+        ""               → {"stores": [], "warehouses": []}
+        "A22-04-04"      → {"stores": ["A22-04-04"], "warehouses": []}
+        "X11-02"         → {"stores": [], "warehouses": ["X11-02"]}
+        "A22/X11"        → {"stores": ["A22"], "warehouses": ["X11"]}
+        "A22/B13/X11"    → {"stores": ["A22","B13"], "warehouses": ["X11"]}
+
+    未知前缀的段默默丢弃，避免异常数据让 UI 崩。
+    """
+    if not loc_str:
+        return {"stores": [], "warehouses": []}
+    stores: list[str] = []
+    warehouses: list[str] = []
+    for part in loc_str.split("/"):
+        part = part.strip()
+        if not part:
+            continue
+        prefix = part[:1].upper()
+        if prefix in _STORE_PREFIXES:
+            stores.append(part)
+        elif prefix in _WAREHOUSE_PREFIXES:
+            warehouses.append(part)
+    return {"stores": stores, "warehouses": warehouses}
+
 
 def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(str(stockpile_db.DB_PATH))
@@ -114,8 +147,19 @@ def build_response(query: str) -> dict:
     record = find_record(query)
     if record is None:
         return {"found": False}
+
+    # 当前状态：把 location 拆成店面/仓库列表
+    split = split_location(record["location"])
+    record["store_locations"] = split["stores"]
+    record["warehouse_locations"] = split["warehouses"]
+
     events = aggregate_events(record["barcode"])
-    # source 来自主表，注入到每个事件方便前端显示
     for e in events:
+        # source 来自主表，注入到每个事件方便前端显示
         e["source"] = record["source"]
+        # 库位变更行：拆 old/new
+        for ch in e["changes"]:
+            if ch["field"] == "stockpile_location":
+                ch["old_split"] = split_location(ch["old"])
+                ch["new_split"] = split_location(ch["new"])
     return {"found": True, "current": record, "events": events}
