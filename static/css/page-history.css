@@ -1,12 +1,14 @@
 /* ========== Page: 货号历史（filing-cabinet 主题） ========== */
 
 #pageHistory.active {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-4, 16px);
+  display: block;
+  overflow: auto;
+  height: calc(100vh - 122px);
   padding: var(--sp-5, 20px) var(--sp-6, 24px);
-  height: 100%;
-  overflow-y: auto;
+}
+
+#pageHistory .panel + .panel {
+  margin-top: var(--sp-4, 16px);
 }
 
 /* ===== 搜索行 ===== */
