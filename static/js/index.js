@@ -24,6 +24,8 @@ function renderLog() {
     void count.offsetWidth;
     count.classList.add("is-pulse");
   }
+  const qCount = $("#quickTermCount");
+  if (qCount) qCount.textContent = String(logs.length);
 }
 function clearLog() { logs = []; renderLog(); } window.clearLog = clearLog;
 
@@ -204,7 +206,26 @@ $("#termClose")?.addEventListener("click", () => {
 $("#transferFab")?.addEventListener("click", () => {
   $("#transferDrawer").classList.toggle("is-open");
   $("#transferFabDot").classList.remove("is-on");
+  $("#quickTransferDot")?.classList.remove("is-on");
 });
 $("#transferDrawerClose")?.addEventListener("click", () => {
   $("#transferDrawer").classList.remove("is-open");
+});
+
+// ========== 右下角汉堡菜单 ==========
+$("#quickToggle")?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  $("#quickMenu")?.classList.toggle("is-open");
+});
+$("#quickTransfer")?.addEventListener("click", () => {
+  $("#transferFab")?.click();
+  $("#quickMenu")?.classList.remove("is-open");
+});
+$("#quickTerm")?.addEventListener("click", () => {
+  $("#termFab")?.click();
+  $("#quickMenu")?.classList.remove("is-open");
+});
+document.addEventListener("click", (e) => {
+  const m = $("#quickMenu");
+  if (m && !m.contains(e.target)) m.classList.remove("is-open");
 });

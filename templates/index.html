@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-attendance.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/terminal-log.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/transfer-drawer.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/quickmenu.css') }}">
 </head>
 <body>
 <div class="app-layout">
@@ -167,6 +168,22 @@
   </div>
   <div class="terminal-log__body" id="tbod">
     <span class="log-dim">等待操作</span>
+  </div>
+</div>
+
+<div class="quickmenu" id="quickMenu">
+  <button class="quickmenu__toggle" id="quickToggle" type="button" title="工具菜单" aria-label="工具菜单">≡</button>
+  <div class="quickmenu__panel">
+    <button class="quickmenu__item" id="quickTransfer" type="button">
+      <span>📨</span>
+      <span>文件互传</span>
+      <span class="quickmenu__item-dot" id="quickTransferDot"></span>
+    </button>
+    <button class="quickmenu__item" id="quickTerm" type="button">
+      <span>▸</span>
+      <span>终端日志</span>
+      <span class="quickmenu__item-count" id="quickTermCount">0</span>
+    </button>
   </div>
 </div>
 
