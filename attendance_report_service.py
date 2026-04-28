@@ -211,61 +211,55 @@ def build_payroll_pdf(month: str) -> bytes:
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=landscape(A4),
-        topMargin=10 * mm, bottomMargin=10 * mm,
-        leftMargin=12 * mm, rightMargin=12 * mm,
+        topMargin=14 * mm, bottomMargin=14 * mm,
+        leftMargin=14 * mm, rightMargin=14 * mm,
     )
-    styles = getSampleStyleSheet()
-    title_style = styles["Title"].clone("payroll_title")
-    title_style.fontName = _FONT_NAME
-    title_style.fontSize = 16
-    title_style.spaceAfter = 4
-    name_style = styles["Normal"].clone("payroll_name")
-    name_style.fontName = _FONT_NAME
-    name_style.fontSize = 10
 
     elements = [
-        Paragraph(f"{month} 月度工资单", title_style),
-        Spacer(1, 3 * mm),
+        _make_title_paragraph(f"{month} 月度工资单", _FONT_NAME),
+        _make_meta_paragraph(f"共 {len(employees)} 名员工 · 实际/应付工资请手填", _FONT_NAME),
     ]
 
     if not employees:
-        empty = styles["Normal"].clone("payroll_empty")
+        empty = getSampleStyleSheet()["Normal"].clone("payroll_empty")
         empty.fontName = _FONT_NAME
         elements.append(Paragraph("暂无员工", empty))
-    else:
-        rows = [_PAYROLL_HEADER]
-        for idx, emp in enumerate(employees, start=1):
-            s = attendance_service.compute_summary(emp["id"], month)
-            leave_h = s.get("leave_hours_total", 0)
-            leave_d = s.get("leave_days_equivalent", 0)
-            leave_text = f"{leave_h:.2f} 小时\n(约 {leave_d:.2f} 天)" if leave_h else "—"
-            rows.append([
-                Paragraph(f"{idx}. {emp['name']}", name_style),
-                f"{s['month_days']}",
-                f"{s['total_workdays']}",
-                f"{s['absent_days']}",
-                leave_text,
-                f"{s['worked_days']}",
-                "",
-                "",
-            ])
-        # 横版 A4 可用宽 ~273mm
-        col_widths = [38 * mm, 25 * mm, 25 * mm, 25 * mm, 25 * mm, 25 * mm, 35 * mm, 35 * mm]
-        table = Table(rows, colWidths=col_widths)
-        table.setStyle(TableStyle([
-            ("FONTNAME", (0, 0), (-1, -1), _FONT_NAME),
-            ("FONTSIZE", (0, 0), (-1, -1), 10),
-            ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
-            ("BACKGROUND", (0, 0), (-1, 0), colors.Color(0.9, 0.9, 0.9)),
-            ("ALIGN", (1, 1), (-1, -1), "CENTER"),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.Color(0.97, 0.97, 0.97)]),
-            ("LEFTPADDING", (0, 0), (-1, -1), 5),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-            ("TOPPADDING", (0, 0), (-1, -1), 5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ]))
-        elements.append(table)
+        doc.build(elements)
+        return buf.getvalue()
+
+    name_style = getSampleStyleSheet()["Normal"].clone("payroll_name")
+    name_style.fontName = _FONT_NAME
+    name_style.fontSize = 10
+
+    rows = [_PAYROLL_HEADER]
+    for idx, emp in enumerate(employees, start=1):
+        s = attendance_service.compute_summary(emp["id"], month)
+        leave_h = s.get("leave_hours_total", 0)
+        leave_d = s.get("leave_days_equivalent", 0)
+        leave_text = f"{leave_h:.2f}h (≈{leave_d:.2f}d)" if leave_h else "—"
+        rows.append([
+            Paragraph(f"{idx}. {emp['name']}", name_style),
+            f"{s['month_days']}",
+            f"{s['total_workdays']}",
+            f"{s['absent_days']}",
+            leave_text,
+            f"{s['worked_days']}",
+            "",  # 实际工资（横线由 TableStyle 画）
+            "",  # 应付工资
+        ])
+
+    col_widths = [40 * mm, 22 * mm, 24 * mm, 22 * mm, 30 * mm, 22 * mm, 50 * mm, 50 * mm]
+    table = Table(rows, colWidths=col_widths)
+    style = _minimal_table_style(_FONT_NAME, header_row=0, font_size=10)
+    # 列对齐：员工 左；数字列 右；请假 中；工资栏 中
+    style.add("ALIGN", (1, 0), (5, -1), "RIGHT")
+    style.add("ALIGN", (4, 0), (4, -1), "CENTER")
+    style.add("ALIGN", (6, 0), (-1, -1), "CENTER")
+    # 工资栏（最后两列）的数据行加 0.5pt 横线占位
+    for row_idx in range(1, len(rows)):
+        style.add("LINEBELOW", (6, row_idx), (-1, row_idx), 0.5, _C_HEAD)
+    table.setStyle(style)
+    elements.append(table)
 
     doc.build(elements)
     return buf.getvalue()
