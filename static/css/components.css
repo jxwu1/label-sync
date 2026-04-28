@@ -13,8 +13,8 @@
 }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 
-.btn-secondary { background: #2d3148; color: #fff; }
-.btn-secondary:hover:not(:disabled) { background: #374162; }
+.btn-secondary { background: var(--c-accent); color: #fff; }
+.btn-secondary:hover:not(:disabled) { background: var(--c-accent-hover); }
 
 .btn-primary { background: var(--c-accent); color: #fff; }
 .btn-primary:hover:not(:disabled) { background: var(--c-accent-hover); }
@@ -29,7 +29,7 @@
 .btn-info:hover:not(:disabled) { background: #0c6578; }
 
 .btn-ghost { background: var(--c-surface-deep); color: var(--c-text-muted); border: 1px solid var(--c-border); display: none; }
-.btn-ghost:hover { background: var(--c-border); color: #fff; }
+.btn-ghost:hover { background: var(--c-accent); color: #fff; border-color: var(--c-accent); }
 
 /* ========== Small buttons (.btn-s) ========== */
 .btn-s {
@@ -44,24 +44,24 @@
 .btn-s.is-danger { border: 1px solid var(--c-danger-border); background: transparent; color: var(--c-danger); }
 .btn-s.is-danger:hover { background: var(--c-danger-bg); }
 .btn-s.is-ghost { border: 1px solid var(--c-text-faint); background: transparent; color: var(--c-text-muted); }
-.btn-s.is-ghost:hover { background: #1e2433; color: #fff; }
+.btn-s.is-ghost:hover { background: var(--c-accent); color: #fff; border-color: var(--c-accent); }
 .btn-s.is-warn-solid { border: none; background: #c2410c; color: #fff; }
 .btn-s.is-warn-solid:hover { background: #9a3412; }
 .btn-s.is-success { border: 1px solid #059669; background: transparent; color: var(--c-success); }
 .btn-s.is-success:hover { background: var(--c-success-bg); }
 .btn-s.is-ghost-strong { border: 1px solid var(--c-border); background: transparent; color: var(--c-text-muted); }
-.btn-s.is-ghost-strong:hover { background: var(--c-border); color: #fff; }
+.btn-s.is-ghost-strong:hover { background: var(--c-accent); color: #fff; border-color: var(--c-accent); }
 
 /* ========== Mini button (header) ========== */
 .btn-mini {
-  background: #1e2433;
+  background: var(--c-surface-deep);
   border: 1px solid var(--c-border);
   color: var(--c-text-muted);
   border-radius: var(--r-md);
   padding: 6px 10px;
   cursor: pointer;
 }
-.btn-mini:hover { background: var(--c-border); color: #fff; }
+.btn-mini:hover { background: var(--c-accent); color: #fff; border-color: var(--c-accent); }
 .btn-mini.active { background: var(--c-accent-soft); border-color: var(--c-accent); color: var(--c-accent-fg); }
 
 /* ========== Panel ========== */
@@ -109,7 +109,7 @@
 .t-drop { padding: var(--sp-3); margin-bottom: var(--sp-2); }
 .drop:hover, .drop.drag, .t-drop:hover, .t-drop.drag {
   border-color: var(--c-accent);
-  background: #1e1b4b22;
+  background: var(--c-accent-soft);
 }
 .drop input, .t-drop input { display: none; }
 .hint { font-size: var(--fs-sm); color: var(--c-text-faint); margin-top: var(--sp-1); }
@@ -189,7 +189,7 @@
   background: var(--c-surface-deep);
   border: 1px solid var(--c-warn-strong);
   border-radius: var(--r-sm);
-  color: #fff;
+  color: var(--c-text);
   outline: none;
 }
 
@@ -276,12 +276,12 @@
   padding: 1px 6px;
   margin-left: 4px;
   cursor: pointer;
-  background: #1e2433;
+  background: var(--c-surface-deep);
   border: 1px solid var(--c-border);
   color: var(--c-text-muted);
   border-radius: 3px;
 }
-.sp-edit-btn:hover { background: var(--c-border); color: #fff; }
+.sp-edit-btn:hover { background: var(--c-accent); color: #fff; border-color: var(--c-accent); }
 .sp-edit-btn.saved { background: var(--c-success-bg); border-color: #22c55e; color: var(--c-success); }
 .sp-edit-btn.err { background: var(--c-danger-bg); border-color: #ef4444; color: var(--c-danger); }
 .sp-edit-btn.sp-saving { background: var(--c-info-bg); border-color: #3b82f6; color: var(--c-info); }
