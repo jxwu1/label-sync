@@ -1,9 +1,9 @@
-"""SQLAlchemy 声明式 ORM 模型层。
+"""SQLAlchemy 声明式 ORM 模型层（schema 单源）。
 
-阶段 1.0 起步用了 automap_base 反射现有 stockpile.db，导致 import 时强依赖
-DB 存在，与测试 fixture 冲突（fixture 在 import 前已 patch CONFIG 指向空目录）。
-1.2 阶段切回声明式：schema 写在代码里，与 stockpile_db._SCHEMA 字符串保持手动一致。
-1.3 阶段会删 _SCHEMA，由 Alembic 用本模块的 metadata 自动 autogenerate。
+阶段 1.3 起：本模块的 Base.metadata 是 schema 唯一来源。
+- stockpile_db._SCHEMA / _ensure_schema / _migrate_schema 已删除
+- ensure_db() 通过 Base.metadata.create_all(engine) 建表，幂等
+- 新增字段直接改 ORM 类 + alembic revision --autogenerate
 
 使用方式：
     from models import Stockpile, StockpileChange, get_session
@@ -15,7 +15,14 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import Iterator, Optional
 
-from sqlalchemy import Integer, String, create_engine, event
+from sqlalchemy import (
+    Index,
+    Integer,
+    Text,
+    create_engine,
+    event,
+    text,
+)
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
@@ -39,35 +46,50 @@ class Base(DeclarativeBase):
 
 class Stockpile(Base):
     __tablename__ = "stockpile"
+    __table_args__ = (
+        Index("idx_stockpile_barcode", "product_barcode"),
+        Index("idx_stockpile_active", "is_active"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    product_barcode: Mapped[str] = mapped_column(String, nullable=False, unique=True)
-    product_model: Mapped[str] = mapped_column(String, nullable=False)
-    stockpile_location: Mapped[str] = mapped_column(String, nullable=False)
-    is_active: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    extra: Mapped[Optional[str]] = mapped_column(String, default="{}")
-    source: Mapped[Optional[str]] = mapped_column(String, default="system_export")
-    created_at: Mapped[Optional[str]] = mapped_column(String)
-    updated_at: Mapped[Optional[str]] = mapped_column(String)
+    product_barcode: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    product_model: Mapped[str] = mapped_column(Text, nullable=False)
+    stockpile_location: Mapped[str] = mapped_column(Text, nullable=False)
+    is_active: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1")
+    )
+    extra: Mapped[Optional[str]] = mapped_column(Text, server_default=text("'{}'"))
+    source: Mapped[Optional[str]] = mapped_column(
+        Text, server_default=text("'system_export'")
+    )
+    created_at: Mapped[Optional[str]] = mapped_column(
+        Text, server_default=text("(datetime('now','localtime'))")
+    )
+    updated_at: Mapped[Optional[str]] = mapped_column(
+        Text, server_default=text("(datetime('now','localtime'))")
+    )
 
 
 class StockpileChange(Base):
     __tablename__ = "stockpile_changes"
+    __table_args__ = (Index("idx_changes_barcode", "product_barcode"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    product_barcode: Mapped[str] = mapped_column(String, nullable=False)
-    field_name: Mapped[str] = mapped_column(String, nullable=False)
-    old_value: Mapped[Optional[str]] = mapped_column(String)
-    new_value: Mapped[Optional[str]] = mapped_column(String)
-    change_type: Mapped[Optional[str]] = mapped_column(String)
-    created_at: Mapped[Optional[str]] = mapped_column(String)
+    product_barcode: Mapped[str] = mapped_column(Text, nullable=False)
+    field_name: Mapped[str] = mapped_column(Text, nullable=False)
+    old_value: Mapped[Optional[str]] = mapped_column(Text)
+    new_value: Mapped[Optional[str]] = mapped_column(Text)
+    change_type: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[Optional[str]] = mapped_column(
+        Text, server_default=text("(datetime('now','localtime'))")
+    )
 
 
 class SchemaMeta(Base):
     __tablename__ = "schema_meta"
 
-    key: Mapped[str] = mapped_column(String, primary_key=True)
-    value: Mapped[str] = mapped_column(String, nullable=False)
+    key: Mapped[str] = mapped_column(Text, primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
 
 
 _SessionFactory = sessionmaker(bind=_engine, future=True, expire_on_commit=False)

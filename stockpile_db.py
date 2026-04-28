@@ -1,49 +1,24 @@
+"""stockpile DB 数据访问层（ORM 全链路）。
+
+阶段 1.3 起：schema 由 models.py 的 Base.metadata 单源管理；本文件不再持有
+DDL 字符串。新增字段 → 改 ORM 类 → `alembic revision --autogenerate`。
+"""
 import json
 import sqlite3
 from contextlib import contextmanager
 from typing import Iterator
 
 import pandas as pd
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
 from config import CONFIG
-from models import Stockpile, StockpileChange
+from models import Base, SchemaMeta, Stockpile, StockpileChange
 
 DB_PATH = CONFIG.stockpile_db
 SCHEMA_VERSION = 2
-
-
-_SCHEMA = """
-    CREATE TABLE IF NOT EXISTS stockpile (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        product_barcode TEXT NOT NULL UNIQUE,
-        product_model TEXT NOT NULL,
-        stockpile_location TEXT NOT NULL,
-        is_active INTEGER NOT NULL DEFAULT 1,
-        extra TEXT DEFAULT '{}',
-        source TEXT DEFAULT 'system_export',
-        created_at TEXT DEFAULT (datetime('now','localtime')),
-        updated_at TEXT DEFAULT (datetime('now','localtime'))
-    );
-    CREATE TABLE IF NOT EXISTS stockpile_changes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        product_barcode TEXT NOT NULL,
-        field_name TEXT NOT NULL,
-        old_value TEXT,
-        new_value TEXT,
-        change_type TEXT,
-        created_at TEXT DEFAULT (datetime('now','localtime'))
-    );
-    CREATE TABLE IF NOT EXISTS schema_meta (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_stockpile_barcode ON stockpile(product_barcode);
-    CREATE INDEX IF NOT EXISTS idx_changes_barcode ON stockpile_changes(product_barcode);
-"""
 
 
 _KNOWN_COLS = frozenset({"product_barcode", "product_model", "stockpile_location"})
@@ -67,64 +42,21 @@ class Source:
     SCAN_IMPORT = "scan_import"
 
 
-# === Schema bootstrap (raw sqlite3) ===
-# 阶段 1.3 会用 Alembic 替代下面这一节；目前 _SCHEMA 与 stamp 后的 baseline 一致。
-
-def _connect() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.executescript(_SCHEMA)
-    _migrate_schema(conn)
-    return conn
-
-
-def ensure_db() -> None:
-    with _connect():
-        pass
-
-
-def _ensure_schema(conn: sqlite3.Connection) -> None:
-    columns = {row["name"] for row in conn.execute("PRAGMA table_info(stockpile)")}
-    if "is_active" not in columns:
-        conn.execute("ALTER TABLE stockpile ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_stockpile_active ON stockpile(is_active)")
-
-
-def _read_schema_version(conn: sqlite3.Connection) -> int:
-    row = conn.execute("SELECT value FROM schema_meta WHERE key = 'schema_version'").fetchone()
-    if row is None:
-        return 0
-    try:
-        return int(row["value"])
-    except (TypeError, ValueError):
-        return 0
-
-
-def _write_schema_version(conn: sqlite3.Connection, version: int) -> None:
-    conn.execute(
-        "INSERT INTO schema_meta (key, value) VALUES ('schema_version', ?) "
-        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-        (str(version),),
-    )
-
-
-def _migrate_schema(conn: sqlite3.Connection) -> None:
-    _ensure_schema(conn)
-    current_version = _read_schema_version(conn)
-    if current_version < SCHEMA_VERSION:
-        _write_schema_version(conn, SCHEMA_VERSION)
-
-
-def get_schema_version() -> int:
-    with _connect() as conn:
-        return _read_schema_version(conn)
-
-
-# === ORM engine / session ===
-# 每个 DB_PATH 缓存一个 engine；NullPool 避免 Windows 文件锁，便于测试 tearDown。
+# === Engine / session / schema bootstrap ===
 
 _engine_cache: dict[str, Engine] = {}
+
+
+def _build_engine(db_path: str) -> Engine:
+    engine = create_engine(f"sqlite:///{db_path}", future=True, poolclass=NullPool)
+
+    @event.listens_for(engine, "connect")
+    def _enable_wal(dbapi_conn, _):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.close()
+
+    return engine
 
 
 def _engine() -> Engine:
@@ -132,11 +64,55 @@ def _engine() -> Engine:
     cached = _engine_cache.get(key)
     if cached is not None:
         return cached
-    with _connect():
-        pass
-    engine = create_engine(f"sqlite:///{key}", future=True, poolclass=NullPool)
+    engine = _build_engine(key)
+    Base.metadata.create_all(engine)
+    _bootstrap_schema_version(engine)
     _engine_cache[key] = engine
     return engine
+
+
+def _bootstrap_schema_version(engine: Engine) -> None:
+    with Session(engine) as session:
+        meta = session.execute(
+            select(SchemaMeta).where(SchemaMeta.key == "schema_version")
+        ).scalar_one_or_none()
+        if meta is None:
+            session.add(SchemaMeta(key="schema_version", value=str(SCHEMA_VERSION)))
+        elif meta.value != str(SCHEMA_VERSION):
+            meta.value = str(SCHEMA_VERSION)
+        session.commit()
+
+
+def ensure_db() -> None:
+    engine = _engine()
+    Base.metadata.create_all(engine)
+    _bootstrap_schema_version(engine)
+
+
+def _connect() -> sqlite3.Connection:
+    """raw sqlite3 连接，仅供需要绕过 ORM 的旧测试 / 维护脚本使用。
+
+    自动先调 ensure_db()（幂等）确保 schema 存在，调用方无需关心。
+    """
+    ensure_db()
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    return conn
+
+
+def get_schema_version() -> int:
+    ensure_db()
+    with _session() as session:
+        meta = session.execute(
+            select(SchemaMeta).where(SchemaMeta.key == "schema_version")
+        ).scalar_one_or_none()
+    if meta is None:
+        return 0
+    try:
+        return int(meta.value)
+    except (TypeError, ValueError):
+        return 0
 
 
 @contextmanager
