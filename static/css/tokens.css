@@ -1,41 +1,41 @@
 :root {
-  /* 表面（Filing 浅暖色调） */
-  --c-bg: #d8e0ec;            /* 页面浅蓝 */
-  --c-surface: #ebe7da;       /* 卡片暖灰纸 */
-  --c-surface-elev: #e3dece;  /* 略深暖灰，hover/elev 用 */
-  --c-surface-deep: #d6d0bf;  /* 选中/最深 */
-  --c-border: #c8c1ac;        /* 主边框 */
-  --c-border-subtle: #d8d2bd; /* 次边框 */
+  /* 表面（Solarized Light · 长时间阅读耐看） */
+  --c-bg: #fdf6e3;            /* base3 — 页面底色，最浅 */
+  --c-surface: #eee8d5;       /* base2 — 卡片，比页面略深 */
+  --c-surface-elev: #e8e2cc;  /* 卡片内面板/elev */
+  --c-surface-deep: #d8d2bd;  /* 选中/最深块 */
+  --c-border: #93a1a1;        /* base1 — 主边框 */
+  --c-border-subtle: #c4c0aa; /* 次边框 */
 
-  /* 文字（黑墨为主） */
-  --c-text: #1a1a1a;
-  --c-text-muted: #555555;
-  --c-text-dim: #888888;
-  --c-text-faint: #aaaaaa;
-  --c-text-mute2: #4a443c;
+  /* 文字（Solarized 低对比深灰青，非纯黑） */
+  --c-text: #586e75;          /* base01 — 主文字 */
+  --c-text-muted: #657b83;    /* base00 */
+  --c-text-dim: #839496;      /* base0 */
+  --c-text-faint: #93a1a1;    /* base1 */
+  --c-text-mute2: #073642;    /* base02 — 标题/强调深墨 */
 
-  /* 强调（黑墨代替 indigo） */
-  --c-accent: #1a1a1a;
-  --c-accent-hover: #000000;
-  --c-accent-soft: #ddd8c8;
-  --c-accent-fg: #1a1a1a;
+  /* 强调（base02 深墨为主） */
+  --c-accent: #073642;        /* base02 */
+  --c-accent-hover: #002b36;  /* base03 */
+  --c-accent-soft: #d8d2bd;   /* 浅块/hover */
+  --c-accent-fg: #073642;
 
-  /* 状态（暖底匹配） */
-  --c-info: #2563b0;
-  --c-info-bg: #cdd9e8;
-  --c-success: #2f6f3a;
-  --c-success-bg: #cfdfd0;
-  --c-warn: #b56a00;
-  --c-warn-strong: #a3520a;
-  --c-warn-bg: #ecdcb6;
-  --c-warn-bg-strong: #e3c994;
-  --c-danger: #a82c1a;
-  --c-danger-bg: #e8c8c0;
-  --c-danger-border: #893821;
+  /* 状态（Solarized 标准状态色） */
+  --c-info: #268bd2;          /* blue */
+  --c-info-bg: #d4e3eb;
+  --c-success: #859900;       /* green */
+  --c-success-bg: #e3e7c4;
+  --c-warn: #b58900;          /* yellow */
+  --c-warn-strong: #cb4b16;   /* orange */
+  --c-warn-bg: #f4eccb;
+  --c-warn-bg-strong: #ecdcb6;
+  --c-danger: #dc322f;        /* red */
+  --c-danger-bg: #f4d4d2;
+  --c-danger-border: #cb4b16;
 
   /* 代码色 */
-  --c-code: #b56a00;
-  --c-loc: #2563b0;
+  --c-code: #cb4b16;
+  --c-loc: #268bd2;
 
   /* 间距（保持） */
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px;
@@ -52,8 +52,8 @@
   --ff-mono: "JetBrains Mono", "Cascadia Code", "Consolas", ui-monospace, monospace;
 
   /* 阴影（浅底用更轻的阴影） */
-  --sh-fab: 0 4px 14px rgba(20,30,50,.12);
-  --sh-overlay: 0 12px 36px rgba(20,30,50,.18);
+  --sh-fab: 0 4px 14px rgba(7,54,66,.10);
+  --sh-overlay: 0 12px 36px rgba(7,54,66,.16);
 
   /* 动效（保持） */
   --t-fast: .12s ease;
