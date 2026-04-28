@@ -1,9 +1,16 @@
 import json
 import sqlite3
+from contextlib import contextmanager
+from typing import Iterator
 
 import pandas as pd
+from sqlalchemy import create_engine, func, select
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
+from sqlalchemy.pool import NullPool
 
 from config import CONFIG
+from models import Stockpile, StockpileChange
 
 DB_PATH = CONFIG.stockpile_db
 SCHEMA_VERSION = 2
@@ -41,12 +48,27 @@ _SCHEMA = """
 
 _KNOWN_COLS = frozenset({"product_barcode", "product_model", "stockpile_location"})
 
+_STOCKPILE_DICT_COLS = (
+    "id", "product_barcode", "product_model", "stockpile_location",
+    "is_active", "extra", "source", "created_at", "updated_at",
+)
+_CHANGE_DICT_COLS = (
+    "id", "product_barcode", "field_name", "old_value", "new_value",
+    "change_type", "created_at",
+)
+
+_ACTIVE = 1
+_INACTIVE = 0
+
 
 class Source:
     SYSTEM_EXPORT = "system_export"
     USER_CORRECTION = "user_correction"
     SCAN_IMPORT = "scan_import"
 
+
+# === Schema bootstrap (raw sqlite3) ===
+# 阶段 1.3 会用 Alembic 替代下面这一节；目前 _SCHEMA 与 stamp 后的 baseline 一致。
 
 def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(str(DB_PATH))
@@ -99,6 +121,47 @@ def get_schema_version() -> int:
         return _read_schema_version(conn)
 
 
+# === ORM engine / session ===
+# 每个 DB_PATH 缓存一个 engine；NullPool 避免 Windows 文件锁，便于测试 tearDown。
+
+_engine_cache: dict[str, Engine] = {}
+
+
+def _engine() -> Engine:
+    key = str(DB_PATH)
+    cached = _engine_cache.get(key)
+    if cached is not None:
+        return cached
+    with _connect():
+        pass
+    engine = create_engine(f"sqlite:///{key}", future=True, poolclass=NullPool)
+    _engine_cache[key] = engine
+    return engine
+
+
+@contextmanager
+def _session() -> Iterator[Session]:
+    session = Session(_engine(), expire_on_commit=False)
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def _stockpile_to_dict(obj) -> dict:
+    return {col: getattr(obj, col) for col in _STOCKPILE_DICT_COLS}
+
+
+def _change_to_dict(obj) -> dict:
+    return {col: getattr(obj, col) for col in _CHANGE_DICT_COLS}
+
+
+# === Pure helpers ===
+
 def _clean(value) -> str:
     if value is None:
         return ""
@@ -125,23 +188,27 @@ def _normalize_row(row, extra_cols: list[str]) -> tuple[str, str, str, dict] | N
     return barcode, model, location, extra
 
 
+# === Write path (ORM) ===
+
 def _log_change(
-    conn: sqlite3.Connection,
+    session: Session,
     barcode: str,
     field: str,
     old_val: str | None,
     new_val: str | None,
     change_type: str,
 ) -> None:
-    conn.execute(
-        "INSERT INTO stockpile_changes (product_barcode, field_name, old_value, new_value, change_type) "
-        "VALUES (?, ?, ?, ?, ?)",
-        (barcode, field, old_val, new_val, change_type),
-    )
+    session.add(StockpileChange(
+        product_barcode=barcode,
+        field_name=field,
+        old_value=old_val,
+        new_value=new_val,
+        change_type=change_type,
+    ))
 
 
 def _upsert(
-    conn: sqlite3.Connection,
+    session: Session,
     barcode: str,
     model: str,
     location: str,
@@ -149,142 +216,175 @@ def _upsert(
     source: str,
     log_changes: bool = True,
 ) -> None:
-    existing = conn.execute(
-        "SELECT product_model, stockpile_location, is_active FROM stockpile WHERE product_barcode = ?",
-        (barcode,),
-    ).fetchone()
+    existing = session.execute(
+        select(Stockpile).where(Stockpile.product_barcode == barcode)
+    ).scalar_one_or_none()
     extra_json = json.dumps(extra, ensure_ascii=False)
-    if existing:
+    if existing is not None:
         if log_changes:
-            if existing["product_model"] != model:
-                _log_change(conn, barcode, "product_model", existing["product_model"], model, "update")
-            if existing["stockpile_location"] != location:
+            if existing.product_model != model:
                 _log_change(
-                    conn,
-                    barcode,
-                    "stockpile_location",
-                    existing["stockpile_location"],
-                    location,
-                    "update",
+                    session, barcode, "product_model",
+                    existing.product_model, model, "update",
                 )
-            if existing["is_active"] != 1:
-                _log_change(conn, barcode, "is_active", str(existing["is_active"]), "1", "reactivate")
-        conn.execute(
-            "UPDATE stockpile SET product_model=?, stockpile_location=?, is_active=1, source=?, extra=?, "
-            "updated_at=datetime('now','localtime') WHERE product_barcode=?",
-            (model, location, source, extra_json, barcode),
-        )
+            if existing.stockpile_location != location:
+                _log_change(
+                    session, barcode, "stockpile_location",
+                    existing.stockpile_location, location, "update",
+                )
+            if existing.is_active != _ACTIVE:
+                _log_change(
+                    session, barcode, "is_active",
+                    str(existing.is_active), str(_ACTIVE), "reactivate",
+                )
+        existing.product_model = model
+        existing.stockpile_location = location
+        existing.is_active = _ACTIVE
+        existing.source = source
+        existing.extra = extra_json
+        existing.updated_at = func.datetime("now", "localtime")
         return
 
-    conn.execute(
-        "INSERT INTO stockpile (product_barcode, product_model, stockpile_location, is_active, extra, source) "
-        "VALUES (?, ?, ?, 1, ?, ?)",
-        (barcode, model, location, extra_json, source),
-    )
+    session.add(Stockpile(
+        product_barcode=barcode,
+        product_model=model,
+        stockpile_location=location,
+        is_active=_ACTIVE,
+        extra=extra_json,
+        source=source,
+    ))
     if log_changes:
-        _log_change(conn, barcode, "product_barcode", None, barcode, "insert")
+        _log_change(session, barcode, "product_barcode", None, barcode, "insert")
 
 
-def _deactivate_missing_records(conn: sqlite3.Connection, active_barcodes: set[str]) -> None:
-    rows = list(conn.execute("SELECT product_barcode FROM stockpile WHERE is_active = 1"))
+def _deactivate_missing_records(session: Session, active_barcodes: set[str]) -> None:
+    rows = session.execute(
+        select(Stockpile).where(Stockpile.is_active == _ACTIVE)
+    ).scalars().all()
     for row in rows:
-        barcode = row["product_barcode"]
-        if barcode in active_barcodes:
+        if row.product_barcode in active_barcodes:
             continue
-        _log_change(conn, barcode, "is_active", "1", "0", "deactivate")
-        conn.execute(
-            "UPDATE stockpile SET is_active=0, updated_at=datetime('now','localtime') WHERE product_barcode=?",
-            (barcode,),
+        _log_change(
+            session, row.product_barcode, "is_active",
+            str(_ACTIVE), str(_INACTIVE), "deactivate",
         )
+        row.is_active = _INACTIVE
+        row.updated_at = func.datetime("now", "localtime")
 
 
 def _sync_export_dataframe(df: pd.DataFrame) -> int:
     extra_cols = _extra_cols(df)
     synced = 0
     active_barcodes: set[str] = set()
-    with _connect() as conn:
+    with _session() as session:
         for _, row in df.iterrows():
             normalized = _normalize_row(row, extra_cols)
             if not normalized:
                 continue
             barcode, model, location, extra = normalized
             active_barcodes.add(barcode)
-            _upsert(conn, barcode, model, location, extra, Source.SYSTEM_EXPORT, log_changes=True)
+            _upsert(session, barcode, model, location, extra, Source.SYSTEM_EXPORT, log_changes=True)
             synced += 1
-        _deactivate_missing_records(conn, active_barcodes)
+        _deactivate_missing_records(session, active_barcodes)
     return synced
 
+
+# === Read path (ORM) ===
 
 def is_initialized() -> bool:
     return count_records() > 0
 
 
 def count_records() -> int:
-    with _connect() as conn:
-        cur = conn.execute("SELECT COUNT(*) FROM stockpile WHERE is_active = 1")
-        return cur.fetchone()[0]
+    with _session() as session:
+        result = session.execute(
+            select(func.count()).select_from(Stockpile).where(Stockpile.is_active == _ACTIVE)
+        ).scalar()
+    return result or 0
 
 
 def query_by_barcode(barcode: str) -> dict | None:
-    with _connect() as conn:
-        row = conn.execute("SELECT * FROM stockpile WHERE product_barcode = ?", (barcode,)).fetchone()
-    return dict(row) if row else None
+    with _session() as session:
+        obj = session.execute(
+            select(Stockpile).where(Stockpile.product_barcode == barcode)
+        ).scalar_one_or_none()
+        return _stockpile_to_dict(obj) if obj else None
 
 
 def query_all_as_system_records() -> tuple[dict[str, str], dict[str, dict[str, str]]]:
-    with _connect() as conn:
-        cur = conn.execute(
-            "SELECT product_barcode, product_model, stockpile_location FROM stockpile WHERE is_active = 1"
-        )
-        barcode_model_map: dict[str, str] = {}
-        system_records: dict[str, dict[str, str]] = {}
-        for row in cur:
-            barcode = row["product_barcode"]
-            barcode_model_map[barcode] = row["product_model"]
-            system_records[barcode] = {
-                "model": row["product_model"],
-                "stockpile_location": row["stockpile_location"],
-            }
+    with _session() as session:
+        rows = session.execute(
+            select(
+                Stockpile.product_barcode,
+                Stockpile.product_model,
+                Stockpile.stockpile_location,
+            ).where(Stockpile.is_active == _ACTIVE)
+        ).all()
+    barcode_model_map: dict[str, str] = {}
+    system_records: dict[str, dict[str, str]] = {}
+    for barcode, model, location in rows:
+        barcode_model_map[barcode] = model
+        system_records[barcode] = {"model": model, "stockpile_location": location}
     return barcode_model_map, system_records
 
 
 def query_all_barcodes_set() -> set[str]:
-    with _connect() as conn:
-        cur = conn.execute("SELECT product_barcode FROM stockpile WHERE is_active = 1")
-        return {row["product_barcode"] for row in cur}
+    with _session() as session:
+        rows = session.execute(
+            select(Stockpile.product_barcode).where(Stockpile.is_active == _ACTIVE)
+        ).all()
+    return {row[0] for row in rows}
 
 
 def list_inactive_records(limit: int = 100) -> list[dict]:
-    with _connect() as conn:
-        cur = conn.execute(
-            "SELECT * FROM stockpile WHERE is_active = 0 "
-            "ORDER BY updated_at DESC, id DESC LIMIT ?",
-            (limit,),
-        )
-        return [dict(row) for row in cur]
+    with _session() as session:
+        objs = session.execute(
+            select(Stockpile)
+            .where(Stockpile.is_active == _INACTIVE)
+            .order_by(Stockpile.updated_at.desc(), Stockpile.id.desc())
+            .limit(limit)
+        ).scalars().all()
+        return [_stockpile_to_dict(o) for o in objs]
 
 
 def list_changes(limit: int = 100) -> list[dict]:
-    with _connect() as conn:
-        cur = conn.execute(
-            "SELECT * FROM stockpile_changes ORDER BY id DESC LIMIT ?",
-            (limit,),
-        )
-        return [dict(row) for row in cur]
+    with _session() as session:
+        objs = session.execute(
+            select(StockpileChange).order_by(StockpileChange.id.desc()).limit(limit)
+        ).scalars().all()
+        return [_change_to_dict(o) for o in objs]
 
 
 def search_stockpile(keyword: str, limit: int = 50) -> list[dict]:
     pattern = f"%{keyword}%"
-    with _connect() as conn:
-        cur = conn.execute(
-            "SELECT product_barcode, product_model, stockpile_location, is_active, source, updated_at "
-            "FROM stockpile "
-            "WHERE is_active = 1 AND (product_barcode LIKE ? OR product_model LIKE ?) "
-            "ORDER BY product_barcode LIMIT ?",
-            (pattern, pattern, limit),
-        )
-        return [dict(row) for row in cur]
+    with _session() as session:
+        rows = session.execute(
+            select(
+                Stockpile.product_barcode,
+                Stockpile.product_model,
+                Stockpile.stockpile_location,
+                Stockpile.is_active,
+                Stockpile.source,
+                Stockpile.updated_at,
+            )
+            .where(Stockpile.is_active == _ACTIVE)
+            .where(
+                Stockpile.product_barcode.like(pattern)
+                | Stockpile.product_model.like(pattern)
+            )
+            .order_by(Stockpile.product_barcode)
+            .limit(limit)
+        ).all()
+    return [
+        {
+            "product_barcode": r[0], "product_model": r[1], "stockpile_location": r[2],
+            "is_active": r[3], "source": r[4], "updated_at": r[5],
+        }
+        for r in rows
+    ]
 
+
+# === Public API ===
 
 def insert_or_update(
     barcode: str,
@@ -293,8 +393,8 @@ def insert_or_update(
     source: str = Source.USER_CORRECTION,
     extra: dict | None = None,
 ) -> None:
-    with _connect() as conn:
-        _upsert(conn, barcode, model, location, extra or {}, source, log_changes=True)
+    with _session() as session:
+        _upsert(session, barcode, model, location, extra or {}, source, log_changes=True)
 
 
 def import_from_dataframe(df: pd.DataFrame) -> int:
@@ -326,7 +426,10 @@ def compare_with_dataframe(df: pd.DataFrame) -> dict:
     for barcode in local_barcodes & export_barcodes:
         local = local_records[barcode]
         export = export_records[barcode]
-        if local["model"] != export["product_model"] or local["stockpile_location"] != export["stockpile_location"]:
+        if (
+            local["model"] != export["product_model"]
+            or local["stockpile_location"] != export["stockpile_location"]
+        ):
             mismatches.append({
                 "barcode": barcode,
                 "local_model": local["model"],
