@@ -16,10 +16,6 @@ def index():
     return render_template("index.html")
 
 
-@bp.get("/admin")
-def admin():
-    return render_template("admin.html")
-
 
 @bp.post("/upload")
 def upload():
