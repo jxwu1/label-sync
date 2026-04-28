@@ -48,7 +48,7 @@
   transition: background var(--t-fast), border-color var(--t-fast);
 }
 .attn-btn:hover { background: var(--c-surface-elev); border-color: var(--c-accent); }
-.attn-btn-danger { border-color: #b91c1c; color: var(--c-danger); }
+.attn-btn-danger { border-color: var(--c-danger-border); color: var(--c-danger); }
 .attn-btn-dl {
   background: var(--c-accent);
   border-color: var(--c-accent);
