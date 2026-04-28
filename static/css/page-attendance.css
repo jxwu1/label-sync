@@ -2,7 +2,7 @@
 #pageAttendance.active {
   display: block;
   overflow: auto;
-  height: calc(100vh - 100px);
+  height: calc(100vh - 122px);
 }
 
 /* ===== 外层 ===== */
@@ -40,21 +40,22 @@
 .attn-btn {
   padding: 5px 12px;
   border-radius: var(--r-sm);
-  border: 1px solid var(--c-border);
-  background: var(--c-surface);
-  color: var(--c-text);
+  border: 1px solid #586e75;
+  background: transparent;
+  color: #586e75;
   cursor: pointer;
   font-size: var(--fs-base);
-  transition: background var(--t-fast), border-color var(--t-fast);
+  transition: background var(--t-fast), color var(--t-fast);
 }
-.attn-btn:hover { background: var(--c-surface-elev); border-color: var(--c-accent); }
-.attn-btn-danger { border-color: var(--c-danger-border); color: var(--c-danger); }
+.attn-btn:hover { background: var(--c-accent-soft); color: #073642; }
+.attn-btn-danger { border-color: #dc322f; color: #dc322f; }
+.attn-btn-danger:hover { background: var(--c-danger-bg); color: #b22421; }
 .attn-btn-dl {
-  background: var(--c-accent);
-  border-color: var(--c-accent);
-  color: #fff;
+  background: #268bd2;
+  border-color: #268bd2;
+  color: #fdf6e3;
 }
-.attn-btn-dl:hover { background: var(--c-accent-hover); border-color: var(--c-accent-hover); }
+.attn-btn-dl:hover { background: #1f6fa8; border-color: #1f6fa8; }
 
 /* ===== 统计 K/V 小卡片（5 等分网格） ===== */
 .attn-stats {
@@ -225,12 +226,13 @@
   cursor: pointer;
   font: inherit;
   font-size: var(--fs-md);
-  color: var(--c-text-muted);
+  color: #586e75;
   padding: 3px 8px;
   border-radius: var(--r-sm);
 }
-.attn-op:hover { background: var(--c-accent-soft); color: var(--c-accent-fg); }
-.attn-op-danger:hover { background: var(--c-danger-bg); color: var(--c-danger); }
+.attn-op:hover { background: var(--c-accent-soft); color: #073642; }
+.attn-op-danger { color: #dc322f; }
+.attn-op-danger:hover { background: var(--c-danger-bg); color: #b22421; }
 
 /* ===== 浮层（保留原 .pur-modal 类，下面只补 attn 专用辅助类） ===== */
 .attn-hidden { display: none; }

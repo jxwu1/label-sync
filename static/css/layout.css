@@ -1,45 +1,82 @@
-/* ========== App header ========== */
-.app-header {
-  height: 52px;
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: 0 var(--sp-4);
-  background: var(--c-surface-elev);
-  border-bottom: 1px solid var(--c-border);
-}
-.app-header__title { flex: 1; font-size: var(--fs-lg); font-weight: 700; }
-
-/* ========== App layout ========== */
-.app-layout { display: flex; flex: 1; overflow: hidden; }
-
-/* ========== Side nav (slim) ========== */
-.app-nav {
-  width: 56px;
-  background: var(--c-surface-deep);
-  border-right: 1px solid var(--c-border);
-  padding: var(--sp-3) var(--sp-1);
+/* ========== App layout（Filing Cabinet 风） ========== */
+.app-layout {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-1);
+  flex: 1;
+  overflow: hidden;
+  padding: 20px 28px 20px;
+  gap: 0;
 }
-.app-nav.hide { width: 0; padding: 0; border-right: none; overflow: hidden; }
-.app-nav__item {
-  padding: var(--sp-2) 0;
-  color: var(--c-text-muted);
-  cursor: pointer;
-  border-radius: var(--r-md);
-  text-align: center;
-  font-size: var(--fs-xs);
-  line-height: 1.4;
-  transition: background var(--t-fast);
-}
-.app-nav__item:hover { background: var(--c-surface-elev); color: var(--c-text); }
-.app-nav__item.active { background: var(--c-accent-soft); color: var(--c-accent-fg); }
-.app-nav__icon { display: block; font-size: 16px; margin-bottom: 2px; }
 
-/* ========== Main + pages ========== */
-.app-main { flex: 1; display: flex; overflow: hidden; }
-.app-pages { flex: 1; padding: var(--sp-4); overflow: hidden; min-height: 0; }
+/* 顶部 tabs（折角文件夹标签） */
+.app-nav {
+  display: flex;
+  gap: 0;
+  padding-left: 28px;
+  margin-bottom: -8px;
+  position: relative;
+  z-index: 2;
+  align-items: flex-end;
+  height: 50px;
+}
+.app-nav.hide { display: none; }
+
+.app-nav__item {
+  background: var(--c-surface-deep);
+  color: var(--c-text-muted);
+  padding: 11px 28px 18px;
+  font-size: var(--fs-base);
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  border: none;
+  margin-right: -10px;
+  transition: background var(--t-fast), color var(--t-fast);
+  user-select: none;
+  position: relative;
+  height: 38px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.app-nav__item::before, .app-nav__item::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  width: 10px;
+  height: 100%;
+  background: inherit;
+}
+.app-nav__item::before { left: -8px; border-radius: var(--r-lg) 0 0 0; transform: skewX(-12deg); transform-origin: bottom left; }
+.app-nav__item::after  { right: -8px; border-radius: 0 var(--r-lg) 0 0; transform: skewX(12deg);  transform-origin: bottom right; }
+.app-nav__item:hover { background: var(--c-surface-elev); color: var(--c-text); }
+.app-nav__item.active {
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-weight: 600;
+  z-index: 3;
+  height: 44px;
+}
+.app-nav__icon { font-size: 14px; line-height: 1; }
+
+/* 主区：占满剩余空间，承载所有 page */
+.app-main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  background: var(--c-surface);
+  border-radius: var(--r-md);
+  box-shadow: 0 4px 20px rgba(20,30,50,.08);
+  position: relative;
+  z-index: 1;
+  min-height: 0;
+}
+.app-pages {
+  flex: 1;
+  padding: var(--sp-4);
+  overflow: hidden;
+  min-height: 0;
+}
 .page { display: none; height: 100%; }
 .page.active { display: grid; gap: var(--sp-4); overflow-y: auto; min-height: 0; }
