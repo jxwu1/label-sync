@@ -1,61 +1,61 @@
 :root {
-  /* 表面 */
-  --c-bg: #0f1117;
-  --c-surface: #161a25;
-  --c-surface-elev: #1a1d27;
-  --c-surface-deep: #13151f;
-  --c-border: #232838;
-  --c-border-subtle: #1f2433;
+  /* 表面（Filing 浅暖色调） */
+  --c-bg: #d8e0ec;            /* 页面浅蓝 */
+  --c-surface: #ebe7da;       /* 卡片暖灰纸 */
+  --c-surface-elev: #e3dece;  /* 略深暖灰，hover/elev 用 */
+  --c-surface-deep: #d6d0bf;  /* 选中/最深 */
+  --c-border: #c8c1ac;        /* 主边框 */
+  --c-border-subtle: #d8d2bd; /* 次边框 */
 
-  /* 文字 */
-  --c-text: #e2e8f0;
-  --c-text-muted: #94a3b8;
-  --c-text-dim: #64748b;
-  --c-text-faint: #4a5568;
-  --c-text-mute2: #cbd5e1;
+  /* 文字（黑墨为主） */
+  --c-text: #1a1a1a;
+  --c-text-muted: #555555;
+  --c-text-dim: #888888;
+  --c-text-faint: #aaaaaa;
+  --c-text-mute2: #4a443c;
 
-  /* 强调 */
-  --c-accent: #4f46e5;
-  --c-accent-hover: #4338ca;
-  --c-accent-soft: #1e1b4b;
-  --c-accent-fg: #818cf8;
+  /* 强调（黑墨代替 indigo） */
+  --c-accent: #1a1a1a;
+  --c-accent-hover: #000000;
+  --c-accent-soft: #ddd8c8;
+  --c-accent-fg: #1a1a1a;
 
-  /* 状态 */
-  --c-info: #60a5fa;
-  --c-info-bg: #1e3a5f;
-  --c-success: #4ade80;
-  --c-success-bg: #14532d;
-  --c-warn: #fbbf24;
-  --c-warn-strong: #fb923c;
-  --c-warn-bg: #422006;
-  --c-warn-bg-strong: #431407;
-  --c-danger: #f87171;
-  --c-danger-bg: #450a0a;
-  --c-danger-border: #7f1d1d;
+  /* 状态（暖底匹配） */
+  --c-info: #2563b0;
+  --c-info-bg: #cdd9e8;
+  --c-success: #2f6f3a;
+  --c-success-bg: #cfdfd0;
+  --c-warn: #b56a00;
+  --c-warn-strong: #a3520a;
+  --c-warn-bg: #ecdcb6;
+  --c-warn-bg-strong: #e3c994;
+  --c-danger: #a82c1a;
+  --c-danger-bg: #e8c8c0;
+  --c-danger-border: #893821;
 
   /* 代码色 */
-  --c-code: #fbbf24;
-  --c-loc: #60a5fa;
+  --c-code: #b56a00;
+  --c-loc: #2563b0;
 
-  /* 间距 */
+  /* 间距（保持） */
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px;
   --sp-4: 16px; --sp-5: 20px; --sp-6: 24px;
 
-  /* 圆角 */
+  /* 圆角（保持） */
   --r-sm: 6px; --r-md: 8px; --r-lg: 10px; --r-xl: 14px; --r-pill: 999px;
 
-  /* 字号 */
+  /* 字号（保持） */
   --fs-xs: 10px; --fs-sm: 11px; --fs-md: 12px; --fs-base: 13px; --fs-lg: 15px;
 
-  /* 字体 */
-  --ff-sans: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
-  --ff-mono: "Cascadia Code", "Consolas", ui-monospace, monospace;
+  /* 字体（保持） */
+  --ff-sans: "Inter", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  --ff-mono: "JetBrains Mono", "Cascadia Code", "Consolas", ui-monospace, monospace;
 
-  /* 阴影 */
-  --sh-fab: 0 6px 20px rgba(0,0,0,.4);
-  --sh-overlay: 0 12px 48px rgba(0,0,0,.75);
+  /* 阴影（浅底用更轻的阴影） */
+  --sh-fab: 0 4px 14px rgba(20,30,50,.12);
+  --sh-overlay: 0 12px 36px rgba(20,30,50,.18);
 
-  /* 动效 */
+  /* 动效（保持） */
   --t-fast: .12s ease;
   --t-base: .2s ease;
 }
