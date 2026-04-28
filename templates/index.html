@@ -16,22 +16,23 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/transfer-drawer.css') }}">
 </head>
 <body>
-<div class="app-header"><button class="btn-mini" id="hamb">☰</button><div class="app-header__title">A端 - 双端处理</div><span class="badge badge-idle" id="badge">空闲</span></div>
 <div class="app-layout">
   <div class="app-nav" id="nav">
-  <div class="app-nav__item active" id="navMain" onclick="switchPage('main')">
-    <span class="app-nav__icon">📋</span>标签
+    <div class="app-nav__item active" id="navMain" onclick="switchPage('main')">
+      <span class="app-nav__icon">📋</span>标签
+    </div>
+    <div class="app-nav__item" id="navDup" onclick="switchPage('dup')">
+      <span class="app-nav__icon">🔍</span>查重
+    </div>
+    <div class="app-nav__item" id="navPurchase" onclick="switchPage('purchase')">
+      <span class="app-nav__icon">📦</span>采购
+    </div>
+    <div class="app-nav__item" id="navAttendance" onclick="switchPage('attendance')">
+      <span class="app-nav__icon">🕐</span>考勤
+    </div>
+    <span style="flex:1"></span>
+    <span class="badge badge-idle" id="badge" style="margin-bottom: 14px; align-self: flex-end;">空闲</span>
   </div>
-  <div class="app-nav__item" id="navDup" onclick="switchPage('dup')">
-    <span class="app-nav__icon">🔍</span>查重
-  </div>
-  <div class="app-nav__item" id="navPurchase" onclick="switchPage('purchase')">
-    <span class="app-nav__icon">📦</span>采购
-  </div>
-  <div class="app-nav__item" id="navAttendance" onclick="switchPage('attendance')">
-    <span class="app-nav__icon">🕐</span>考勤
-  </div>
-</div>
   <div class="app-main">
     <div class="app-pages">
 <div class="page active" id="pageMain">

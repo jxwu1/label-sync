@@ -44,7 +44,7 @@ function switchPage(p) {
   if (navId) document.getElementById(navId)?.classList.add("active");
 } window.switchPage = switchPage;
 
-$("#hamb").onclick = () => $("#nav").classList.toggle("hide");
+// $("#hamb").onclick = () => $("#nav").classList.toggle("hide");  // 移除：filing 主题已删除汉堡按钮
 setupDropZone($("#drop"), $("#fileInput"), (files) => { selected.push(...[...files]); renderFiles(); });
 
 $("#upload").onclick = async () => {
