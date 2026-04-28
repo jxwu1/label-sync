@@ -16,15 +16,17 @@
           <button class="attn-btn attn-btn-danger" id="attnEmpDel">删除员工</button>
           <button class="attn-btn" id="attnHolidays">节假日</button>
           <button class="attn-btn" id="attnSpecial">特殊日</button>
+          <span class="attn-spacer"></span>
+          <button class="attn-btn" id="attnFillAll">一键填全月正常</button>
           <button class="attn-btn attn-btn-dl" id="attnPdf">下载 PDF</button>
           <button class="attn-btn attn-btn-dl" id="attnPayrollPdf">下载工资单 PDF</button>
         </div>
         <div class="attn-stats">
-          <span>累计 <b id="attnWorked">0</b> 天</span>
-          <span>缺勤 <b id="attnAbsent">0</b> 天</span>
-          <span>总工作日 <b id="attnTotal">0</b></span>
-          <span>本月天数 <b id="attnMonthDays">0</b></span>
-          <span>请假 <b id="attnLeaveH">0</b> 小时（约 <b id="attnLeaveD">0</b> 天）</span>
+          <div class="attn-stat"><div class="attn-stat-k">累计</div><div class="attn-stat-v"><span id="attnWorked">0</span> <small>天</small></div></div>
+          <div class="attn-stat"><div class="attn-stat-k">缺勤</div><div class="attn-stat-v"><span id="attnAbsent">0</span> <small>天</small></div></div>
+          <div class="attn-stat"><div class="attn-stat-k">总工作日</div><div class="attn-stat-v" id="attnTotal">0</div></div>
+          <div class="attn-stat"><div class="attn-stat-k">本月天数</div><div class="attn-stat-v" id="attnMonthDays">0</div></div>
+          <div class="attn-stat"><div class="attn-stat-k">请假</div><div class="attn-stat-v"><span id="attnLeaveH">0</span> <small>h ≈ <span id="attnLeaveD">0</span> 天</small></div></div>
         </div>
         <div id="attnGridWrap"></div>
       </div>
@@ -97,6 +99,7 @@
     document.getElementById('attnLeaveCancel').addEventListener('click', () => {
       document.getElementById('attnLeaveOverlay').style.display = 'none';
     });
+    document.getElementById('attnFillAll').addEventListener('click', fillAllNormal);
 
     document.getElementById('attnMonth').value = new Date().toISOString().slice(0, 7);
     currentMonth = document.getElementById('attnMonth').value;
@@ -184,46 +187,88 @@
 
   function renderGrid(detail) {
     const wrap = document.getElementById('attnGridWrap');
+    wrap.classList.add('attn-grid-wrap');
+    const statusMap = { sunday: '周日', holiday: '节假日', absent: '缺勤', normal: '正常', special: '特殊日', special_absent: '特殊日缺勤', leave: '请假' };
+    const statusClsMap = { sunday: 'attn-st-sunday', holiday: 'attn-st-holiday', absent: 'attn-st-absent', normal: 'attn-st-normal', special: 'attn-st-special', special_absent: 'attn-st-special', leave: 'attn-st-leave' };
+
     const rows = detail.map(r => {
       const autoRow = r.status === 'sunday' || r.status === 'holiday';
       const isSpecial = r.status === 'special' || r.status === 'special_absent';
       const isLeave = r.status === 'leave';
-      const clsMap = { sunday: 'sunday', holiday: 'holiday', absent: 'absent', special: 'special', special_absent: 'special absent', leave: 'leave' };
-      const cls = clsMap[r.status] || '';
-      const autoLabel = r.status === 'sunday' ? '自动（周日）' : '自动（节假日）';
-      const specialHint = isSpecial ? `<span class="attn-hint">缩短 ${r.special_start}-${r.special_end}</span>` : '';
-      const startCell = autoRow
-        ? `<td colspan="2">${autoLabel}</td>`
-        : `<td><input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" data-date="${r.date}" data-field="start" value="${r.start}">${specialHint ? '<br>'+specialHint : ''}</td>
-           <td><input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" data-date="${r.date}" data-field="end" value="${r.end}"></td>`;
-      const statusMap = { sunday: '周日', holiday: '节假日', absent: '缺勤', normal: '正常', special: '特殊日', special_absent: '特殊日缺勤', leave: '请假' };
-      const baseStatus = statusMap[r.status] || r.status;
-      const leaveH = r.leave_hours || 0;
-      const leaveLabel = formatLeave(r);
-      const statusText = isLeave ? `请假 ${leaveH}h` : baseStatus;
-      const leaveCell = autoRow
-        ? `<td>${leaveH ? leaveLabel : ''}</td>`
-        : (leaveH > 0
-            ? `<td>${leaveLabel} <button class="attn-btn attn-leave-clear" data-date="${r.date}">取消</button></td>`
-            : `<td><button class="attn-btn attn-leave-add" data-date="${r.date}">请假</button></td>`);
-      const fillBtn = isSpecial
-        ? `<td><button class="attn-btn attn-fill" data-date="${r.date}" data-start="${r.special_start}" data-end="${r.special_end}">按标准</button></td>`
-        : (autoRow ? '<td></td>' : `<td><button class="attn-btn attn-fill" data-date="${r.date}" data-start="09:30" data-end="20:00">正常</button></td>`);
-      return `<tr class="${cls}" data-date="${r.date}">
-        <td>${r.date.slice(5)}</td>
-        <td>${r.weekday}</td>
-        ${startCell}
-        <td>${r.day_fraction.toFixed(2)}</td>
-        ${leaveCell}
-        <td class="attn-status">${statusText}</td>
-        ${fillBtn}
+      const isAbsent = r.status === 'absent' || r.status === 'special_absent';
+      const isEmpty = !autoRow && !r.start && !r.end && !isLeave;
+
+      const rowCls = [
+        isAbsent ? 'absent' : '',
+        isLeave ? 'attn-has-leave' : '',
+      ].filter(Boolean).join(' ');
+
+      // 时段单元
+      let timeCell;
+      if (autoRow) {
+        const label = r.status === 'sunday' ? '自动（周日）' : '自动（节假日）';
+        timeCell = `<td><span class="attn-time-auto">${label}</span></td>`;
+      } else {
+        const placeholderStart = isSpecial ? r.special_start : '09:30';
+        const placeholderEnd = isSpecial ? r.special_end : '20:00';
+        const hint = isSpecial ? `<span class="attn-time-hint">特殊日 · 标准 ${r.special_start}–${r.special_end}</span>` : '';
+        timeCell = `<td>
+          <span class="attn-time">
+            <input type="text" inputmode="numeric" maxlength="5" placeholder="${placeholderStart}" data-date="${r.date}" data-field="start" value="${r.start || ''}">
+            <span class="attn-arr">→</span>
+            <input type="text" inputmode="numeric" maxlength="5" placeholder="${placeholderEnd}" data-date="${r.date}" data-field="end" value="${r.end || ''}">
+          </span>
+          ${hint}
+        </td>`;
+      }
+
+      // 天数
+      const fracText = autoRow ? '—' : (isEmpty ? '—' : r.day_fraction.toFixed(2));
+
+      // 状态文字 + 已存在请假 tag
+      let stCls, stText;
+      if (isEmpty) {
+        stCls = 'attn-st-todo';
+        stText = '待填';
+      } else {
+        stCls = statusClsMap[r.status] || '';
+        stText = isLeave ? `请假 ${r.leave_hours || 0}h` : (statusMap[r.status] || r.status);
+      }
+      const leaveTag = (isLeave && r.leave_type === 'range' && r.leave_start && r.leave_end)
+        ? `<span class="attn-leave-tag">${r.leave_start}–${r.leave_end}</span>`
+        : (isLeave && r.leave_type === 'left' && r.leave_start
+            ? `<span class="attn-leave-tag">${r.leave_start} 起</span>`
+            : '');
+
+      // 行尾操作（hover 浮现）
+      let ops = '';
+      if (!autoRow) {
+        if (isLeave) {
+          ops = `<span class="attn-ops"><button class="attn-op attn-op-danger attn-leave-clear" data-date="${r.date}">取消</button></span>`;
+        } else {
+          const fillStart = isSpecial ? r.special_start : '09:30';
+          const fillEnd = isSpecial ? r.special_end : '20:00';
+          ops = `<span class="attn-ops">
+            <button class="attn-op attn-fill" data-date="${r.date}" data-start="${fillStart}" data-end="${fillEnd}">按标准</button>
+            <button class="attn-op attn-leave-add" data-date="${r.date}">请假</button>
+          </span>`;
+        }
+      }
+
+      return `<tr class="${rowCls}" data-date="${r.date}">
+        <td><span class="attn-day">${r.date.slice(5)}</span><span class="attn-wk">周${r.weekday}</span></td>
+        ${timeCell}
+        <td class="attn-frac">${fracText}</td>
+        <td><span class="attn-st ${stCls}">${stText}</span>${leaveTag}${ops}</td>
       </tr>`;
     }).join('');
+
     wrap.innerHTML = `
       <table class="attn-grid">
-        <thead><tr><th>日期</th><th>星期</th><th>上班</th><th>下班</th><th>天数</th><th>请假</th><th>状态</th><th>快填</th></tr></thead>
+        <thead><tr><th style="width:130px">日期</th><th>时段</th><th style="width:80px">天数</th><th>状态</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
+
     wrap.querySelectorAll('input[data-field]').forEach(inp => {
       inp.addEventListener('change', () => onCellChange(inp.dataset.date));
     });
@@ -300,17 +345,47 @@
     await onCellChange(date);
   }
 
-  function formatLeave(r) {
-    const h = r.leave_hours || 0;
-    if (!h) return '';
-    const t = r.leave_type || '';
-    if (t === 'range' && r.leave_start && r.leave_end) {
-      return `${r.leave_start}-${r.leave_end} (${h}h)`;
+  async function fillAllNormal() {
+    if (!currentEmployeeId || !currentMonth) {
+      alert('请先选择员工和月份');
+      return;
     }
-    if (t === 'left' && r.leave_start) {
-      return `${r.leave_start} 起 (${h}h)`;
+    if (!currentSummary || !Array.isArray(currentSummary.detail)) {
+      alert('数据未加载');
+      return;
     }
-    return `${h}h`;
+    // 仅填空白工作日：跳过周日 / 节假日 / 特殊日 / 请假 / 已填
+    const targets = currentSummary.detail.filter(r => {
+      if (r.status === 'sunday' || r.status === 'holiday') return false;
+      if (r.status === 'leave') return false;
+      if (r.status === 'special' || r.status === 'special_absent') return false;
+      if (r.start || r.end) return false;
+      return true;
+    });
+    if (targets.length === 0) {
+      alert('当前月份没有需要填充的空白工作日');
+      return;
+    }
+    if (!confirm(`将为 ${targets.length} 个空白工作日填入 09:30–20:00，是否继续？`)) return;
+    let ok = 0;
+    let fail = 0;
+    for (const r of targets) {
+      try {
+        const res = await fetch(`/attendance/day/${currentEmployeeId}/${r.date}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ start: '09:30', end: '20:00' }),
+        });
+        const body = await res.json();
+        if (body.ok) ok++; else fail++;
+      } catch (e) {
+        fail++;
+      }
+    }
+    await loadMonth();
+    if (fail > 0) {
+      alert(`填充完成：成功 ${ok} 天，失败 ${fail} 天`);
+    }
   }
 
   function normalizeTime(raw) {

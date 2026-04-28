@@ -1,16 +1,19 @@
-/* ========== Page: 考勤 ========== */
+/* ========== Page: 考勤（Notion 暗色极简风） ========== */
 #pageAttendance.active {
   display: block;
   overflow: auto;
   height: calc(100vh - 100px);
 }
 
+/* ===== 外层 ===== */
 .attn-wrap {
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
   padding: var(--sp-4);
 }
+
+/* ===== 顶部工具条 ===== */
 .attn-top {
   display: flex;
   align-items: center;
@@ -18,87 +21,219 @@
   flex-wrap: wrap;
 }
 .attn-top label { color: var(--c-text-muted); font-size: var(--fs-base); }
+.attn-top .attn-spacer { flex: 1; }
 
 .attn-inp {
-  padding: 4px 8px;
+  padding: 5px 10px;
   border-radius: var(--r-sm);
-  border: 1px solid #334155;
-  background: #0f172a;
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
   color: var(--c-text);
+  font-size: var(--fs-base);
 }
+.attn-inp:focus {
+  outline: none;
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 2px var(--c-accent-soft);
+}
+
 .attn-btn {
   padding: 5px 12px;
   border-radius: var(--r-sm);
-  border: 1px solid #334155;
-  background: #1e293b;
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
   color: var(--c-text);
   cursor: pointer;
   font-size: var(--fs-base);
+  transition: background var(--t-fast), border-color var(--t-fast);
 }
-.attn-btn:hover { background: #334155; }
-.attn-btn-danger { border-color: #b91c1c; color: #fca5a5; }
+.attn-btn:hover { background: var(--c-surface-elev); border-color: var(--c-accent); }
+.attn-btn-danger { border-color: var(--c-danger-border); color: var(--c-danger); }
 .attn-btn-dl {
   background: var(--c-accent);
   border-color: var(--c-accent);
   color: #fff;
 }
+.attn-btn-dl:hover { background: var(--c-accent-hover); border-color: var(--c-accent-hover); }
 
+/* ===== 统计 K/V 小卡片（5 等分网格） ===== */
 .attn-stats {
-  display: flex;
-  gap: 20px;
-  color: var(--c-text);
-  font-size: 14px;
-  padding: 8px 12px;
-  background: #1e293b;
-  border-radius: var(--r-sm);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1px;
+  background: var(--c-border);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  overflow: hidden;
 }
-.attn-stats span { display: flex; gap: 6px; }
-.attn-stats b { color: var(--c-success); }
+.attn-stat {
+  background: var(--c-surface);
+  padding: 12px 16px;
+}
+.attn-stat-k {
+  color: var(--c-text-dim);
+  font-size: var(--fs-md);
+}
+.attn-stat-v {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--c-text);
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.attn-stat-v small {
+  font-size: var(--fs-md);
+  color: var(--c-text-dim);
+  font-weight: 400;
+  margin-left: 4px;
+}
 
+/* ===== 表格容器 ===== */
+.attn-grid-wrap {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+/* ===== 表格 ===== */
 .attn-grid {
   width: 100%;
   border-collapse: collapse;
   color: var(--c-text);
   font-size: var(--fs-base);
 }
-.attn-grid th, .attn-grid td {
-  padding: 5px 8px;
-  border: 1px solid #334155;
-  text-align: center;
+.attn-grid thead th {
+  text-align: left;
+  font-weight: 500;
+  font-size: var(--fs-sm);
+  color: var(--c-text-dim);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  padding: 10px 16px;
+  background: var(--c-surface-elev);
+  border-bottom: 1px solid var(--c-border);
 }
-.attn-grid th { background: #1e293b; font-weight: 600; }
-.attn-grid td input[type=time],
-.attn-grid td input[type=text] {
+.attn-grid tbody td {
+  padding: 9px 16px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--c-border-subtle);
+}
+.attn-grid tbody tr:last-child td { border-bottom: none; }
+.attn-grid tbody tr:hover td { background: rgba(129,140,248,.04); }
+
+/* 行背景：默认统一，仅 absent 保留极淡红 */
+.attn-grid tr.absent td { background: rgba(248,113,113,.05); }
+.attn-grid tr.absent:hover td { background: rgba(248,113,113,.08); }
+
+/* ===== 日期 / 星期 ===== */
+.attn-day { font-variant-numeric: tabular-nums; font-weight: 500; }
+.attn-wk  { color: var(--c-text-dim); margin-left: 8px; font-size: var(--fs-md); }
+
+/* ===== 时段单元 ===== */
+.attn-time { display: inline-flex; align-items: center; gap: 4px; }
+.attn-time input {
+  width: 56px;
+  border: 1px solid transparent;
   background: transparent;
-  border: 1px solid #334155;
   color: var(--c-text);
-  padding: 2px 4px;
-  border-radius: 3px;
-  width: 64px;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
   text-align: center;
-  font-family: inherit;
+  padding: 3px 6px;
+  border-radius: var(--r-sm);
 }
-.attn-grid tr.sunday td { background: var(--c-accent-soft); color: #a5b4fc; }
-.attn-grid tr.holiday td { background: var(--c-success-bg); color: #86efac; }
-.attn-grid tr.special td { background: var(--c-warn-bg); color: #fdba74; }
-.attn-grid tr.special.absent td { background: #451a03; color: #fca5a5; }
-.attn-hint { font-size: var(--fs-xs); color: var(--c-text-muted); }
-.attn-grid tr.absent td { background: #1a0f0f; color: #fca5a5; }
-.attn-grid tr.leave td { background: #1e3a8a; color: #bfdbfe; }
-.attn-grid .attn-status { font-size: var(--fs-md); }
-.attn-grid .attn-fill {
-  padding: 2px 8px;
+.attn-time input::placeholder { color: var(--c-text-faint); }
+.attn-time input:hover { background: rgba(255,255,255,.04); }
+.attn-time input:focus {
+  outline: none;
+  background: var(--c-bg);
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 2px var(--c-accent-soft);
+}
+.attn-time .attn-arr { color: var(--c-text-faint); }
+.attn-time-auto { color: var(--c-text-dim); font-style: italic; }
+
+/* 时段后的小提示（特殊日缩短工时） */
+.attn-time-hint {
+  display: block;
+  color: var(--c-text-faint);
+  font-size: var(--fs-xs);
+  margin-top: 2px;
+}
+
+/* ===== 天数 ===== */
+.attn-frac {
+  font-variant-numeric: tabular-nums;
+  color: var(--c-text-mute2);
+}
+
+/* ===== 状态点 + 文字 ===== */
+.attn-st {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   font-size: var(--fs-md);
-  background: #059669;
-  border-color: #059669;
-  color: #fff;
+  color: var(--c-text-muted);
 }
-.attn-grid .attn-fill:hover { background: #047857; }
+.attn-st::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--c-text-faint);
+  flex-shrink: 0;
+}
+.attn-st-normal::before  { background: var(--c-success); }
+.attn-st-absent          { color: var(--c-danger); }
+.attn-st-absent::before  { background: var(--c-danger); }
+.attn-st-leave           { color: var(--c-warn); }
+.attn-st-leave::before   { background: var(--c-warn); }
+.attn-st-special         { color: var(--c-warn-strong); }
+.attn-st-special::before { background: var(--c-warn-strong); }
+.attn-st-sunday::before  { background: var(--c-accent-fg); }
+.attn-st-holiday         { color: var(--c-info); }
+.attn-st-holiday::before { background: var(--c-info); }
+.attn-st-todo::before    { background: transparent; box-shadow: inset 0 0 0 1px var(--c-text-faint); }
 
-/* ========== Attendance: hidden overlay (toggled by JS) ========== */
+/* 已存在的请假信息 tag */
+.attn-leave-tag {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: var(--r-sm);
+  background: var(--c-warn-bg);
+  color: var(--c-warn);
+  font-size: var(--fs-xs);
+  border: 1px solid rgba(251,191,36,.25);
+}
+
+/* ===== 行尾操作按钮组（hover 浮现） ===== */
+.attn-ops {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: 10px;
+  opacity: 0;
+  transition: opacity var(--t-fast);
+}
+.attn-grid tr:hover .attn-ops,
+.attn-grid tr.attn-has-leave .attn-ops { opacity: 1; }
+.attn-op {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-md);
+  color: var(--c-text-muted);
+  padding: 3px 8px;
+  border-radius: var(--r-sm);
+}
+.attn-op:hover { background: var(--c-accent-soft); color: var(--c-accent-fg); }
+.attn-op-danger:hover { background: var(--c-danger-bg); color: var(--c-danger); }
+
+/* ===== 浮层（保留原 .pur-modal 类，下面只补 attn 专用辅助类） ===== */
 .attn-hidden { display: none; }
-
-/* ========== Attendance modal inner layouts ========== */
 .attn-time-row {
   display: flex;
   gap: 8px;
@@ -112,9 +247,6 @@
 }
 .attn-narrow { width: 70px; }
 
-/* ========== Attendance placeholder messages ========== */
-.attn-empty-msg {
-  color: var(--c-text-dim);
-  padding: 20px;
-}
-.attn-error-msg { color: #fca5a5; }
+/* ===== 错误/空提示 ===== */
+.attn-empty-msg { color: var(--c-text-dim); padding: 20px; }
+.attn-error-msg { color: var(--c-danger); padding: 20px; }
