@@ -345,6 +345,49 @@
     await onCellChange(date);
   }
 
+  async function fillAllNormal() {
+    if (!currentEmployeeId || !currentMonth) {
+      alert('请先选择员工和月份');
+      return;
+    }
+    if (!currentSummary || !Array.isArray(currentSummary.detail)) {
+      alert('数据未加载');
+      return;
+    }
+    // 仅填空白工作日：跳过周日 / 节假日 / 特殊日 / 请假 / 已填
+    const targets = currentSummary.detail.filter(r => {
+      if (r.status === 'sunday' || r.status === 'holiday') return false;
+      if (r.status === 'leave') return false;
+      if (r.status === 'special' || r.status === 'special_absent') return false;
+      if (r.start || r.end) return false;
+      return true;
+    });
+    if (targets.length === 0) {
+      alert('当前月份没有需要填充的空白工作日');
+      return;
+    }
+    if (!confirm(`将为 ${targets.length} 个空白工作日填入 09:30–20:00，是否继续？`)) return;
+    let ok = 0;
+    let fail = 0;
+    for (const r of targets) {
+      try {
+        const res = await fetch(`/attendance/day/${currentEmployeeId}/${r.date}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ start: '09:30', end: '20:00' }),
+        });
+        const body = await res.json();
+        if (body.ok) ok++; else fail++;
+      } catch (e) {
+        fail++;
+      }
+    }
+    await loadMonth();
+    if (fail > 0) {
+      alert(`填充完成：成功 ${ok} 天，失败 ${fail} 天`);
+    }
+  }
+
   function formatLeave(r) {
     const h = r.leave_hours || 0;
     if (!h) return '';
