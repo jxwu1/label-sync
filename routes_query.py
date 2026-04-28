@@ -28,10 +28,6 @@ def files():
     return jsonify(query_service.read_file_list())
 
 
-@bp.get("/stats")
-def stats():
-    return jsonify(query_service.read_monthly_stats())
-
 
 @bp.get("/download_zip/<path:filename>")
 def download_zip(filename):

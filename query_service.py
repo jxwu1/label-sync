@@ -1,8 +1,5 @@
 import csv
 import logging
-import re
-from collections import defaultdict
-from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -15,8 +12,6 @@ from output_repository import (
     list_output_xlsx_files,
 )
 from state import task_state
-
-_YYYYMMDD_LEN = 8  # 输出目录名中日期前缀长度（格式 YYYYMMDD[HHMMSS]）
 
 
 def _file_info(path: Path) -> dict:
@@ -107,30 +102,3 @@ def read_file_list() -> dict:
     }
 
     return {"input": input_files, "output": output_items, "status": status_data}
-
-
-def read_monthly_stats() -> list[dict]:
-    monthly_stats = defaultdict(lambda: defaultdict(int))
-
-    for path in list_output_dirs():
-        match = re.match(r"^(.+?)价格标(\d{8,14})$", path.name)
-        if not match:
-            continue
-
-        employee = match.group(1)
-        date_text = match.group(2)[:_YYYYMMDD_LEN]
-        try:
-            month_key = datetime.strptime(date_text, "%Y%m%d").strftime("%Y-%m")
-        except ValueError:
-            continue
-        monthly_stats[month_key][employee] += 1
-
-    result = []
-    for month_key in sorted(monthly_stats.keys(), reverse=True):
-        employees = [
-            {"name": name, "count": count}
-            for name, count in sorted(monthly_stats[month_key].items())
-        ]
-        result.append({"month": month_key, "employees": employees})
-
-    return result
