@@ -50,11 +50,11 @@
 .attn-btn:hover { background: var(--c-surface-elev); border-color: var(--c-accent); }
 .attn-btn-danger { border-color: var(--c-danger-border); color: var(--c-danger); }
 .attn-btn-dl {
-  background: var(--c-accent);
-  border-color: var(--c-accent);
-  color: #fff;
+  background: #268bd2;
+  border-color: #268bd2;
+  color: #fdf6e3;
 }
-.attn-btn-dl:hover { background: var(--c-accent-hover); border-color: var(--c-accent-hover); }
+.attn-btn-dl:hover { background: #1f6fa8; border-color: #1f6fa8; }
 
 /* ===== 统计 K/V 小卡片（5 等分网格） ===== */
 .attn-stats {
