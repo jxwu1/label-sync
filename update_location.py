@@ -46,7 +46,7 @@ def build_output_dataframe(
 def rewrite_scan_export(
     scan_file: Path, target_path: Path, barcode_model_map: dict[str, str]
 ) -> None:
-    scan_df = pd.read_excel(scan_file, header=None, dtype=str)
+    scan_df = pd.read_excel(scan_file, header=None, dtype=str, engine="calamine")
     scan_df.columns = ["原始值"] + [f"_col{i}" for i in range(1, len(scan_df.columns))]
     scan_df["型号"] = scan_df["原始值"].apply(
         lambda value: lookup_model(value, barcode_model_map)

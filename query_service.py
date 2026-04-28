@@ -32,7 +32,7 @@ def read_barcode_list() -> dict:
     all_models: list[str] = []
     for xlsx_path in xlsx_files:
         try:
-            dataframe = pd.read_excel(xlsx_path, dtype=str)
+            dataframe = pd.read_excel(xlsx_path, dtype=str, engine="calamine")
         except Exception as exc:
             logging.warning("Skipping invalid Excel file %s: %s", xlsx_path.name, exc)
             continue

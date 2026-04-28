@@ -47,14 +47,14 @@ def _write_json_with_retry(path: Path, data) -> None:
 
 def read_csv(path: Path) -> pd.DataFrame:
     try:
-        return pd.read_csv(path, dtype=str, encoding="utf-8")
+        return pd.read_csv(path, dtype=str, encoding="utf-8", engine="pyarrow")
     except UnicodeDecodeError:
         return pd.read_csv(path, dtype=str, encoding=CONFIG.csv_fallback_encoding)
 
 
 def read_csv_with_sig(path: Path) -> pd.DataFrame:
     try:
-        return pd.read_csv(path, dtype=str, encoding="utf-8-sig")
+        return pd.read_csv(path, dtype=str, encoding="utf-8-sig", engine="pyarrow")
     except UnicodeDecodeError:
         return pd.read_csv(path, dtype=str, encoding=CONFIG.csv_fallback_encoding)
 
@@ -62,7 +62,7 @@ def read_csv_with_sig(path: Path) -> pd.DataFrame:
 def read_input_file(path: Path) -> pd.DataFrame | None:
     suffix = path.suffix.lower()
     if suffix in {".xlsx", ".xls"}:
-        return pd.read_excel(path, header=0, dtype=str)
+        return pd.read_excel(path, header=0, dtype=str, engine="calamine")
     if suffix == ".csv":
         return read_csv_with_sig(path)
     return None
