@@ -175,3 +175,40 @@ def test_build_response_not_found(memdb):
     assert resp["found"] is False
     assert "current" not in resp
     assert "events" not in resp
+
+
+def test_route_history_returns_json(memdb):
+    """用 Flask test client 验证 GET /history 工作。"""
+    _insert_stockpile(
+        memdb,
+        product_barcode="5828079100248",
+        product_model="10024",
+        stockpile_location="A22-04-04",
+        is_active=1,
+        source="scan_import",
+    )
+    from server import app
+    client = app.test_client()
+    resp = client.get("/history?q=10024")
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["ok"] is True
+    assert body["found"] is True
+    assert body["current"]["barcode"] == "5828079100248"
+
+
+def test_route_history_missing_q_returns_400(memdb):
+    from server import app
+    client = app.test_client()
+    resp = client.get("/history")
+    assert resp.status_code == 400
+    assert resp.get_json()["ok"] is False
+
+
+def test_route_history_not_found(memdb):
+    from server import app
+    client = app.test_client()
+    resp = client.get("/history?q=nope")
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["found"] is False

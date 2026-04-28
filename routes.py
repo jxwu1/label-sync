@@ -3,6 +3,7 @@ from routes_monthly_summary import bp as monthly_summary_bp
 from routes_pages_tasks import bp as pages_tasks_bp
 from routes_purchase import bp as purchase_bp
 from routes_query import bp as query_bp
+from routes_history import bp as history_bp
 from routes_stockpile import bp as stockpile_bp
 
 from config import CONFIG
@@ -11,6 +12,7 @@ from config import CONFIG
 def register_routes(app) -> None:
     app.register_blueprint(pages_tasks_bp)
     app.register_blueprint(query_bp)
+    app.register_blueprint(history_bp)
     app.register_blueprint(purchase_bp)
     app.register_blueprint(monthly_summary_bp)
     app.register_blueprint(attendance_bp)
