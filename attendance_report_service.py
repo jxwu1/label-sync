@@ -255,6 +255,9 @@ def build_payroll_pdf(month: str) -> bytes:
     style.add("ALIGN", (1, 0), (5, -1), "RIGHT")
     style.add("ALIGN", (4, 0), (4, -1), "CENTER")
     style.add("ALIGN", (6, 0), (-1, -1), "CENTER")
+    # 工资块视觉分隔：累计列与实际工资列之间一条粗一点的线，实际工资与应付工资之间一条细线
+    style.add("LINEBEFORE", (6, 0), (6, -1), 1.0, _C_HEAD)
+    style.add("LINEBEFORE", (7, 0), (7, -1), 0.5, _C_HEAD)
     # 工资栏（最后两列）的数据行加 0.5pt 横线占位
     for row_idx in range(1, len(rows)):
         style.add("LINEBELOW", (6, row_idx), (-1, row_idx), 0.5, _C_HEAD)
