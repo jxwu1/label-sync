@@ -24,13 +24,13 @@
 .app-nav__item {
   background: var(--c-surface-deep);
   color: var(--c-text-muted);
-  padding: 11px 24px 18px;
+  padding: 11px 28px 18px;
   font-size: var(--fs-base);
   font-weight: 500;
   cursor: pointer;
   border-radius: var(--r-lg) var(--r-lg) 0 0;
   border: none;
-  margin-right: 2px;
+  margin-right: -10px;
   transition: background var(--t-fast), color var(--t-fast);
   user-select: none;
   position: relative;
@@ -40,6 +40,16 @@
   align-items: center;
   gap: 8px;
 }
+.app-nav__item::before, .app-nav__item::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  width: 10px;
+  height: 100%;
+  background: inherit;
+}
+.app-nav__item::before { left: -8px; border-radius: var(--r-lg) 0 0 0; transform: skewX(-12deg); transform-origin: bottom left; }
+.app-nav__item::after  { right: -8px; border-radius: 0 var(--r-lg) 0 0; transform: skewX(12deg);  transform-origin: bottom right; }
 .app-nav__item:hover { background: var(--c-surface-elev); color: var(--c-text); }
 .app-nav__item.active {
   background: var(--c-surface);
