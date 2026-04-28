@@ -388,19 +388,6 @@
     }
   }
 
-  function formatLeave(r) {
-    const h = r.leave_hours || 0;
-    if (!h) return '';
-    const t = r.leave_type || '';
-    if (t === 'range' && r.leave_start && r.leave_end) {
-      return `${r.leave_start}-${r.leave_end} (${h}h)`;
-    }
-    if (t === 'left' && r.leave_start) {
-      return `${r.leave_start} 起 (${h}h)`;
-    }
-    return `${h}h`;
-  }
-
   function normalizeTime(raw) {
     const s = String(raw || '').trim();
     if (!s) return '';
