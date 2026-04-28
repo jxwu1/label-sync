@@ -70,8 +70,8 @@
 .pur-btn-copy.copied { background: #059669; }
 
 .pur-btn-dl {
-  background: var(--c-accent);
-  color: #fff;
+  background: #268bd2;
+  color: #fdf6e3;
   border: none;
   border-radius: var(--r-md);
   padding: 10px 20px;
@@ -79,7 +79,7 @@
   font-weight: 600;
   cursor: pointer;
 }
-.pur-btn-dl:hover:not(:disabled) { background: var(--c-accent-hover); }
+.pur-btn-dl:hover:not(:disabled) { background: #1f6fa8; }
 .pur-btn-copy:disabled, .pur-btn-dl:disabled { opacity: .45; cursor: not-allowed; }
 
 .pur-newbox {
