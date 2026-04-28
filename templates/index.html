@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-dup.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-purchase.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-attendance.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/page-history.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/terminal-log.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/transfer-drawer.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/quickmenu.css') }}">
@@ -30,6 +31,9 @@
     </div>
     <div class="app-nav__item" id="navAttendance" onclick="switchPage('attendance')">
       <span class="app-nav__icon">🕐</span>考勤
+    </div>
+    <div class="app-nav__item" id="navHistory" onclick="switchPage('history')">
+      <span class="app-nav__icon">📜</span>货号历史
     </div>
     <span style="flex:1"></span>
     <span class="badge badge-idle" id="badge" style="margin-bottom: 14px; align-self: flex-end;">空闲</span>
@@ -121,6 +125,29 @@
       </div>
       <div class="page" id="pagePurchase"></div>
       <div class="page" id="pageAttendance"></div>
+      <div class="page" id="pageHistory">
+        <div class="panel" id="historySearchPanel">
+          <div class="panel-hd">货号查询</div>
+          <div class="panel-bd">
+            <div class="history-search-row">
+              <input type="text" id="historyInput" placeholder="输入条码或型号" autocomplete="off">
+              <button class="btn btn-primary" id="historySearch">查询</button>
+              <button class="btn btn-ghost" id="historyClear">清空</button>
+            </div>
+            <div class="history-hint" id="historyHint">输入条码或型号后查询历史</div>
+          </div>
+        </div>
+
+        <div class="panel" id="historyCurrentPanel" hidden>
+          <div class="panel-hd">当前状态</div>
+          <div class="panel-bd" id="historyCurrent"></div>
+        </div>
+
+        <div class="panel" id="historyTimelinePanel" hidden>
+          <div class="panel-hd">历史时间线</div>
+          <div class="panel-bd" id="historyTimeline"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -190,5 +217,6 @@
 <script type="module" src="{{ url_for('static', filename='js/index.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/purchase.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/attendance.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/history.js') }}"></script>
 </body>
 </html>
