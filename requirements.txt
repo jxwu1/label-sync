@@ -3,4 +3,6 @@ pandas
 openpyxl
 python-calamine
 pyarrow
+sqlalchemy
+alembic
 reportlab
