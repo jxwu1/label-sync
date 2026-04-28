@@ -39,6 +39,18 @@ def _insert_stockpile(db_path, **kwargs):
     conn.close()
 
 
+def _insert_change(db_path, barcode, field, old, new, ctype, at):
+    conn = sqlite3.connect(str(db_path))
+    conn.execute(
+        "INSERT INTO stockpile_changes "
+        "(product_barcode, field_name, old_value, new_value, change_type, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (barcode, field, old, new, ctype, at),
+    )
+    conn.commit()
+    conn.close()
+
+
 def test_find_record_by_barcode(memdb):
     import history_service
     _insert_stockpile(
@@ -82,3 +94,57 @@ def test_find_record_empty_input(memdb):
     import history_service
     assert history_service.find_record("") is None
     assert history_service.find_record("   ") is None
+
+
+def test_aggregate_same_second_into_one_event(memdb):
+    import history_service
+    bc = "5828079100248"
+    # 同一秒 4 条变更（仿真实 batch import 行为）
+    for field, old, new in [
+        ("product_model",      "10024", "10025"),
+        ("stockpile_location", "A22-04-04", ""),
+        ("product_model",      "10025", "10024"),
+        ("stockpile_location", "", "A22-04-04"),
+    ]:
+        _insert_change(memdb, bc, field, old, new, "update", "2026-04-25 16:52:43")
+
+    events = history_service.aggregate_events(bc)
+    assert len(events) == 1
+    assert events[0]["at"] == "2026-04-25 16:52:43"
+    assert events[0]["change_type"] == "update"
+    assert len(events[0]["changes"]) == 4
+
+
+def test_aggregate_4_second_gap_merges(memdb):
+    import history_service
+    bc = "B1"
+    _insert_change(memdb, bc, "stockpile_location", "X", "Y", "update", "2026-04-27 10:00:00")
+    _insert_change(memdb, bc, "stockpile_location", "Y", "Z", "update", "2026-04-27 10:00:04")
+    events = history_service.aggregate_events(bc)
+    assert len(events) == 1
+    assert len(events[0]["changes"]) == 2
+
+
+def test_aggregate_6_second_gap_splits(memdb):
+    import history_service
+    bc = "B2"
+    _insert_change(memdb, bc, "stockpile_location", "X", "Y", "update", "2026-04-27 10:00:00")
+    _insert_change(memdb, bc, "stockpile_location", "Y", "Z", "update", "2026-04-27 10:00:06")
+    events = history_service.aggregate_events(bc)
+    assert len(events) == 2
+
+
+def test_aggregate_returns_empty_when_no_changes(memdb):
+    import history_service
+    assert history_service.aggregate_events("never_exists") == []
+
+
+def test_aggregate_orders_events_desc_by_time(memdb):
+    import history_service
+    bc = "B3"
+    _insert_change(memdb, bc, "stockpile_location", "X", "Y", "update", "2026-04-25 10:00:00")
+    _insert_change(memdb, bc, "stockpile_location", "Y", "Z", "update", "2026-04-26 10:00:00")
+    _insert_change(memdb, bc, "stockpile_location", "Z", "W", "update", "2026-04-27 10:00:00")
+    events = history_service.aggregate_events(bc)
+    assert len(events) == 3
+    assert events[0]["at"] > events[1]["at"] > events[2]["at"]
