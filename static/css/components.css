@@ -13,23 +13,23 @@
 }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 
-.btn-secondary { background: var(--c-accent); color: #fff; }
-.btn-secondary:hover:not(:disabled) { background: var(--c-accent-hover); }
+.btn-secondary { background: #268bd2; color: #fdf6e3; }
+.btn-secondary:hover:not(:disabled) { background: #1f6fa8; }
 
-.btn-primary { background: var(--c-accent); color: #fff; }
-.btn-primary:hover:not(:disabled) { background: var(--c-accent-hover); }
+.btn-primary { background: #268bd2; color: #fdf6e3; }
+.btn-primary:hover:not(:disabled) { background: #1f6fa8; }
 
-.btn-warning { background: #c2410c; color: #fff; display: none; }
-.btn-warning:hover:not(:disabled) { background: #9a3412; }
+.btn-warning { background: #268bd2; color: #fdf6e3; display: none; }
+.btn-warning:hover:not(:disabled) { background: #1f6fa8; }
 
-.btn-success { background: #059669; color: #fff; display: none; }
-.btn-success:hover:not(:disabled) { background: #047857; }
+.btn-success { background: #268bd2; color: #fdf6e3; display: none; }
+.btn-success:hover:not(:disabled) { background: #1f6fa8; }
 
-.btn-info { background: #0e7490; color: #fff; display: none; }
-.btn-info:hover:not(:disabled) { background: #0c6578; }
+.btn-info { background: transparent; border: 1px solid #586e75; color: #586e75; display: none; }
+.btn-info:hover:not(:disabled) { background: var(--c-accent-soft); color: #073642; }
 
-.btn-ghost { background: var(--c-surface-deep); color: var(--c-text-muted); border: 1px solid var(--c-border); display: none; }
-.btn-ghost:hover { background: var(--c-accent); color: #fff; border-color: var(--c-accent); }
+.btn-ghost { background: transparent; color: #586e75; border: 1px solid #586e75; display: none; }
+.btn-ghost:hover { background: var(--c-accent-soft); color: #073642; }
 
 /* ========== Small buttons (.btn-s) ========== */
 .btn-s {
@@ -39,29 +39,29 @@
   cursor: pointer;
   font-family: inherit;
 }
-.btn-s.is-warn { border: 1px solid var(--c-warn-strong); background: transparent; color: var(--c-warn-strong); }
-.btn-s.is-warn:hover { background: var(--c-warn-bg-strong); }
-.btn-s.is-danger { border: 1px solid var(--c-danger-border); background: transparent; color: var(--c-danger); }
-.btn-s.is-danger:hover { background: var(--c-danger-bg); }
-.btn-s.is-ghost { border: 1px solid var(--c-text-faint); background: transparent; color: var(--c-text-muted); }
-.btn-s.is-ghost:hover { background: var(--c-accent); color: #fff; border-color: var(--c-accent); }
-.btn-s.is-warn-solid { border: none; background: #c2410c; color: #fff; }
-.btn-s.is-warn-solid:hover { background: #9a3412; }
-.btn-s.is-success { border: 1px solid #059669; background: transparent; color: var(--c-success); }
-.btn-s.is-success:hover { background: var(--c-success-bg); }
-.btn-s.is-ghost-strong { border: 1px solid var(--c-border); background: transparent; color: var(--c-text-muted); }
-.btn-s.is-ghost-strong:hover { background: var(--c-accent); color: #fff; border-color: var(--c-accent); }
+.btn-s.is-warn { border: none; background: #268bd2; color: #fdf6e3; }
+.btn-s.is-warn:hover { background: #1f6fa8; }
+.btn-s.is-danger { border: 1px solid #dc322f; background: transparent; color: #dc322f; }
+.btn-s.is-danger:hover { background: var(--c-danger-bg); color: #b22421; }
+.btn-s.is-ghost { border: 1px solid #586e75; background: transparent; color: #586e75; }
+.btn-s.is-ghost:hover { background: var(--c-accent-soft); color: #073642; }
+.btn-s.is-warn-solid { border: none; background: #268bd2; color: #fdf6e3; }
+.btn-s.is-warn-solid:hover { background: #1f6fa8; }
+.btn-s.is-success { border: none; background: #268bd2; color: #fdf6e3; }
+.btn-s.is-success:hover { background: #1f6fa8; }
+.btn-s.is-ghost-strong { border: 1px solid #586e75; background: transparent; color: #586e75; }
+.btn-s.is-ghost-strong:hover { background: var(--c-accent-soft); color: #073642; }
 
 /* ========== Mini button (header) ========== */
 .btn-mini {
-  background: var(--c-surface-deep);
-  border: 1px solid var(--c-border);
-  color: var(--c-text-muted);
+  background: transparent;
+  border: 1px solid #586e75;
+  color: #586e75;
   border-radius: var(--r-md);
   padding: 6px 10px;
   cursor: pointer;
 }
-.btn-mini:hover { background: var(--c-accent); color: #fff; border-color: var(--c-accent); }
+.btn-mini:hover { background: var(--c-accent-soft); color: #073642; }
 .btn-mini.active { background: var(--c-accent-soft); border-color: var(--c-accent); color: var(--c-accent-fg); }
 
 /* ========== Panel ========== */
