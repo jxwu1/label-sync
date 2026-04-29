@@ -6,15 +6,10 @@ import { initWarnings, waitMsg, renderReview } from "./index-warnings.js";
 import { initStockpile } from "./index-stockpile.js";
 
 const $ = (selector) => document.querySelector(selector);
-let selected = [], poll = null;
+let poll = null;
 
 initWarnings();
 
-function renderFiles() {
-  $("#files").innerHTML = selected.map((f, i) => `<div class="file"><span class="name">${esc(f.name)}</span><span class="rm" onclick="rmFile(${i})">×</span></div>`).join("");
-  $("#upload").disabled = !selected.length;
-}
-function rmFile(i) { selected.splice(i, 1); renderFiles(); } window.rmFile = rmFile;
 
 function switchPage(p) {
   document.querySelectorAll(".page").forEach((el) => el.classList.remove("active"));
@@ -28,19 +23,28 @@ function switchPage(p) {
 } window.switchPage = switchPage;
 
 // $("#hamb").onclick = () => $("#nav").classList.toggle("hide");  // 移除：filing 主题已删除汉堡按钮
-setupDropZone($("#drop"), $("#fileInput"), (files) => { selected.push(...[...files]); renderFiles(); });
+setupDropZone($("#drop"), $("#fileInput"), (files) => { Alpine.store('upload').add([...files]); });
 
 $("#upload").onclick = async () => {
-  if (!selected.length) return;
-  const upload = $("#upload"); upload.disabled = true;
+  const sel = Alpine.store('upload').selected;
+  if (!sel.length) return;
   Alpine.store('app').setStatus('<span class="spin"></span>正在上传文件...');
   try {
-    const formData = new FormData(); selected.forEach((f) => formData.append("files", f));
+    const formData = new FormData();
+    sel.forEach((f) => formData.append("files", f));
     const data = await (await fetch("/upload", { method: "POST", body: formData })).json();
-    if (!data.ok) { Alpine.store('app').setStatus("上传失败：" + data.msg, "error"); Alpine.store('term').push("上传失败：" + data.msg, "log-err"); upload.disabled = false; return; }
+    if (!data.ok) {
+      Alpine.store('app').setStatus("上传失败：" + data.msg, "error");
+      Alpine.store('term').push("上传失败：" + data.msg, "log-err");
+      return;
+    }
     Alpine.store('app').setStatus("上传成功，共 " + data.saved.length + " 个文件", "success");
-    Alpine.store('term').push("上传完成：" + data.saved.join(", "), "log-ok"); $("#run").disabled = false;
-  } catch (e) { Alpine.store('app').setStatus("上传失败：" + e, "error"); Alpine.store('term').push("上传失败：" + e, "log-err"); upload.disabled = false; }
+    Alpine.store('term').push("上传完成：" + data.saved.join(", "), "log-ok");
+    $("#run").disabled = false;
+  } catch (e) {
+    Alpine.store('app').setStatus("上传失败：" + e, "error");
+    Alpine.store('term').push("上传失败：" + e, "log-err");
+  }
 };
 
 function handleStatus(data) {
@@ -95,8 +99,9 @@ $("#cont").onclick = async () => {
 $("#download").onclick = () => { location.href = "/download"; Alpine.store('term').push("下载结果文件"); };
 
 $("#reset").onclick = () => {
-  selected = []; $("#files").innerHTML = ""; $("#fileInput").value = "";
-  $("#upload").disabled = true; $("#run").disabled = true;
+  Alpine.store('upload').clear();
+  $("#fileInput").value = "";
+  $("#run").disabled = true;
   const c = $("#cont"); c.style.display = "none"; c.disabled = false; c.textContent = "继续处理";
   $("#download").style.display = "none"; $("#copyModels").style.display = "none";
   $("#copyModelsAll").style.display = "none"; $("#reset").style.display = "none";

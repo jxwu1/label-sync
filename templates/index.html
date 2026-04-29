@@ -73,8 +73,15 @@
     <div class="panel" id="filesPanel">
       <div class="panel-hd">文件管理</div>
       <div class="panel-bd">
-        <div class="files" id="files"></div>
-        <button class="btn btn-secondary" id="upload" disabled>上传文件</button>
+        <div class="files" id="files" x-data>
+          <template x-for="(f, i) in $store.upload.selected" :key="i">
+            <div class="file">
+              <span class="name" x-text="f.name"></span>
+              <span class="rm" @click="$store.upload.remove(i)">×</span>
+            </div>
+          </template>
+        </div>
+        <button class="btn btn-secondary" id="upload" x-data :disabled="$store.upload.selected.length === 0">上传文件</button>
         <button class="btn btn-warning" id="cont">继续处理</button>
         <button class="btn btn-success" id="download">下载结果</button>
         <button class="btn btn-info" id="copyModels">复制所有型号</button>
