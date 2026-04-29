@@ -1,3 +1,5 @@
+import { copyToClip } from "./shared.js";
+
 function $(id) { return document.getElementById(id); }
 
 let _lastReport = null;
@@ -180,7 +182,7 @@ async function copyModels(sectionKey, btn) {
   }
   const truncated = section.count > samples.length;
   try {
-    await navigator.clipboard.writeText(models.join("\n"));
+    await copyToClip(models.join("\n"));
     const suffix = truncated ? `（共 ${section.count}）` : "";
     flashBtn(btn, `已复制 ${models.length}${suffix}`, "copied");
   } catch (e) {
