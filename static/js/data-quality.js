@@ -1,5 +1,7 @@
 function $(id) { return document.getElementById(id); }
 
+let _lastReport = null;
+
 function escapeHtml(s) {
   if (s === null || s === undefined) return "";
   return String(s)
@@ -136,6 +138,7 @@ async function refresh() {
       return;
     }
     $("dqHint").textContent = "本页只展示，不修改数据。在老系统修复后，下次 import 自动同步。";
+    _lastReport = data;
 
     showCount("dqMultiKindCount", data.multi_same_kind.count);
     renderMultiKind(data.multi_same_kind);
@@ -162,5 +165,38 @@ async function refresh() {
     btn.disabled = false;
   }
 }
+
+async function copyModels(sectionKey, btn) {
+  if (!_lastReport) {
+    flashBtn(btn, "先点刷新");
+    return;
+  }
+  const section = _lastReport[sectionKey];
+  const samples = (section && section.samples) || [];
+  const models = [...new Set(samples.map((s) => s.model).filter(Boolean))];
+  if (models.length === 0) {
+    flashBtn(btn, "无型号");
+    return;
+  }
+  const truncated = section.count > samples.length;
+  try {
+    await navigator.clipboard.writeText(models.join("\n"));
+    const suffix = truncated ? `（共 ${section.count}，仅可见前 ${samples.length}）` : "";
+    flashBtn(btn, `已复制 ${models.length}${suffix}`);
+  } catch (e) {
+    flashBtn(btn, "复制失败");
+  }
+}
+
+function flashBtn(btn, text) {
+  const original = btn.dataset.originalText || btn.textContent;
+  btn.dataset.originalText = original;
+  btn.textContent = text;
+  setTimeout(() => { btn.textContent = original; }, 1500);
+}
+
+document.querySelectorAll(".dq-copy").forEach((btn) => {
+  btn.addEventListener("click", () => copyModels(btn.dataset.copySection, btn));
+});
 
 $("dqRefresh")?.addEventListener("click", refresh);
