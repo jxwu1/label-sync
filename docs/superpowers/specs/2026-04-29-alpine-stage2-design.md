@@ -352,3 +352,9 @@ Playwright e2e 套件作为阶段 2 完成后的独立 follow-up，写入 roadma
 
 1. Q4 选 A 而非推荐的 B —— 用户明确表态"一次解决问题"，接受更大改动量换取 SSOT
 2. Q9 答完后用户提原则："YAGNI 不做的事情都要写进 roadmap"。本 spec §3.1 不纳入清单 + §7 后续路线即此原则的落地
+3. **2026-04-29 实施中偏离 §4 闸门**：原约定 PR1 合并后观察 1-2 天再开 PR2。实施时跳过观察期，直接 PR1 → PR2。理由：
+   - PR1 实施过程中本就发现了一个时序 bug（store.js classic defer 加载顺序，commit 14626d6），手测已暴露 + 修复
+   - PR2 范围极小（nav 数据驱动 + 删 switchPage，约 30 分钟）且与 PR1 代码路径正交（不碰 store）
+   - 两个 PR 各自独立 commit，回归 `git bisect` 即可定位
+   - 不是高频生产场景，"观察期"实际无负载暴露效用
+4. **2026-04-29 实施中发现并修复**：Alpine v3.14.9 用 `queueMicrotask(() => Alpine.start())` 调度，`alpine:init` 事件在 module script 之前就触发。store.js 作为 ES module 被 index.js import 太晚，监听器还没注册事件就过了，所有 `$store.X` 初始绑定拿到 undefined。修复方法：把 store.js 提前到 `<head>` 用 classic `defer` 加载，先于 Alpine。这条经验进入"加载时序"潜在风险登记
