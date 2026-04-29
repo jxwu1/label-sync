@@ -176,3 +176,37 @@ class ScanHistoryServiceTests(unittest.TestCase):
         (self.test_dir / "random_folder").mkdir()
         result = scan_history_service.get_batch_csv_path("random_folder")
         self.assertIsNone(result)
+
+    def test_get_batch_xlsx_path_returns_path_for_existing_file(self):
+        self._make_batch(
+            "ALI价格标20260420100000",
+            csv_rows=1,
+            xlsx_files=["ALI.xlsx"],
+        )
+
+        result = scan_history_service.get_batch_xlsx_path("ALI价格标20260420100000", "ALI.xlsx")
+
+        self.assertIsNotNone(result)
+        self.assertTrue(result.exists())
+
+    def test_get_batch_xlsx_path_returns_none_for_missing_file(self):
+        self._make_batch("ALI价格标20260420100000", csv_rows=1, xlsx_files=["ALI.xlsx"])
+
+        result = scan_history_service.get_batch_xlsx_path("ALI价格标20260420100000", "NOPE.xlsx")
+        self.assertIsNone(result)
+
+    def test_get_batch_xlsx_path_rejects_path_traversal_in_filename(self):
+        self._make_batch("ALI价格标20260420100000", csv_rows=1, xlsx_files=["ALI.xlsx"])
+
+        for bad_name in ["../other.xlsx", "..\\other.xlsx", "/etc/passwd", "subdir/foo.xlsx"]:
+            self.assertIsNone(
+                scan_history_service.get_batch_xlsx_path("ALI价格标20260420100000", bad_name),
+                f"should reject {bad_name!r}",
+            )
+
+    def test_get_batch_xlsx_path_only_serves_xlsx_extension(self):
+        batch = self._make_batch("ALI价格标20260420100000", csv_rows=1)
+        (batch / "secret.txt").write_text("nope")
+
+        result = scan_history_service.get_batch_xlsx_path("ALI价格标20260420100000", "secret.txt")
+        self.assertIsNone(result)

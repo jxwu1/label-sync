@@ -142,3 +142,25 @@ def _safe_resolve_batch(batch_id: str) -> Path | None:
     if not candidate.exists() or not candidate.is_dir():
         return None
     return candidate
+
+
+def get_batch_xlsx_path(batch_id: str, filename: str) -> Path | None:
+    """返回指定 xlsx 文件 Path；越界/不存在/非 xlsx 后缀返回 None。"""
+    batch_dir = _safe_resolve_batch(batch_id)
+    if batch_dir is None:
+        return None
+
+    if "/" in filename or "\\" in filename or filename.startswith("."):
+        return None
+    if not filename.lower().endswith(".xlsx"):
+        return None
+
+    candidate = (batch_dir / filename).resolve()
+    try:
+        if not candidate.is_relative_to(batch_dir):
+            return None
+    except ValueError:
+        return None
+    if not candidate.exists() or not candidate.is_file():
+        return None
+    return candidate
