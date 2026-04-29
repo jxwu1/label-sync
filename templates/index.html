@@ -130,26 +130,48 @@
       <div class="page" id="pagePurchase"></div>
       <div class="page" id="pageAttendance"></div>
       <div class="page" id="pageHistory">
-        <div class="panel" id="historySearchPanel">
-          <div class="panel-hd">货号查询</div>
-          <div class="panel-bd">
-            <div class="history-search-row">
-              <input type="text" id="historyInput" placeholder="输入条码或型号" autocomplete="off">
-              <button class="btn btn-primary" id="historySearch">查询</button>
-              <button class="btn btn-ghost" id="historyClear">清空</button>
+        <div class="tabs" id="historyTabs">
+          <button class="tabs__tab active" data-history-tab="search" type="button">🔎 货号查询</button>
+          <button class="tabs__tab" data-history-tab="recent" type="button">📊 最近改动</button>
+        </div>
+
+        <div class="tabs__panel active" data-history-tab-panel="search">
+          <div class="panel" id="historySearchPanel">
+            <div class="panel-hd">货号查询</div>
+            <div class="panel-bd">
+              <div class="history-search-row">
+                <input type="text" id="historyInput" placeholder="输入条码或型号" autocomplete="off">
+                <button class="btn btn-primary" id="historySearch">查询</button>
+                <button class="btn btn-ghost" id="historyClear">清空</button>
+              </div>
+              <div class="history-hint" id="historyHint">输入条码或型号后查询历史</div>
             </div>
-            <div class="history-hint" id="historyHint">输入条码或型号后查询历史</div>
+          </div>
+          <div class="panel" id="historyCurrentPanel" hidden>
+            <div class="panel-hd">当前状态</div>
+            <div class="panel-bd" id="historyCurrent"></div>
+          </div>
+          <div class="panel" id="historyTimelinePanel" hidden>
+            <div class="panel-hd">历史时间线</div>
+            <div class="panel-bd" id="historyTimeline"></div>
           </div>
         </div>
 
-        <div class="panel" id="historyCurrentPanel" hidden>
-          <div class="panel-hd">当前状态</div>
-          <div class="panel-bd" id="historyCurrent"></div>
-        </div>
-
-        <div class="panel" id="historyTimelinePanel" hidden>
-          <div class="panel-hd">历史时间线</div>
-          <div class="panel-bd" id="historyTimeline"></div>
+        <div class="tabs__panel" data-history-tab-panel="recent">
+          <div class="panel">
+            <div class="panel-hd">
+              最近改动
+              <div class="rc-actions">
+                <select id="rcBatchSelect"></select>
+                <button class="pur-btn-copy" id="rcModeToggle" data-mode="collapsed">展开 raw 事件</button>
+              </div>
+            </div>
+            <div class="panel-bd">
+              <div class="rc-summary" id="rcSummary"></div>
+              <div class="rc-chips" id="rcChips"></div>
+              <div class="rc-list" id="rcList"></div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="page" id="pageDataQuality">
@@ -277,5 +299,6 @@
 <script type="module" src="{{ url_for('static', filename='js/attendance.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/history.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/data-quality.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/index-recent-changes.js') }}"></script>
 </body>
 </html>
