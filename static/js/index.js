@@ -1,4 +1,5 @@
-﻿import { esc, logClass, copyToClip, setupDropZone } from "./shared.js";
+﻿import "./store.js";
+import { esc, logClass, copyToClip, setupDropZone } from "./shared.js";
 import { uploadTransferFiles, loadTransferFiles } from "./transfer.js";
 import { sendTextMessage, loadMessages, deleteMessage } from "./messaging.js";
 import { initWarnings, waitMsg, renderReview } from "./index-warnings.js";
