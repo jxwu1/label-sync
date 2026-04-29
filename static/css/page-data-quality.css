@@ -1,3 +1,9 @@
+#pageDataQuality.active {
+  display: block;
+  overflow: auto;
+  height: calc(100vh - 122px);
+}
+
 #pageDataQuality .dq-section {
   margin-top: 12px;
 }
