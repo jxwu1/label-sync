@@ -85,3 +85,49 @@ class ScanHistoryServiceTests(unittest.TestCase):
         shutil.rmtree(self.test_dir, ignore_errors=True)
         result = scan_history_service.list_batches()
         self.assertEqual(result, [])
+
+    def test_list_batches_includes_csv_metadata(self):
+        self._make_batch("ALI价格标20260420100000", csv_rows=10)
+
+        result = scan_history_service.list_batches()
+
+        self.assertEqual(len(result), 1)
+        b = result[0]
+        self.assertEqual(b["csv_filename"], "1产品信息导入模板.csv")
+        self.assertEqual(b["csv_rows"], 10)
+        self.assertGreater(b["csv_size_bytes"], 0)
+
+    def test_list_batches_includes_xlsx_files(self):
+        self._make_batch(
+            "ALI价格标20260420100000",
+            csv_rows=2,
+            xlsx_files=["ALI.xlsx", "ALI_2.xlsx"],
+        )
+
+        result = scan_history_service.list_batches()
+
+        b = result[0]
+        names = sorted(f["name"] for f in b["xlsx_files"])
+        self.assertEqual(names, ["ALI.xlsx", "ALI_2.xlsx"])
+        self.assertGreater(b["xlsx_files"][0]["size_bytes"], 0)
+
+    def test_list_batches_handles_missing_csv(self):
+        batch = self.test_dir / "ALI价格标20260420100000"
+        batch.mkdir()
+
+        result = scan_history_service.list_batches()
+
+        self.assertEqual(len(result), 1)
+        self.assertIsNone(result[0]["csv_filename"])
+        self.assertIsNone(result[0]["csv_rows"])
+
+    def test_list_batches_handles_unreadable_csv(self):
+        batch = self.test_dir / "ALI价格标20260420100000"
+        batch.mkdir()
+        (batch / "1产品信息导入模板.csv").write_bytes(b"")
+
+        result = scan_history_service.list_batches()
+
+        b = result[0]
+        self.assertEqual(b["csv_rows"], 0)
+        self.assertEqual(b["csv_size_bytes"], 0)

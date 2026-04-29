@@ -49,19 +49,56 @@ def list_batches(limit: int = 100) -> list[dict]:
     return [_build_batch_dict(entry, info) for entry, info in parsed]
 
 
+_CSV_FILENAME = "1产品信息导入模板.csv"
+
+
 def _build_batch_dict(batch_dir: Path, info: dict) -> dict:
-    """组装一条 batch 概览。Task 3 会填 CSV/xlsx 元信息；当前先返回占位。"""
+    """组装一条 batch 概览。CSV 缺失或不可读时 csv_* 字段为 None。"""
+    csv_path = batch_dir / _CSV_FILENAME
+    csv_filename: str | None = None
+    csv_rows: int | None = None
+    csv_size_bytes: int | None = None
+    if csv_path.exists() and csv_path.is_file():
+        csv_filename = _CSV_FILENAME
+        try:
+            csv_size_bytes = csv_path.stat().st_size
+            csv_rows = _count_csv_rows(csv_path)
+        except OSError:
+            csv_size_bytes = None
+            csv_rows = None
+
+    xlsx_files: list[dict] = []
+    for entry in batch_dir.iterdir():
+        if entry.is_file() and entry.suffix.lower() == ".xlsx":
+            try:
+                xlsx_files.append(
+                    {
+                        "name": entry.name,
+                        "size_bytes": entry.stat().st_size,
+                    }
+                )
+            except OSError:
+                continue
+    xlsx_files.sort(key=lambda f: f["name"])
+
     return {
         "batch_id": batch_dir.name,
         "employee": info["employee"],
         "scanned_at": _format_timestamp(info["timestamp"]),
-        "csv_filename": None,
-        "csv_rows": None,
-        "csv_size_bytes": None,
-        "xlsx_files": [],
+        "csv_filename": csv_filename,
+        "csv_rows": csv_rows,
+        "csv_size_bytes": csv_size_bytes,
+        "xlsx_files": xlsx_files,
     }
 
 
 def _format_timestamp(ts: str) -> str:
     """20260423155137 → 2026-04-23 15:51:37 (ISO-ish)."""
     return f"{ts[0:4]}-{ts[4:6]}-{ts[6:8]} {ts[8:10]}:{ts[10:12]}:{ts[12:14]}"
+
+
+def _count_csv_rows(csv_path: Path) -> int:
+    """数 CSV 数据行（不含 header）。空文件返回 0。"""
+    with csv_path.open("r", encoding="utf-8-sig") as f:
+        line_count = sum(1 for _ in f)
+    return max(0, line_count - 1)
