@@ -25,7 +25,9 @@
 **PR1 验证结果**：2026-04-29 全部通过 by jxwu1。修复点：commit 14626d6 (store.js 加载时序 — 改 classic defer 在 Alpine 之前加载，否则 alpine:init microtask 在 module script 之前已触发，store 注册落空)
 
 ## PR2: refactor/alpine-nav
-- [ ] 6 个 nav 项点击都能切到对应 page，active class 正确
-- [ ] 页面刷新后默认在 main tab
-- [ ] grep 验证 `static/js/` 下无 `window.switchPage` 残留
-- [ ] grep 验证 `templates/` 下无 `onclick="switchPage` 残留
+- [x] 6 个 nav 项点击都能切到对应 page，active class 正确
+- [x] 页面刷新后默认在 main tab
+- [x] grep 验证 `static/js/` 下无 `window.switchPage` 残留
+- [x] grep 验证 `templates/` 下无 `onclick="switchPage` 残留
+
+**PR2 验证结果**：2026-04-29 全部通过 by jxwu1。零修复，一次过。
