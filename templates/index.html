@@ -263,7 +263,16 @@
   <div class="msg" id="tMsg"></div>
 
   <div class="section-label">B 端共享文件</div>
-  <div id="tList"><div class="empty">暂无</div></div>
+  <div id="tList" x-data>
+    <template x-for="i in $store.transfer.files" :key="i.name">
+      <div class="transfer-file">
+        <span class="transfer-file__name" :title="i.name" x-text="i.name"></span>
+        <span class="transfer-file__size" x-text="i.size + 'KB'"></span>
+        <a class="transfer-file__dl" :href="`/transfer_download/${encodeURIComponent(i.name)}`">下载</a>
+      </div>
+    </template>
+    <div class="empty" x-show="$store.transfer.files.length === 0">暂无</div>
+  </div>
 
   <div class="section-label">文字互传</div>
   <textarea class="text-msg-input" id="textInput" rows="3" placeholder="输入消息，发送给 B 端（Ctrl+Enter）"></textarea>

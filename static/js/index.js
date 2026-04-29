@@ -145,7 +145,7 @@ function setupTransferZone() { setupDropZone($("#tDrop"), $("#tInput"), async (f
 
 async function loadTransferUI() {
   const items = await loadTransferFiles();
-  $("#tList").innerHTML = items.length ? items.map((i) => `<div class="transfer-file"><span class="transfer-file__name" title="${esc(i.name)}">${esc(i.name)}</span><span class="transfer-file__size">${i.size}KB</span><a class="transfer-file__dl" href="/transfer_download/${encodeURIComponent(i.name)}">下载</a></div>`).join("") : '<div class="empty">暂无</div>';
+  Alpine.store('transfer').setFiles(items);
 }
 
 const textInput = $("#textInput"), copyText = $("#copyText"), sendText = $("#sendText");
