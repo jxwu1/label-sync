@@ -8,31 +8,16 @@
   margin-top: 12px;
 }
 
-/* panel-hd flex 布局：标题左、按钮右，避免 float 撞标题 */
+/* panel-hd flex 布局：标题左、按钮 margin-left:auto 推到右上角 */
 #pageDataQuality .dq-section .panel-hd {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-#pageDataQuality .dq-section .panel-hd > .dq-copy {
+#pageDataQuality .dq-section .panel-hd > [data-copy-section] {
   margin-left: auto;
+  text-transform: none;  /* 抑制 panel-hd 的 uppercase 继承 */
 }
-
-/* 复刻 .pur-btn-copy 样式：透明底、暗灰边、复制成功绿背景 */
-.dq-copy {
-  background: transparent;
-  color: #586e75;
-  border: 1px solid #586e75;
-  border-radius: var(--r-md);
-  padding: 10px 20px;
-  font-size: var(--fs-base);
-  font-weight: 600;
-  cursor: pointer;
-  text-transform: none;
-}
-.dq-copy:hover:not(:disabled) { background: var(--c-accent-soft); color: #073642; }
-.dq-copy.copied { background: #859900; color: #fdf6e3; border-color: #859900; }
-.dq-copy:disabled { opacity: .45; cursor: not-allowed; }
 
 .dq-count {
   font-weight: normal;

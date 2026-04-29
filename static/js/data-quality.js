@@ -199,7 +199,7 @@ function flashBtn(btn, text, extraClass) {
   }, 2000);
 }
 
-document.querySelectorAll(".dq-copy").forEach((btn) => {
+document.querySelectorAll("[data-copy-section]").forEach((btn) => {
   btn.addEventListener("click", () => copyModels(btn.dataset.copySection, btn));
 });
 
