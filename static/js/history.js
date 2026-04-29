@@ -48,12 +48,17 @@ function renderResult(data) {
   const c = data.current;
   const stores = (c.store_locations || []).map(escapeHtml).join(", ") || '<span class="empty-val">—</span>';
   const warehouses = (c.warehouse_locations || []).map(escapeHtml).join(", ") || '<span class="empty-val">—</span>';
+  const unknown = (c.unknown_locations || []).map(escapeHtml).join(", ");
+  const unknownRow = unknown
+    ? `<div><span class="k">其他位置</span><span class="v" style="color:#cc6600">${unknown}</span></div>`
+    : "";
   $("historyCurrent").innerHTML = `
     <div class="kv-grid">
       <div><span class="k">型号</span><span class="v">${escapeHtml(c.model)}</span></div>
       <div><span class="k">条码</span><span class="v">${escapeHtml(c.barcode)}</span></div>
       <div><span class="k">店面位置</span><span class="v">${stores}</span></div>
       <div><span class="k">仓库位置</span><span class="v">${warehouses}</span></div>
+      ${unknownRow}
       <div><span class="k">状态</span><span class="v">${c.is_active ? "在架" : "下架"}</span></div>
       <div><span class="k">来源</span><span class="v">${escapeHtml(SOURCE_CN[c.source] || c.source)}</span></div>
       <div><span class="k">最后更新</span><span class="v">${escapeHtml(c.updated_at)}</span></div>
