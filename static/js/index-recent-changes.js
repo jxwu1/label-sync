@@ -83,11 +83,123 @@ function populateBatchDropdown(imports) {
   };
 }
 
+// === Task 10: Summary 卡片 ===
+
+async function loadSummary() {
+  try {
+    const data = await fetchJson(`/recent_changes/${_currentBatchId}/summary`);
+    _lastSummary = data.summary;
+    renderSummary(data.summary);
+  } catch (e) {
+    $("rcSummary").innerHTML = `<div class="rc-error">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderSummary(s) {
+  const card = (icon, label, n, filterKey, filterValue) => `
+    <button class="rc-summary-cell" data-filter-key="${filterKey || ""}" data-filter-value="${filterValue || ""}">
+      <div class="rc-summary-icon">${icon}</div>
+      <div class="rc-summary-num">${n}</div>
+      <div class="rc-summary-label">${label}</div>
+    </button>`;
+  $("rcSummary").innerHTML = `
+    <div class="rc-summary-grid">
+      ${card("📦", "库位变更", s.location_changes, "field", "stockpile_location")}
+      ${card("🏷", "型号变更", s.model_changes, "field", "product_model")}
+      ${card("➕", "新增", s.inserts, "change_type", "insert")}
+      ${card("❌", "失效", s.deactivates, "change_type", "deactivate")}
+      ${card("♻️", "重新上架", s.reactivates, "change_type", "reactivate")}
+    </div>
+    <div class="rc-summary-foot">
+      🔁 来回波动 ${s.roundtrip_count} 组
+      <span class="rc-tip">（同 barcode+字段终态==起始态的折叠剔除噪音）</span>
+    </div>`;
+  document.querySelectorAll(".rc-summary-cell").forEach((cell) => {
+    cell.addEventListener("click", () => {
+      const k = cell.dataset.filterKey, v = cell.dataset.filterValue;
+      if (!k || !v) return;
+      _currentFilter = { field: null, change_type: null };
+      _currentFilter[k] = v;
+      loadChanges();
+    });
+  });
+}
+
+// === Task 11: Collapsed 列表 + 行下钻 ===
+
+async function loadChanges() {
+  if (!_currentBatchId) return;
+  const params = new URLSearchParams({ mode: _currentMode });
+  if (_currentFilter.field) params.set("field", _currentFilter.field);
+  if (_currentFilter.change_type) params.set("change_type", _currentFilter.change_type);
+  try {
+    const data = await fetchJson(`/recent_changes/${_currentBatchId}/changes?${params}`);
+    if (_currentMode === "collapsed") {
+      renderCollapsedList(data.changes);
+    } else {
+      renderRawList(data.changes);
+    }
+  } catch (e) {
+    $("rcList").innerHTML = `<div class="rc-error">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderCollapsedList(rows) {
+  if (rows.length === 0) {
+    $("rcList").innerHTML = '<div class="rc-empty">该批次无实质变更</div>';
+    return;
+  }
+  const body = rows.map((r) => {
+    const changeText = renderChangeCell(r);
+    return `
+      <tr class="rc-row" data-barcode="${escapeHtml(r.barcode)}">
+        <td>${escapeHtml(r.barcode)}</td>
+        <td>${escapeHtml(r.model || "")}</td>
+        <td>${changeText}</td>
+        <td class="rc-time">${escapeHtml((r.latest_at || "").slice(11, 19))}</td>
+      </tr>`;
+  }).join("");
+  $("rcList").innerHTML = `
+    <table class="rc-table">
+      <thead><tr><th>货号</th><th>型号</th><th>变化</th><th>时间</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>`;
+  document.querySelectorAll(".rc-row").forEach((tr) => {
+    tr.addEventListener("click", () => drillToBarcode(tr.dataset.barcode));
+  });
+}
+
+function renderRawList(rows) {
+  // Task 12 will implement; stub to avoid runtime ReferenceError
+  $("rcList").innerHTML = '<div class="rc-empty">raw 视图待 Task 12 实现</div>';
+}
+
+function renderChangeCell(r) {
+  const fieldCn = FIELD_CN[r.field] || r.field;
+  if (r.change_type === "insert") {
+    return `<span class="rc-tag rc-tag--insert">➕ 新货号</span>`;
+  }
+  if (r.change_type === "deactivate") {
+    return `<span class="rc-tag rc-tag--del">❌ 失效</span>`;
+  }
+  if (r.change_type === "reactivate") {
+    return `<span class="rc-tag rc-tag--ok">♻️ 重新上架</span>`;
+  }
+  return `${fieldCn} <code>${escapeHtml(r.from_value || "")}</code> → <code>${escapeHtml(r.to_value || "")}</code>`;
+}
+
+function drillToBarcode(barcode) {
+  document.querySelector('[data-history-tab="search"]').click();
+  if (window.historySearch) {
+    window.historySearch(barcode);
+  }
+}
+
+// === refreshBatch (Task 10 + 11 wired up) ===
+
 async function refreshBatch() {
   if (!_currentBatchId) return;
-  // 后续 task 会加 loadSummary / loadChanges
-  $("rcSummary").innerHTML = `<div class="rc-empty">已选批次 ${_currentBatchId}（summary 待 Task 10 实现）</div>`;
-  $("rcList").innerHTML = "";
+  await Promise.all([loadSummary(), loadChanges()]);
 }
 
 document.addEventListener("DOMContentLoaded", setupTabs);
