@@ -82,14 +82,16 @@ class TestSaveRecord(unittest.TestCase):
     def test_load_old_record_without_special_tax_field_fills_zero(self):
         """向后兼容：旧 JSON 记录无 special_tax 字段，load 时填 0。"""
         path = svc._month_file("2026-04")
-        legacy = [{
-            "supplier_name": "Old",
-            "total_price": 100.0,
-            "tax": 10.0,
-            "total_with_tax": 110.0,
-            "invoice_date": "2026-04-01",
-            "created_at": "2026-04-01T00:00:00",
-        }]
+        legacy = [
+            {
+                "supplier_name": "Old",
+                "total_price": 100.0,
+                "tax": 10.0,
+                "total_with_tax": 110.0,
+                "invoice_date": "2026-04-01",
+                "created_at": "2026-04-01T00:00:00",
+            }
+        ]
         path.write_text(json.dumps(legacy), encoding="utf-8")
         records = svc.load_records("2026-04")
         self.assertEqual(records[0]["special_tax"], 0.0)
@@ -134,8 +136,14 @@ class TestCleanupExpired(unittest.TestCase):
 
     def test_keeps_current_month_and_previous_five_months(self):
         for month in [
-            "2025-09", "2025-10", "2025-11", "2025-12",
-            "2026-01", "2026-02", "2026-03", "2026-04",
+            "2025-09",
+            "2025-10",
+            "2025-11",
+            "2025-12",
+            "2026-01",
+            "2026-02",
+            "2026-03",
+            "2026-04",
         ]:
             _write_text_with_retry(self.test_dir / f"{month}.json", "[]")
 
@@ -149,7 +157,13 @@ class TestCleanupExpired(unittest.TestCase):
 
     def test_keeps_six_month_window_across_year_boundary(self):
         for month in [
-            "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01",
+            "2025-07",
+            "2025-08",
+            "2025-09",
+            "2025-10",
+            "2025-11",
+            "2025-12",
+            "2026-01",
         ]:
             _write_text_with_retry(self.test_dir / f"{month}.json", "[]")
 

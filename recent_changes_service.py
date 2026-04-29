@@ -4,7 +4,8 @@
 按 stockpile_snapshots(trigger='import') 切批次，关联到落在
 窗口 (prev_taken_at, current_taken_at] 内的 stockpile_changes。
 """
-from typing import Literal, Optional
+
+from typing import Literal
 
 from sqlalchemy import and_, func, select
 
@@ -22,16 +23,17 @@ def _batch_window(session, batch_id: int) -> tuple[str, str]:
     window_start = 上一个 trigger='import' snapshot 的 taken_at；不存在时取 _EPOCH
     """
     current = session.execute(
-        select(StockpileSnapshot.taken_at)
-        .where(StockpileSnapshot.id == batch_id)
+        select(StockpileSnapshot.taken_at).where(StockpileSnapshot.id == batch_id)
     ).scalar_one()
 
     prev = session.execute(
         select(StockpileSnapshot.taken_at)
-        .where(and_(
-            StockpileSnapshot.trigger == "import",
-            StockpileSnapshot.taken_at < current,
-        ))
+        .where(
+            and_(
+                StockpileSnapshot.trigger == "import",
+                StockpileSnapshot.taken_at < current,
+            )
+        )
         .order_by(StockpileSnapshot.taken_at.desc())
         .limit(1)
     ).scalar_one_or_none()
@@ -45,12 +47,16 @@ def list_recent_imports(limit: int = _RECENT_IMPORTS_LIMIT) -> list[dict]:
     每条 dict 字段：batch_id / taken_at / total_local / change_count / affected_barcodes
     """
     with stockpile_db._session() as session:
-        snapshots = session.execute(
-            select(StockpileSnapshot)
-            .where(StockpileSnapshot.trigger == "import")
-            .order_by(StockpileSnapshot.id.desc())
-            .limit(limit)
-        ).scalars().all()
+        snapshots = (
+            session.execute(
+                select(StockpileSnapshot)
+                .where(StockpileSnapshot.trigger == "import")
+                .order_by(StockpileSnapshot.id.desc())
+                .limit(limit)
+            )
+            .scalars()
+            .all()
+        )
 
         result = []
         for snap in snapshots:
@@ -59,18 +65,22 @@ def list_recent_imports(limit: int = _RECENT_IMPORTS_LIMIT) -> list[dict]:
                 select(
                     func.count().label("n"),
                     func.count(func.distinct(StockpileChange.product_barcode)).label("bc"),
-                ).where(and_(
-                    StockpileChange.created_at > start,
-                    StockpileChange.created_at <= end,
-                ))
+                ).where(
+                    and_(
+                        StockpileChange.created_at > start,
+                        StockpileChange.created_at <= end,
+                    )
+                )
             ).one()
-            result.append({
-                "batch_id": snap.id,
-                "taken_at": snap.taken_at,
-                "total_local": snap.total_local,
-                "change_count": stats.n,
-                "affected_barcodes": stats.bc,
-            })
+            result.append(
+                {
+                    "batch_id": snap.id,
+                    "taken_at": snap.taken_at,
+                    "total_local": snap.total_local,
+                    "change_count": stats.n,
+                    "affected_barcodes": stats.bc,
+                }
+            )
         return result
 
 
@@ -90,10 +100,13 @@ def get_batch_summary(batch_id: int) -> dict:
                 StockpileChange.new_value,
                 StockpileChange.change_type,
                 StockpileChange.created_at,
-            ).where(and_(
-                StockpileChange.created_at > start,
-                StockpileChange.created_at <= end,
-            ))
+            )
+            .where(
+                and_(
+                    StockpileChange.created_at > start,
+                    StockpileChange.created_at <= end,
+                )
+            )
             .order_by(StockpileChange.created_at)
         ).all()
 
@@ -103,8 +116,8 @@ def get_batch_summary(batch_id: int) -> dict:
 def get_batch_changes(
     batch_id: int,
     mode: Literal["collapsed", "raw"] = "collapsed",
-    filter_field: Optional[str] = None,
-    filter_change_type: Optional[str] = None,
+    filter_field: str | None = None,
+    filter_change_type: str | None = None,
 ) -> list[dict]:
     """返回批次明细。
 
@@ -131,7 +144,8 @@ def get_batch_changes(
                 StockpileChange.new_value,
                 StockpileChange.change_type,
                 StockpileChange.created_at,
-            ).where(and_(*conds))
+            )
+            .where(and_(*conds))
             .order_by(StockpileChange.created_at)
         ).all()
 
@@ -140,8 +154,9 @@ def get_batch_changes(
         models: dict[str, str] = {}
         if barcodes:
             for bc, m in session.execute(
-                select(Stockpile.product_barcode, Stockpile.product_model)
-                .where(Stockpile.product_barcode.in_(barcodes))
+                select(Stockpile.product_barcode, Stockpile.product_model).where(
+                    Stockpile.product_barcode.in_(barcodes)
+                )
             ).all():
                 models[bc] = m
 
@@ -171,15 +186,17 @@ def get_batch_changes(
         last_type = group[-1].change_type
         if first_old == last_new and last_type == "update":
             continue
-        result.append({
-            "barcode": barcode,
-            "model": models.get(barcode, ""),
-            "field": field,
-            "from_value": first_old,
-            "to_value": last_new,
-            "change_type": last_type,
-            "latest_at": group[-1].created_at,
-        })
+        result.append(
+            {
+                "barcode": barcode,
+                "model": models.get(barcode, ""),
+                "field": field,
+                "from_value": first_old,
+                "to_value": last_new,
+                "change_type": last_type,
+                "latest_at": group[-1].created_at,
+            }
+        )
     result.sort(key=lambda r: r["latest_at"], reverse=True)
     return result
 
@@ -198,7 +215,7 @@ def _summarize(rows: list) -> dict:
         "reactivates": 0,
         "roundtrip_count": 0,
     }
-    for (barcode, field), group in grouped.items():
+    for (_barcode, field), group in grouped.items():
         first_old = group[0].old_value
         last_new = group[-1].new_value
         last_type = group[-1].change_type

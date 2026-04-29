@@ -10,10 +10,11 @@
     with get_session() as session:
         rows = session.query(Stockpile).limit(10).all()
 """
+
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Iterator, Optional
 
 from sqlalchemy import (
     ForeignKey,
@@ -64,21 +65,17 @@ class Stockpile(Base):
     product_barcode: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     product_model: Mapped[str] = mapped_column(Text, nullable=False)
     stockpile_location: Mapped[str] = mapped_column(Text, nullable=False)
-    is_active: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default=text("1")
-    )
-    extra: Mapped[Optional[str]] = mapped_column(Text, server_default=text("'{}'"))
-    source: Mapped[Optional[str]] = mapped_column(
-        Text, server_default=text("'system_export'")
-    )
-    created_at: Mapped[Optional[str]] = mapped_column(
+    is_active: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("1"))
+    extra: Mapped[str | None] = mapped_column(Text, server_default=text("'{}'"))
+    source: Mapped[str | None] = mapped_column(Text, server_default=text("'system_export'"))
+    created_at: Mapped[str | None] = mapped_column(
         Text, server_default=text("(datetime('now','localtime'))")
     )
-    updated_at: Mapped[Optional[str]] = mapped_column(
+    updated_at: Mapped[str | None] = mapped_column(
         Text, server_default=text("(datetime('now','localtime'))")
     )
 
-    locations: Mapped[list["StockpileLocation"]] = relationship(
+    locations: Mapped[list[StockpileLocation]] = relationship(
         "StockpileLocation",
         back_populates="stockpile",
         cascade="all, delete-orphan",
@@ -108,14 +105,12 @@ class StockpileLocation(Base):
     )
     location: Mapped[str] = mapped_column(Text, nullable=False)
     kind: Mapped[str] = mapped_column(Text, nullable=False)  # store / warehouse / unknown
-    position: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default=text("0")
-    )
-    created_at: Mapped[Optional[str]] = mapped_column(
+    position: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    created_at: Mapped[str | None] = mapped_column(
         Text, server_default=text("(datetime('now','localtime'))")
     )
 
-    stockpile: Mapped["Stockpile"] = relationship("Stockpile", back_populates="locations")
+    stockpile: Mapped[Stockpile] = relationship("Stockpile", back_populates="locations")
 
 
 class StockpileChange(Base):
@@ -125,10 +120,10 @@ class StockpileChange(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     product_barcode: Mapped[str] = mapped_column(Text, nullable=False)
     field_name: Mapped[str] = mapped_column(Text, nullable=False)
-    old_value: Mapped[Optional[str]] = mapped_column(Text)
-    new_value: Mapped[Optional[str]] = mapped_column(Text)
-    change_type: Mapped[Optional[str]] = mapped_column(Text)
-    created_at: Mapped[Optional[str]] = mapped_column(
+    old_value: Mapped[str | None] = mapped_column(Text)
+    new_value: Mapped[str | None] = mapped_column(Text)
+    change_type: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[str | None] = mapped_column(
         Text, server_default=text("(datetime('now','localtime'))")
     )
 
@@ -148,9 +143,7 @@ class StockpileSnapshot(Base):
     """
 
     __tablename__ = "stockpile_snapshots"
-    __table_args__ = (
-        Index("idx_stockpile_snapshots_taken_at", "taken_at"),
-    )
+    __table_args__ = (Index("idx_stockpile_snapshots_taken_at", "taken_at"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     taken_at: Mapped[str] = mapped_column(
@@ -159,12 +152,12 @@ class StockpileSnapshot(Base):
     trigger: Mapped[str] = mapped_column(Text, nullable=False)  # 'import' / 'compare'
     total_local: Mapped[int] = mapped_column(Integer, nullable=False)
     # 以下字段仅 trigger='compare' 时填，import 时 NULL
-    total_export: Mapped[Optional[int]] = mapped_column(Integer)
-    consistent: Mapped[Optional[int]] = mapped_column(Integer)
-    cosmetic_count: Mapped[Optional[int]] = mapped_column(Integer)
-    substantive_count: Mapped[Optional[int]] = mapped_column(Integer)
-    only_in_local_count: Mapped[Optional[int]] = mapped_column(Integer)
-    only_in_export_count: Mapped[Optional[int]] = mapped_column(Integer)
+    total_export: Mapped[int | None] = mapped_column(Integer)
+    consistent: Mapped[int | None] = mapped_column(Integer)
+    cosmetic_count: Mapped[int | None] = mapped_column(Integer)
+    substantive_count: Mapped[int | None] = mapped_column(Integer)
+    only_in_local_count: Mapped[int | None] = mapped_column(Integer)
+    only_in_export_count: Mapped[int | None] = mapped_column(Integer)
 
 
 _SessionFactory = sessionmaker(bind=_engine, future=True, expire_on_commit=False)

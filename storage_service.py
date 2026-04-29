@@ -85,7 +85,7 @@ def validate_stockpile_is_today() -> tuple[bool, str | None]:
     if export_date != today:
         return (
             False,
-            f"系统导出文件不是当天的。当前文件日期为 {export_date.isoformat()}（按{source_label}判断），今天是 {today.isoformat()}，请提供当天的 stockpile 文件。",
+            f"系统导出文件不是当天的。当前文件日期为 {export_date.isoformat()}（按{source_label}判断），今天是 {today.isoformat()}，请提供当天的 stockpile 文件。",  # noqa: E501
         )
 
     return True, None
@@ -95,7 +95,10 @@ def validate_stockpile_is_ready() -> tuple[bool, str | None]:
     from stockpile_db import is_initialized
 
     if not is_initialized():
-        return False, 'stockpile 数据库尚未初始化，请先通过"初始化 stockpile 数据库"上传系统导出文件'
+        return (
+            False,
+            'stockpile 数据库尚未初始化，请先通过"初始化 stockpile 数据库"上传系统导出文件',
+        )
     return True, None
 
 

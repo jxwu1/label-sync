@@ -8,7 +8,6 @@ from input_repository import list_input_files
 from output_repository import (
     iter_output_items,
     latest_output_csv,
-    list_output_dirs,
     list_output_xlsx_files,
 )
 from state import task_state

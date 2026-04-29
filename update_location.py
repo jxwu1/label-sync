@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pandas as pd
 
+import stockpile_db
 from config import CONFIG
 from file_io import read_csv
-import stockpile_db
 
 INPUT_DIR = CONFIG.input_dir
 OUTPUT_DIR = CONFIG.output_dir
@@ -48,12 +48,10 @@ def rewrite_scan_export(
 ) -> None:
     scan_df = pd.read_excel(scan_file, header=None, dtype=str, engine="calamine")
     scan_df.columns = ["原始值"] + [f"_col{i}" for i in range(1, len(scan_df.columns))]
-    scan_df["型号"] = scan_df["原始值"].apply(
-        lambda value: lookup_model(value, barcode_model_map)
+    scan_df["型号"] = scan_df["原始值"].apply(lambda value: lookup_model(value, barcode_model_map))
+    scan_df.columns = (
+        ["条码/库位"] + [f"_col{i}" for i in range(1, len(scan_df.columns) - 1)] + ["型号"]
     )
-    scan_df.columns = ["条码/库位"] + [
-        f"_col{i}" for i in range(1, len(scan_df.columns) - 1)
-    ] + ["型号"]
     scan_df.to_excel(target_path, index=False)
 
 

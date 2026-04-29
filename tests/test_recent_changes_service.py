@@ -1,4 +1,5 @@
 """recent_changes_service 单测。"""
+
 import shutil
 import unittest
 from pathlib import Path
@@ -42,8 +43,15 @@ class RecentChangesTests(unittest.TestCase):
             session.commit()
             return result.inserted_primary_key[0]
 
-    def _insert_change(self, barcode: str, field: str, old: str, new: str,
-                       change_type: str = "update", created_at: str | None = None) -> None:
+    def _insert_change(
+        self,
+        barcode: str,
+        field: str,
+        old: str,
+        new: str,
+        change_type: str = "update",
+        created_at: str | None = None,
+    ) -> None:
         with stockpile_db._session() as session:
             values = {
                 "product_barcode": barcode,
@@ -93,10 +101,16 @@ class RecentChangesTests(unittest.TestCase):
 
     def test_list_recent_imports_counts_changes_in_window(self) -> None:
         snap1 = self._insert_snapshot("2026-04-29 10:00:00")
-        self._insert_change("B1", "stockpile_location", "A1", "A2", created_at="2026-04-29 09:30:00")
-        self._insert_change("B2", "stockpile_location", "A1", "A2", created_at="2026-04-29 09:45:00")
+        self._insert_change(
+            "B1", "stockpile_location", "A1", "A2", created_at="2026-04-29 09:30:00"
+        )
+        self._insert_change(
+            "B2", "stockpile_location", "A1", "A2", created_at="2026-04-29 09:45:00"
+        )
         snap2 = self._insert_snapshot("2026-04-29 14:00:00")
-        self._insert_change("B3", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00")
+        self._insert_change(
+            "B3", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00"
+        )
 
         result = recent_changes_service.list_recent_imports()
         by_id = {r["batch_id"]: r for r in result}
@@ -105,24 +119,25 @@ class RecentChangesTests(unittest.TestCase):
         self.assertEqual(by_id[snap2]["change_count"], 1)
         self.assertEqual(by_id[snap2]["affected_barcodes"], 1)
 
-
     def test_get_batch_summary_counts_by_field_and_change_type(self) -> None:
         """5 个数字 + roundtrip count。所有按 (barcode, field) 维度。"""
         snap_id = self._insert_snapshot("2026-04-29 14:00:00")
         base = "2026-04-29 13:"
         # B1 location 单变 → location_changes +1
-        self._insert_change("B1", "stockpile_location", "A1", "A2", created_at=base+"01:00")
+        self._insert_change("B1", "stockpile_location", "A1", "A2", created_at=base + "01:00")
         # B2 location 来回（A→B→A）→ roundtrip
-        self._insert_change("B2", "stockpile_location", "A1", "A2", created_at=base+"02:00")
-        self._insert_change("B2", "stockpile_location", "A2", "A1", created_at=base+"02:30")
+        self._insert_change("B2", "stockpile_location", "A1", "A2", created_at=base + "02:00")
+        self._insert_change("B2", "stockpile_location", "A2", "A1", created_at=base + "02:30")
         # B3 model 变 → model_changes +1
-        self._insert_change("B3", "product_model", "M1", "M2", created_at=base+"03:00")
+        self._insert_change("B3", "product_model", "M1", "M2", created_at=base + "03:00")
         # B4 insert → inserts +1
-        self._insert_change("B4", "product_barcode", None, "B4", "insert", created_at=base+"04:00")
+        self._insert_change(
+            "B4", "product_barcode", None, "B4", "insert", created_at=base + "04:00"
+        )
         # B5 deactivate
-        self._insert_change("B5", "is_active", "1", "0", "deactivate", created_at=base+"05:00")
+        self._insert_change("B5", "is_active", "1", "0", "deactivate", created_at=base + "05:00")
         # B6 reactivate
-        self._insert_change("B6", "is_active", "0", "1", "reactivate", created_at=base+"06:00")
+        self._insert_change("B6", "is_active", "0", "1", "reactivate", created_at=base + "06:00")
 
         s = recent_changes_service.get_batch_summary(snap_id)
         self.assertEqual(s["location_changes"], 1)
@@ -136,17 +151,22 @@ class RecentChangesTests(unittest.TestCase):
         self._insert_snapshot("2026-04-29 10:00:00")  # prev import
         snap_id = self._insert_snapshot("2026-04-29 14:00:00")
         # 这条在 prev 之前，不该算
-        self._insert_change("B0", "stockpile_location", "A1", "A2", created_at="2026-04-29 09:00:00")
+        self._insert_change(
+            "B0", "stockpile_location", "A1", "A2", created_at="2026-04-29 09:00:00"
+        )
         # 这条在窗口内
-        self._insert_change("B1", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00")
+        self._insert_change(
+            "B1", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00"
+        )
 
         s = recent_changes_service.get_batch_summary(snap_id)
         self.assertEqual(s["location_changes"], 1)
 
-
     def test_get_batch_changes_collapsed_single_change(self) -> None:
         snap_id = self._insert_snapshot("2026-04-29 14:00:00")
-        self._insert_change("B1", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00")
+        self._insert_change(
+            "B1", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00"
+        )
         rows = recent_changes_service.get_batch_changes(snap_id, mode="collapsed")
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["barcode"], "B1")
@@ -156,15 +176,23 @@ class RecentChangesTests(unittest.TestCase):
 
     def test_get_batch_changes_collapsed_roundtrip_excluded(self) -> None:
         snap_id = self._insert_snapshot("2026-04-29 14:00:00")
-        self._insert_change("B1", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00")
-        self._insert_change("B1", "stockpile_location", "A2", "A1", created_at="2026-04-29 13:30:00")
+        self._insert_change(
+            "B1", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00"
+        )
+        self._insert_change(
+            "B1", "stockpile_location", "A2", "A1", created_at="2026-04-29 13:30:00"
+        )
         rows = recent_changes_service.get_batch_changes(snap_id, mode="collapsed")
         self.assertEqual(rows, [])
 
     def test_get_batch_changes_collapsed_multi_step_keeps_endpoints(self) -> None:
         snap_id = self._insert_snapshot("2026-04-29 14:00:00")
-        self._insert_change("B1", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00")
-        self._insert_change("B1", "stockpile_location", "A2", "A3", created_at="2026-04-29 13:30:00")
+        self._insert_change(
+            "B1", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00"
+        )
+        self._insert_change(
+            "B1", "stockpile_location", "A2", "A3", created_at="2026-04-29 13:30:00"
+        )
         rows = recent_changes_service.get_batch_changes(snap_id, mode="collapsed")
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["from_value"], "A1")
@@ -172,7 +200,9 @@ class RecentChangesTests(unittest.TestCase):
 
     def test_get_batch_changes_collapsed_multi_field_split_rows(self) -> None:
         snap_id = self._insert_snapshot("2026-04-29 14:00:00")
-        self._insert_change("B1", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00")
+        self._insert_change(
+            "B1", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00"
+        )
         self._insert_change("B1", "product_model", "M1", "M2", created_at="2026-04-29 13:01:00")
         rows = recent_changes_service.get_batch_changes(snap_id, mode="collapsed")
         self.assertEqual(len(rows), 2)
@@ -181,15 +211,23 @@ class RecentChangesTests(unittest.TestCase):
 
     def test_get_batch_changes_collapsed_sorted_by_latest_event_desc(self) -> None:
         snap_id = self._insert_snapshot("2026-04-29 14:00:00")
-        self._insert_change("B1", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00")
-        self._insert_change("B2", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:30:00")
+        self._insert_change(
+            "B1", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00"
+        )
+        self._insert_change(
+            "B2", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:30:00"
+        )
         rows = recent_changes_service.get_batch_changes(snap_id, mode="collapsed")
         self.assertEqual([r["barcode"] for r in rows], ["B2", "B1"])  # B2 更晚
 
     def test_get_batch_changes_raw_returns_all_rows_with_intermediate_steps(self) -> None:
         snap_id = self._insert_snapshot("2026-04-29 14:00:00")
-        self._insert_change("B1", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00")
-        self._insert_change("B1", "stockpile_location", "A2", "A1", created_at="2026-04-29 13:30:00")
+        self._insert_change(
+            "B1", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00"
+        )
+        self._insert_change(
+            "B1", "stockpile_location", "A2", "A1", created_at="2026-04-29 13:30:00"
+        )
         rows = recent_changes_service.get_batch_changes(snap_id, mode="raw")
         self.assertEqual(len(rows), 2)  # raw 不剔除 roundtrip
         # 倒序：最新在前
@@ -198,7 +236,9 @@ class RecentChangesTests(unittest.TestCase):
 
     def test_get_batch_changes_filter_by_field(self) -> None:
         snap_id = self._insert_snapshot("2026-04-29 14:00:00")
-        self._insert_change("B1", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00")
+        self._insert_change(
+            "B1", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00"
+        )
         self._insert_change("B2", "product_model", "M1", "M2", created_at="2026-04-29 13:01:00")
         rows = recent_changes_service.get_batch_changes(
             snap_id, mode="collapsed", filter_field="stockpile_location"
@@ -208,8 +248,12 @@ class RecentChangesTests(unittest.TestCase):
 
     def test_get_batch_changes_filter_by_change_type(self) -> None:
         snap_id = self._insert_snapshot("2026-04-29 14:00:00")
-        self._insert_change("B1", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00")
-        self._insert_change("B2", "product_barcode", None, "B2", "insert", created_at="2026-04-29 13:01:00")
+        self._insert_change(
+            "B1", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00"
+        )
+        self._insert_change(
+            "B2", "product_barcode", None, "B2", "insert", created_at="2026-04-29 13:01:00"
+        )
         rows = recent_changes_service.get_batch_changes(
             snap_id, mode="raw", filter_change_type="insert"
         )

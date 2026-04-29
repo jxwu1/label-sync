@@ -12,14 +12,15 @@
 
 每个返回固定结构 {"count": int, "samples": list[dict]}，前端按相同模板渲染。
 """
+
 import pandas as pd
 from sqlalchemy import func, select
 
 import stockpile_db
 from models import Stockpile, StockpileChange, StockpileLocation
 
-_FLIPPER_THRESHOLD = 4    # location 变更次数 ≥ 该值才算 flipper
-_FLIPPER_TOP_N = 50       # 最多返回 Top N
+_FLIPPER_THRESHOLD = 4  # location 变更次数 ≥ 该值才算 flipper
+_FLIPPER_TOP_N = 50  # 最多返回 Top N
 _WHITESPACE_TOP_N = 100
 _MULTI_SAME_KIND_TOP_N = 200
 _DUPLICATE_SEGMENTS_TOP_N = 100
@@ -55,16 +56,13 @@ def _multi_same_kind(session) -> dict:
             "barcode": r[0],
             "model": r[1],
             "raw_location": r[2],
-            "duplicated_kind": r[3],   # store / warehouse
+            "duplicated_kind": r[3],  # store / warehouse
             "count": r[4],
         }
         for r in rows
     ]
     # 总计单独算（不限 limit）
-    total = session.execute(
-        select(func.count())
-        .select_from(sub)
-    ).scalar() or 0
+    total = session.execute(select(func.count()).select_from(sub)).scalar() or 0
     return {"count": total, "samples": samples}
 
 
@@ -95,9 +93,7 @@ def _flippers(session) -> dict:
         }
         for r in rows
     ]
-    total = session.execute(
-        select(func.count()).select_from(sub)
-    ).scalar() or 0
+    total = session.execute(select(func.count()).select_from(sub)).scalar() or 0
     return {"count": total, "samples": samples}
 
 
@@ -128,12 +124,14 @@ def _whitespace_anomalies(session) -> dict:
         if raw != normalized:
             total += 1
             if len(samples) < _WHITESPACE_TOP_N:
-                samples.append({
-                    "barcode": barcode,
-                    "model": model,
-                    "raw_location": raw,
-                    "normalized": normalized,
-                })
+                samples.append(
+                    {
+                        "barcode": barcode,
+                        "model": model,
+                        "raw_location": raw,
+                        "normalized": normalized,
+                    }
+                )
     return {"count": total, "samples": samples}
 
 
@@ -192,12 +190,14 @@ def _duplicate_segments(session) -> dict:
                 if p in seen and p not in duplicates:
                     duplicates.append(p)
                 seen.add(p)
-            samples.append({
-                "barcode": barcode,
-                "model": model,
-                "raw_location": raw,
-                "duplicates": duplicates,
-            })
+            samples.append(
+                {
+                    "barcode": barcode,
+                    "model": model,
+                    "raw_location": raw,
+                    "duplicates": duplicates,
+                }
+            )
     return {"count": total, "samples": samples}
 
 
@@ -210,8 +210,8 @@ def build_whitespace_fix_dataframe() -> pd.DataFrame:
 
     raises FileNotFoundError 若找不到产品信息导入模板.csv（部署故障）。
     """
-    from update_location import build_output_dataframe, find_template_path
     from file_io import read_csv
+    from update_location import build_output_dataframe, find_template_path
 
     template_path = find_template_path()
     if template_path is None:
@@ -220,8 +220,9 @@ def build_whitespace_fix_dataframe() -> pd.DataFrame:
 
     with stockpile_db._session() as session:
         rows = session.execute(
-            select(Stockpile.product_model, Stockpile.stockpile_location)
-            .where(Stockpile.is_active == 1)
+            select(Stockpile.product_model, Stockpile.stockpile_location).where(
+                Stockpile.is_active == 1
+            )
         ).all()
 
     results: list[dict[str, str]] = []

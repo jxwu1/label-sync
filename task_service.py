@@ -3,8 +3,8 @@ import os
 import re
 import subprocess
 import threading
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from config import CONFIG
 from state import (
@@ -20,7 +20,6 @@ from state import (
     task_state,
 )
 from storage_service import package_latest_output
-
 
 LineHandler = Callable[[str], None]
 ReturnCodeHandler = Callable[[int], bool]

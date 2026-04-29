@@ -25,8 +25,7 @@ def check_duplicates(filepath: str | Path) -> dict[str, Any]:
         row_groups.setdefault(value, []).append(int(row_index) + 2)
 
     duplicates = [
-        {"value": value, "rows": rows, "count": len(rows)}
-        for value, rows in row_groups.items()
+        {"value": value, "rows": rows, "count": len(rows)} for value, rows in row_groups.items()
     ]
     duplicates.sort(key=lambda item: -item["count"])
 
@@ -49,9 +48,7 @@ def main(argv: list[str]) -> int:
         print("错误:", result["msg"])
         return 1
 
-    print(
-        f"列名：{result['column']}  总条数：{result['total']}  重复值数：{result['dup_count']}"
-    )
+    print(f"列名：{result['column']}  总条数：{result['total']}  重复值数：{result['dup_count']}")
     for item in result["duplicates"]:
         print(f"  {item['value']}  出现 {item['count']} 次，行号：{item['rows']}")
     return 0

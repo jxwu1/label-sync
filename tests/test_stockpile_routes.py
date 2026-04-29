@@ -1,4 +1,5 @@
 """stockpile HTTP 路由集成测试。"""
+
 import io
 import shutil
 import unittest
@@ -76,10 +77,12 @@ class StockpileRoutesTests(unittest.TestCase):
         self.assertEqual(list(self.test_dir.glob("junk.txt")), [])
 
     def test_init_imports_csv_and_status_reflects(self):
-        csv_bytes = _make_csv_bytes([
-            {"product_barcode": "R1", "product_model": "M1", "stockpile_location": "L1"},
-            {"product_barcode": "R2", "product_model": "M2", "stockpile_location": "L2"},
-        ])
+        csv_bytes = _make_csv_bytes(
+            [
+                {"product_barcode": "R1", "product_model": "M1", "stockpile_location": "L1"},
+                {"product_barcode": "R2", "product_model": "M2", "stockpile_location": "L2"},
+            ]
+        )
         res = self.client.post(
             "/stockpile/init",
             data={"files": (io.BytesIO(csv_bytes), "init.csv")},
@@ -96,19 +99,23 @@ class StockpileRoutesTests(unittest.TestCase):
 
     def test_compare_returns_diff(self):
         # 先初始化
-        local_csv = _make_csv_bytes([
-            {"product_barcode": "C1", "product_model": "M1", "stockpile_location": "L1"},
-        ])
+        local_csv = _make_csv_bytes(
+            [
+                {"product_barcode": "C1", "product_model": "M1", "stockpile_location": "L1"},
+            ]
+        )
         self.client.post(
             "/stockpile/init",
             data={"files": (io.BytesIO(local_csv), "local.csv")},
             content_type="multipart/form-data",
         )
         # 再比对
-        export_csv = _make_csv_bytes([
-            {"product_barcode": "C1", "product_model": "M1_NEW", "stockpile_location": "L1"},
-            {"product_barcode": "C2", "product_model": "M2", "stockpile_location": "L2"},
-        ])
+        export_csv = _make_csv_bytes(
+            [
+                {"product_barcode": "C1", "product_model": "M1_NEW", "stockpile_location": "L1"},
+                {"product_barcode": "C2", "product_model": "M2", "stockpile_location": "L2"},
+            ]
+        )
         res = self.client.post(
             "/stockpile/compare",
             data={"files": (io.BytesIO(export_csv), "export.csv")},
@@ -121,17 +128,21 @@ class StockpileRoutesTests(unittest.TestCase):
         self.assertEqual(diff["mismatches"][0]["barcode"], "C1")
 
     def test_apply_export_updates_db(self):
-        local_csv = _make_csv_bytes([
-            {"product_barcode": "A1", "product_model": "Old", "stockpile_location": "OldLoc"},
-        ])
+        local_csv = _make_csv_bytes(
+            [
+                {"product_barcode": "A1", "product_model": "Old", "stockpile_location": "OldLoc"},
+            ]
+        )
         self.client.post(
             "/stockpile/init",
             data={"files": (io.BytesIO(local_csv), "local.csv")},
             content_type="multipart/form-data",
         )
-        export_csv = _make_csv_bytes([
-            {"product_barcode": "A1", "product_model": "New", "stockpile_location": "NewLoc"},
-        ])
+        export_csv = _make_csv_bytes(
+            [
+                {"product_barcode": "A1", "product_model": "New", "stockpile_location": "NewLoc"},
+            ]
+        )
         res = self.client.post(
             "/stockpile/apply-export",
             data={"files": (io.BytesIO(export_csv), "export.csv")},
@@ -143,13 +154,21 @@ class StockpileRoutesTests(unittest.TestCase):
         self.assertEqual(rec["product_model"], "New")
 
     def test_inactive_endpoint_returns_inactive_records(self):
-        stockpile_db.import_from_dataframe(pd.DataFrame([
-            {"product_barcode": "A1", "product_model": "M1", "stockpile_location": "L1"},
-            {"product_barcode": "A2", "product_model": "M2", "stockpile_location": "L2"},
-        ]))
-        stockpile_db.apply_export_updates(pd.DataFrame([
-            {"product_barcode": "A1", "product_model": "M1", "stockpile_location": "L1"},
-        ]))
+        stockpile_db.import_from_dataframe(
+            pd.DataFrame(
+                [
+                    {"product_barcode": "A1", "product_model": "M1", "stockpile_location": "L1"},
+                    {"product_barcode": "A2", "product_model": "M2", "stockpile_location": "L2"},
+                ]
+            )
+        )
+        stockpile_db.apply_export_updates(
+            pd.DataFrame(
+                [
+                    {"product_barcode": "A1", "product_model": "M1", "stockpile_location": "L1"},
+                ]
+            )
+        )
 
         res = self.client.get("/stockpile/inactive")
 
@@ -159,9 +178,13 @@ class StockpileRoutesTests(unittest.TestCase):
         self.assertEqual(payload["records"][0]["product_barcode"], "A2")
 
     def test_changes_endpoint_returns_recent_change_log(self):
-        stockpile_db.import_from_dataframe(pd.DataFrame([
-            {"product_barcode": "A1", "product_model": "M1", "stockpile_location": "L1"},
-        ]))
+        stockpile_db.import_from_dataframe(
+            pd.DataFrame(
+                [
+                    {"product_barcode": "A1", "product_model": "M1", "stockpile_location": "L1"},
+                ]
+            )
+        )
         stockpile_db.insert_or_update("A1", "M1-new", "L1-new")
 
         res = self.client.get("/stockpile/changes?limit=2")
@@ -179,9 +202,11 @@ class StockpileRoutesTests(unittest.TestCase):
 
     def test_temp_file_cleaned_when_handler_raises(self):
         # 注入异常确认 finally 清理生效
-        bad_csv = _make_csv_bytes([
-            {"product_barcode": "X1", "product_model": "M", "stockpile_location": "L"},
-        ])
+        bad_csv = _make_csv_bytes(
+            [
+                {"product_barcode": "X1", "product_model": "M", "stockpile_location": "L"},
+            ]
+        )
         with mock.patch("stockpile_db.import_from_dataframe", side_effect=RuntimeError("boom")):
             with self.assertRaises(RuntimeError):
                 self.client.post(

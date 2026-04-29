@@ -1,4 +1,5 @@
 """recent_changes routes 单测：HTTP 层薄包装，重点覆盖参数解析与错误。"""
+
 import shutil
 import unittest
 from pathlib import Path
@@ -36,15 +37,24 @@ class RecentChangesRoutesTests(unittest.TestCase):
 
     def _seed(self) -> int:
         with stockpile_db._session() as session:
-            r = session.execute(insert(StockpileSnapshot).values(
-                taken_at="2026-04-29 14:00:00", trigger="import", total_local=10,
-            ))
+            r = session.execute(
+                insert(StockpileSnapshot).values(
+                    taken_at="2026-04-29 14:00:00",
+                    trigger="import",
+                    total_local=10,
+                )
+            )
             sid = r.inserted_primary_key[0]
-            session.execute(insert(StockpileChange).values(
-                product_barcode="B1", field_name="stockpile_location",
-                old_value="A1", new_value="A2", change_type="update",
-                created_at="2026-04-29 13:00:00",
-            ))
+            session.execute(
+                insert(StockpileChange).values(
+                    product_barcode="B1",
+                    field_name="stockpile_location",
+                    old_value="A1",
+                    new_value="A2",
+                    change_type="update",
+                    created_at="2026-04-29 13:00:00",
+                )
+            )
             session.commit()
         return sid
 

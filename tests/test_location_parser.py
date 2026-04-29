@@ -3,6 +3,7 @@
 子表 stockpile_locations 有 UNIQUE(stockpile_id, location)，
 解析器必须对同 location 段去重，否则 import 会撞约束 → 500。
 """
+
 import unittest
 
 from location_parser import parse_to_locations

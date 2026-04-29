@@ -14,12 +14,16 @@ class RouteTests(unittest.TestCase):
         self.client = app.test_client()
 
     def test_run_rejects_when_stockpile_is_not_today(self):
-        with patch("routes_pages_tasks.task_state.is_running", return_value=False), patch(
-            "routes_pages_tasks.task_state.is_waiting",
-            return_value=False,
-        ), patch(
-            "routes_pages_tasks.storage_service.validate_stockpile_is_ready",
-            return_value=(False, "系统导出文件不是当天的"),
+        with (
+            patch("routes_pages_tasks.task_state.is_running", return_value=False),
+            patch(
+                "routes_pages_tasks.task_state.is_waiting",
+                return_value=False,
+            ),
+            patch(
+                "routes_pages_tasks.storage_service.validate_stockpile_is_ready",
+                return_value=(False, "系统导出文件不是当天的"),
+            ),
         ):
             response = self.client.post("/run")
 
@@ -27,13 +31,18 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(response.get_json(), {"ok": False, "msg": "系统导出文件不是当天的"})
 
     def test_run_starts_background_task_when_validation_passes(self):
-        with patch("routes_pages_tasks.task_state.is_running", return_value=False), patch(
-            "routes_pages_tasks.task_state.is_waiting",
-            return_value=False,
-        ), patch(
-            "routes_pages_tasks.storage_service.validate_stockpile_is_ready",
-            return_value=(True, None),
-        ), patch("routes_pages_tasks.task_service.start_background_task") as start_task:
+        with (
+            patch("routes_pages_tasks.task_state.is_running", return_value=False),
+            patch(
+                "routes_pages_tasks.task_state.is_waiting",
+                return_value=False,
+            ),
+            patch(
+                "routes_pages_tasks.storage_service.validate_stockpile_is_ready",
+                return_value=(True, None),
+            ),
+            patch("routes_pages_tasks.task_service.start_background_task") as start_task,
+        ):
             response = self.client.post("/run")
 
         self.assertEqual(response.status_code, 200)

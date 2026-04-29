@@ -45,11 +45,13 @@ def parse_to_locations(raw: str | None) -> list[dict]:
         if not loc or loc in seen:
             continue
         seen.add(loc)
-        result.append({
-            "location": loc,
-            "kind": classify_kind(loc),
-            "position": position,
-        })
+        result.append(
+            {
+                "location": loc,
+                "kind": classify_kind(loc),
+                "position": position,
+            }
+        )
         position += 1
     return result
 

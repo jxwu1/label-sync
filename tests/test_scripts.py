@@ -7,6 +7,7 @@ from unittest import mock
 
 import pandas as pd
 
+import update_location
 import update_location_phase2
 from check_duplicates import check_duplicates
 from location_parser import categorize_locations, compose_location, parse_locations
@@ -15,7 +16,6 @@ from update_location_phase1 import (
     detect_barcode_outliers,
     detect_invalid_locations,
 )
-import update_location
 from update_location_phase2 import (
     build_phase_two_results,
     write_phase2_results,
@@ -163,9 +163,7 @@ class PhaseTwoTests(unittest.TestCase):
             "111": {"model": "M-111", "stockpile_location": "A-01-01/X-01-01"},
         }
 
-        results, new_barcodes, exceptions, _ = build_phase_two_results(
-            location_map, system_records
-        )
+        results, new_barcodes, exceptions, _ = build_phase_two_results(location_map, system_records)
 
         self.assertEqual(results, [])
         self.assertEqual(new_barcodes, [])
@@ -210,9 +208,7 @@ class PhaseTwoTests(unittest.TestCase):
         location_map = {"222": ["X-03-03"]}
         system_records = {}
 
-        results, new_barcodes, exceptions, _ = build_phase_two_results(
-            location_map, system_records
-        )
+        results, new_barcodes, exceptions, _ = build_phase_two_results(location_map, system_records)
 
         self.assertEqual(results, [])
         self.assertEqual(new_barcodes, [])
@@ -285,12 +281,16 @@ class WritePhase2ResultsTests(unittest.TestCase):
 
     def test_write_preserves_multi_location_payload_in_exceptions(self) -> None:
         exceptions = [
-            ("111", "multi_location", {
-                "stockpile_stores": ["A-01-01"],
-                "stockpile_warehouses": ["X-01-01"],
-                "scan_stores": ["A-02-02", "B-03-03"],
-                "scan_warehouses": ["X-04-04"],
-            }),
+            (
+                "111",
+                "multi_location",
+                {
+                    "stockpile_stores": ["A-01-01"],
+                    "stockpile_warehouses": ["X-01-01"],
+                    "scan_stores": ["A-02-02", "B-03-03"],
+                    "scan_warehouses": ["X-04-04"],
+                },
+            ),
             ("222", "scan issue: unknown location prefix: Q-02"),
         ]
         write_phase2_results(
@@ -316,18 +316,20 @@ class WritePhase2ResultsTests(unittest.TestCase):
         self.assertEqual(second[0], "222")
 
     def test_round_trip_multi_location_exception_survives_read_write(self) -> None:
-        get_payload = (
-            lambda entry: entry[2]
-            if len(entry) > 2
-            else {}
-        )
+        def get_payload(entry):
+            return entry[2] if len(entry) > 2 else {}
+
         original_exceptions = [
-            ("999", "multi_location", {
-                "stockpile_stores": ["A5"],
-                "stockpile_warehouses": ["X5"],
-                "scan_stores": ["B6"],
-                "scan_warehouses": ["Z7"],
-            }),
+            (
+                "999",
+                "multi_location",
+                {
+                    "stockpile_stores": ["A5"],
+                    "stockpile_warehouses": ["X5"],
+                    "scan_stores": ["B6"],
+                    "scan_warehouses": ["Z7"],
+                },
+            ),
         ]
         write_phase2_results(
             self.temp_results,
@@ -353,9 +355,7 @@ class LoadPhase2ResultsTests(unittest.TestCase):
         shutil.rmtree(self.test_dir, ignore_errors=True)
         self.test_dir.mkdir(parents=True, exist_ok=True)
         self.temp_results = self.test_dir / "phase3_results_test.json"
-        self.patch_file = mock.patch.object(
-            update_location, "TEMP_RESULTS_FILE", self.temp_results
-        )
+        self.patch_file = mock.patch.object(update_location, "TEMP_RESULTS_FILE", self.temp_results)
         self.patch_file.start()
 
     def tearDown(self) -> None:
@@ -367,7 +367,11 @@ class LoadPhase2ResultsTests(unittest.TestCase):
             "results": [{"barcode": "M1", "model": "M1", "location": "A-01/X-01"}],
             "new_barcodes": [],
             "exceptions": [
-                ["555", "multi_location", {"stockpile_stores": ["A-01"], "scan_warehouses": ["X-02"]}],
+                [
+                    "555",
+                    "multi_location",
+                    {"stockpile_stores": ["A-01"], "scan_warehouses": ["X-02"]},
+                ],
                 ["666", "scan issue"],
             ],
             "unmatched_barcodes": [],

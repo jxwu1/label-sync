@@ -79,7 +79,11 @@ def _classify_barcode_entry(
 
     if system_item is None:
         return "new", {"barcode": barcode, "model": barcode, "location": final_location}
-    return "matched", {"barcode": barcode, "model": system_item["model"], "location": final_location}
+    return "matched", {
+        "barcode": barcode,
+        "model": system_item["model"],
+        "location": final_location,
+    }
 
 
 def build_phase_two_results(
@@ -114,7 +118,6 @@ def load_phase1_mapping() -> dict | None:
     return data
 
 
-
 def main() -> int:
     temp_data = load_phase1_mapping()
     if temp_data is None:
@@ -141,8 +144,15 @@ def main() -> int:
     )
 
     write_phase2_results(
-        TEMP_RESULTS_FILE, results, new_barcodes, exceptions, unmatched_barcodes,
-        employee_name, scan_files, barcode_model_map, Path("stockpile.db"),
+        TEMP_RESULTS_FILE,
+        results,
+        new_barcodes,
+        exceptions,
+        unmatched_barcodes,
+        employee_name,
+        scan_files,
+        barcode_model_map,
+        Path("stockpile.db"),
     )
 
     matched_count = len(results) - len(new_barcodes)

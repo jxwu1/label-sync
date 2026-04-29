@@ -1,11 +1,10 @@
 import csv
-from pathlib import Path
 
+import stockpile_db
 from file_io import update_json_file
 from output_repository import latest_output_csv
 from schemas import ServiceResult
 from state import TEMP_MAPPING_FILE, TEMP_RESULTS_FILE, task_state
-import stockpile_db
 
 
 def _correct_in_phase1_mapping(old_barcode: str, new_barcode: str) -> ServiceResult:
@@ -17,7 +16,9 @@ def _correct_in_phase1_mapping(old_barcode: str, new_barcode: str) -> ServiceRes
     try:
         update_json_file(TEMP_MAPPING_FILE, _modifier)
     except KeyError:
-        return ServiceResult(ok=False, payload={"msg": f"未找到条码：{old_barcode}"}, status_code=404)
+        return ServiceResult(
+            ok=False, payload={"msg": f"未找到条码：{old_barcode}"}, status_code=404
+        )
     except Exception as exc:
         return ServiceResult(ok=False, payload={"msg": str(exc)}, status_code=500)
     task_state.update_barcode_warning(old_barcode, corrected=True, new_barcode=new_barcode)
@@ -73,7 +74,9 @@ def _correct_new_barcode(old_barcode: str, new_barcode: str) -> ServiceResult:
 
         if new_barcode in records:
             system_item = records[new_barcode]
-            old_store, old_warehouse, system_issue = parse_system_location(system_item["stockpile_location"])
+            old_store, old_warehouse, system_issue = parse_system_location(
+                system_item["stockpile_location"]
+            )
             if system_issue:
                 mismatch = f"stockpile 库位异常：{system_issue}"
                 return
@@ -85,14 +88,22 @@ def _correct_new_barcode(old_barcode: str, new_barcode: str) -> ServiceResult:
                 mismatch = "合成最终库位失败"
                 return
             if entry_idx is not None:
-                data["results"][entry_idx] = {"barcode": new_barcode, "model": system_item["model"], "location": final_location}
+                data["results"][entry_idx] = {
+                    "barcode": new_barcode,
+                    "model": system_item["model"],
+                    "location": final_location,
+                }
             new_list.remove(old_barcode)
             barcode_model_map.pop(old_barcode, None)
             barcode_model_map[new_barcode] = system_item["model"]
             task_state.remove_new_barcode(old_barcode)
         else:
             if entry_idx is not None:
-                data["results"][entry_idx] = {"barcode": new_barcode, "model": new_barcode, "location": data["results"][entry_idx]["location"]}
+                data["results"][entry_idx] = {
+                    "barcode": new_barcode,
+                    "model": new_barcode,
+                    "location": data["results"][entry_idx]["location"],
+                }
             new_list[new_list.index(old_barcode)] = new_barcode
             barcode_model_map.pop(old_barcode, None)
             barcode_model_map[new_barcode] = new_barcode
@@ -144,7 +155,9 @@ def correct_location(old_location: str, new_location: str) -> ServiceResult:
     except Exception as exc:
         return ServiceResult(ok=False, payload={"msg": str(exc)}, status_code=500)
     if not updated:
-        return ServiceResult(ok=False, payload={"msg": f"未找到库位：{old_location}"}, status_code=404)
+        return ServiceResult(
+            ok=False, payload={"msg": f"未找到库位：{old_location}"}, status_code=404
+        )
 
     task_state.update_location_warning(old_location, corrected=True, new_location=new_location)
     return ServiceResult(ok=True)

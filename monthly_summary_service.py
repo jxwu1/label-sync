@@ -134,10 +134,7 @@ def delete_record(month: str, index: int) -> dict:
 def list_months() -> list[str]:
     if not _SUMMARY_DIR.exists():
         return []
-    months = [
-        f.stem for f in _SUMMARY_DIR.glob("*.json")
-        if f.stem[:4].isdigit()
-    ]
+    months = [f.stem for f in _SUMMARY_DIR.glob("*.json") if f.stem[:4].isdigit()]
     months.sort(reverse=True)
     return months
 
@@ -193,15 +190,19 @@ def _build_record_table(rec: dict, font_name: str) -> Table:
         data.append(["特殊税", _format_euro(rec["special_tax"])])
     data.append(["加税总价", _format_euro(rec["total_with_tax"])])
     table = Table(data, colWidths=[40 * mm, 80 * mm])
-    table.setStyle(TableStyle([
-        ("FONTNAME", (0, 0), (-1, -1), font_name),
-        ("FONTSIZE", (0, 0), (-1, -1), 11),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-        ("BACKGROUND", (0, 0), (0, -1), colors.Color(0.95, 0.95, 0.95)),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-    ]))
+    table.setStyle(
+        TableStyle(
+            [
+                ("FONTNAME", (0, 0), (-1, -1), font_name),
+                ("FONTSIZE", (0, 0), (-1, -1), 11),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("BACKGROUND", (0, 0), (0, -1), colors.Color(0.95, 0.95, 0.95)),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
     return table
 
 
@@ -228,10 +229,14 @@ def build_pdf(month: str) -> bytes:
         elements.append(Paragraph("本月暂无记录", no_data_style))
     else:
         for rec in records:
-            elements.append(KeepTogether([
-                _build_record_table(rec, _FONT_NAME),
-                Spacer(1, 8 * mm),
-            ]))
+            elements.append(
+                KeepTogether(
+                    [
+                        _build_record_table(rec, _FONT_NAME),
+                        Spacer(1, 8 * mm),
+                    ]
+                )
+            )
 
     doc.build(elements)
     return buf.getvalue()
