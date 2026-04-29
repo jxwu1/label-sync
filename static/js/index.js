@@ -9,19 +9,6 @@ let poll = null;
 
 initWarnings();
 
-
-function switchPage(p) {
-  document.querySelectorAll(".page").forEach((el) => el.classList.remove("active"));
-  document.querySelectorAll(".app-nav__item").forEach((el) => el.classList.remove("active"));
-  const pageMap = { main: "pageMain", dup: "pageDup", purchase: "pagePurchase", attendance: "pageAttendance", history: "pageHistory", data_quality: "pageDataQuality" };
-  const navMap = { main: "navMain", dup: "navDup", purchase: "navPurchase", attendance: "navAttendance", history: "navHistory", data_quality: "navDataQuality" };
-  const pageId = pageMap[p];
-  const navId = navMap[p];
-  if (pageId) document.getElementById(pageId)?.classList.add("active");
-  if (navId) document.getElementById(navId)?.classList.add("active");
-} window.switchPage = switchPage;
-
-// $("#hamb").onclick = () => $("#nav").classList.toggle("hide");  // 移除：filing 主题已删除汉堡按钮
 setupDropZone($("#drop"), $("#fileInput"), (files) => { Alpine.store('upload').add([...files]); });
 
 $("#upload").onclick = async () => {
