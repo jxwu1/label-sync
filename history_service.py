@@ -1,6 +1,10 @@
 """货号历史 service。
 
-只读访问 stockpile / stockpile_changes 表。
+只读访问 stockpile / stockpile_changes / stockpile_locations 表。
+
+阶段 1.5 PR2 起：
+- 当前状态走子表 stockpile_locations（结构化、含 unknown 栏）
+- 历史变更 diff 仍按字符串解析 stockpile_location（changes 表存的是当时字符串快照）
 """
 from datetime import datetime
 from typing import Optional
@@ -8,42 +12,62 @@ from typing import Optional
 from sqlalchemy import or_, select
 
 import stockpile_db
-from models import Stockpile, StockpileChange
+from location_parser import parse_to_locations
+from models import Stockpile, StockpileChange, StockpileLocation
 
 _AGGREGATE_WINDOW_SECONDS = 5
 
-# 当前 schema 下：A/B/C 开头是店面，X/Z 开头是仓库
-# 写成多段兼容：未来 schema 改造支持 "A22/B13/X11" 时无需改动展示层
-_STORE_PREFIXES = {"A", "B", "C"}
-_WAREHOUSE_PREFIXES = {"X", "Z"}
-
 
 def split_location(loc_str: Optional[str]) -> dict:
-    """把 stockpile_location 字符串拆成 {stores, warehouses}。
+    """把 stockpile_location 字符串拆成 {stores, warehouses, unknown}。
 
-    支持任意段数：
-        ""               → {"stores": [], "warehouses": []}
-        "A22-04-04"      → {"stores": ["A22-04-04"], "warehouses": []}
-        "X11-02"         → {"stores": [], "warehouses": ["X11-02"]}
-        "A22/X11"        → {"stores": ["A22"], "warehouses": ["X11"]}
-        "A22/B13/X11"    → {"stores": ["A22","B13"], "warehouses": ["X11"]}
+    用于 stockpile_changes 历史变更 diff 显示（changes 表存字符串快照，
+    没有当时的子表数据，只能字符串解析）。
 
-    未知前缀的段默默丢弃，避免异常数据让 UI 崩。
+    异常前缀（非 A/B/C/X/Z 开头）走 unknown 列，UI 单独展示而非静默丢弃。
+
+    例：
+        ""               → {"stores": [], "warehouses": [], "unknown": []}
+        "A22-04-04"      → {"stores": ["A22-04-04"], "warehouses": [], "unknown": []}
+        "A22/X11"        → {"stores": ["A22"], "warehouses": ["X11"], "unknown": []}
+        "A22/Q99/X11"    → {"stores": ["A22"], "warehouses": ["X11"], "unknown": ["Q99"]}
     """
-    if not loc_str:
-        return {"stores": [], "warehouses": []}
     stores: list[str] = []
     warehouses: list[str] = []
-    for part in loc_str.split("/"):
-        part = part.strip()
-        if not part:
-            continue
-        prefix = part[:1].upper()
-        if prefix in _STORE_PREFIXES:
-            stores.append(part)
-        elif prefix in _WAREHOUSE_PREFIXES:
-            warehouses.append(part)
-    return {"stores": stores, "warehouses": warehouses}
+    unknown: list[str] = []
+    for entry in parse_to_locations(loc_str):
+        if entry["kind"] == "store":
+            stores.append(entry["location"])
+        elif entry["kind"] == "warehouse":
+            warehouses.append(entry["location"])
+        else:
+            unknown.append(entry["location"])
+    return {"stores": stores, "warehouses": warehouses, "unknown": unknown}
+
+
+def current_locations(barcode: str) -> dict:
+    """从 stockpile_locations 子表查 barcode 的当前库位，返回结构化分类。
+
+    返回 {stores, warehouses, unknown}，每个是按 position 排序的字符串列表。
+    """
+    with stockpile_db._session() as session:
+        rows = session.execute(
+            select(StockpileLocation.location, StockpileLocation.kind)
+            .join(Stockpile, Stockpile.id == StockpileLocation.stockpile_id)
+            .where(Stockpile.product_barcode == barcode)
+            .order_by(StockpileLocation.position)
+        ).all()
+    stores: list[str] = []
+    warehouses: list[str] = []
+    unknown: list[str] = []
+    for location, kind in rows:
+        if kind == "store":
+            stores.append(location)
+        elif kind == "warehouse":
+            warehouses.append(location)
+        else:
+            unknown.append(location)
+    return {"stores": stores, "warehouses": warehouses, "unknown": unknown}
 
 
 def _parse_dt(s: str) -> datetime:
@@ -149,10 +173,11 @@ def build_response(query: str) -> dict:
     if record is None:
         return {"found": False}
 
-    # 当前状态：把 location 拆成店面/仓库列表
-    split = split_location(record["location"])
-    record["store_locations"] = split["stores"]
-    record["warehouse_locations"] = split["warehouses"]
+    # 当前状态：从子表 stockpile_locations 拉结构化数据
+    current = current_locations(record["barcode"])
+    record["store_locations"] = current["stores"]
+    record["warehouse_locations"] = current["warehouses"]
+    record["unknown_locations"] = current["unknown"]
 
     events = aggregate_events(record["barcode"])
     for e in events:
