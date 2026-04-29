@@ -148,7 +148,7 @@ async function loadTransferUI() {
   $("#tList").innerHTML = items.length ? items.map((i) => `<div class="transfer-file"><span class="transfer-file__name" title="${esc(i.name)}">${esc(i.name)}</span><span class="transfer-file__size">${i.size}KB</span><a class="transfer-file__dl" href="/transfer_download/${encodeURIComponent(i.name)}">下载</a></div>`).join("") : '<div class="empty">暂无</div>';
 }
 
-const textInput = $("#textInput"), copyText = $("#copyText"), sendText = $("#sendText"), msgList = $("#msgList");
+const textInput = $("#textInput"), copyText = $("#copyText"), sendText = $("#sendText");
 
 copyText.onclick = async () => {
   if (!textInput.value) return; await copyToClip(textInput.value);
@@ -166,10 +166,11 @@ async function sendMsg() {
 
 async function loadMsgsUI() {
   const m = await loadMessages();
-  msgList.innerHTML = m.length ? m.map((i) => `<div class="message${i.sender === "A" ? " is-self" : ""}"><div class="message__head"><span class="message__source">${i.sender === "A" ? "我（A）" : "B 端"}</span><span><span class="message__time">${esc(i.time)}</span><button class="message__del" onclick="delMsg(${i.id})">×</button></span></div><div class="message__body">${esc(i.text)}</div></div>`).join("") : '<div class="empty">暂无消息</div>';
+  Alpine.store('messages').setList(m);
 }
 
-async function delMsg(id) { await deleteMessage(id); loadMsgsUI(); } window.delMsg = delMsg;
+async function __delMsg(id) { await deleteMessage(id); loadMsgsUI(); }
+window.__delMsg = __delMsg;
 
 async function restore() {
   try {

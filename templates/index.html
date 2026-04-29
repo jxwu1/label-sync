@@ -271,7 +271,21 @@
     <button class="text-msg-btn" id="copyText" type="button">复制</button>
     <button class="text-msg-send" id="sendText" type="button">发送</button>
   </div>
-  <div class="message-list" id="msgList"><div class="empty">暂无消息</div></div>
+  <div class="message-list" id="msgList" x-data>
+    <template x-for="i in $store.messages.list" :key="i.id">
+      <div class="message" :class="i.sender === 'A' ? 'is-self' : ''">
+        <div class="message__head">
+          <span class="message__source" x-text="i.sender === 'A' ? '我（A）' : 'B 端'"></span>
+          <span>
+            <span class="message__time" x-text="i.time"></span>
+            <button class="message__del" @click="window.__delMsg(i.id)">×</button>
+          </span>
+        </div>
+        <div class="message__body" x-text="i.text"></div>
+      </div>
+    </template>
+    <div class="empty" x-show="$store.messages.list.length === 0">暂无消息</div>
+  </div>
 </aside>
 
 <button class="term-fab" id="termFab" type="button" x-data @click="$store.ui.toggleTerm()">
