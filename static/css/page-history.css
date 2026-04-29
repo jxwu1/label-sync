@@ -127,3 +127,90 @@
   font-family: var(--ff-mono, "JetBrains Mono", "Cascadia Code", monospace);
   font-size: var(--fs-md, 12px);
 }
+
+/* === 最近改动 === */
+#pageHistory .tabs { margin-bottom: 8px; }
+
+.rc-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.rc-actions select {
+  padding: 6px 10px;
+  font-size: var(--fs-base);
+  border-radius: var(--r-md);
+  border: 1px solid var(--c-border);
+}
+
+.rc-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.rc-summary-cell {
+  padding: 12px;
+  text-align: center;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+.rc-summary-cell:hover { background: var(--c-accent-soft); }
+.rc-summary-icon { font-size: 18px; }
+.rc-summary-num { font-size: 22px; font-weight: 700; line-height: 1.2; }
+.rc-summary-label { font-size: var(--fs-md); color: var(--c-text-dim); }
+.rc-summary-foot {
+  font-size: var(--fs-md);
+  color: var(--c-text-dim);
+  padding: 6px 0 12px;
+  border-bottom: 1px solid var(--c-border);
+}
+.rc-summary-foot .rc-tip { font-size: var(--fs-sm); }
+
+.rc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 0;
+}
+.rc-chip {
+  padding: 4px 12px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-pill);
+  background: transparent;
+  font-size: var(--fs-md);
+  cursor: pointer;
+}
+.rc-chip:hover { background: var(--c-accent-soft); }
+.rc-chip--active { background: #586e75; color: #fdf6e3; border-color: #586e75; }
+
+.rc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.rc-table th, .rc-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--c-border);
+  text-align: left;
+}
+.rc-table th { background: var(--color-surface-soft, #f6f1e7); font-weight: 600; }
+.rc-row { cursor: pointer; }
+.rc-row:hover { background: var(--color-surface-hover, #faf6ec); }
+.rc-time { color: var(--c-text-dim); font-variant-numeric: tabular-nums; }
+
+.rc-tag { padding: 1px 8px; border-radius: var(--r-pill); background: var(--c-accent-soft); font-size: 12px; }
+.rc-tag--insert { background: #dcecc1; color: #2d4a1d; }
+.rc-tag--del { background: #f5c1bf; color: #6a2222; }
+.rc-tag--ok { background: #c1d8ec; color: #1e3a5a; }
+
+.rc-empty, .rc-error {
+  padding: 24px;
+  text-align: center;
+  color: var(--c-text-dim);
+}
+.rc-error { color: var(--c-danger); }
