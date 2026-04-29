@@ -187,37 +187,3 @@ async function restore() {
 setupDupZone(); setupTransferZone(); loadTransferUI(); loadMsgsUI(); restore();
 setInterval(loadTransferUI, 5000); setInterval(loadMsgsUI, 5000);
 initStockpile();
-
-$("#termFab")?.addEventListener("click", () => {
-  $("#termDrawer").classList.toggle("hide");
-});
-$("#termClose")?.addEventListener("click", () => {
-  $("#termDrawer").classList.add("hide");
-});
-
-$("#transferFab")?.addEventListener("click", () => {
-  $("#transferDrawer").classList.toggle("is-open");
-  $("#transferFabDot").classList.remove("is-on");
-  $("#quickTransferDot")?.classList.remove("is-on");
-});
-$("#transferDrawerClose")?.addEventListener("click", () => {
-  $("#transferDrawer").classList.remove("is-open");
-});
-
-// ========== 右下角汉堡菜单 ==========
-$("#quickToggle")?.addEventListener("click", (e) => {
-  e.stopPropagation();
-  $("#quickMenu")?.classList.toggle("is-open");
-});
-$("#quickTransfer")?.addEventListener("click", () => {
-  $("#transferFab")?.click();
-  $("#quickMenu")?.classList.remove("is-open");
-});
-$("#quickTerm")?.addEventListener("click", () => {
-  $("#termFab")?.click();
-  $("#quickMenu")?.classList.remove("is-open");
-});
-document.addEventListener("click", (e) => {
-  const m = $("#quickMenu");
-  if (m && !m.contains(e.target)) m.classList.remove("is-open");
-});

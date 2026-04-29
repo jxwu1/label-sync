@@ -244,15 +244,15 @@
     </div>
   </div>
 </div>
-<button class="transfer-fab" id="transferFab" type="button">
+<button class="transfer-fab" id="transferFab" type="button" x-data @click="$store.ui.toggleTransfer()">
   <span>📨 文件互传</span>
-  <span class="transfer-fab__dot" id="transferFabDot"></span>
+  <span class="transfer-fab__dot" id="transferFabDot" :class="$store.ui.transferDot ? 'is-on' : ''"></span>
 </button>
 
-<aside class="transfer-drawer" id="transferDrawer">
+<aside class="transfer-drawer" id="transferDrawer" x-data :class="$store.ui.transferDrawer ? 'is-open' : ''">
   <div class="transfer-drawer__head">
     <span class="transfer-drawer__title">文件互传</span>
-    <button class="transfer-drawer__close" id="transferDrawerClose" type="button">关闭</button>
+    <button class="transfer-drawer__close" id="transferDrawerClose" type="button" @click="$store.ui.closeTransfer()">关闭</button>
   </div>
 
   <div class="section-label">发送文件给 B 端</div>
@@ -274,7 +274,7 @@
   <div class="message-list" id="msgList"><div class="empty">暂无消息</div></div>
 </aside>
 
-<button class="term-fab" id="termFab" type="button" x-data>
+<button class="term-fab" id="termFab" type="button" x-data @click="$store.ui.toggleTerm()">
   <span>▸ 终端日志</span>
   <span class="term-fab__count" id="termFabCount" x-text="$store.term.logs.length">0</span>
 </button>
@@ -284,7 +284,7 @@
     <span class="terminal-log__dot"></span>
     <span class="terminal-log__title">终端日志</span>
     <button class="terminal-log__clear" type="button" @click="$store.term.clear()">清空</button>
-    <button class="terminal-log__close" id="termClose" type="button">收起</button>
+    <button class="terminal-log__close" id="termClose" type="button" @click="$store.ui.closeTerm()">收起</button>
   </div>
   <div class="terminal-log__body" id="tbod">
     <template x-for="(item, i) in $store.term.logs" :key="i">
@@ -294,18 +294,23 @@
   </div>
 </div>
 
-<div class="quickmenu" id="quickMenu">
-  <button class="quickmenu__toggle" id="quickToggle" type="button" title="工具菜单" aria-label="工具菜单">≡</button>
+<div class="quickmenu" id="quickMenu" x-data
+     :class="$store.ui.quickMenu ? 'is-open' : ''"
+     @click.outside="$store.ui.closeQuick()">
+  <button class="quickmenu__toggle" id="quickToggle" type="button" title="工具菜单" aria-label="工具菜单"
+          @click.stop="$store.ui.toggleQuick()">≡</button>
   <div class="quickmenu__panel">
-    <button class="quickmenu__item" id="quickTransfer" type="button">
+    <button class="quickmenu__item" id="quickTransfer" type="button"
+            @click="$store.ui.toggleTransfer(); $store.ui.closeQuick()">
       <span>📨</span>
       <span>文件互传</span>
-      <span class="quickmenu__item-dot" id="quickTransferDot"></span>
+      <span class="quickmenu__item-dot" id="quickTransferDot" :class="$store.ui.quickTransferDot ? 'is-on' : ''"></span>
     </button>
-    <button class="quickmenu__item" id="quickTerm" type="button">
+    <button class="quickmenu__item" id="quickTerm" type="button"
+            @click="$store.ui.toggleTerm(); $store.ui.closeQuick()">
       <span>▸</span>
       <span>终端日志</span>
-      <span class="quickmenu__item-count" id="quickTermCount">0</span>
+      <span class="quickmenu__item-count" id="quickTermCount" x-text="$store.term.logs.length">0</span>
     </button>
   </div>
 </div>
