@@ -22,25 +22,15 @@
 </head>
 <body>
 <div class="app-layout">
-  <div class="app-nav" id="nav">
-    <div class="app-nav__item active" id="navMain" onclick="switchPage('main')">
-      <span class="app-nav__icon">📋</span>标签
-    </div>
-    <div class="app-nav__item" id="navDup" onclick="switchPage('dup')">
-      <span class="app-nav__icon">🔍</span>查重
-    </div>
-    <div class="app-nav__item" id="navPurchase" onclick="switchPage('purchase')">
-      <span class="app-nav__icon">📦</span>采购
-    </div>
-    <div class="app-nav__item" id="navAttendance" onclick="switchPage('attendance')">
-      <span class="app-nav__icon">🕐</span>考勤
-    </div>
-    <div class="app-nav__item" id="navHistory" onclick="switchPage('history')">
-      <span class="app-nav__icon">📜</span>货号历史
-    </div>
-    <div class="app-nav__item" id="navDataQuality" onclick="switchPage('data_quality')">
-      <span class="app-nav__icon">🔍</span>数据质量
-    </div>
+  <div class="app-nav" id="nav" x-data>
+    <template x-for="p in $store.nav.pages" :key="p.id">
+      <div class="app-nav__item"
+           :class="$store.nav.current === p.id ? 'active' : ''"
+           @click="$store.nav.switch(p.id)">
+        <span class="app-nav__icon" x-text="p.icon"></span>
+        <span x-text="p.label"></span>
+      </div>
+    </template>
     <span style="flex:1"></span>
     <span class="badge" id="badge" x-data
       :class="`badge-${$store.app.badgeType}`"
@@ -49,7 +39,7 @@
   </div>
   <div class="app-main">
     <div class="app-pages">
-<div class="page active" id="pageMain">
+<div class="page" id="pageMain" x-data :class="$store.nav.current === 'main' ? 'active' : ''">
 
   <!-- 顶部 action bar（跨两列） -->
   <div class="top-action-bar">
@@ -135,15 +125,15 @@
 
   </div>
 </div>
-      <div class="page" id="pageDup">
+      <div class="page" id="pageDup" x-data :class="$store.nav.current === 'dup' ? 'active' : ''">
         <div class="panel"><div class="panel-bd">
           <div class="dup-top" id="dupDrop"><input type="file" id="dupInput" accept=".xlsx,.xls,.csv"><div>拖入或点击选择文件，检查第一列重复值</div><div class="hint">支持 .xlsx / .xls / .csv</div></div>
           <div class="dup-res" id="dupRes"><div class="empty">上传文件后显示检查结果</div></div>
         </div></div>
       </div>
-      <div class="page" id="pagePurchase"></div>
-      <div class="page" id="pageAttendance"></div>
-      <div class="page" id="pageHistory">
+      <div class="page" id="pagePurchase" x-data :class="$store.nav.current === 'purchase' ? 'active' : ''"></div>
+      <div class="page" id="pageAttendance" x-data :class="$store.nav.current === 'attendance' ? 'active' : ''"></div>
+      <div class="page" id="pageHistory" x-data :class="$store.nav.current === 'history' ? 'active' : ''">
         <div class="tabs" id="historyTabs">
           <button class="tabs__tab active" data-history-tab="search" type="button">🔎 货号查询</button>
           <button class="tabs__tab" data-history-tab="recent" type="button">📊 最近改动</button>
@@ -188,7 +178,7 @@
           </div>
         </div>
       </div>
-      <div class="page" id="pageDataQuality">
+      <div class="page" id="pageDataQuality" x-data :class="$store.nav.current === 'data_quality' ? 'active' : ''">
         <div class="panel">
           <div class="panel-hd">
             数据质量
