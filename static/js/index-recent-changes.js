@@ -54,6 +54,7 @@ function setupTabs() {
       }
     });
   });
+  setupModeToggle();
 }
 
 async function loadInitial() {
@@ -121,7 +122,47 @@ function renderSummary(s) {
       _currentFilter = { field: null, change_type: null };
       _currentFilter[k] = v;
       loadChanges();
+      renderChips();
     });
+  });
+}
+
+function renderChips() {
+  const chips = [
+    { label: "全部", filter: { field: null, change_type: null } },
+    { label: "仅库位", filter: { field: "stockpile_location", change_type: null } },
+    { label: "仅型号", filter: { field: "product_model", change_type: null } },
+    { label: "仅新增", filter: { field: null, change_type: "insert" } },
+    { label: "仅失效", filter: { field: null, change_type: "deactivate" } },
+  ];
+  if (_currentMode === "raw") {
+    chips.push({ label: "仅 update", filter: { field: null, change_type: "update" } });
+    chips.push({ label: "仅 reactivate", filter: { field: null, change_type: "reactivate" } });
+  }
+  const html = chips.map((c) => {
+    const active = c.filter.field === _currentFilter.field
+                && c.filter.change_type === _currentFilter.change_type;
+    return `<button class="rc-chip${active ? " rc-chip--active" : ""}"
+              data-filter='${JSON.stringify(c.filter)}'>${escapeHtml(c.label)}</button>`;
+  }).join("");
+  $("rcChips").innerHTML = html;
+  document.querySelectorAll(".rc-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      _currentFilter = JSON.parse(chip.dataset.filter);
+      loadChanges();
+      renderChips();
+    });
+  });
+}
+
+function setupModeToggle() {
+  $("rcModeToggle").addEventListener("click", () => {
+    _currentMode = _currentMode === "collapsed" ? "raw" : "collapsed";
+    const btn = $("rcModeToggle");
+    btn.dataset.mode = _currentMode;
+    btn.textContent = _currentMode === "collapsed" ? "展开 raw 事件" : "折叠净效应";
+    loadChanges();
+    renderChips();
   });
 }
 
@@ -170,8 +211,32 @@ function renderCollapsedList(rows) {
 }
 
 function renderRawList(rows) {
-  // Task 12 will implement; stub to avoid runtime ReferenceError
-  $("rcList").innerHTML = '<div class="rc-empty">raw 视图待 Task 12 实现</div>';
+  if (rows.length === 0) {
+    $("rcList").innerHTML = '<div class="rc-empty">该批次无变更事件</div>';
+    return;
+  }
+  const body = rows.map((r) => {
+    const fieldCn = FIELD_CN[r.field] || r.field;
+    const typeCn = CHANGE_TYPE_CN[r.change_type] || r.change_type;
+    return `
+      <tr class="rc-row" data-barcode="${escapeHtml(r.barcode)}">
+        <td>${escapeHtml(r.barcode)}</td>
+        <td>${escapeHtml(r.model || "")}</td>
+        <td>${fieldCn}</td>
+        <td><code>${escapeHtml(r.old_value ?? "")}</code></td>
+        <td><code>${escapeHtml(r.new_value ?? "")}</code></td>
+        <td><span class="rc-tag">${typeCn}</span></td>
+        <td class="rc-time">${escapeHtml((r.created_at || "").slice(11, 19))}</td>
+      </tr>`;
+  }).join("");
+  $("rcList").innerHTML = `
+    <table class="rc-table">
+      <thead><tr><th>货号</th><th>型号</th><th>字段</th><th>旧值</th><th>新值</th><th>类型</th><th>时间</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>`;
+  document.querySelectorAll(".rc-row").forEach((tr) => {
+    tr.addEventListener("click", () => drillToBarcode(tr.dataset.barcode));
+  });
 }
 
 function renderChangeCell(r) {
@@ -199,6 +264,7 @@ function drillToBarcode(barcode) {
 
 async function refreshBatch() {
   if (!_currentBatchId) return;
+  renderChips();
   await Promise.all([loadSummary(), loadChanges()]);
 }
 
