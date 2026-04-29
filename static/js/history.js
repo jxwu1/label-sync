@@ -132,6 +132,12 @@ function init() {
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") doSearch();
   });
+
+  // 暴露给最近改动模块下钻调用
+  window.historySearch = (q) => {
+    $("historyInput").value = q;
+    doSearch();
+  };
 }
 
 init();
