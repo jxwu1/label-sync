@@ -181,18 +181,22 @@ async function copyModels(sectionKey, btn) {
   const truncated = section.count > samples.length;
   try {
     await navigator.clipboard.writeText(models.join("\n"));
-    const suffix = truncated ? `（共 ${section.count}，仅可见前 ${samples.length}）` : "";
-    flashBtn(btn, `已复制 ${models.length}${suffix}`);
+    const suffix = truncated ? `（共 ${section.count}）` : "";
+    flashBtn(btn, `已复制 ${models.length}${suffix}`, "copied");
   } catch (e) {
     flashBtn(btn, "复制失败");
   }
 }
 
-function flashBtn(btn, text) {
+function flashBtn(btn, text, extraClass) {
   const original = btn.dataset.originalText || btn.textContent;
   btn.dataset.originalText = original;
   btn.textContent = text;
-  setTimeout(() => { btn.textContent = original; }, 1500);
+  if (extraClass) btn.classList.add(extraClass);
+  setTimeout(() => {
+    btn.textContent = original;
+    if (extraClass) btn.classList.remove(extraClass);
+  }, 2000);
 }
 
 document.querySelectorAll(".dq-copy").forEach((btn) => {
