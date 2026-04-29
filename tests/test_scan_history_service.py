@@ -45,3 +45,43 @@ class ScanHistoryServiceTests(unittest.TestCase):
         self.assertIsNone(scan_history_service._parse_folder_name("random_folder"))
         self.assertIsNone(scan_history_service._parse_folder_name("ALI价格标"))
         self.assertIsNone(scan_history_service._parse_folder_name("价格标20260423155137"))
+
+    def test_list_batches_returns_sorted_descending_by_timestamp(self):
+        self._make_batch("ALI价格标20260420100000", csv_rows=3)
+        self._make_batch("ALI价格标20260425100000", csv_rows=5)
+        self._make_batch("ABDUL价格标20260423100000", csv_rows=1)
+
+        result = scan_history_service.list_batches()
+
+        self.assertEqual(len(result), 3)
+        self.assertEqual(
+            [b["batch_id"] for b in result],
+            [
+                "ALI价格标20260425100000",
+                "ABDUL价格标20260423100000",
+                "ALI价格标20260420100000",
+            ],
+        )
+
+    def test_list_batches_skips_unrecognized_folder_names(self):
+        self._make_batch("ALI价格标20260420100000", csv_rows=1)
+        (self.test_dir / "random_folder").mkdir()
+        (self.test_dir / ".DS_Store").mkdir()
+
+        result = scan_history_service.list_batches()
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["batch_id"], "ALI价格标20260420100000")
+
+    def test_list_batches_truncates_to_limit(self):
+        for i in range(5):
+            self._make_batch(f"ALI价格标2026042010{i:04d}", csv_rows=1)
+
+        result = scan_history_service.list_batches(limit=3)
+
+        self.assertEqual(len(result), 3)
+
+    def test_list_batches_returns_empty_when_output_dir_missing(self):
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+        result = scan_history_service.list_batches()
+        self.assertEqual(result, [])
