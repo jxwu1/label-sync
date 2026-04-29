@@ -82,6 +82,27 @@ function renderWhitespace(section) {
   `;
 }
 
+function renderDuplicate(section) {
+  if (section.samples.length === 0) {
+    $("dqDuplicate").innerHTML = '<div class="dq-empty">无</div>';
+    return;
+  }
+  const rows = section.samples.map((s) => `
+    <tr>
+      <td>${escapeHtml(s.barcode)}</td>
+      <td>${escapeHtml(s.model || "")}</td>
+      <td><code>${escapeHtml(s.raw_location)}</code></td>
+      <td>${s.duplicates.map((d) => `<code>${escapeHtml(d)}</code>`).join(" ")}</td>
+    </tr>
+  `).join("");
+  $("dqDuplicate").innerHTML = `
+    <table class="dq-table">
+      <thead><tr><th>条码</th><th>型号</th><th>原 raw</th><th>重复段</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
 function renderUnknown(section) {
   if (section.samples.length === 0) {
     $("dqUnknown").innerHTML = '<div class="dq-empty">无</div>';
@@ -131,6 +152,10 @@ async function refresh() {
     showCount("dqUnknownCount", data.unknown_prefix.count);
     renderUnknown(data.unknown_prefix);
     $("dqUnknownPanel").hidden = false;
+
+    showCount("dqDuplicateCount", data.duplicate_segments.count);
+    renderDuplicate(data.duplicate_segments);
+    $("dqDuplicatePanel").hidden = false;
   } catch (e) {
     $("dqHint").textContent = "加载异常：" + e.message;
   } finally {

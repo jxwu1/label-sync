@@ -97,6 +97,20 @@ class DataQualityTests(unittest.TestCase):
         self.assertEqual(report["unknown_prefix"]["count"], 0)
         self.assertEqual(report["whitespace_anomalies"]["count"], 0)
         self.assertEqual(report["flippers"]["count"], 0)
+        self.assertEqual(report["duplicate_segments"]["count"], 0)
+
+    def test_duplicate_segments_detects_repeated_location(self) -> None:
+        self._import([
+            {"product_barcode": "B1", "product_model": "M1", "stockpile_location": "B06-20-02/XB07-12/XB07-12"},
+            {"product_barcode": "B2", "product_model": "M2", "stockpile_location": "XA09-04/XA09-04"},
+            {"product_barcode": "B3", "product_model": "M3", "stockpile_location": "A22-04-04/X11-02"},  # ok
+        ])
+        report = data_quality_service.build_report()
+        self.assertEqual(report["duplicate_segments"]["count"], 2)
+        by_barcode = {s["barcode"]: s for s in report["duplicate_segments"]["samples"]}
+        self.assertEqual(by_barcode["B1"]["duplicates"], ["XB07-12"])
+        self.assertEqual(by_barcode["B1"]["raw_location"], "B06-20-02/XB07-12/XB07-12")
+        self.assertEqual(by_barcode["B2"]["duplicates"], ["XA09-04"])
 
 
 if __name__ == "__main__":
