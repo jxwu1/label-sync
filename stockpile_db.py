@@ -3,10 +3,11 @@
 阶段 1.3 起：schema 由 models.py 的 Base.metadata 单源管理；本文件不再持有
 DDL 字符串。新增字段 → 改 ORM 类 → `alembic revision --autogenerate`。
 """
+
 import json
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Iterator
 
 import pandas as pd
 from sqlalchemy import create_engine, delete, event, func, select
@@ -32,12 +33,24 @@ SCHEMA_VERSION = 2
 _KNOWN_COLS = frozenset({"product_barcode", "product_model", "stockpile_location"})
 
 _STOCKPILE_DICT_COLS = (
-    "id", "product_barcode", "product_model", "stockpile_location",
-    "is_active", "extra", "source", "created_at", "updated_at",
+    "id",
+    "product_barcode",
+    "product_model",
+    "stockpile_location",
+    "is_active",
+    "extra",
+    "source",
+    "created_at",
+    "updated_at",
 )
 _CHANGE_DICT_COLS = (
-    "id", "product_barcode", "field_name", "old_value", "new_value",
-    "change_type", "created_at",
+    "id",
+    "product_barcode",
+    "field_name",
+    "old_value",
+    "new_value",
+    "change_type",
+    "created_at",
 )
 
 _ACTIVE = 1
@@ -149,6 +162,7 @@ def _change_to_dict(obj) -> dict:
 
 # === Pure helpers ===
 
+
 def _clean(value) -> str:
     if value is None:
         return ""
@@ -177,6 +191,7 @@ def _normalize_row(row, extra_cols: list[str]) -> tuple[str, str, str, dict] | N
 
 # === Write path (ORM) ===
 
+
 def _log_change(
     session: Session,
     barcode: str,
@@ -185,13 +200,15 @@ def _log_change(
     new_val: str | None,
     change_type: str,
 ) -> None:
-    session.add(StockpileChange(
-        product_barcode=barcode,
-        field_name=field,
-        old_value=old_val,
-        new_value=new_val,
-        change_type=change_type,
-    ))
+    session.add(
+        StockpileChange(
+            product_barcode=barcode,
+            field_name=field,
+            old_value=old_val,
+            new_value=new_val,
+            change_type=change_type,
+        )
+    )
 
 
 def _sync_locations(session: Session, stockpile_obj: Stockpile, raw_location: str) -> None:
@@ -212,19 +229,19 @@ def _sync_locations(session: Session, stockpile_obj: Stockpile, raw_location: st
     else:
         # 已有主记录：先删旧子行，让 ORM 忘掉缓存的 .locations 关系
         session.execute(
-            delete(StockpileLocation).where(
-                StockpileLocation.stockpile_id == stockpile_obj.id
-            )
+            delete(StockpileLocation).where(StockpileLocation.stockpile_id == stockpile_obj.id)
         )
         session.expire(stockpile_obj, ["locations"])
 
     for entry in parsed:
-        session.add(StockpileLocation(
-            stockpile_id=stockpile_obj.id,
-            location=entry["location"],
-            kind=entry["kind"],
-            position=entry["position"],
-        ))
+        session.add(
+            StockpileLocation(
+                stockpile_id=stockpile_obj.id,
+                location=entry["location"],
+                kind=entry["kind"],
+                position=entry["position"],
+            )
+        )
 
 
 def _upsert(
@@ -244,18 +261,30 @@ def _upsert(
         if log_changes:
             if existing.product_model != model:
                 _log_change(
-                    session, barcode, "product_model",
-                    existing.product_model, model, "update",
+                    session,
+                    barcode,
+                    "product_model",
+                    existing.product_model,
+                    model,
+                    "update",
                 )
             if existing.stockpile_location != location:
                 _log_change(
-                    session, barcode, "stockpile_location",
-                    existing.stockpile_location, location, "update",
+                    session,
+                    barcode,
+                    "stockpile_location",
+                    existing.stockpile_location,
+                    location,
+                    "update",
                 )
             if existing.is_active != _ACTIVE:
                 _log_change(
-                    session, barcode, "is_active",
-                    str(existing.is_active), str(_ACTIVE), "reactivate",
+                    session,
+                    barcode,
+                    "is_active",
+                    str(existing.is_active),
+                    str(_ACTIVE),
+                    "reactivate",
                 )
         existing.product_model = model
         existing.stockpile_location = location
@@ -281,15 +310,17 @@ def _upsert(
 
 
 def _deactivate_missing_records(session: Session, active_barcodes: set[str]) -> None:
-    rows = session.execute(
-        select(Stockpile).where(Stockpile.is_active == _ACTIVE)
-    ).scalars().all()
+    rows = session.execute(select(Stockpile).where(Stockpile.is_active == _ACTIVE)).scalars().all()
     for row in rows:
         if row.product_barcode in active_barcodes:
             continue
         _log_change(
-            session, row.product_barcode, "is_active",
-            str(_ACTIVE), str(_INACTIVE), "deactivate",
+            session,
+            row.product_barcode,
+            "is_active",
+            str(_ACTIVE),
+            str(_INACTIVE),
+            "deactivate",
         )
         row.is_active = _INACTIVE
         row.updated_at = func.datetime("now", "localtime")
@@ -306,7 +337,9 @@ def _sync_export_dataframe(df: pd.DataFrame) -> int:
                 continue
             barcode, model, location, extra = normalized
             active_barcodes.add(barcode)
-            _upsert(session, barcode, model, location, extra, Source.SYSTEM_EXPORT, log_changes=True)
+            _upsert(
+                session, barcode, model, location, extra, Source.SYSTEM_EXPORT, log_changes=True
+            )
             synced += 1
         _deactivate_missing_records(session, active_barcodes)
         _take_snapshot(session, trigger="import", total_local=len(active_barcodes))
@@ -338,19 +371,22 @@ def _take_snapshot(
     only_in_local_count: int | None = None,
     only_in_export_count: int | None = None,
 ) -> None:
-    session.add(StockpileSnapshot(
-        trigger=trigger,
-        total_local=total_local,
-        total_export=total_export,
-        consistent=consistent,
-        cosmetic_count=cosmetic_count,
-        substantive_count=substantive_count,
-        only_in_local_count=only_in_local_count,
-        only_in_export_count=only_in_export_count,
-    ))
+    session.add(
+        StockpileSnapshot(
+            trigger=trigger,
+            total_local=total_local,
+            total_export=total_export,
+            consistent=consistent,
+            cosmetic_count=cosmetic_count,
+            substantive_count=substantive_count,
+            only_in_local_count=only_in_local_count,
+            only_in_export_count=only_in_export_count,
+        )
+    )
 
 
 # === Read path (ORM) ===
+
 
 def is_initialized() -> bool:
     return count_records() > 0
@@ -399,20 +435,28 @@ def query_all_barcodes_set() -> set[str]:
 
 def list_inactive_records(limit: int = 100) -> list[dict]:
     with _session() as session:
-        objs = session.execute(
-            select(Stockpile)
-            .where(Stockpile.is_active == _INACTIVE)
-            .order_by(Stockpile.updated_at.desc(), Stockpile.id.desc())
-            .limit(limit)
-        ).scalars().all()
+        objs = (
+            session.execute(
+                select(Stockpile)
+                .where(Stockpile.is_active == _INACTIVE)
+                .order_by(Stockpile.updated_at.desc(), Stockpile.id.desc())
+                .limit(limit)
+            )
+            .scalars()
+            .all()
+        )
         return [_stockpile_to_dict(o) for o in objs]
 
 
 def list_changes(limit: int = 100) -> list[dict]:
     with _session() as session:
-        objs = session.execute(
-            select(StockpileChange).order_by(StockpileChange.id.desc()).limit(limit)
-        ).scalars().all()
+        objs = (
+            session.execute(
+                select(StockpileChange).order_by(StockpileChange.id.desc()).limit(limit)
+            )
+            .scalars()
+            .all()
+        )
         return [_change_to_dict(o) for o in objs]
 
 
@@ -429,23 +473,25 @@ def search_stockpile(keyword: str, limit: int = 50) -> list[dict]:
                 Stockpile.updated_at,
             )
             .where(Stockpile.is_active == _ACTIVE)
-            .where(
-                Stockpile.product_barcode.like(pattern)
-                | Stockpile.product_model.like(pattern)
-            )
+            .where(Stockpile.product_barcode.like(pattern) | Stockpile.product_model.like(pattern))
             .order_by(Stockpile.product_barcode)
             .limit(limit)
         ).all()
     return [
         {
-            "product_barcode": r[0], "product_model": r[1], "stockpile_location": r[2],
-            "is_active": r[3], "source": r[4], "updated_at": r[5],
+            "product_barcode": r[0],
+            "product_model": r[1],
+            "stockpile_location": r[2],
+            "is_active": r[3],
+            "source": r[4],
+            "updated_at": r[5],
         }
         for r in rows
     ]
 
 
 # === Public API ===
+
 
 def insert_or_update(
     barcode: str,
@@ -514,15 +560,18 @@ def compare_with_dataframe(df: pd.DataFrame) -> dict:
             substantive_mismatches.append(entry)
             continue
         # 仅 location 不同：看 normalize 后是否相同
-        if (
-            _normalize_location(local["stockpile_location"])
-            == _normalize_location(export["stockpile_location"])
+        if _normalize_location(local["stockpile_location"]) == _normalize_location(
+            export["stockpile_location"]
         ):
             cosmetic_mismatches.append(entry)
         else:
             substantive_mismatches.append(entry)
 
-    consistent = len(local_barcodes & export_barcodes) - len(cosmetic_mismatches) - len(substantive_mismatches)
+    consistent = (
+        len(local_barcodes & export_barcodes)
+        - len(cosmetic_mismatches)
+        - len(substantive_mismatches)
+    )
 
     with _session() as session:
         _take_snapshot(
@@ -553,28 +602,37 @@ def compare_with_dataframe(df: pd.DataFrame) -> dict:
 def list_snapshots(limit: int = 50, trigger: str | None = None) -> list[dict]:
     """供前端趋势图的接口：返回最近 N 个快照。"""
     with _session() as session:
-        stmt = select(
-            StockpileSnapshot.id,
-            StockpileSnapshot.taken_at,
-            StockpileSnapshot.trigger,
-            StockpileSnapshot.total_local,
-            StockpileSnapshot.total_export,
-            StockpileSnapshot.consistent,
-            StockpileSnapshot.cosmetic_count,
-            StockpileSnapshot.substantive_count,
-            StockpileSnapshot.only_in_local_count,
-            StockpileSnapshot.only_in_export_count,
-        ).order_by(StockpileSnapshot.id.desc()).limit(limit)
+        stmt = (
+            select(
+                StockpileSnapshot.id,
+                StockpileSnapshot.taken_at,
+                StockpileSnapshot.trigger,
+                StockpileSnapshot.total_local,
+                StockpileSnapshot.total_export,
+                StockpileSnapshot.consistent,
+                StockpileSnapshot.cosmetic_count,
+                StockpileSnapshot.substantive_count,
+                StockpileSnapshot.only_in_local_count,
+                StockpileSnapshot.only_in_export_count,
+            )
+            .order_by(StockpileSnapshot.id.desc())
+            .limit(limit)
+        )
         if trigger:
             stmt = stmt.where(StockpileSnapshot.trigger == trigger)
         rows = session.execute(stmt).all()
     return [
         {
-            "id": r[0], "taken_at": r[1], "trigger": r[2],
-            "total_local": r[3], "total_export": r[4],
+            "id": r[0],
+            "taken_at": r[1],
+            "trigger": r[2],
+            "total_local": r[3],
+            "total_export": r[4],
             "consistent": r[5],
-            "cosmetic_count": r[6], "substantive_count": r[7],
-            "only_in_local_count": r[8], "only_in_export_count": r[9],
+            "cosmetic_count": r[6],
+            "substantive_count": r[7],
+            "only_in_local_count": r[8],
+            "only_in_export_count": r[9],
         }
         for r in rows
     ]

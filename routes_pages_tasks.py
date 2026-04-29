@@ -16,7 +16,6 @@ def index():
     return render_template("index.html")
 
 
-
 @bp.post("/upload")
 def upload():
     files = request.files.getlist("files")
@@ -62,7 +61,9 @@ def status():
             "waiting": snapshot.waiting,
             "waiting_stage": snapshot.waiting_stage,
             "log": snapshot.log,
-            "done": not snapshot.running and not snapshot.waiting and snapshot.result_zip is not None,
+            "done": not snapshot.running
+            and not snapshot.waiting
+            and snapshot.result_zip is not None,
             "error": snapshot.error,
             "barcode_warnings": [warning.to_dict() for warning in snapshot.barcode_warnings],
             "location_warnings": [warning.to_dict() for warning in snapshot.location_warnings],

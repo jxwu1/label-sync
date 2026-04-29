@@ -39,12 +39,17 @@ class NewBarcodeCorrectionTests(unittest.TestCase):
         self.test_dir.mkdir(parents=True, exist_ok=True)
         self.temp_results = self.test_dir / "phase2_results.json"
         self.stockpile = self.test_dir / "stockpile.csv"
-        _write_stockpile(self.stockpile, [
-            {"product_barcode": "EXISTING", "product_model": "MODEL_X", "stockpile_location": "A5/X5"},
-        ])
-        self.temp_results.write_text(
-            json.dumps(_results_fixture(self.stockpile)), encoding="utf-8"
+        _write_stockpile(
+            self.stockpile,
+            [
+                {
+                    "product_barcode": "EXISTING",
+                    "product_model": "MODEL_X",
+                    "stockpile_location": "A5/X5",
+                },
+            ],
         )
+        self.temp_results.write_text(json.dumps(_results_fixture(self.stockpile)), encoding="utf-8")
         self.patch_file = mock.patch.object(barcode_service, "TEMP_RESULTS_FILE", self.temp_results)
         self.patch_file.start()
         self.patch_state = mock.patch.object(barcode_service, "task_state", autospec=True)

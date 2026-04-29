@@ -3,6 +3,7 @@
 不动生产 stockpile.db；用临时 DB，借 stockpile_db.ensure_db 建表，
 然后另起一个 SQLAlchemy engine + automap，对比 ORM 和 raw 的读写结果。
 """
+
 import json
 import shutil
 import sqlite3

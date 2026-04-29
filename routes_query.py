@@ -28,7 +28,6 @@ def files():
     return jsonify(query_service.read_file_list())
 
 
-
 @bp.get("/download_zip/<path:filename>")
 def download_zip(filename):
     zip_path = output_zip_path(filename)

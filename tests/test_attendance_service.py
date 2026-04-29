@@ -211,7 +211,9 @@ class TestSpecialDays(unittest.TestCase):
 
     def test_add_and_list(self):
         svc.set_special_day("2026-04-02", "09:30", "14:30")
-        self.assertEqual(svc.list_special_days(), {"2026-04-02": {"start": "09:30", "end": "14:30"}})
+        self.assertEqual(
+            svc.list_special_days(), {"2026-04-02": {"start": "09:30", "end": "14:30"}}
+        )
 
     def test_remove(self):
         svc.set_special_day("2026-04-02", "09:30", "14:30")
@@ -249,7 +251,9 @@ class TestSpecialDays(unittest.TestCase):
 
     def test_day_fraction_with_custom_standard(self):
         # 09:30-12:30 = 3h; custom standard 5h -> 0.6
-        self.assertAlmostEqual(svc.day_fraction("09:30", "12:30", standard_hours=5.0), 0.6, places=3)
+        self.assertAlmostEqual(
+            svc.day_fraction("09:30", "12:30", standard_hours=5.0), 0.6, places=3
+        )
         # 10h with custom 5h -> 1.0 cap
         self.assertAlmostEqual(svc.day_fraction("09:00", "19:00", standard_hours=5.0), 1.0)
 

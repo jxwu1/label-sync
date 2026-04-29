@@ -1,0 +1,15 @@
+{
+  "name": "label-sync-frontend",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Lint config for vanilla JS frontend (no build step)",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint static/js",
+    "lint:fix": "eslint static/js --fix"
+  },
+  "devDependencies": {
+    "eslint": "^9.18.0",
+    "globals": "^15.14.0"
+  }
+}

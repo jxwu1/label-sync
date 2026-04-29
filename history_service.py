@@ -6,8 +6,8 @@
 - 当前状态走子表 stockpile_locations（结构化、含 unknown 栏）
 - 历史变更 diff 仍按字符串解析 stockpile_location（changes 表存的是当时字符串快照）
 """
+
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import or_, select
 
@@ -18,7 +18,7 @@ from models import Stockpile, StockpileChange, StockpileLocation
 _AGGREGATE_WINDOW_SECONDS = 5
 
 
-def split_location(loc_str: Optional[str]) -> dict:
+def split_location(loc_str: str | None) -> dict:
     """把 stockpile_location 字符串拆成 {stores, warehouses, unknown}。
 
     用于 stockpile_changes 历史变更 diff 显示（changes 表存字符串快照，
@@ -74,7 +74,7 @@ def _parse_dt(s: str) -> datetime:
     return datetime.fromisoformat(s)
 
 
-def find_record(query: str) -> Optional[dict]:
+def find_record(query: str) -> dict | None:
     """精确匹配 product_model 或 product_barcode（两列均 UNIQUE）。
 
     返回当前主表行的 dict，或 None。
@@ -135,7 +135,7 @@ def aggregate_events(barcode: str) -> list[dict]:
         ).all()
 
     events: list[dict] = []
-    current: Optional[dict] = None
+    current: dict | None = None
 
     for field_name, old_value, new_value, change_type, created_at in rows:
         change = {"field": field_name, "old": old_value, "new": new_value}

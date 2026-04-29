@@ -2,6 +2,7 @@
 
 主表 stockpile_location 字符串保留作为月度比对源，子表是派生视图。
 """
+
 import shutil
 import unittest
 from pathlib import Path
@@ -38,9 +39,7 @@ def _get_locations(barcode: str) -> list[dict]:
 def _get_raw_location(barcode: str) -> str:
     with stockpile_db._session() as session:
         return session.execute(
-            select(Stockpile.stockpile_location).where(
-                Stockpile.product_barcode == barcode
-            )
+            select(Stockpile.stockpile_location).where(Stockpile.product_barcode == barcode)
         ).scalar_one()
 
 
@@ -62,13 +61,23 @@ class StockpileLocationsTests(unittest.TestCase):
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_single_store_location_creates_one_subtable_row(self) -> None:
-        _import([{"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A22-04-04"}])
+        _import(
+            [{"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A22-04-04"}]
+        )
         locs = _get_locations("B1")
         self.assertEqual(len(locs), 1)
         self.assertEqual(locs[0], {"location": "A22-04-04", "kind": "store", "position": 0})
 
     def test_store_plus_warehouse_creates_two_rows_in_order(self) -> None:
-        _import([{"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A22-04-04/X11-02"}])
+        _import(
+            [
+                {
+                    "product_barcode": "B1",
+                    "product_model": "M1",
+                    "stockpile_location": "A22-04-04/X11-02",
+                }
+            ]
+        )
         locs = _get_locations("B1")
         self.assertEqual(len(locs), 2)
         self.assertEqual(locs[0]["location"], "A22-04-04")
@@ -77,17 +86,31 @@ class StockpileLocationsTests(unittest.TestCase):
         self.assertEqual(locs[1]["kind"], "warehouse")
 
     def test_three_segments_one_store_two_warehouses(self) -> None:
-        _import([{"product_barcode": "B1", "product_model": "M1",
-                  "stockpile_location": "A05-06-01/XA05-06/XA05-13"}])
+        _import(
+            [
+                {
+                    "product_barcode": "B1",
+                    "product_model": "M1",
+                    "stockpile_location": "A05-06-01/XA05-06/XA05-13",
+                }
+            ]
+        )
         locs = _get_locations("B1")
-        self.assertEqual([l["kind"] for l in locs], ["store", "warehouse", "warehouse"])
+        self.assertEqual([loc["kind"] for loc in locs], ["store", "warehouse", "warehouse"])
 
     def test_two_stores_no_warehouses(self) -> None:
-        _import([{"product_barcode": "B1", "product_model": "M1",
-                  "stockpile_location": "A14-12-01/A14-13-01"}])
+        _import(
+            [
+                {
+                    "product_barcode": "B1",
+                    "product_model": "M1",
+                    "stockpile_location": "A14-12-01/A14-13-01",
+                }
+            ]
+        )
         locs = _get_locations("B1")
-        self.assertEqual([l["kind"] for l in locs], ["store", "store"])
-        self.assertEqual([l["location"] for l in locs], ["A14-12-01", "A14-13-01"])
+        self.assertEqual([loc["kind"] for loc in locs], ["store", "store"])
+        self.assertEqual([loc["location"] for loc in locs], ["A14-12-01", "A14-13-01"])
 
     def test_unknown_prefix_falls_back_to_unknown_kind(self) -> None:
         _import([{"product_barcode": "B1", "product_model": "M1", "stockpile_location": "Q99-01"}])
@@ -100,11 +123,11 @@ class StockpileLocationsTests(unittest.TestCase):
 
     def test_reimport_with_changed_location_replaces_subtable(self) -> None:
         _import([{"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A22"}])
-        self.assertEqual([l["location"] for l in _get_locations("B1")], ["A22"])
+        self.assertEqual([loc["location"] for loc in _get_locations("B1")], ["A22"])
         _import([{"product_barcode": "B1", "product_model": "M1", "stockpile_location": "B13/X11"}])
         locs = _get_locations("B1")
-        self.assertEqual([l["location"] for l in locs], ["B13", "X11"])
-        self.assertEqual([l["kind"] for l in locs], ["store", "warehouse"])
+        self.assertEqual([loc["location"] for loc in locs], ["B13", "X11"])
+        self.assertEqual([loc["kind"] for loc in locs], ["store", "warehouse"])
 
     def test_reimport_same_location_does_not_dup(self) -> None:
         _import([{"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A22"}])
@@ -122,7 +145,9 @@ class StockpileLocationsTests(unittest.TestCase):
         self.assertEqual(locs[1]["location"], "Z202-01")
 
     def test_segment_with_empty_segment_ignored(self) -> None:
-        _import([{"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A22//X11"}])
+        _import(
+            [{"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A22//X11"}]
+        )
         locs = _get_locations("B1")
         self.assertEqual(len(locs), 2)  # 空段忽略，不报错
 

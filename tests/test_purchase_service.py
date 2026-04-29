@@ -30,15 +30,21 @@ def _make_excel(data_rows: list[list]) -> bytes:
 
 class TestPurchaseRow(unittest.TestCase):
     def test_formatted_four_decimal(self):
-        row = PurchaseRow(barcode="1234567890123", price_raw="9.48", price=9.48, quantity=144, price_flagged=False)
+        row = PurchaseRow(
+            barcode="1234567890123", price_raw="9.48", price=9.48, quantity=144, price_flagged=False
+        )
         self.assertEqual(row.formatted(), "1234567890123,9.4800,,144")
 
     def test_formatted_pads_whole_number_to_four_decimal(self):
-        row = PurchaseRow(barcode="1234567890123", price_raw="12", price=12.0, quantity=36, price_flagged=False)
+        row = PurchaseRow(
+            barcode="1234567890123", price_raw="12", price=12.0, quantity=36, price_flagged=False
+        )
         self.assertEqual(row.formatted(), "1234567890123,12.0000,,36")
 
     def test_to_dict_has_expected_keys(self):
-        row = PurchaseRow(barcode="1111", price_raw="5.0", price=5.0, quantity=10, price_flagged=False)
+        row = PurchaseRow(
+            barcode="1111", price_raw="5.0", price=5.0, quantity=10, price_flagged=False
+        )
         d = row.to_dict()
         self.assertEqual(d["barcode"], "1111")
         self.assertAlmostEqual(d["price"], 5.0)
@@ -70,18 +76,22 @@ class TestParsePurchaseExcel(unittest.TestCase):
         self.assertAlmostEqual(rows[0].price, 9.4812)
 
     def test_numeric_barcode_with_empty_row_has_no_decimal(self):
-        data = _make_excel([
-            [6901234567890, "x", 9.48, "x", "x", 10, "x"],
-            [None, "x", 9.48, "x", "x", 5, "x"],
-        ])
+        data = _make_excel(
+            [
+                [6901234567890, "x", 9.48, "x", "x", 10, "x"],
+                [None, "x", 9.48, "x", "x", 5, "x"],
+            ]
+        )
         rows = parse_purchase_excel(data)
         self.assertEqual(rows[0].barcode, "6901234567890")
 
     def test_parses_multiple_data_rows_skips_header(self):
-        data = _make_excel([
-            ["BC1", "x", 1.0, "x", "x", 5, "x"],
-            ["BC2", "x", 2.0, "x", "x", 3, "x"],
-        ])
+        data = _make_excel(
+            [
+                ["BC1", "x", 1.0, "x", "x", 5, "x"],
+                ["BC2", "x", 2.0, "x", "x", 3, "x"],
+            ]
+        )
         rows = parse_purchase_excel(data)
         self.assertEqual(len(rows), 2)
         self.assertEqual(rows[0].barcode, "BC1")
@@ -109,7 +119,9 @@ class TestBuildOutputExcel(unittest.TestCase):
 
 class TestFindNewBarcodes(unittest.TestCase):
     def _row(self, barcode):
-        return PurchaseRow(barcode=barcode, price_raw="1", price=1.0, quantity=1, price_flagged=False)
+        return PurchaseRow(
+            barcode=barcode, price_raw="1", price=1.0, quantity=1, price_flagged=False
+        )
 
     def test_all_new_when_system_empty(self):
         rows = [self._row("A"), self._row("B")]
@@ -160,13 +172,15 @@ class TestImportNewBarcodes(unittest.TestCase):
 
 class TestBuildTemplateCsv(unittest.TestCase):
     def test_single_entry_has_correct_indices(self):
-        entries = [{
-            "barcode": "1234567890123",
-            "name": "测试品",
-            "invoice_name": "发票名",
-            "supplier_id": "S01",
-            "supplier_name": "某供应商",
-        }]
+        entries = [
+            {
+                "barcode": "1234567890123",
+                "name": "测试品",
+                "invoice_name": "发票名",
+                "supplier_id": "S01",
+                "supplier_name": "某供应商",
+            }
+        ]
         out = build_template_csv(entries)
         text = out.decode("gbk")
         lines = text.splitlines()
@@ -183,9 +197,17 @@ class TestBuildTemplateCsv(unittest.TestCase):
             self.assertEqual(fields[i], "")
 
     def test_column_count_matches_header(self):
-        out = build_template_csv([{
-            "barcode": "X", "name": "Y", "invoice_name": "Z", "supplier_id": "S", "supplier_name": "N"
-        }])
+        out = build_template_csv(
+            [
+                {
+                    "barcode": "X",
+                    "name": "Y",
+                    "invoice_name": "Z",
+                    "supplier_id": "S",
+                    "supplier_name": "N",
+                }
+            ]
+        )
         lines = out.decode("gbk").splitlines()
         header_fields = next(csv.reader([lines[0]]))
         data_fields = next(csv.reader([lines[1]]))
@@ -193,8 +215,20 @@ class TestBuildTemplateCsv(unittest.TestCase):
 
     def test_multiple_entries(self):
         entries = [
-            {"barcode": "A", "name": "品A", "invoice_name": "发A", "supplier_id": "S1", "supplier_name": "N1"},
-            {"barcode": "B", "name": "品B", "invoice_name": "发B", "supplier_id": "S1", "supplier_name": "N1"},
+            {
+                "barcode": "A",
+                "name": "品A",
+                "invoice_name": "发A",
+                "supplier_id": "S1",
+                "supplier_name": "N1",
+            },
+            {
+                "barcode": "B",
+                "name": "品B",
+                "invoice_name": "发B",
+                "supplier_id": "S1",
+                "supplier_name": "N1",
+            },
         ]
         out = build_template_csv(entries)
         lines = out.decode("gbk").splitlines()

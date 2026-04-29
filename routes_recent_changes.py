@@ -32,8 +32,10 @@ def batch_changes(batch_id: int):
     change_type = request.args.get("change_type") or None
     try:
         rows = recent_changes_service.get_batch_changes(
-            batch_id, mode=mode,
-            filter_field=field, filter_change_type=change_type,
+            batch_id,
+            mode=mode,
+            filter_field=field,
+            filter_change_type=change_type,
         )
     except Exception as exc:
         return jsonify({"ok": False, "msg": f"加载失败：{exc}"}), 500

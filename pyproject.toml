@@ -1,9 +1,29 @@
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+extend-exclude = [
+    "alembic/versions",
+    "垃圾桶",
+    ".test_tmp",
+    "stockpile_routes",
+]
 
 [tool.ruff.lint]
-select = ["E", "F", "I"]
+select = ["E", "F", "I", "B", "UP"]
+# E/F: pycodestyle errors + pyflakes (默认)
+# I: isort import 排序
+# B: bugbear (常见陷阱：mutable default arg、loop var binding 等)
+# UP: pyupgrade (现代化语法：Optional[X] → X | None 等)
+
+[tool.ruff.lint.per-file-ignores]
+# tests 里允许长行（assertion msg 经常长）
+"tests/*" = ["E501"]
+# alembic env.py 是模板生成，不强求
+"alembic/env.py" = ["E501", "F401"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
 
 [tool.pytest.ini_options]
 addopts = "-p no:cacheprovider"

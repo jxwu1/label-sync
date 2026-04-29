@@ -46,3 +46,6 @@ tests/_tmp_*/
 # Runtime data
 attendance/
 monthly_summary/
+
+# Node tooling (only used for eslint, no build step)
+node_modules/

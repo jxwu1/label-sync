@@ -6,7 +6,6 @@ from pathlib import Path
 import pandas as pd
 
 from config import CONFIG
-
 from state import (
     PHASE_EXIT_LOCATION_FORMAT_ERROR,
     PHASE_EXIT_OK,
@@ -128,7 +127,6 @@ def main() -> int:
         return 1
     template_file = TEMPLATE_PATH
     print(f"TEMPLATE {template_file.name}")
-
 
     scan_files = sorted(INPUT_DIR.glob("*.xlsx"))
     if not scan_files:

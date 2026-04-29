@@ -10,7 +10,6 @@ import openpyxl
 import pandas as pd
 
 import stockpile_db
-from config import CONFIG
 
 _TEMPLATE_PATH = Path(__file__).resolve().parent / "static" / "templates" / "产品信息导入模板.csv"
 
@@ -81,13 +80,15 @@ def parse_purchase_excel(file_bytes: bytes) -> list[PurchaseRow]:
         price_val = row.iloc[_SUPPLIER_PRICE_COL]
         qty_val = row.iloc[_SUPPLIER_QUANTITY_COL]
         price, price_flagged = _parse_price(price_val)
-        rows.append(PurchaseRow(
-            barcode=barcode,
-            price_raw=str(price_val),
-            price=price,
-            quantity=_parse_quantity(qty_val),
-            price_flagged=price_flagged,
-        ))
+        rows.append(
+            PurchaseRow(
+                barcode=barcode,
+                price_raw=str(price_val),
+                price=price,
+                quantity=_parse_quantity(qty_val),
+                price_flagged=price_flagged,
+            )
+        )
     return rows
 
 

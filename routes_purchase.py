@@ -28,12 +28,14 @@ def process():
         new_bcs = purchase_service.find_new_barcodes(rows, system_set)
     except Exception as exc:
         return jsonify({"ok": False, "msg": f"解析失败：{exc}"}), 500
-    return jsonify({
-        "ok": True,
-        "rows": [r.to_dict() for r in rows],
-        "system_barcodes": list(system_set),
-        "new_barcodes": new_bcs,
-    })
+    return jsonify(
+        {
+            "ok": True,
+            "rows": [r.to_dict() for r in rows],
+            "system_barcodes": list(system_set),
+            "new_barcodes": new_bcs,
+        }
+    )
 
 
 @bp.post("/import-to-stockpile")

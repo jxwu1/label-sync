@@ -6,7 +6,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
   let systemBarcodes = new Set();
   let newEntries = [];
   let savedNewEntries = [];
-  let supplierInfo = { id: '', name: '' };
+  const supplierInfo = { id: '', name: '' };
 
   function init() {
     const page = document.getElementById('pagePurchase');

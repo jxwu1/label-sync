@@ -1,10 +1,11 @@
 """考勤 HTTP 路由。"""
+
 import io
 
 from flask import Blueprint, jsonify, request, send_file
 
-import attendance_service
 import attendance_report_service
+import attendance_service
 
 bp = Blueprint("attendance", __name__, url_prefix="/attendance")
 

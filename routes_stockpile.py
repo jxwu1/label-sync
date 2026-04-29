@@ -1,5 +1,5 @@
 import os
-from typing import Callable
+from collections.abc import Callable
 
 from flask import Blueprint, jsonify, request
 
@@ -149,7 +149,9 @@ def stockpile_snapshots():
     except (TypeError, ValueError):
         limit = 50
     trigger = request.args.get("trigger") or None
-    return jsonify({
-        "ok": True,
-        "snapshots": stockpile_db.list_snapshots(limit=limit, trigger=trigger),
-    })
+    return jsonify(
+        {
+            "ok": True,
+            "snapshots": stockpile_db.list_snapshots(limit=limit, trigger=trigger),
+        }
+    )
