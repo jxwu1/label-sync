@@ -106,5 +106,43 @@ class RecentChangesTests(unittest.TestCase):
         self.assertEqual(by_id[snap2]["affected_barcodes"], 1)
 
 
+    def test_get_batch_summary_counts_by_field_and_change_type(self) -> None:
+        """5 个数字 + roundtrip count。所有按 (barcode, field) 维度。"""
+        snap_id = self._insert_snapshot("2026-04-29 14:00:00")
+        base = "2026-04-29 13:"
+        # B1 location 单变 → location_changes +1
+        self._insert_change("B1", "stockpile_location", "A1", "A2", created_at=base+"01:00")
+        # B2 location 来回（A→B→A）→ roundtrip
+        self._insert_change("B2", "stockpile_location", "A1", "A2", created_at=base+"02:00")
+        self._insert_change("B2", "stockpile_location", "A2", "A1", created_at=base+"02:30")
+        # B3 model 变 → model_changes +1
+        self._insert_change("B3", "product_model", "M1", "M2", created_at=base+"03:00")
+        # B4 insert → inserts +1
+        self._insert_change("B4", "product_barcode", None, "B4", "insert", created_at=base+"04:00")
+        # B5 deactivate
+        self._insert_change("B5", "is_active", "1", "0", "deactivate", created_at=base+"05:00")
+        # B6 reactivate
+        self._insert_change("B6", "is_active", "0", "1", "reactivate", created_at=base+"06:00")
+
+        s = recent_changes_service.get_batch_summary(snap_id)
+        self.assertEqual(s["location_changes"], 1)
+        self.assertEqual(s["model_changes"], 1)
+        self.assertEqual(s["inserts"], 1)
+        self.assertEqual(s["deactivates"], 1)
+        self.assertEqual(s["reactivates"], 1)
+        self.assertEqual(s["roundtrip_count"], 1)  # B2 location
+
+    def test_get_batch_summary_excludes_changes_outside_window(self) -> None:
+        self._insert_snapshot("2026-04-29 10:00:00")  # prev import
+        snap_id = self._insert_snapshot("2026-04-29 14:00:00")
+        # 这条在 prev 之前，不该算
+        self._insert_change("B0", "stockpile_location", "A1", "A2", created_at="2026-04-29 09:00:00")
+        # 这条在窗口内
+        self._insert_change("B1", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00")
+
+        s = recent_changes_service.get_batch_summary(snap_id)
+        self.assertEqual(s["location_changes"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()
