@@ -16,15 +16,24 @@ from contextlib import contextmanager
 from typing import Iterator, Optional
 
 from sqlalchemy import (
+    ForeignKey,
     Index,
     Integer,
     Text,
+    UniqueConstraint,
     create_engine,
     event,
     text,
 )
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    Session,
+    mapped_column,
+    relationship,
+    sessionmaker,
+)
 
 from config import CONFIG
 
@@ -68,6 +77,45 @@ class Stockpile(Base):
     updated_at: Mapped[Optional[str]] = mapped_column(
         Text, server_default=text("(datetime('now','localtime'))")
     )
+
+    locations: Mapped[list["StockpileLocation"]] = relationship(
+        "StockpileLocation",
+        back_populates="stockpile",
+        cascade="all, delete-orphan",
+        order_by="StockpileLocation.position",
+    )
+
+
+class StockpileLocation(Base):
+    """多库位子表（阶段 1.5 起）。
+
+    派生自 stockpile.stockpile_location 字符串，每段一行。
+    主表那个字符串永久保留作为月度比对的字节级源；本表只做分析视图。
+    """
+
+    __tablename__ = "stockpile_locations"
+    __table_args__ = (
+        UniqueConstraint("stockpile_id", "location", name="uq_stockpile_locations"),
+        Index("idx_stockpile_locations_location", "location"),
+        Index("idx_stockpile_locations_stockpile", "stockpile_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    stockpile_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("stockpile.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    location: Mapped[str] = mapped_column(Text, nullable=False)
+    kind: Mapped[str] = mapped_column(Text, nullable=False)  # store / warehouse / unknown
+    position: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("0")
+    )
+    created_at: Mapped[Optional[str]] = mapped_column(
+        Text, server_default=text("(datetime('now','localtime'))")
+    )
+
+    stockpile: Mapped["Stockpile"] = relationship("Stockpile", back_populates="locations")
 
 
 class StockpileChange(Base):

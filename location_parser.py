@@ -1,6 +1,12 @@
 STORE_PREFIXES = {"A", "B", "C"}
 WAREHOUSE_PREFIXES = {"X", "Z"}
 
+# 多库位子表分类用：异常前缀回退到 "unknown"，UI 单独栏展示
+_KIND_BY_PREFIX: dict[str, str] = {
+    **{p: "store" for p in STORE_PREFIXES},
+    **{p: "warehouse" for p in WAREHOUSE_PREFIXES},
+}
+
 
 def classify_location(location: str) -> str | None:
     if not location:
@@ -11,6 +17,38 @@ def classify_location(location: str) -> str | None:
     if prefix in WAREHOUSE_PREFIXES:
         return "warehouse"
     return None
+
+
+def classify_kind(location: str) -> str:
+    """子表用：返回 store / warehouse / unknown，不返回 None。"""
+    if not location:
+        return "unknown"
+    return _KIND_BY_PREFIX.get(location[:1].upper(), "unknown")
+
+
+def parse_to_locations(raw: str | None) -> list[dict]:
+    """把 raw 字符串（如 "A22-04-04/XB04-16/XB04-17"）拆成子表行。
+
+    返回 list[{"location": str, "kind": str, "position": int}]。
+    - position 按源字符串顺序 0,1,2,...（保留店面在前/仓库在后约定）
+    - 异常前缀 → kind="unknown"
+    - 段间空白 strip；空段忽略
+    """
+    if not raw:
+        return []
+    result = []
+    position = 0
+    for part in str(raw).split("/"):
+        loc = part.strip()
+        if not loc:
+            continue
+        result.append({
+            "location": loc,
+            "kind": classify_kind(loc),
+            "position": position,
+        })
+        position += 1
+    return result
 
 
 def categorize_locations(locations: list[str]) -> tuple[list[str], list[str], str | None]:

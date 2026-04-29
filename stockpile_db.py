@@ -9,13 +9,14 @@ from contextlib import contextmanager
 from typing import Iterator
 
 import pandas as pd
-from sqlalchemy import create_engine, event, func, select
+from sqlalchemy import create_engine, delete, event, func, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
 from config import CONFIG
-from models import Base, SchemaMeta, Stockpile, StockpileChange
+from location_parser import parse_to_locations
+from models import Base, SchemaMeta, Stockpile, StockpileChange, StockpileLocation
 
 DB_PATH = CONFIG.stockpile_db
 SCHEMA_VERSION = 2
@@ -183,6 +184,39 @@ def _log_change(
     ))
 
 
+def _sync_locations(session: Session, stockpile_obj: Stockpile, raw_location: str) -> None:
+    """重建 stockpile_obj 在 stockpile_locations 子表中的行，从 raw 字符串解析。
+
+    raw 字符串本身仍存主表 stockpile.stockpile_location，是月度比对源；
+    本子表是它的派生分析视图。
+
+    实现：显式 DELETE 旧行 + flush 之后再 INSERT 新行。不用 cascade 替换是因为
+    重新导入相同 location 时新旧 (stockpile_id, location) 撞 UNIQUE，autoflush
+    顺序无保证。
+    """
+    parsed = parse_to_locations(raw_location)
+
+    if stockpile_obj.id is None:
+        # 新插入的主记录：flush 拿到自增 id
+        session.flush()
+    else:
+        # 已有主记录：先删旧子行，让 ORM 忘掉缓存的 .locations 关系
+        session.execute(
+            delete(StockpileLocation).where(
+                StockpileLocation.stockpile_id == stockpile_obj.id
+            )
+        )
+        session.expire(stockpile_obj, ["locations"])
+
+    for entry in parsed:
+        session.add(StockpileLocation(
+            stockpile_id=stockpile_obj.id,
+            location=entry["location"],
+            kind=entry["kind"],
+            position=entry["position"],
+        ))
+
+
 def _upsert(
     session: Session,
     barcode: str,
@@ -219,16 +253,19 @@ def _upsert(
         existing.source = source
         existing.extra = extra_json
         existing.updated_at = func.datetime("now", "localtime")
+        _sync_locations(session, existing, location)
         return
 
-    session.add(Stockpile(
+    new_obj = Stockpile(
         product_barcode=barcode,
         product_model=model,
         stockpile_location=location,
         is_active=_ACTIVE,
         extra=extra_json,
         source=source,
-    ))
+    )
+    session.add(new_obj)
+    _sync_locations(session, new_obj, location)
     if log_changes:
         _log_change(session, barcode, "product_barcode", None, barcode, "insert")
 
