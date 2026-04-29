@@ -1,0 +1,23 @@
+# pre-commit hooks — commit 前本地跑
+# 首次安装：pip install pre-commit && pre-commit install
+# 手动跑全仓：pre-commit run --all-files
+
+repos:
+  # ruff: Python lint + format
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.12
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # eslint: JS lint (本地 npm，因为 vendor 文件不参与)
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint
+        entry: npx eslint
+        language: system
+        types: [javascript]
+        files: ^static/js/.*\.js$
+        # warnings 不阻塞 commit；只有 errors 阻塞
