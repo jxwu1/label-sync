@@ -30,9 +30,9 @@ def _batch_window(session, batch_id: int) -> tuple[str, str]:
         select(StockpileSnapshot.taken_at)
         .where(and_(
             StockpileSnapshot.trigger == "import",
-            StockpileSnapshot.id < batch_id,
+            StockpileSnapshot.taken_at < current,
         ))
-        .order_by(StockpileSnapshot.id.desc())
+        .order_by(StockpileSnapshot.taken_at.desc())
         .limit(1)
     ).scalar_one_or_none()
 
