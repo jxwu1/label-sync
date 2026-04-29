@@ -8,13 +8,14 @@
   margin-top: 12px;
 }
 
-/* panel-hd flex 布局：标题左、按钮 margin-left:auto 推到右上角 */
-#pageDataQuality .dq-section .panel-hd {
+/* panel-hd flex 布局：标题左、按钮 margin-left:auto 推到右上角。
+   覆盖顶部刷新栏 + 下方各 dq-section 段头。 */
+#pageDataQuality .panel-hd {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-#pageDataQuality .dq-section .panel-hd > [data-copy-section] {
+#pageDataQuality .panel-hd > button {
   margin-left: auto;
   text-transform: none;  /* 抑制 panel-hd 的 uppercase 继承 */
 }
