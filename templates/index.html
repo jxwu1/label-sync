@@ -17,6 +17,8 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/terminal-log.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/transfer-drawer.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/quickmenu.css') }}">
+<script defer src="{{ url_for('static', filename='js/store.js') }}"></script>
+<script defer src="{{ url_for('static', filename='vendor/alpinejs/alpine.min.js') }}"></script>
 </head>
 <body>
 <div class="app-layout">
@@ -40,7 +42,10 @@
       <span class="app-nav__icon">🔍</span>数据质量
     </div>
     <span style="flex:1"></span>
-    <span class="badge badge-idle" id="badge" style="margin-bottom: 14px; align-self: flex-end;">空闲</span>
+    <span class="badge" id="badge" x-data
+      :class="`badge-${$store.app.badgeType}`"
+      x-text="$store.app.badgeText"
+      style="margin-bottom: 14px; align-self: flex-end;">空闲</span>
   </div>
   <div class="app-main">
     <div class="app-pages">
@@ -69,14 +74,23 @@
     <div class="panel" id="filesPanel">
       <div class="panel-hd">文件管理</div>
       <div class="panel-bd">
-        <div class="files" id="files"></div>
-        <button class="btn btn-secondary" id="upload" disabled>上传文件</button>
+        <div class="files" id="files" x-data>
+          <template x-for="(f, i) in $store.upload.selected" :key="i">
+            <div class="file">
+              <span class="name" x-text="f.name"></span>
+              <span class="rm" @click="$store.upload.remove(i)">×</span>
+            </div>
+          </template>
+        </div>
+        <button class="btn btn-secondary" id="upload" x-data :disabled="$store.upload.selected.length === 0">上传文件</button>
         <button class="btn btn-warning" id="cont">继续处理</button>
         <button class="btn btn-success" id="download">下载结果</button>
         <button class="btn btn-info" id="copyModels">复制所有型号</button>
         <button class="btn btn-info" id="copyModelsAll" hidden>复制所有型号（含重复）</button>
         <button class="btn btn-ghost" id="reset">清空界面，准备下一批</button>
-        <div class="status" id="status">请先上传文件</div>
+        <div id="status" x-data
+     :class="$store.app.statusCls ? `status ${$store.app.statusCls}` : 'status'"
+     x-html="$store.app.statusText">请先上传文件</div>
       </div>
     </div>
 
@@ -231,15 +245,15 @@
     </div>
   </div>
 </div>
-<button class="transfer-fab" id="transferFab" type="button">
+<button class="transfer-fab" id="transferFab" type="button" x-data @click="$store.ui.toggleTransfer()">
   <span>📨 文件互传</span>
-  <span class="transfer-fab__dot" id="transferFabDot"></span>
+  <span class="transfer-fab__dot" id="transferFabDot" :class="$store.ui.transferDot ? 'is-on' : ''"></span>
 </button>
 
-<aside class="transfer-drawer" id="transferDrawer">
+<aside class="transfer-drawer" id="transferDrawer" x-data :class="$store.ui.transferDrawer ? 'is-open' : ''">
   <div class="transfer-drawer__head">
     <span class="transfer-drawer__title">文件互传</span>
-    <button class="transfer-drawer__close" id="transferDrawerClose" type="button">关闭</button>
+    <button class="transfer-drawer__close" id="transferDrawerClose" type="button" @click="$store.ui.closeTransfer()">关闭</button>
   </div>
 
   <div class="section-label">发送文件给 B 端</div>
@@ -250,7 +264,16 @@
   <div class="msg" id="tMsg"></div>
 
   <div class="section-label">B 端共享文件</div>
-  <div id="tList"><div class="empty">暂无</div></div>
+  <div id="tList" x-data>
+    <template x-for="i in $store.transfer.files" :key="i.name">
+      <div class="transfer-file">
+        <span class="transfer-file__name" :title="i.name" x-text="i.name"></span>
+        <span class="transfer-file__size" x-text="i.size + 'KB'"></span>
+        <a class="transfer-file__dl" :href="`/transfer_download/${encodeURIComponent(i.name)}`">下载</a>
+      </div>
+    </template>
+    <div class="empty" x-show="$store.transfer.files.length === 0">暂无</div>
+  </div>
 
   <div class="section-label">文字互传</div>
   <textarea class="text-msg-input" id="textInput" rows="3" placeholder="输入消息，发送给 B 端（Ctrl+Enter）"></textarea>
@@ -258,38 +281,60 @@
     <button class="text-msg-btn" id="copyText" type="button">复制</button>
     <button class="text-msg-send" id="sendText" type="button">发送</button>
   </div>
-  <div class="message-list" id="msgList"><div class="empty">暂无消息</div></div>
+  <div class="message-list" id="msgList" x-data>
+    <template x-for="i in $store.messages.list" :key="i.id">
+      <div class="message" :class="i.sender === 'A' ? 'is-self' : ''">
+        <div class="message__head">
+          <span class="message__source" x-text="i.sender === 'A' ? '我（A）' : 'B 端'"></span>
+          <span>
+            <span class="message__time" x-text="i.time"></span>
+            <button class="message__del" @click="window.__delMsg(i.id)">×</button>
+          </span>
+        </div>
+        <div class="message__body" x-text="i.text"></div>
+      </div>
+    </template>
+    <div class="empty" x-show="$store.messages.list.length === 0">暂无消息</div>
+  </div>
 </aside>
 
-<button class="term-fab" id="termFab" type="button">
+<button class="term-fab" id="termFab" type="button" x-data @click="$store.ui.toggleTerm()">
   <span>▸ 终端日志</span>
-  <span class="term-fab__count" id="termFabCount">0</span>
+  <span class="term-fab__count" id="termFabCount" x-text="$store.term.logs.length">0</span>
 </button>
 
-<div class="terminal-log hide" id="termDrawer">
+<div class="terminal-log" id="termDrawer" x-data :class="$store.ui.termDrawer ? '' : 'hide'">
   <div class="terminal-log__head">
     <span class="terminal-log__dot"></span>
     <span class="terminal-log__title">终端日志</span>
-    <button class="terminal-log__clear" type="button" onclick="clearLog()">清空</button>
-    <button class="terminal-log__close" id="termClose" type="button">收起</button>
+    <button class="terminal-log__clear" type="button" @click="$store.term.clear()">清空</button>
+    <button class="terminal-log__close" id="termClose" type="button" @click="$store.ui.closeTerm()">收起</button>
   </div>
   <div class="terminal-log__body" id="tbod">
-    <span class="log-dim">等待操作</span>
+    <template x-for="(item, i) in $store.term.logs" :key="i">
+      <div :class="`${item.src === 'dc' ? 'log-dc' : 'log-lp'} ${item.cls}`" x-text="item.text"></div>
+    </template>
+    <span class="log-dim" x-show="$store.term.logs.length === 0">等待操作</span>
   </div>
 </div>
 
-<div class="quickmenu" id="quickMenu">
-  <button class="quickmenu__toggle" id="quickToggle" type="button" title="工具菜单" aria-label="工具菜单">≡</button>
+<div class="quickmenu" id="quickMenu" x-data
+     :class="$store.ui.quickMenu ? 'is-open' : ''"
+     @click.outside="$store.ui.closeQuick()">
+  <button class="quickmenu__toggle" id="quickToggle" type="button" title="工具菜单" aria-label="工具菜单"
+          @click.stop="$store.ui.toggleQuick()">≡</button>
   <div class="quickmenu__panel">
-    <button class="quickmenu__item" id="quickTransfer" type="button">
+    <button class="quickmenu__item" id="quickTransfer" type="button"
+            @click="$store.ui.toggleTransfer(); $store.ui.closeQuick()">
       <span>📨</span>
       <span>文件互传</span>
-      <span class="quickmenu__item-dot" id="quickTransferDot"></span>
+      <span class="quickmenu__item-dot" id="quickTransferDot" :class="$store.ui.quickTransferDot ? 'is-on' : ''"></span>
     </button>
-    <button class="quickmenu__item" id="quickTerm" type="button">
+    <button class="quickmenu__item" id="quickTerm" type="button"
+            @click="$store.ui.toggleTerm(); $store.ui.closeQuick()">
       <span>▸</span>
       <span>终端日志</span>
-      <span class="quickmenu__item-count" id="quickTermCount">0</span>
+      <span class="quickmenu__item-count" id="quickTermCount" x-text="$store.term.logs.length">0</span>
     </button>
   </div>
 </div>
