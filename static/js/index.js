@@ -38,8 +38,8 @@ function rmFile(i) { selected.splice(i, 1); renderFiles(); } window.rmFile = rmF
 function switchPage(p) {
   document.querySelectorAll(".page").forEach((el) => el.classList.remove("active"));
   document.querySelectorAll(".app-nav__item").forEach((el) => el.classList.remove("active"));
-  const pageMap = { main: "pageMain", dup: "pageDup", purchase: "pagePurchase", attendance: "pageAttendance", history: "pageHistory" };
-  const navMap = { main: "navMain", dup: "navDup", purchase: "navPurchase", attendance: "navAttendance", history: "navHistory" };
+  const pageMap = { main: "pageMain", dup: "pageDup", purchase: "pagePurchase", attendance: "pageAttendance", history: "pageHistory", data_quality: "pageDataQuality" };
+  const navMap = { main: "navMain", dup: "navDup", purchase: "navPurchase", attendance: "navAttendance", history: "navHistory", data_quality: "navDataQuality" };
   const pageId = pageMap[p];
   const navId = navMap[p];
   if (pageId) document.getElementById(pageId)?.classList.add("active");
