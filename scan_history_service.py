@@ -102,3 +102,17 @@ def _count_csv_rows(csv_path: Path) -> int:
     with csv_path.open("r", encoding="utf-8-sig") as f:
         line_count = sum(1 for _ in f)
     return max(0, line_count - 1)
+
+
+def list_employees() -> list[str]:
+    """从现有 batch 中抽出 unique 员工名，按字母序。"""
+    if not OUTPUT_DIR.exists():
+        return []
+    seen = set()
+    for entry in OUTPUT_DIR.iterdir():
+        if not entry.is_dir():
+            continue
+        info = _parse_folder_name(entry.name)
+        if info:
+            seen.add(info["employee"])
+    return sorted(seen)

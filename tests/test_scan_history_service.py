@@ -131,3 +131,17 @@ class ScanHistoryServiceTests(unittest.TestCase):
         b = result[0]
         self.assertEqual(b["csv_rows"], 0)
         self.assertEqual(b["csv_size_bytes"], 0)
+
+    def test_list_employees_returns_unique_sorted(self):
+        self._make_batch("ALI价格标20260420100000")
+        self._make_batch("ALI价格标20260425100000")
+        self._make_batch("ABDUL价格标20260423100000")
+        self._make_batch("ZHANG价格标20260424100000")
+
+        result = scan_history_service.list_employees()
+
+        self.assertEqual(result, ["ABDUL", "ALI", "ZHANG"])
+
+    def test_list_employees_returns_empty_when_no_batches(self):
+        result = scan_history_service.list_employees()
+        self.assertEqual(result, [])
