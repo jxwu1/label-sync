@@ -100,6 +100,90 @@ def get_batch_summary(batch_id: int) -> dict:
     return _summarize(rows)
 
 
+def get_batch_changes(
+    batch_id: int,
+    mode: Literal["collapsed", "raw"] = "collapsed",
+    filter_field: Optional[str] = None,
+    filter_change_type: Optional[str] = None,
+) -> list[dict]:
+    """返回批次明细。
+
+    collapsed：按 (barcode, field) 折叠，roundtrip 剔除，多字段同 barcode 拆多行
+    raw：原 stockpile_changes 行
+    filter_field / filter_change_type：可选过滤
+    """
+    with stockpile_db._session() as session:
+        start, end = _batch_window(session, batch_id)
+        conds = [
+            StockpileChange.created_at > start,
+            StockpileChange.created_at <= end,
+        ]
+        if filter_field:
+            conds.append(StockpileChange.field_name == filter_field)
+        if filter_change_type:
+            conds.append(StockpileChange.change_type == filter_change_type)
+
+        rows = session.execute(
+            select(
+                StockpileChange.product_barcode,
+                StockpileChange.field_name,
+                StockpileChange.old_value,
+                StockpileChange.new_value,
+                StockpileChange.change_type,
+                StockpileChange.created_at,
+            ).where(and_(*conds))
+            .order_by(StockpileChange.created_at)
+        ).all()
+
+        # 关联 model（一次查询，避免 N+1）
+        barcodes = {r.product_barcode for r in rows}
+        models: dict[str, str] = {}
+        if barcodes:
+            for bc, m in session.execute(
+                select(Stockpile.product_barcode, Stockpile.product_model)
+                .where(Stockpile.product_barcode.in_(barcodes))
+            ).all():
+                models[bc] = m
+
+    if mode == "raw":
+        return [
+            {
+                "barcode": r.product_barcode,
+                "model": models.get(r.product_barcode, ""),
+                "field": r.field_name,
+                "old_value": r.old_value,
+                "new_value": r.new_value,
+                "change_type": r.change_type,
+                "created_at": r.created_at,
+            }
+            for r in reversed(rows)
+        ]
+
+    # collapsed
+    grouped: dict[tuple[str, str], list] = {}
+    for r in rows:
+        grouped.setdefault((r.product_barcode, r.field_name), []).append(r)
+
+    result = []
+    for (barcode, field), group in grouped.items():
+        first_old = group[0].old_value
+        last_new = group[-1].new_value
+        last_type = group[-1].change_type
+        if first_old == last_new and last_type == "update":
+            continue
+        result.append({
+            "barcode": barcode,
+            "model": models.get(barcode, ""),
+            "field": field,
+            "from_value": first_old,
+            "to_value": last_new,
+            "change_type": last_type,
+            "latest_at": group[-1].created_at,
+        })
+    result.sort(key=lambda r: r["latest_at"], reverse=True)
+    return result
+
+
 def _summarize(rows: list) -> dict:
     """把原始 changes 行折叠为 5 个统计 + roundtrip。"""
     grouped: dict[tuple[str, str], list] = {}
