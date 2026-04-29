@@ -140,6 +140,33 @@ class SchemaMeta(Base):
     value: Mapped[str] = mapped_column(Text, nullable=False)
 
 
+class StockpileSnapshot(Base):
+    """每次 import / compare 时留一份计数快照，用于趋势分析。
+
+    阶段 1.5 PR4 起：cosmetic / substantive 不一致随时间的曲线
+    是判断"老系统清理进度"和"实质漂移"的关键观测。
+    """
+
+    __tablename__ = "stockpile_snapshots"
+    __table_args__ = (
+        Index("idx_stockpile_snapshots_taken_at", "taken_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    taken_at: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=text("(datetime('now','localtime'))")
+    )
+    trigger: Mapped[str] = mapped_column(Text, nullable=False)  # 'import' / 'compare'
+    total_local: Mapped[int] = mapped_column(Integer, nullable=False)
+    # 以下字段仅 trigger='compare' 时填，import 时 NULL
+    total_export: Mapped[Optional[int]] = mapped_column(Integer)
+    consistent: Mapped[Optional[int]] = mapped_column(Integer)
+    cosmetic_count: Mapped[Optional[int]] = mapped_column(Integer)
+    substantive_count: Mapped[Optional[int]] = mapped_column(Integer)
+    only_in_local_count: Mapped[Optional[int]] = mapped_column(Integer)
+    only_in_export_count: Mapped[Optional[int]] = mapped_column(Integer)
+
+
 _SessionFactory = sessionmaker(bind=_engine, future=True, expire_on_commit=False)
 
 

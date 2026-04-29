@@ -16,7 +16,14 @@ from sqlalchemy.pool import NullPool
 
 from config import CONFIG
 from location_parser import parse_to_locations
-from models import Base, SchemaMeta, Stockpile, StockpileChange, StockpileLocation
+from models import (
+    Base,
+    SchemaMeta,
+    Stockpile,
+    StockpileChange,
+    StockpileLocation,
+    StockpileSnapshot,
+)
 
 DB_PATH = CONFIG.stockpile_db
 SCHEMA_VERSION = 2
@@ -35,6 +42,9 @@ _CHANGE_DICT_COLS = (
 
 _ACTIVE = 1
 _INACTIVE = 0
+
+# substantive 不一致超过此阈值前端高亮告警；cosmetic 数量再多也不告警
+SUBSTANTIVE_ALERT_THRESHOLD = 3
 
 
 class Source:
@@ -299,7 +309,45 @@ def _sync_export_dataframe(df: pd.DataFrame) -> int:
             _upsert(session, barcode, model, location, extra, Source.SYSTEM_EXPORT, log_changes=True)
             synced += 1
         _deactivate_missing_records(session, active_barcodes)
+        _take_snapshot(session, trigger="import", total_local=len(active_barcodes))
     return synced
+
+
+def _normalize_location(raw: str | None) -> str:
+    """段独立 strip + 过滤空段 + 保留顺序。
+
+    "B04-22-04 /Z202-01"  → "B04-22-04/Z202-01"
+    "  A22 / X11  "       → "A22/X11"
+    "/A22/"               → "A22"
+    顺序保留：" X11/A22 " → "X11/A22"（不重排，店面在前 / 仓库在后由聚合脚本保证）
+    """
+    if not raw:
+        return ""
+    return "/".join(p.strip() for p in str(raw).split("/") if p.strip())
+
+
+def _take_snapshot(
+    session: Session,
+    *,
+    trigger: str,
+    total_local: int,
+    total_export: int | None = None,
+    consistent: int | None = None,
+    cosmetic_count: int | None = None,
+    substantive_count: int | None = None,
+    only_in_local_count: int | None = None,
+    only_in_export_count: int | None = None,
+) -> None:
+    session.add(StockpileSnapshot(
+        trigger=trigger,
+        total_local=total_local,
+        total_export=total_export,
+        consistent=consistent,
+        cosmetic_count=cosmetic_count,
+        substantive_count=substantive_count,
+        only_in_local_count=only_in_local_count,
+        only_in_export_count=only_in_export_count,
+    ))
 
 
 # === Read path (ORM) ===
@@ -419,6 +467,16 @@ def apply_export_updates(df: pd.DataFrame) -> int:
 
 
 def compare_with_dataframe(df: pd.DataFrame) -> dict:
+    """双轴比对：把不一致拆 cosmetic vs substantive。
+
+    - cosmetic_mismatches：raw 字符串不同，但 _normalize_location 后相同
+      （例：老系统正在清理空格 / 顺序差异）
+    - substantive_mismatches：normalize 后仍不同（model 差异或 location 实质改动）
+
+    `mismatches` 字段保留为 cosmetic + substantive 的并集，向后兼容。
+
+    每次比对在 stockpile_snapshots 留一行 trigger='compare' 的快照，便于趋势分析。
+    """
     extra_cols: list[str] = []
     export_records: dict[str, dict[str, str]] = {}
     for _, row in df.iterrows():
@@ -435,27 +493,88 @@ def compare_with_dataframe(df: pd.DataFrame) -> dict:
     only_local = sorted(local_barcodes - export_barcodes)
     only_export = sorted(export_barcodes - local_barcodes)
 
-    mismatches: list[dict] = []
+    cosmetic_mismatches: list[dict] = []
+    substantive_mismatches: list[dict] = []
     for barcode in local_barcodes & export_barcodes:
         local = local_records[barcode]
         export = export_records[barcode]
+        model_diff = local["model"] != export["product_model"]
+        loc_diff_raw = local["stockpile_location"] != export["stockpile_location"]
+        if not model_diff and not loc_diff_raw:
+            continue
+
+        entry = {
+            "barcode": barcode,
+            "local_model": local["model"],
+            "export_model": export["product_model"],
+            "local_location": local["stockpile_location"],
+            "export_location": export["stockpile_location"],
+        }
+        if model_diff:
+            substantive_mismatches.append(entry)
+            continue
+        # 仅 location 不同：看 normalize 后是否相同
         if (
-            local["model"] != export["product_model"]
-            or local["stockpile_location"] != export["stockpile_location"]
+            _normalize_location(local["stockpile_location"])
+            == _normalize_location(export["stockpile_location"])
         ):
-            mismatches.append({
-                "barcode": barcode,
-                "local_model": local["model"],
-                "export_model": export["product_model"],
-                "local_location": local["stockpile_location"],
-                "export_location": export["stockpile_location"],
-            })
+            cosmetic_mismatches.append(entry)
+        else:
+            substantive_mismatches.append(entry)
+
+    consistent = len(local_barcodes & export_barcodes) - len(cosmetic_mismatches) - len(substantive_mismatches)
+
+    with _session() as session:
+        _take_snapshot(
+            session,
+            trigger="compare",
+            total_local=len(local_barcodes),
+            total_export=len(export_barcodes),
+            consistent=consistent,
+            cosmetic_count=len(cosmetic_mismatches),
+            substantive_count=len(substantive_mismatches),
+            only_in_local_count=len(only_local),
+            only_in_export_count=len(only_export),
+        )
 
     return {
         "total_local": len(local_barcodes),
         "total_export": len(export_barcodes),
         "only_in_local": only_local,
         "only_in_export": only_export,
-        "mismatches": mismatches,
-        "consistent": len(local_barcodes & export_barcodes) - len(mismatches),
+        "cosmetic_mismatches": cosmetic_mismatches,
+        "substantive_mismatches": substantive_mismatches,
+        "mismatches": cosmetic_mismatches + substantive_mismatches,  # 向后兼容
+        "consistent": consistent,
+        "alert": len(substantive_mismatches) >= SUBSTANTIVE_ALERT_THRESHOLD,
     }
+
+
+def list_snapshots(limit: int = 50, trigger: str | None = None) -> list[dict]:
+    """供前端趋势图的接口：返回最近 N 个快照。"""
+    with _session() as session:
+        stmt = select(
+            StockpileSnapshot.id,
+            StockpileSnapshot.taken_at,
+            StockpileSnapshot.trigger,
+            StockpileSnapshot.total_local,
+            StockpileSnapshot.total_export,
+            StockpileSnapshot.consistent,
+            StockpileSnapshot.cosmetic_count,
+            StockpileSnapshot.substantive_count,
+            StockpileSnapshot.only_in_local_count,
+            StockpileSnapshot.only_in_export_count,
+        ).order_by(StockpileSnapshot.id.desc()).limit(limit)
+        if trigger:
+            stmt = stmt.where(StockpileSnapshot.trigger == trigger)
+        rows = session.execute(stmt).all()
+    return [
+        {
+            "id": r[0], "taken_at": r[1], "trigger": r[2],
+            "total_local": r[3], "total_export": r[4],
+            "consistent": r[5],
+            "cosmetic_count": r[6], "substantive_count": r[7],
+            "only_in_local_count": r[8], "only_in_export_count": r[9],
+        }
+        for r in rows
+    ]

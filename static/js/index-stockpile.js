@@ -134,7 +134,72 @@ export function initStockpile() {
 
   let spInitFile = null;
   let spCmpFile = null;
-  let cmpMismatches = [];
+  let cmpMismatches = [];        // 向后兼容：覆盖按钮的入参（cosmetic 子集）
+  let cmpCosmeticAll = [];       // 完整 cosmetic 列表（覆盖按钮用）
+
+  function renderMismatchRow(m, klass) {
+      return `<div class="sp-mismatch-row ${klass}" data-barcode="${esc(m.barcode)}">`
+          + esc(m.barcode) + ': 型号(' + esc(m.local_model) + '→' + esc(m.export_model) + ')'
+          + ' 库位(<span class="sp-loc-val">' + esc(m.local_location) + '</span>→' + esc(m.export_location) + ')'
+          + ' <button class="sp-edit-btn" data-barcode="' + esc(m.barcode) + '" data-local="' + esc(m.local_location) + '">编辑</button>'
+          + '</div>';
+  }
+
+  function renderMismatchSection(title, list, klass, opts) {
+      const max = opts.max || 20;
+      const shown = list.slice(0, max);
+      let html = `<div class="sp-cmp-section sp-cmp-${klass}">`;
+      html += `<div class="sp-cmp-section-hd">${title}<span class="sp-cmp-count"> · ${list.length}</span>`;
+      if (opts.button) {
+          html += ' ' + opts.button;
+      }
+      html += '</div>';
+      html += shown.map(m => renderMismatchRow(m, klass)).join('');
+      if (list.length > max) html += `<div class="sp-cmp-more">...等共 ${list.length} 条</div>`;
+      html += '</div>';
+      return html;
+  }
+
+  function renderCompareResult(d) {
+      const cosmetic = d.cosmetic_mismatches || [];
+      const substantive = d.substantive_mismatches || [];
+      cmpCosmeticAll = cosmetic;
+      // 覆盖按钮的入参（仅 cosmetic 视为安全可批量覆盖）
+      cmpMismatches = cosmetic;
+
+      let html = '<b>比对结果：</b><br>';
+      html += '本地记录：' + d.total_local + ' &nbsp; 导出记录：' + d.total_export + ' &nbsp; 一致：' + d.consistent + '<br>';
+      if (d.only_in_local.length) html += '<span class="text-only-local">仅本地有：' + esc(d.only_in_local.join(', ')) + '</span><br>';
+      if (d.only_in_export.length) html += '<span class="text-only-export">仅导出有：' + esc(d.only_in_export.join(', ')) + '</span><br>';
+
+      if (substantive.length === 0 && cosmetic.length === 0 && !d.only_in_local.length && !d.only_in_export.length) {
+          html += '<b class="text-success-bright">完全一致</b>';
+          return html;
+      }
+
+      if (substantive.length > 0) {
+          if (d.alert) {
+              html += `<div class="sp-cmp-alert">⚠️ 实质不一致 ${substantive.length} 条 (≥${3}) — 必须人工核查每一条，可能是真实库位变化、也可能是 bug</div>`;
+          }
+          html += renderMismatchSection(
+              '实质不一致（normalize 后仍不同 / 型号变更）',
+              substantive,
+              'substantive',
+              { max: 50 }
+          );
+      }
+
+      if (cosmetic.length > 0) {
+          const overwriteBtn = '<button class="sp-edit-btn" id="spOverwriteBtn">一键覆盖 cosmetic 全部</button>';
+          html += renderMismatchSection(
+              '空白/格式差异（normalize 后相同，老系统正在清理时常见）',
+              cosmetic,
+              'cosmetic',
+              { max: 20, button: overwriteBtn }
+          );
+      }
+      return html;
+  }
 
   spInitDrop.addEventListener('click', () => spInitInput.click());
   spCmpDrop.addEventListener('click', () => spCmpInput.click());
@@ -222,30 +287,7 @@ export function initStockpile() {
           const res = await fetch('/stockpile/compare', { method: 'POST', body: form });
           const data = await res.json();
           if (data.ok) {
-              const d = data.diff;
-              let html = '<b>比对结果：</b><br>';
-              html += '本地记录：' + d.total_local + ' &nbsp; 导出记录：' + d.total_export + ' &nbsp; 一致：' + d.consistent + '<br>';
-              if (d.only_in_local.length) html += '<span class="text-only-local">仅本地有：' + esc(d.only_in_local.join(', ')) + '</span><br>';
-              if (d.only_in_export.length) html += '<span class="text-only-export">仅导出有：' + esc(d.only_in_export.join(', ')) + '</span><br>';
-              if (d.mismatches.length) {
-                  cmpMismatches = d.mismatches;
-                  html += '<span class="text-danger-bright">不一致条数：' + d.mismatches.length;
-                  html += ' <button class="sp-edit-btn" id="spOverwriteBtn">一键覆盖全部库位</button></span><br>';
-                  let showCount = Math.min(d.mismatches.length, 20);
-                  for (let i = 0; i < showCount; i++) {
-                      const m = d.mismatches[i];
-                      html += '<div class="sp-mismatch-row" data-barcode="' + esc(m.barcode) + '">';
-                      html += esc(m.barcode) + ': 型号(' + esc(m.local_model) + '→' + esc(m.export_model) + ')';
-                      html += ' 库位(<span class="sp-loc-val">' + esc(m.local_location) + '</span>→' + esc(m.export_location) + ')';
-                      html += ' <button class="sp-edit-btn" data-barcode="' + esc(m.barcode) + '" data-local="' + esc(m.local_location) + '">编辑</button>';
-                      html += '</div>';
-                  }
-                  if (d.mismatches.length > 20) html += '<br>...等共' + d.mismatches.length + '条';
-              }
-              if (!d.only_in_local.length && !d.only_in_export.length && !d.mismatches.length) {
-                  html += '<b class="text-success-bright">完全一致</b>';
-              }
-              spCmpRes.innerHTML = html;
+              spCmpRes.innerHTML = renderCompareResult(data.diff);
           } else {
               spCmpRes.innerHTML = '<span class="text-danger-bright">比对失败：' + esc(data.msg || '') + '</span>';
           }
