@@ -262,20 +262,23 @@
   <div class="message-list" id="msgList"><div class="empty">暂无消息</div></div>
 </aside>
 
-<button class="term-fab" id="termFab" type="button">
+<button class="term-fab" id="termFab" type="button" x-data>
   <span>▸ 终端日志</span>
-  <span class="term-fab__count" id="termFabCount">0</span>
+  <span class="term-fab__count" id="termFabCount" x-text="$store.term.logs.length">0</span>
 </button>
 
-<div class="terminal-log hide" id="termDrawer">
+<div class="terminal-log" id="termDrawer" x-data :class="$store.ui.termDrawer ? '' : 'hide'">
   <div class="terminal-log__head">
     <span class="terminal-log__dot"></span>
     <span class="terminal-log__title">终端日志</span>
-    <button class="terminal-log__clear" type="button" onclick="clearLog()">清空</button>
+    <button class="terminal-log__clear" type="button" @click="$store.term.clear()">清空</button>
     <button class="terminal-log__close" id="termClose" type="button">收起</button>
   </div>
   <div class="terminal-log__body" id="tbod">
-    <span class="log-dim">等待操作</span>
+    <template x-for="(item, i) in $store.term.logs" :key="i">
+      <div :class="`${item.src === 'dc' ? 'log-dc' : 'log-lp'} ${item.cls}`" x-text="item.text"></div>
+    </template>
+    <span class="log-dim" x-show="$store.term.logs.length === 0">等待操作</span>
   </div>
 </div>
 

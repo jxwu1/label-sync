@@ -3,9 +3,7 @@ import { initDup, renderDupCard } from "./index-dup.js";
 
 const $ = (selector) => document.querySelector(selector);
 
-let _term;
-
-export function initWarnings(fns) { _term = fns.term; }
+export function initWarnings() {}
 
 export function waitMsg(stage) {
   if (stage === "anomaly" || stage === "phase1_barcode") return "发现异常条码，请校正、删除或忽略后继续处理";
@@ -61,7 +59,7 @@ async function submitNewBc(oldBarcode, index) {
   try {
     const data = await postJSON("/correct", { old_barcode: oldBarcode, new_barcode: newBarcode });
     if (!data.ok) { alert("校正失败：" + data.msg); button.disabled = false; button.textContent = "确认"; return; }
-    _term("新条码校正：" + oldBarcode + " -> " + newBarcode, "log-ok");
+    Alpine.store('term').push("新条码校正：" + oldBarcode + " -> " + newBarcode, "log-ok");
     await reloadStatus();
   } catch (error) { alert("请求失败：" + error); button.disabled = false; button.textContent = "确认"; }
 }
@@ -72,7 +70,7 @@ async function delNewBc(barcode, index) {
   try {
     const data = await postJSON("/delete_barcode", { barcode });
     if (!data.ok) { alert("删除失败：" + data.msg); button.disabled = false; button.textContent = "删除"; return; }
-    _term("已删除新条码：" + barcode, "log-warn");
+    Alpine.store('term').push("已删除新条码：" + barcode, "log-warn");
     await reloadStatus();
   } catch (error) { alert("请求失败：" + error); button.disabled = false; button.textContent = "删除"; }
 }
@@ -172,7 +170,7 @@ function showBc(index) { $("#bcf_" + index).style.display = "flex"; $("#bci_" + 
 function hideBc(index) { $("#bcf_" + index).style.display = "none"; }
 function showLoc(index) { $("#lf_" + index).style.display = "flex"; $("#li_" + index).focus(); }
 function hideLoc(index) { $("#lf_" + index).style.display = "none"; }
-function ignoreBc(index) { const el = $("#bc_" + index); if (!el) return; el.style.opacity = ".35"; el.style.pointerEvents = "none"; _term("已忽略异常条码条目 #" + (index + 1)); }
+function ignoreBc(index) { const el = $("#bc_" + index); if (!el) return; el.style.opacity = ".35"; el.style.pointerEvents = "none"; Alpine.store('term').push("已忽略异常条码条目 #" + (index + 1)); }
 
 async function reloadStatus() {
   const response = await fetch("/status");
@@ -185,7 +183,7 @@ async function resolveEx(barcode, resolution) {
   try {
     const data = await postJSON("/resolve_exception", { barcode, resolution });
     if (!data.ok) { alert("操作失败：" + data.msg); return; }
-    _term(resolution === "ignore" ? `已忽略条码：${barcode}` : `条码 ${barcode} 使用库位 ${resolution}`, "log-ok");
+    Alpine.store('term').push(resolution === "ignore" ? `已忽略条码：${barcode}` : `条码 ${barcode} 使用库位 ${resolution}`, "log-ok");
     await reloadStatus();
   } catch (error) { alert("请求失败：" + error); }
 }
@@ -198,7 +196,7 @@ async function delBc(barcode, index) {
   try {
     const data = await postJSON("/delete_barcode", { barcode });
     if (!data.ok) { alert("删除失败：" + data.msg); button.disabled = false; button.textContent = "删除"; return; }
-    _term("已删除条码：" + barcode, "log-warn");
+    Alpine.store('term').push("已删除条码：" + barcode, "log-warn");
     await reloadStatus();
   } catch (error) { alert("请求失败：" + error); button.disabled = false; button.textContent = "删除"; }
 }
@@ -212,7 +210,7 @@ async function submitBc(oldBarcode, index) {
   try {
     const data = await postJSON("/correct", { old_barcode: oldBarcode, new_barcode: newBarcode });
     if (!data.ok) { alert("校正失败：" + data.msg); button.disabled = false; button.textContent = "确认"; return; }
-    _term("条码校正：" + oldBarcode + " -> " + newBarcode, "log-ok");
+    Alpine.store('term').push("条码校正：" + oldBarcode + " -> " + newBarcode, "log-ok");
     await reloadStatus();
   } catch (error) { alert("请求失败：" + error); button.disabled = false; button.textContent = "确认"; }
 }
@@ -226,7 +224,7 @@ async function submitLoc(oldLocation, index) {
   try {
     const data = await postJSON("/correct_location", { old_location: oldLocation, new_location: newLocation });
     if (!data.ok) { alert("校正失败：" + data.msg); button.disabled = false; button.textContent = "确认"; return; }
-    _term("库位校正：" + oldLocation + " -> " + newLocation, "log-ok");
+    Alpine.store('term').push("库位校正：" + oldLocation + " -> " + newLocation, "log-ok");
     await reloadStatus();
   } catch (error) { alert("请求失败：" + error); button.disabled = false; button.textContent = "确认"; }
 }
