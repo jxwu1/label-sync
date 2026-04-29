@@ -22,6 +22,7 @@ def save():
             supplier_name=data["supplier_name"],
             total_price=float(data["total_price"]),
             tax=float(data["tax"]),
+            special_tax=float(data.get("special_tax") or 0),
             invoice_date=data["invoice_date"],
             month=data["month"],
         )

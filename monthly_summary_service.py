@@ -92,12 +92,14 @@ def save_record(
     tax: float,
     invoice_date: str,
     month: str,
+    special_tax: float = 0.0,
 ) -> dict:
     record = {
         "supplier_name": supplier_name,
         "total_price": total_price,
         "tax": tax,
-        "total_with_tax": total_price + tax,
+        "special_tax": special_tax,
+        "total_with_tax": total_price + tax + special_tax,
         "invoice_date": invoice_date,
         "created_at": datetime.now().isoformat(timespec="seconds"),
     }
@@ -109,7 +111,11 @@ def save_record(
 
 
 def load_records(month: str) -> list[dict]:
-    return _read_json(_month_file(month))
+    records = _read_json(_month_file(month))
+    # 旧记录无 special_tax 字段：填 0 兼容
+    for rec in records:
+        rec.setdefault("special_tax", 0.0)
+    return records
 
 
 def delete_record(month: str, index: int) -> dict:
@@ -182,8 +188,10 @@ def _build_record_table(rec: dict, font_name: str) -> Table:
         ["开票日期", rec["invoice_date"]],
         ["总价", _format_euro(rec["total_price"])],
         ["税金", _format_euro(rec["tax"])],
-        ["加税总价", _format_euro(rec["total_with_tax"])],
     ]
+    if rec.get("special_tax", 0) > 0:
+        data.append(["特殊税", _format_euro(rec["special_tax"])])
+    data.append(["加税总价", _format_euro(rec["total_with_tax"])])
     table = Table(data, colWidths=[40 * mm, 80 * mm])
     table.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (-1, -1), font_name),

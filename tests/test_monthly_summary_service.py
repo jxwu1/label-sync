@@ -62,6 +62,38 @@ class TestSaveRecord(unittest.TestCase):
         records = svc.load_records("2099-01")
         self.assertEqual(records, [])
 
+    def test_save_with_special_tax_includes_in_total(self):
+        record = svc.save_record(
+            supplier_name="EcoCorp",
+            total_price=100.0,
+            tax=13.0,
+            invoice_date="2026-04-15",
+            month="2026-04",
+            special_tax=5.5,
+        )
+        self.assertAlmostEqual(record["special_tax"], 5.5)
+        self.assertAlmostEqual(record["total_with_tax"], 118.5)
+
+    def test_save_without_special_tax_defaults_to_zero(self):
+        record = svc.save_record("A", 100.0, 10.0, "2026-04-01", "2026-04")
+        self.assertEqual(record["special_tax"], 0.0)
+        self.assertAlmostEqual(record["total_with_tax"], 110.0)
+
+    def test_load_old_record_without_special_tax_field_fills_zero(self):
+        """向后兼容：旧 JSON 记录无 special_tax 字段，load 时填 0。"""
+        path = svc._month_file("2026-04")
+        legacy = [{
+            "supplier_name": "Old",
+            "total_price": 100.0,
+            "tax": 10.0,
+            "total_with_tax": 110.0,
+            "invoice_date": "2026-04-01",
+            "created_at": "2026-04-01T00:00:00",
+        }]
+        path.write_text(json.dumps(legacy), encoding="utf-8")
+        records = svc.load_records("2026-04")
+        self.assertEqual(records[0]["special_tax"], 0.0)
+
 
 class TestListMonths(unittest.TestCase):
     def setUp(self):

@@ -38,6 +38,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
           <label>供应商名称<input class="pur-inp" id="purMsSupplier" placeholder="必填"></label>
           <label>总价 (€)<input class="pur-inp" id="purMsTotal" type="number" step="0.01"></label>
           <label>税金 (€)<input class="pur-inp" id="purMsTax" type="number" step="0.01" placeholder="必填"></label>
+          <label>特殊税 (€)<input class="pur-inp" id="purMsSpecialTax" type="number" step="0.01" placeholder="可选（如环保税）"></label>
           <label>加税总价 (€)<input class="pur-inp" id="purMsTotalTax" disabled></label>
           <label>开票日期<input class="pur-inp" id="purMsDate" type="date"></label>
           <label>目标月份<input class="pur-inp" id="purMsMonth" type="month"></label>
@@ -78,6 +79,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     document.getElementById('purSupId').addEventListener('input', (e) => { supplierInfo.id = e.target.value.trim(); updateButtons(); });
     document.getElementById('purSupName').addEventListener('input', (e) => { supplierInfo.name = e.target.value.trim(); updateButtons(); });
     document.getElementById('purMsTax').addEventListener('input', updateTotalTax);
+    document.getElementById('purMsSpecialTax').addEventListener('input', updateTotalTax);
     document.getElementById('purMsTotal').addEventListener('input', updateTotalTax);
     document.getElementById('purMsSkip').addEventListener('click', skipAndExport);
     document.getElementById('purMsCancel').addEventListener('click', () => {
@@ -336,6 +338,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     const rounded = Math.round(totalPrice * 100) / 100;
     document.getElementById('purMsTotal').value = rounded.toFixed(2);
     document.getElementById('purMsTax').value = '';
+    document.getElementById('purMsSpecialTax').value = '';
     document.getElementById('purMsTotalTax').value = '';
     document.getElementById('purMsDate').value = new Date().toISOString().slice(0, 10);
     document.getElementById('purMsMonth').value = new Date().toISOString().slice(0, 7);
@@ -348,13 +351,15 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
   function updateTotalTax() {
     const total = parseFloat(document.getElementById('purMsTotal').value) || 0;
     const tax = parseFloat(document.getElementById('purMsTax').value) || 0;
-    document.getElementById('purMsTotalTax').value = (total + tax).toFixed(2);
+    const specialTax = parseFloat(document.getElementById('purMsSpecialTax').value) || 0;
+    document.getElementById('purMsTotalTax').value = (total + tax + specialTax).toFixed(2);
   }
 
   async function confirmWithSummary() {
     const supplier = document.getElementById('purMsSupplier').value.trim();
     const total = parseFloat(document.getElementById('purMsTotal').value);
     const tax = parseFloat(document.getElementById('purMsTax').value);
+    const specialTax = parseFloat(document.getElementById('purMsSpecialTax').value) || 0;
     const invoiceDate = document.getElementById('purMsDate').value;
     const month = document.getElementById('purMsMonth').value;
     if (!supplier || isNaN(total) || isNaN(tax) || !invoiceDate || !month) {
@@ -369,6 +374,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
           supplier_name: supplier,
           total_price: total,
           tax: tax,
+          special_tax: specialTax,
           invoice_date: invoiceDate,
           month: month,
         }),
@@ -461,6 +467,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     const month = document.getElementById('purSumMonth')?.value || new Date().toISOString().slice(0, 7);
     document.getElementById('purMsTotal').value = '';
     document.getElementById('purMsTax').value = '';
+    document.getElementById('purMsSpecialTax').value = '';
     document.getElementById('purMsTotalTax').value = '';
     document.getElementById('purMsDate').value = '';
     document.getElementById('purMsMonth').value = month;
@@ -470,6 +477,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
       const supplier = document.getElementById('purMsSupplier').value.trim();
       const total = parseFloat(document.getElementById('purMsTotal').value);
       const tax = parseFloat(document.getElementById('purMsTax').value);
+      const specialTax = parseFloat(document.getElementById('purMsSpecialTax').value) || 0;
       const invoiceDate = document.getElementById('purMsDate').value;
       const targetMonth = document.getElementById('purMsMonth').value;
       if (!supplier || isNaN(total) || isNaN(tax) || !invoiceDate || !targetMonth) {
@@ -484,6 +492,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
             supplier_name: supplier,
             total_price: total,
             tax: tax,
+            special_tax: specialTax,
             invoice_date: invoiceDate,
             month: targetMonth,
           }),
@@ -547,16 +556,22 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
       list.innerHTML = '<div class="empty">无匹配记录</div>';
       return;
     }
-    list.innerHTML = filtered.map(({ rec, idx }) => `
+    list.innerHTML = filtered.map(({ rec, idx }) => {
+      const specialTaxCell = Number(rec.special_tax) > 0
+        ? `<div class="pur-mgr-cell">特 €${Number(rec.special_tax).toFixed(2)}</div>`
+        : '';
+      return `
       <div class="pur-mgr-row">
         <div class="pur-mgr-cell"><b>${escapeHtml(rec.supplier_name)}</b></div>
         <div class="pur-mgr-cell">${escapeHtml(rec.invoice_date)}</div>
         <div class="pur-mgr-cell">总 €${Number(rec.total_price).toFixed(2)}</div>
         <div class="pur-mgr-cell">税 €${Number(rec.tax).toFixed(2)}</div>
+        ${specialTaxCell}
         <div class="pur-mgr-cell">含税 €${Number(rec.total_with_tax).toFixed(2)}</div>
         <button class="pur-btn-copy pur-mgr-del" data-idx="${idx}">删除</button>
       </div>
-    `).join('');
+      `;
+    }).join('');
     list.querySelectorAll('.pur-mgr-del').forEach(btn => {
       btn.addEventListener('click', () => deleteManageRecord(parseInt(btn.dataset.idx, 10)));
     });
