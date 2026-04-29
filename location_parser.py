@@ -33,15 +33,18 @@ def parse_to_locations(raw: str | None) -> list[dict]:
     - position 按源字符串顺序 0,1,2,...（保留店面在前/仓库在后约定）
     - 异常前缀 → kind="unknown"
     - 段间空白 strip；空段忽略
+    - 重复段去重，保留首次出现（子表 UNIQUE(stockpile_id, location) 约束的语义对齐）
     """
     if not raw:
         return []
     result = []
+    seen: set[str] = set()
     position = 0
     for part in str(raw).split("/"):
         loc = part.strip()
-        if not loc:
+        if not loc or loc in seen:
             continue
+        seen.add(loc)
         result.append({
             "location": loc,
             "kind": classify_kind(loc),

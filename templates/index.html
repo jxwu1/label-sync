@@ -156,27 +156,54 @@
         <div class="panel">
           <div class="panel-hd">
             数据质量
-            <button class="btn btn-secondary" id="dqRefresh" style="float:right;margin-top:-4px">刷新</button>
+            <div class="dq-actions">
+              <button class="pur-btn-dl" id="dqRefresh">刷新</button>
+            </div>
           </div>
           <div class="panel-bd" id="dqHint">
             点击「刷新」加载异常报告。本页只展示问题、不修改任何数据，请到老系统修复后下次 import 自动同步。
           </div>
         </div>
         <div class="panel dq-section" id="dqMultiKindPanel" hidden>
-          <div class="panel-hd">同维度多库位 <span class="dq-count" id="dqMultiKindCount"></span></div>
+          <div class="panel-hd">同维度多库位 <span class="dq-count" id="dqMultiKindCount"></span>
+            <div class="dq-actions">
+              <button class="pur-btn-copy" data-copy-section="multi_same_kind">一键复制</button>
+            </div>
+          </div>
           <div class="panel-bd" id="dqMultiKind"></div>
         </div>
         <div class="panel dq-section" id="dqFlippersPanel" hidden>
-          <div class="panel-hd">高频翻转货号（≥4 次 location 变更）<span class="dq-count" id="dqFlippersCount"></span></div>
+          <div class="panel-hd">高频翻转货号（≥4 次 location 变更）<span class="dq-count" id="dqFlippersCount"></span>
+            <div class="dq-actions">
+              <button class="pur-btn-copy" data-copy-section="flippers">一键复制</button>
+            </div>
+          </div>
           <div class="panel-bd" id="dqFlippers"></div>
         </div>
         <div class="panel dq-section" id="dqWhitespacePanel" hidden>
-          <div class="panel-hd">空白字符异常 <span class="dq-count" id="dqWhitespaceCount"></span></div>
+          <div class="panel-hd">空白字符异常 <span class="dq-count" id="dqWhitespaceCount"></span>
+            <div class="dq-actions">
+              <a class="pur-btn-dl" href="/data_quality/whitespace_fix_template" download>下载修复模板</a>
+              <button class="pur-btn-copy" data-copy-section="whitespace_anomalies">一键复制</button>
+            </div>
+          </div>
           <div class="panel-bd" id="dqWhitespace"></div>
         </div>
         <div class="panel dq-section" id="dqUnknownPanel" hidden>
-          <div class="panel-hd">异常前缀（非 A/B/C/X/Z 开头）<span class="dq-count" id="dqUnknownCount"></span></div>
+          <div class="panel-hd">异常前缀（非 A/B/C/X/Z 开头）<span class="dq-count" id="dqUnknownCount"></span>
+            <div class="dq-actions">
+              <button class="pur-btn-copy" data-copy-section="unknown_prefix">一键复制</button>
+            </div>
+          </div>
           <div class="panel-bd" id="dqUnknown"></div>
+        </div>
+        <div class="panel dq-section" id="dqDuplicatePanel" hidden>
+          <div class="panel-hd">重复段（raw 字符串里同 location 段重复）<span class="dq-count" id="dqDuplicateCount"></span>
+            <div class="dq-actions">
+              <button class="pur-btn-copy" data-copy-section="duplicate_segments">一键复制</button>
+            </div>
+          </div>
+          <div class="panel-bd" id="dqDuplicate"></div>
         </div>
       </div>
     </div>

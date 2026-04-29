@@ -8,6 +8,24 @@
   margin-top: 12px;
 }
 
+/* panel-hd flex 布局：标题左、.dq-actions 推到右上角；多按钮在容器内并排 */
+#pageDataQuality .panel-hd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#pageDataQuality .panel-hd > .dq-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+#pageDataQuality .panel-hd > .dq-actions > * {
+  text-transform: none;  /* 抑制 panel-hd 的 uppercase 继承 */
+  text-decoration: none; /* a.pur-btn-dl 去下划线 */
+  display: inline-flex;
+  align-items: center;
+}
+
 .dq-count {
   font-weight: normal;
   font-size: 13px;
