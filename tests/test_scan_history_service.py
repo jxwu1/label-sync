@@ -145,3 +145,34 @@ class ScanHistoryServiceTests(unittest.TestCase):
     def test_list_employees_returns_empty_when_no_batches(self):
         result = scan_history_service.list_employees()
         self.assertEqual(result, [])
+
+    def test_get_batch_csv_path_returns_path_for_existing_batch(self):
+        self._make_batch("ALI价格标20260420100000", csv_rows=3)
+
+        result = scan_history_service.get_batch_csv_path("ALI价格标20260420100000")
+
+        self.assertIsNotNone(result)
+        self.assertTrue(result.exists())
+        self.assertEqual(result.name, "1产品信息导入模板.csv")
+
+    def test_get_batch_csv_path_returns_none_for_missing_batch(self):
+        result = scan_history_service.get_batch_csv_path("NOPE价格标20260420100000")
+        self.assertIsNone(result)
+
+    def test_get_batch_csv_path_returns_none_when_csv_missing(self):
+        batch = self.test_dir / "ALI价格标20260420100000"
+        batch.mkdir()
+        result = scan_history_service.get_batch_csv_path("ALI价格标20260420100000")
+        self.assertIsNone(result)
+
+    def test_get_batch_csv_path_rejects_path_traversal(self):
+        self._make_batch("ALI价格标20260420100000", csv_rows=1)
+
+        self.assertIsNone(scan_history_service.get_batch_csv_path("../etc/passwd"))
+        self.assertIsNone(scan_history_service.get_batch_csv_path("ALI价格标20260420100000/../"))
+        self.assertIsNone(scan_history_service.get_batch_csv_path("/absolute/path"))
+
+    def test_get_batch_csv_path_rejects_unrecognized_pattern(self):
+        (self.test_dir / "random_folder").mkdir()
+        result = scan_history_service.get_batch_csv_path("random_folder")
+        self.assertIsNone(result)

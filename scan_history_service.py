@@ -116,3 +116,29 @@ def list_employees() -> list[str]:
         if info:
             seen.add(info["employee"])
     return sorted(seen)
+
+
+def get_batch_csv_path(batch_id: str) -> Path | None:
+    """返回 batch 内主 CSV 的 Path；不存在/不安全返回 None。"""
+    batch_dir = _safe_resolve_batch(batch_id)
+    if batch_dir is None:
+        return None
+    csv_path = batch_dir / _CSV_FILENAME
+    if not csv_path.exists() or not csv_path.is_file():
+        return None
+    return csv_path
+
+
+def _safe_resolve_batch(batch_id: str) -> Path | None:
+    """把 batch_id 解析为绝对路径，确认在 OUTPUT_DIR 下且匹配命名规则。"""
+    if _parse_folder_name(batch_id) is None:
+        return None
+    candidate = (OUTPUT_DIR / batch_id).resolve()
+    try:
+        if not candidate.is_relative_to(OUTPUT_DIR.resolve()):
+            return None
+    except ValueError:
+        return None
+    if not candidate.exists() or not candidate.is_dir():
+        return None
+    return candidate
