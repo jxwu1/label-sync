@@ -41,7 +41,10 @@
       <span class="app-nav__icon">🔍</span>数据质量
     </div>
     <span style="flex:1"></span>
-    <span class="badge badge-idle" id="badge" style="margin-bottom: 14px; align-self: flex-end;">空闲</span>
+    <span class="badge" id="badge" x-data
+      :class="`badge-${$store.app.badgeType}`"
+      x-text="$store.app.badgeText"
+      style="margin-bottom: 14px; align-self: flex-end;">空闲</span>
   </div>
   <div class="app-main">
     <div class="app-pages">
@@ -77,7 +80,9 @@
         <button class="btn btn-info" id="copyModels">复制所有型号</button>
         <button class="btn btn-info" id="copyModelsAll" hidden>复制所有型号（含重复）</button>
         <button class="btn btn-ghost" id="reset">清空界面，准备下一批</button>
-        <div class="status" id="status">请先上传文件</div>
+        <div id="status" x-data
+     :class="$store.app.statusCls ? `status ${$store.app.statusCls}` : 'status'"
+     x-html="$store.app.statusText">请先上传文件</div>
       </div>
     </div>
 

@@ -8,8 +8,6 @@ import { initStockpile } from "./index-stockpile.js";
 const $ = (selector) => document.querySelector(selector);
 let selected = [], poll = null;
 
-function setBadge(type, text) { const b = $("#badge"); b.className = "badge badge-" + type; b.textContent = text; }
-function setStatus(text, cls = "") { const s = $("#status"); s.innerHTML = text; s.className = "status" + (cls ? " " + cls : ""); }
 initWarnings();
 
 function renderFiles() {
@@ -35,14 +33,14 @@ setupDropZone($("#drop"), $("#fileInput"), (files) => { selected.push(...[...fil
 $("#upload").onclick = async () => {
   if (!selected.length) return;
   const upload = $("#upload"); upload.disabled = true;
-  setStatus('<span class="spin"></span>正在上传文件...');
+  Alpine.store('app').setStatus('<span class="spin"></span>正在上传文件...');
   try {
     const formData = new FormData(); selected.forEach((f) => formData.append("files", f));
     const data = await (await fetch("/upload", { method: "POST", body: formData })).json();
-    if (!data.ok) { setStatus("上传失败：" + data.msg, "error"); Alpine.store('term').push("上传失败：" + data.msg, "log-err"); upload.disabled = false; return; }
-    setStatus("上传成功，共 " + data.saved.length + " 个文件", "success");
+    if (!data.ok) { Alpine.store('app').setStatus("上传失败：" + data.msg, "error"); Alpine.store('term').push("上传失败：" + data.msg, "log-err"); upload.disabled = false; return; }
+    Alpine.store('app').setStatus("上传成功，共 " + data.saved.length + " 个文件", "success");
     Alpine.store('term').push("上传完成：" + data.saved.join(", "), "log-ok"); $("#run").disabled = false;
-  } catch (e) { setStatus("上传失败：" + e, "error"); Alpine.store('term').push("上传失败：" + e, "log-err"); upload.disabled = false; }
+  } catch (e) { Alpine.store('app').setStatus("上传失败：" + e, "error"); Alpine.store('term').push("上传失败：" + e, "log-err"); upload.disabled = false; }
 };
 
 function handleStatus(data) {
@@ -54,19 +52,19 @@ function handleStatus(data) {
   renderReview(data);
   const cont = $("#cont");
   if (data.waiting) {
-    clearInterval(poll); setBadge("waiting", "等待处理"); setStatus(waitMsg(data.waiting_stage));
+    clearInterval(poll); Alpine.store('app').setBadge("waiting", "等待处理"); Alpine.store('app').setStatus(waitMsg(data.waiting_stage));
     cont.style.display = "block"; cont.disabled = false; cont.textContent = "继续处理";
     Alpine.store('term').push(waitMsg(data.waiting_stage), "log-warn"); return;
   }
-  if (data.running) { setBadge("running", "处理中"); setStatus('<span class="spin"></span>处理中，请稍候...'); return; }
+  if (data.running) { Alpine.store('app').setBadge("running", "处理中"); Alpine.store('app').setStatus('<span class="spin"></span>处理中，请稍候...'); return; }
   clearInterval(poll); cont.style.display = "none";
-  if (data.error) { setStatus("处理失败，请查看日志", "error"); setBadge("error", "出错"); $("#run").disabled = false; return; }
+  if (data.error) { Alpine.store('app').setStatus("处理失败，请查看日志", "error"); Alpine.store('app').setBadge("error", "出错"); $("#run").disabled = false; return; }
   if (data.done) {
-    setStatus("处理完成，可下载结果", "success"); setBadge("done", "完成");
+    Alpine.store('app').setStatus("处理完成，可下载结果", "success"); Alpine.store('app').setBadge("done", "完成");
     $("#download").style.display = "block"; $("#copyModels").style.display = "block";
     $("#copyModelsAll").style.display = "block"; $("#reset").style.display = "block"; return;
   }
-  setBadge("idle", "空闲");
+  Alpine.store('app').setBadge("idle", "空闲");
 }
 
 function startPoll() {
@@ -76,22 +74,22 @@ function startPoll() {
 
 $("#run").onclick = async () => {
   const run = $("#run"); run.disabled = true; $("#cont").style.display = "none";
-  setStatus('<span class="spin"></span>正在启动处理流程...'); setBadge("running", "处理中"); Alpine.store('term').push("开始处理");
+  Alpine.store('app').setStatus('<span class="spin"></span>正在启动处理流程...'); Alpine.store('app').setBadge("running", "处理中"); Alpine.store('term').push("开始处理");
   try {
     const data = await (await fetch("/run", { method: "POST" })).json();
-    if (!data.ok) { setStatus(data.msg, "error"); setBadge("error", "出错"); Alpine.store('term').push("启动失败：" + data.msg, "log-err"); run.disabled = false; return; }
+    if (!data.ok) { Alpine.store('app').setStatus(data.msg, "error"); Alpine.store('app').setBadge("error", "出错"); Alpine.store('term').push("启动失败：" + data.msg, "log-err"); run.disabled = false; return; }
     startPoll();
-  } catch (e) { setStatus("启动失败：" + e, "error"); setBadge("error", "出错"); Alpine.store('term').push("启动失败：" + e, "log-err"); run.disabled = false; }
+  } catch (e) { Alpine.store('app').setStatus("启动失败：" + e, "error"); Alpine.store('app').setBadge("error", "出错"); Alpine.store('term').push("启动失败：" + e, "log-err"); run.disabled = false; }
 };
 
 $("#cont").onclick = async () => {
   const cont = $("#cont"); cont.disabled = true; cont.textContent = "处理中...";
-  setBadge("running", "处理中"); setStatus('<span class="spin"></span>继续处理中...'); Alpine.store('term').push("继续处理");
+  Alpine.store('app').setBadge("running", "处理中"); Alpine.store('app').setStatus('<span class="spin"></span>继续处理中...'); Alpine.store('term').push("继续处理");
   try {
     const data = await (await fetch("/continue", { method: "POST" })).json();
-    if (!data.ok) { setBadge("waiting", "等待处理"); setStatus(data.msg, "error"); cont.disabled = false; cont.textContent = "继续处理"; Alpine.store('term').push("继续失败：" + data.msg, "log-err"); return; }
+    if (!data.ok) { Alpine.store('app').setBadge("waiting", "等待处理"); Alpine.store('app').setStatus(data.msg, "error"); cont.disabled = false; cont.textContent = "继续处理"; Alpine.store('term').push("继续失败：" + data.msg, "log-err"); return; }
     startPoll();
-  } catch (e) { setStatus("请求失败：" + e, "error"); cont.disabled = false; cont.textContent = "继续处理"; Alpine.store('term').push("请求失败：" + e, "log-err"); }
+  } catch (e) { Alpine.store('app').setStatus("请求失败：" + e, "error"); cont.disabled = false; cont.textContent = "继续处理"; Alpine.store('term').push("请求失败：" + e, "log-err"); }
 };
 
 $("#download").onclick = () => { location.href = "/download"; Alpine.store('term').push("下载结果文件"); };
@@ -103,7 +101,7 @@ $("#reset").onclick = () => {
   $("#download").style.display = "none"; $("#copyModels").style.display = "none";
   $("#copyModelsAll").style.display = "none"; $("#reset").style.display = "none";
   $("#warnBox").innerHTML = '<div class="empty">暂无需要人工处理的异常</div>';
-  setBadge("idle", "空闲"); setStatus("请先上传文件"); clearInterval(poll); Alpine.store('term').setLastLog(0);
+  Alpine.store('app').setBadge("idle", "空闲"); Alpine.store('app').setStatus("请先上传文件"); clearInterval(poll); Alpine.store('term').setLastLog(0);
   Alpine.store('term').push("已清空界面，准备下一批", "log-dim");
 };
 
