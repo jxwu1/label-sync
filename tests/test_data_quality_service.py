@@ -99,6 +99,35 @@ class DataQualityTests(unittest.TestCase):
         self.assertEqual(report["flippers"]["count"], 0)
         self.assertEqual(report["duplicate_segments"]["count"], 0)
 
+    def test_whitespace_fix_dataframe_includes_only_anomalies_normalized(self) -> None:
+        # 注意：stockpile_db._clean 在 import 时已 strip 外层；
+        # 真实 whitespace 异常都是段内空格（如 "A04-05-04 /XA20-06"）
+        self._import([
+            {"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A04-05-04 /XA20-06"},  # 异常
+            {"product_barcode": "B2", "product_model": "M2", "stockpile_location": "B04-22-04/ Z202-01"},  # 异常
+            {"product_barcode": "B3", "product_model": "M3", "stockpile_location": "A23/X11"},             # 干净
+        ])
+        df = data_quality_service.build_whitespace_fix_dataframe()
+        # 行数 = 异常数（不含 B3）
+        self.assertEqual(len(df), 2)
+        # 关键列填了 normalized location 和 model
+        models = df["型号"].tolist()
+        locations = df["位置"].tolist()
+        self.assertIn("M1", models)
+        self.assertIn("M2", models)
+        self.assertIn("A04-05-04/XA20-06", locations)
+        self.assertIn("B04-22-04/Z202-01", locations)
+        # 跟 update_location 共用模板结构：货区/仓库ID/仓库名称 写死
+        self.assertEqual(df["货区"].tolist(), ["A", "A"])
+        self.assertEqual(df["仓库名称"].tolist(), ["店面", "店面"])
+
+    def test_whitespace_fix_dataframe_empty_when_no_anomaly(self) -> None:
+        self._import([
+            {"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A22-04-04/X11-02"},
+        ])
+        df = data_quality_service.build_whitespace_fix_dataframe()
+        self.assertEqual(len(df), 0)
+
     def test_duplicate_segments_detects_repeated_location(self) -> None:
         self._import([
             {"product_barcode": "B1", "product_model": "M1", "stockpile_location": "B06-20-02/XB07-12/XB07-12"},

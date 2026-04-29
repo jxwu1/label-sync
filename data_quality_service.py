@@ -12,6 +12,7 @@
 
 每个返回固定结构 {"count": int, "samples": list[dict]}，前端按相同模板渲染。
 """
+import pandas as pd
 from sqlalchemy import func, select
 
 import stockpile_db
@@ -100,6 +101,11 @@ def _flippers(session) -> dict:
     return {"count": total, "samples": samples}
 
 
+def _normalize_location_str(raw: str) -> str:
+    """每段独立 strip 后用 / 拼回，空段忽略。空白修复的规范形式。"""
+    return "/".join(p.strip() for p in raw.split("/") if p.strip())
+
+
 def _whitespace_anomalies(session) -> dict:
     """raw stockpile_location 含 strip 后变化的字符（前后空格、段间空格等）。
 
@@ -118,8 +124,7 @@ def _whitespace_anomalies(session) -> dict:
     for barcode, model, raw in rows:
         if not raw:
             continue
-        # 规范化：每段独立 strip 后用 / 拼回
-        normalized = "/".join(p.strip() for p in raw.split("/") if p.strip())
+        normalized = _normalize_location_str(raw)
         if raw != normalized:
             total += 1
             if len(samples) < _WHITESPACE_TOP_N:
@@ -194,6 +199,41 @@ def _duplicate_segments(session) -> dict:
                 "duplicates": duplicates,
             })
     return {"count": total, "samples": samples}
+
+
+def build_whitespace_fix_dataframe() -> pd.DataFrame:
+    """生成「产品信息导入模板」DataFrame，全量含所有 whitespace 异常货号。
+
+    用于一键下载修复模板：每行 = 一个 whitespace 异常货号 + normalize 后的 location。
+    复用 update_location.build_output_dataframe 与 find_template_path，模板列结构
+    与写死值（货区/仓库ID/仓库名称）单一来源，update_location 那边演进时这边自动跟上。
+
+    raises FileNotFoundError 若找不到产品信息导入模板.csv（部署故障）。
+    """
+    from update_location import build_output_dataframe, find_template_path
+    from file_io import read_csv
+
+    template_path = find_template_path()
+    if template_path is None:
+        raise FileNotFoundError("产品信息导入模板.csv 缺失，无法生成修复模板")
+    template_df = read_csv(template_path).iloc[0:0]
+
+    with stockpile_db._session() as session:
+        rows = session.execute(
+            select(Stockpile.product_model, Stockpile.stockpile_location)
+            .where(Stockpile.is_active == 1)
+        ).all()
+
+    results: list[dict[str, str]] = []
+    for model, raw in rows:
+        if not raw:
+            continue
+        normalized = _normalize_location_str(raw)
+        if raw == normalized:
+            continue
+        results.append({"model": model, "location": normalized})
+
+    return build_output_dataframe(template_df, results)
 
 
 def build_report() -> dict:
