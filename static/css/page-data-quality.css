@@ -1,0 +1,63 @@
+#pageDataQuality .dq-section {
+  margin-top: 12px;
+}
+
+.dq-count {
+  font-weight: normal;
+  font-size: 13px;
+  color: var(--color-text-muted, #888);
+  margin-left: 6px;
+}
+
+.dq-count--zero {
+  color: var(--color-success, #4a7c4f);
+}
+
+.dq-empty {
+  color: var(--color-text-muted, #888);
+  padding: 12px;
+  text-align: center;
+}
+
+.dq-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.dq-table th,
+.dq-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--color-border-soft, #e5e0d6);
+  text-align: left;
+  vertical-align: top;
+}
+
+.dq-table th {
+  background: var(--color-surface-soft, #f6f1e7);
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+}
+
+.dq-table tbody tr:hover {
+  background: var(--color-surface-hover, #faf6ec);
+}
+
+.dq-table .dq-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.dq-table code {
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 12px;
+}
+
+.dq-ws {
+  color: #cc6600;
+  font-weight: bold;
+  background: rgba(204, 102, 0, 0.1);
+  padding: 0 2px;
+  border-radius: 2px;
+}

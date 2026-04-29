@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-purchase.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-attendance.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-history.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/page-data-quality.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/terminal-log.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/transfer-drawer.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/quickmenu.css') }}">
@@ -34,6 +35,9 @@
     </div>
     <div class="app-nav__item" id="navHistory" onclick="switchPage('history')">
       <span class="app-nav__icon">📜</span>货号历史
+    </div>
+    <div class="app-nav__item" id="navDataQuality" onclick="switchPage('data_quality')">
+      <span class="app-nav__icon">🔍</span>数据质量
     </div>
     <span style="flex:1"></span>
     <span class="badge badge-idle" id="badge" style="margin-bottom: 14px; align-self: flex-end;">空闲</span>
@@ -148,6 +152,33 @@
           <div class="panel-bd" id="historyTimeline"></div>
         </div>
       </div>
+      <div class="page" id="pageDataQuality">
+        <div class="panel">
+          <div class="panel-hd">
+            数据质量
+            <button class="btn btn-secondary" id="dqRefresh" style="float:right;margin-top:-4px">刷新</button>
+          </div>
+          <div class="panel-bd" id="dqHint">
+            点击「刷新」加载异常报告。本页只展示问题、不修改任何数据，请到老系统修复后下次 import 自动同步。
+          </div>
+        </div>
+        <div class="panel dq-section" id="dqMultiKindPanel" hidden>
+          <div class="panel-hd">同维度多库位 <span class="dq-count" id="dqMultiKindCount"></span></div>
+          <div class="panel-bd" id="dqMultiKind"></div>
+        </div>
+        <div class="panel dq-section" id="dqFlippersPanel" hidden>
+          <div class="panel-hd">高频翻转货号（≥4 次 location 变更）<span class="dq-count" id="dqFlippersCount"></span></div>
+          <div class="panel-bd" id="dqFlippers"></div>
+        </div>
+        <div class="panel dq-section" id="dqWhitespacePanel" hidden>
+          <div class="panel-hd">空白字符异常 <span class="dq-count" id="dqWhitespaceCount"></span></div>
+          <div class="panel-bd" id="dqWhitespace"></div>
+        </div>
+        <div class="panel dq-section" id="dqUnknownPanel" hidden>
+          <div class="panel-hd">异常前缀（非 A/B/C/X/Z 开头）<span class="dq-count" id="dqUnknownCount"></span></div>
+          <div class="panel-bd" id="dqUnknown"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -218,5 +249,6 @@
 <script type="module" src="{{ url_for('static', filename='js/purchase.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/attendance.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/history.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/data-quality.js') }}"></script>
 </body>
 </html>
