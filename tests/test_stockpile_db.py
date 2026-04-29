@@ -165,9 +165,79 @@ class StockpileDbTests(unittest.TestCase):
         self.assertEqual(result["total_export"], 3)
         self.assertEqual(result["only_in_local"], [])
         self.assertEqual(result["only_in_export"], ["A3"])
+        # model diff = substantive
+        self.assertEqual(len(result["substantive_mismatches"]), 1)
+        self.assertEqual(result["substantive_mismatches"][0]["barcode"], "A2")
+        self.assertEqual(len(result["cosmetic_mismatches"]), 0)
+        # 向后兼容 mismatches = 并集
         self.assertEqual(len(result["mismatches"]), 1)
-        self.assertEqual(result["mismatches"][0]["barcode"], "A2")
         self.assertEqual(result["consistent"], 1)
+        self.assertFalse(result["alert"])  # 1 < 3
+
+    def test_compare_classifies_trailing_space_as_cosmetic(self) -> None:
+        stockpile_db.import_from_dataframe(pd.DataFrame([
+            {"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A22/X11"},
+        ]))
+        # 老系统老导出有空格；本地是干净版
+        result = stockpile_db.compare_with_dataframe(pd.DataFrame([
+            {"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A22 /X11"},
+        ]))
+        self.assertEqual(len(result["cosmetic_mismatches"]), 1)
+        self.assertEqual(len(result["substantive_mismatches"]), 0)
+        self.assertEqual(result["consistent"], 0)
+
+    def test_compare_classifies_real_location_change_as_substantive(self) -> None:
+        stockpile_db.import_from_dataframe(pd.DataFrame([
+            {"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A22/X11"},
+        ]))
+        result = stockpile_db.compare_with_dataframe(pd.DataFrame([
+            {"product_barcode": "B1", "product_model": "M1", "stockpile_location": "B13/X11"},
+        ]))
+        self.assertEqual(len(result["cosmetic_mismatches"]), 0)
+        self.assertEqual(len(result["substantive_mismatches"]), 1)
+
+    def test_compare_segment_order_difference_is_substantive(self) -> None:
+        """段顺序不同视为 substantive（用户决定：店面在前/仓库在后是契约，乱序就是数据错）。"""
+        stockpile_db.import_from_dataframe(pd.DataFrame([
+            {"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A22/X11"},
+        ]))
+        result = stockpile_db.compare_with_dataframe(pd.DataFrame([
+            {"product_barcode": "B1", "product_model": "M1", "stockpile_location": "X11/A22"},
+        ]))
+        self.assertEqual(len(result["substantive_mismatches"]), 1)
+        self.assertEqual(len(result["cosmetic_mismatches"]), 0)
+
+    def test_compare_alert_fires_at_threshold(self) -> None:
+        stockpile_db.import_from_dataframe(pd.DataFrame([
+            {"product_barcode": f"B{i}", "product_model": f"M{i}", "stockpile_location": "A22"}
+            for i in range(5)
+        ]))
+        # 3 条 substantive
+        result = stockpile_db.compare_with_dataframe(pd.DataFrame([
+            {"product_barcode": "B0", "product_model": "M0", "stockpile_location": "B13"},
+            {"product_barcode": "B1", "product_model": "M1", "stockpile_location": "B13"},
+            {"product_barcode": "B2", "product_model": "M2", "stockpile_location": "B13"},
+            {"product_barcode": "B3", "product_model": "M3", "stockpile_location": "A22"},
+            {"product_barcode": "B4", "product_model": "M4", "stockpile_location": "A22"},
+        ]))
+        self.assertEqual(len(result["substantive_mismatches"]), 3)
+        self.assertTrue(result["alert"])
+
+    def test_compare_takes_snapshot(self) -> None:
+        stockpile_db.import_from_dataframe(pd.DataFrame([
+            {"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A22"},
+        ]))
+        stockpile_db.compare_with_dataframe(pd.DataFrame([
+            {"product_barcode": "B1", "product_model": "M1", "stockpile_location": "B13"},
+        ]))
+        snaps = stockpile_db.list_snapshots()
+        # 至少有 1 个 import 快照 + 1 个 compare 快照
+        triggers = [s["trigger"] for s in snaps]
+        self.assertIn("import", triggers)
+        self.assertIn("compare", triggers)
+        compare_snap = next(s for s in snaps if s["trigger"] == "compare")
+        self.assertEqual(compare_snap["substantive_count"], 1)
+        self.assertEqual(compare_snap["cosmetic_count"], 0)
 
     def test_extra_excludes_nan_strings(self) -> None:
         # A3: NaN 输入应清洗为 ""，不应在 extra JSON 中保留 "nan" 字面串
@@ -216,6 +286,8 @@ class StockpileDbTests(unittest.TestCase):
         self.assertEqual(result["only_in_export"], ["X1"])
         self.assertEqual(result["only_in_local"], [])
         self.assertEqual(result["mismatches"], [])
+        self.assertEqual(result["cosmetic_mismatches"], [])
+        self.assertEqual(result["substantive_mismatches"], [])
         self.assertEqual(result["consistent"], 0)
 
     def test_apply_export_logs_inserts_for_new_records(self) -> None:

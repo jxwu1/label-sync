@@ -139,3 +139,17 @@ def stockpile_overwrite_locations():
 @bp.get("/stockpile/schema")
 def stockpile_schema():
     return jsonify({"ok": True, "version": stockpile_db.get_schema_version()})
+
+
+@bp.get("/stockpile/snapshots")
+def stockpile_snapshots():
+    """趋势数据：最近 N 个 import / compare 快照。"""
+    try:
+        limit = int(request.args.get("limit", 50))
+    except (TypeError, ValueError):
+        limit = 50
+    trigger = request.args.get("trigger") or None
+    return jsonify({
+        "ok": True,
+        "snapshots": stockpile_db.list_snapshots(limit=limit, trigger=trigger),
+    })

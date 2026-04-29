@@ -61,3 +61,48 @@
   padding: 0 2px;
   border-radius: 2px;
 }
+
+/* === Stockpile compare 双轴结果（PR4） === */
+.sp-cmp-alert {
+  background: #ffe9e0;
+  color: #b00020;
+  border-left: 4px solid #b00020;
+  padding: 8px 12px;
+  margin: 8px 0;
+  font-weight: bold;
+  border-radius: 3px;
+}
+
+.sp-cmp-section {
+  margin: 10px 0;
+  border-left: 3px solid var(--color-border-soft, #e5e0d6);
+  padding-left: 10px;
+}
+
+.sp-cmp-substantive {
+  border-left-color: #b00020;
+}
+
+.sp-cmp-cosmetic {
+  border-left-color: #cc8800;
+}
+
+.sp-cmp-section-hd {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.sp-cmp-count {
+  color: var(--color-text-muted, #888);
+  font-weight: normal;
+}
+
+.sp-cmp-more {
+  color: var(--color-text-muted, #888);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.sp-mismatch-row.substantive {
+  background: rgba(176, 0, 32, 0.04);
+}
