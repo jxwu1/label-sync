@@ -81,6 +81,30 @@ class RecentChangesTests(unittest.TestCase):
             start, end = recent_changes_service._batch_window(session, snap3)
         self.assertEqual(start, "2026-04-29 10:00:00")  # skip compare
 
+    def test_list_recent_imports_returns_only_import_trigger_desc(self) -> None:
+        self._insert_snapshot("2026-04-29 10:00:00", trigger="import", total_local=100)
+        self._insert_snapshot("2026-04-29 11:00:00", trigger="compare")
+        self._insert_snapshot("2026-04-29 14:00:00", trigger="import", total_local=120)
+        result = recent_changes_service.list_recent_imports()
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["taken_at"], "2026-04-29 14:00:00")  # 最新在前
+        self.assertEqual(result[0]["total_local"], 120)
+        self.assertEqual(result[1]["total_local"], 100)
+
+    def test_list_recent_imports_counts_changes_in_window(self) -> None:
+        snap1 = self._insert_snapshot("2026-04-29 10:00:00")
+        self._insert_change("B1", "stockpile_location", "A1", "A2", created_at="2026-04-29 09:30:00")
+        self._insert_change("B2", "stockpile_location", "A1", "A2", created_at="2026-04-29 09:45:00")
+        snap2 = self._insert_snapshot("2026-04-29 14:00:00")
+        self._insert_change("B3", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00")
+
+        result = recent_changes_service.list_recent_imports()
+        by_id = {r["batch_id"]: r for r in result}
+        self.assertEqual(by_id[snap1]["change_count"], 2)
+        self.assertEqual(by_id[snap1]["affected_barcodes"], 2)
+        self.assertEqual(by_id[snap2]["change_count"], 1)
+        self.assertEqual(by_id[snap2]["affected_barcodes"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

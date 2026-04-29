@@ -37,3 +37,38 @@ def _batch_window(session, batch_id: int) -> tuple[str, str]:
     ).scalar_one_or_none()
 
     return (prev or _EPOCH, current)
+
+
+def list_recent_imports(limit: int = _RECENT_IMPORTS_LIMIT) -> list[dict]:
+    """返回最近 N 次 import snapshot 概览。
+
+    每条 dict 字段：batch_id / taken_at / total_local / change_count / affected_barcodes
+    """
+    with stockpile_db._session() as session:
+        snapshots = session.execute(
+            select(StockpileSnapshot)
+            .where(StockpileSnapshot.trigger == "import")
+            .order_by(StockpileSnapshot.id.desc())
+            .limit(limit)
+        ).scalars().all()
+
+        result = []
+        for snap in snapshots:
+            start, end = _batch_window(session, snap.id)
+            stats = session.execute(
+                select(
+                    func.count().label("n"),
+                    func.count(func.distinct(StockpileChange.product_barcode)).label("bc"),
+                ).where(and_(
+                    StockpileChange.created_at > start,
+                    StockpileChange.created_at <= end,
+                ))
+            ).one()
+            result.append({
+                "batch_id": snap.id,
+                "taken_at": snap.taken_at,
+                "total_local": snap.total_local,
+                "change_count": stats.n,
+                "affected_barcodes": stats.bc,
+            })
+        return result
