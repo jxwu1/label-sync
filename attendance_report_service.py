@@ -231,8 +231,8 @@ _PAYROLL_HEADER = [
     "请假",
     "累计天数",
     "实际工资",
-    "现金工资",
     "银行工资",
+    "现金工资",
 ]
 
 
@@ -245,15 +245,15 @@ def build_payroll_pdf(month: str) -> bytes:
     doc = SimpleDocTemplate(
         buf,
         pagesize=landscape(A4),
-        topMargin=14 * mm,
-        bottomMargin=14 * mm,
+        topMargin=6 * mm,
+        bottomMargin=6 * mm,
         leftMargin=14 * mm,
         rightMargin=14 * mm,
     )
 
     elements = [
         _make_title_paragraph(f"{month} 月度工资单", _FONT_NAME),
-        _make_meta_paragraph(f"共 {len(employees)} 名员工 · 实际/现金/银行工资请手填", _FONT_NAME),
+        _make_meta_paragraph(f"共 {len(employees)} 名员工 · 实际/银行/现金工资请手填", _FONT_NAME),
     ]
 
     if not employees:
@@ -282,8 +282,8 @@ def build_payroll_pdf(month: str) -> bytes:
                 leave_text,
                 f"{s['worked_days']}",
                 "",  # 实际工资（横线由 TableStyle 画）
-                "",  # 现金工资
                 "",  # 银行工资
+                "",  # 现金工资
             ]
         )
 
@@ -300,6 +300,9 @@ def build_payroll_pdf(month: str) -> bytes:
     ]
     table = Table(rows, colWidths=col_widths)
     style = _minimal_table_style(_FONT_NAME, header_row=0, font_size=10)
+    # 行内 padding 收紧，让更多员工挤进单页
+    style.add("TOPPADDING", (0, 0), (-1, -1), 5)
+    style.add("BOTTOMPADDING", (0, 0), (-1, -1), 5)
     # 列对齐：员工 左；数字列 右；请假 中；工资栏 中
     style.add("ALIGN", (1, 0), (5, -1), "RIGHT")
     style.add("ALIGN", (4, 0), (4, -1), "CENTER")
