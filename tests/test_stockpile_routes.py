@@ -216,6 +216,77 @@ class StockpileRoutesTests(unittest.TestCase):
                 )
         self.assertEqual(list(self.test_dir.glob("boom.csv")), [])
 
+    # ---------- /stockpile/update-location（Pydantic 校验） ----------
+
+    def _seed_one(self, barcode: str = "U1") -> None:
+        stockpile_db.import_from_dataframe(
+            pd.DataFrame(
+                [{"product_barcode": barcode, "product_model": "M1", "stockpile_location": "L1"}]
+            )
+        )
+
+    def test_update_location_ok(self):
+        self._seed_one("U1")
+        res = self.client.post(
+            "/stockpile/update-location", json={"barcode": "  U1  ", "location": "  NEW  "}
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.get_json()["ok"])
+        self.assertEqual(stockpile_db.query_by_barcode("U1")["stockpile_location"], "NEW")
+
+    def test_update_location_empty_location_clears(self):
+        self._seed_one("U2")
+        res = self.client.post("/stockpile/update-location", json={"barcode": "U2", "location": ""})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(stockpile_db.query_by_barcode("U2")["stockpile_location"], "")
+
+    def test_update_location_missing_barcode_400(self):
+        res = self.client.post("/stockpile/update-location", json={"location": "X"})
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("barcode", res.get_json()["msg"])
+
+    def test_update_location_unknown_barcode_404(self):
+        res = self.client.post(
+            "/stockpile/update-location", json={"barcode": "DOES_NOT_EXIST", "location": "L"}
+        )
+        self.assertEqual(res.status_code, 404)
+
+    # ---------- /stockpile/overwrite-locations（Pydantic 校验） ----------
+
+    def test_overwrite_locations_ok(self):
+        self._seed_one("O1")
+        res = self.client.post(
+            "/stockpile/overwrite-locations",
+            json={"entries": [{"barcode": "O1", "location": "NEW"}]},
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["updated"], 1)
+
+    def test_overwrite_locations_empty_entries_400(self):
+        res = self.client.post("/stockpile/overwrite-locations", json={"entries": []})
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("entries", res.get_json()["msg"])
+
+    def test_overwrite_locations_missing_entries_400(self):
+        res = self.client.post("/stockpile/overwrite-locations", json={})
+        self.assertEqual(res.status_code, 400)
+
+    def test_overwrite_locations_silently_skips_bad_entries(self):
+        # 兼容前端：单个 entry 内 barcode 缺失 → 跳过该条，不整请求 400
+        self._seed_one("O2")
+        res = self.client.post(
+            "/stockpile/overwrite-locations",
+            json={
+                "entries": [
+                    {"barcode": "", "location": "X"},
+                    {"barcode": "O2", "location": "NEW"},
+                    {"barcode": "UNKNOWN", "location": "Z"},
+                ]
+            },
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()["updated"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

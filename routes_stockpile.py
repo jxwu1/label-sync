@@ -2,13 +2,24 @@ import os
 from collections.abc import Callable
 
 from flask import Blueprint, jsonify, request
+from pydantic import BaseModel, Field
 
 import stockpile_db
 from file_io import read_input_file
 from path_safety import safe_filename
+from route_helpers import NonEmptyStr, OptionalStr, parse_body
 from state import INPUT_DIR
 
 bp = Blueprint("stockpile", __name__)
+
+
+class _UpdateLocation(BaseModel):
+    barcode: NonEmptyStr
+    location: OptionalStr = ""
+
+
+class _OverwriteLocations(BaseModel):
+    entries: list[dict] = Field(min_length=1)
 
 
 def _with_uploaded_dataframe(handler: Callable[[object], dict]) -> tuple:
@@ -93,20 +104,16 @@ def stockpile_search():
 
 @bp.post("/stockpile/update-location")
 def stockpile_update_location():
-    data = request.get_json(silent=True)
-    if not data:
-        return jsonify({"ok": False, "msg": "请求格式错误"}), 400
-    barcode = data.get("barcode", "").strip()
-    location = data.get("location", "").strip()
-    if not barcode:
-        return jsonify({"ok": False, "msg": "缺少条码"}), 400
-    existing = stockpile_db.query_by_barcode(barcode)
+    body, err = parse_body(_UpdateLocation)
+    if err:
+        return err
+    existing = stockpile_db.query_by_barcode(body.barcode)
     if not existing:
         return jsonify({"ok": False, "msg": "条码不存在"}), 404
     stockpile_db.insert_or_update(
-        barcode=barcode,
+        barcode=body.barcode,
         model=existing["product_model"],
-        location=location,
+        location=body.location,
         source=stockpile_db.Source.USER_CORRECTION,
     )
     return jsonify({"ok": True})
@@ -114,13 +121,15 @@ def stockpile_update_location():
 
 @bp.post("/stockpile/overwrite-locations")
 def stockpile_overwrite_locations():
-    data = request.get_json(silent=True)
-    if not data or not data.get("entries"):
-        return jsonify({"ok": False, "msg": "请提供覆盖列表"}), 400
+    body, err = parse_body(_OverwriteLocations)
+    if err:
+        return err
+    # 单个 entry 内的 barcode/location 仍由本函数 strip + 容错（坏 entry 静默跳过，
+    # 而不是整请求失败 —— 对既有前端兼容）
     updated = 0
-    for entry in data["entries"]:
-        barcode = entry.get("barcode", "").strip()
-        location = entry.get("location", "").strip()
+    for entry in body.entries:
+        barcode = (entry.get("barcode") or "").strip()
+        location = (entry.get("location") or "").strip()
         if not barcode:
             continue
         existing = stockpile_db.query_by_barcode(barcode)
