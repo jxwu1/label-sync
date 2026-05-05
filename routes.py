@@ -2,6 +2,7 @@ from config import CONFIG
 from routes_attendance import bp as attendance_bp
 from routes_data_quality import bp as data_quality_bp
 from routes_history import bp as history_bp
+from routes_inventory import bp as inventory_bp
 from routes_monthly_summary import bp as monthly_summary_bp
 from routes_pages_tasks import bp as pages_tasks_bp
 from routes_purchase import bp as purchase_bp
@@ -22,6 +23,7 @@ def register_routes(app) -> None:
     app.register_blueprint(attendance_bp)
     app.register_blueprint(scan_history_bp)
     app.register_blueprint(stockpile_bp)
+    app.register_blueprint(inventory_bp)
     if CONFIG.enable_transfer:
         from routes_collab import bp as collab_bp
         from routes_transfer import bp as transfer_bp
