@@ -38,12 +38,48 @@ function renderEmpty(msg) {
   $("historyHint").style.display = "";
   $("historyCurrentPanel").hidden = true;
   $("historyTimelinePanel").hidden = true;
+  $("historyFuzzyPanel").hidden = true;
+}
+
+function renderFuzzyMatches(matches, originalQuery) {
+  $("historyHint").textContent = `"${originalQuery}" 没有精确匹配，找到 ${matches.length} 条候选`;
+  $("historyHint").style.display = "";
+  $("historyCurrentPanel").hidden = true;
+  $("historyTimelinePanel").hidden = true;
+  $("historyFuzzyPanel").hidden = false;
+
+  const rows = matches
+    .map((m) => {
+      const badge = m.is_active
+        ? '<span class="badge-active">活跃</span>'
+        : '<span class="badge-inactive">已下架</span>';
+      const loc = escapeHtml(m.location || "—");
+      return `
+        <tr class="fuzzy-row" data-barcode="${escapeHtml(m.barcode)}">
+          <td>${escapeHtml(m.barcode)}</td>
+          <td>${escapeHtml(m.model)}</td>
+          <td>${loc}</td>
+          <td>${badge}</td>
+        </tr>`;
+    })
+    .join("");
+  $("historyFuzzyList").innerHTML = `
+    <table class="fuzzy-table">
+      <thead><tr><th>条码</th><th>型号</th><th>当前位置</th><th>状态</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+  // 行点击 → drill 到精确路径
+  for (const tr of $("historyFuzzyList").querySelectorAll(".fuzzy-row")) {
+    tr.addEventListener("click", () => window.historySearch(tr.dataset.barcode));
+  }
 }
 
 function renderResult(data) {
   $("historyHint").style.display = "none";
   $("historyCurrentPanel").hidden = false;
   $("historyTimelinePanel").hidden = false;
+  $("historyFuzzyPanel").hidden = true;
 
   const c = data.current;
   const stores = (c.store_locations || []).map(escapeHtml).join(", ") || '<span class="empty-val">—</span>';
@@ -111,7 +147,11 @@ async function doSearch() {
       return;
     }
     if (!data.found) {
-      renderEmpty(`未找到 "${q}"，请检查型号或条码是否正确`);
+      if (data.fuzzy_matches && data.fuzzy_matches.length > 0) {
+        renderFuzzyMatches(data.fuzzy_matches, q);
+      } else {
+        renderEmpty(`未找到 "${q}"，请检查型号或条码是否正确`);
+      }
       return;
     }
     renderResult(data);
