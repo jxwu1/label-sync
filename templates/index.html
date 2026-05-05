@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-purchase.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-attendance.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-history.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/page-scan-history.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-data-quality.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/terminal-log.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/transfer-drawer.css') }}">
@@ -137,6 +138,7 @@
         <div class="tabs" id="historyTabs">
           <button class="tabs__tab active" data-history-tab="search" type="button">🔎 货号查询</button>
           <button class="tabs__tab" data-history-tab="recent" type="button">📊 最近改动</button>
+          <button class="tabs__tab" data-history-tab="scan" type="button">📂 扫描批次</button>
         </div>
 
         <div class="tabs__panel active" data-history-tab-panel="search">
@@ -174,6 +176,23 @@
               <div class="rc-summary" id="rcSummary"></div>
               <div class="rc-chips" id="rcChips"></div>
               <div class="rc-list" id="rcList"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tabs__panel" data-history-tab-panel="scan">
+          <div class="panel">
+            <div class="panel-hd">
+              扫描批次
+              <div class="sh-bar" style="margin-left:auto;">
+                <select id="scanHistoryEmployee">
+                  <option value="">全部员工</option>
+                </select>
+                <span>显示最近 100 条</span>
+              </div>
+            </div>
+            <div class="panel-bd" id="scanHistoryList">
+              <div class="sh-empty">加载中...</div>
             </div>
           </div>
         </div>
