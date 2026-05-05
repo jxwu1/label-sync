@@ -1,30 +1,37 @@
 # routes_monthly_summary.py
 import io
 
-from flask import Blueprint, jsonify, request, send_file
+from flask import Blueprint, jsonify, send_file
+from pydantic import BaseModel
 
 import monthly_summary_service
+from route_helpers import NonEmptyStr, parse_body
 
 bp = Blueprint("monthly_summary", __name__, url_prefix="/monthly-summary")
 
 
+class _SaveRecord(BaseModel):
+    supplier_name: NonEmptyStr
+    total_price: float
+    tax: float
+    invoice_date: NonEmptyStr
+    month: NonEmptyStr
+    special_tax: float = 0.0
+
+
 @bp.post("/save")
 def save():
-    data = request.get_json(silent=True)
-    if not data:
-        return jsonify({"ok": False, "msg": "缺少 JSON 数据"}), 400
-    required = ("supplier_name", "total_price", "tax", "invoice_date", "month")
-    missing = [k for k in required if not data.get(k) and data.get(k) != 0]
-    if missing:
-        return jsonify({"ok": False, "msg": f"缺少字段：{', '.join(missing)}"}), 400
+    body, err = parse_body(_SaveRecord)
+    if err:
+        return err
     try:
         record = monthly_summary_service.save_record(
-            supplier_name=data["supplier_name"],
-            total_price=float(data["total_price"]),
-            tax=float(data["tax"]),
-            special_tax=float(data.get("special_tax") or 0),
-            invoice_date=data["invoice_date"],
-            month=data["month"],
+            supplier_name=body.supplier_name,
+            total_price=body.total_price,
+            tax=body.tax,
+            special_tax=body.special_tax,
+            invoice_date=body.invoice_date,
+            month=body.month,
         )
     except Exception as exc:
         return jsonify({"ok": False, "msg": f"保存失败：{exc}"}), 500

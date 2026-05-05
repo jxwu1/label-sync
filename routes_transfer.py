@@ -1,11 +1,17 @@
 from flask import Blueprint, jsonify, request, send_file
+from pydantic import BaseModel
 
 import storage_service
 from response_builder import json_result
+from route_helpers import NonEmptyStr, parse_body
 from state import TRANSFER_DIR
 from transfer_repository import transfer_file_path
 
 bp = Blueprint("transfer", __name__)
+
+
+class _TransferDelete(BaseModel):
+    filename: NonEmptyStr
 
 
 @bp.post("/transfer_upload")
@@ -36,8 +42,7 @@ def transfer_download(filename):
 
 @bp.post("/transfer_delete")
 def transfer_delete():
-    data = request.get_json(silent=True) or {}
-    filename = data.get("filename", "").strip()
-    if not filename:
-        return jsonify({"ok": False, "msg": "文件名不能为空"}), 400
-    return json_result(storage_service.delete_transfer_file(filename))
+    body, err = parse_body(_TransferDelete)
+    if err:
+        return err
+    return json_result(storage_service.delete_transfer_file(body.filename))
