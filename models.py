@@ -75,6 +75,21 @@ class Stockpile(Base):
         Text, server_default=text("(datetime('now','localtime'))")
     )
 
+    # 阶段 4 新增（2026-05-05）
+    # 产品名（区别于 product_model 那个数字 SKU 码）
+    product_name_zh: Mapped[str | None] = mapped_column(Text)
+    product_name_local: Mapped[str | None] = mapped_column(Text)
+    # ERP 分类（产品种类列拆出来的 code 和原字符串）
+    erp_category_raw: Mapped[str | None] = mapped_column(Text)
+    erp_category_code: Mapped[str | None] = mapped_column(Text)
+    # 人工等级 1-10，0=停用，仅作展示和验证不进算法
+    manual_grade: Mapped[int | None] = mapped_column(Integer)
+    # 用户手填的分类标签（覆盖自动分类）
+    manual_category: Mapped[str | None] = mapped_column(Text)
+    # 系统自动判定的分类（每天后台重算）
+    auto_category: Mapped[str | None] = mapped_column(Text)
+    auto_category_computed_at: Mapped[str | None] = mapped_column(Text)
+
     locations: Mapped[list[StockpileLocation]] = relationship(
         "StockpileLocation",
         back_populates="stockpile",
@@ -158,6 +173,124 @@ class StockpileSnapshot(Base):
     substantive_count: Mapped[int | None] = mapped_column(Integer)
     only_in_local_count: Mapped[int | None] = mapped_column(Integer)
     only_in_export_count: Mapped[int | None] = mapped_column(Integer)
+
+
+class Customer(Base):
+    """客户主档（dedupe 自销售交易行）。
+
+    customer_type 由 customer_classifier.classify_customer 算出来：
+    'foreign'（希腊语名=老外）/ 'chinese'（中文名）/ 'mixed' / 'unknown'。
+    """
+
+    __tablename__ = "customers"
+    __table_args__ = (Index("idx_customers_type", "customer_type"),)
+
+    customer_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    customer_name: Mapped[str] = mapped_column(Text, nullable=False)
+    customer_type: Mapped[str] = mapped_column(Text, nullable=False)
+    phone: Mapped[str | None] = mapped_column(Text)
+    address: Mapped[str | None] = mapped_column(Text)
+    first_seen_at: Mapped[str | None] = mapped_column(Text)
+    last_seen_at: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
+
+
+class Supplier(Base):
+    """供应商主档（dedupe 自采购交易行）。"""
+
+    __tablename__ = "suppliers"
+
+    supplier_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    supplier_name: Mapped[str] = mapped_column(Text, nullable=False)
+    phone: Mapped[str | None] = mapped_column(Text)
+    address: Mapped[str | None] = mapped_column(Text)
+    first_seen_at: Mapped[str | None] = mapped_column(Text)
+    last_seen_at: Mapped[str | None] = mapped_column(Text)
+
+
+class InventoryEvent(Base):
+    """进销存事件（采购 + 销售统一一张表，event_type 区分）。
+
+    去重键：(event_type, document_no, shipping_doc, product_barcode, event_at, qty,
+    unit_price)，重复 import 同一份 CSV 不会重复落库。
+    """
+
+    __tablename__ = "inventory_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "event_type",
+            "document_no",
+            "shipping_doc",
+            "product_barcode",
+            "event_at",
+            "qty",
+            "unit_price",
+            name="uq_inventory_events",
+        ),
+        Index("idx_events_barcode_at", "product_barcode", "event_at"),
+        Index("idx_events_customer", "customer_id"),
+        Index("idx_events_supplier", "supplier_id"),
+        Index("idx_events_type_at", "event_type", "event_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    event_at: Mapped[str] = mapped_column(Text, nullable=False)  # YYYY-MM-DD
+    event_type: Mapped[str] = mapped_column(Text, nullable=False)  # 'purchase' / 'sale'
+    product_barcode: Mapped[str] = mapped_column(Text, nullable=False)
+    qty: Mapped[int] = mapped_column(Integer, nullable=False)
+    unit_price: Mapped[float | None] = mapped_column()
+    discount_pct: Mapped[float | None] = mapped_column()
+    document_no: Mapped[str | None] = mapped_column(Text)
+    shipping_doc: Mapped[str | None] = mapped_column(Text)
+    customer_id: Mapped[str | None] = mapped_column(Text)
+    supplier_id: Mapped[str | None] = mapped_column(Text)
+    warehouse: Mapped[str | None] = mapped_column(Text)
+    erp_category_raw: Mapped[str | None] = mapped_column(Text)
+    erp_category_code: Mapped[str | None] = mapped_column(Text)
+    manual_grade: Mapped[int | None] = mapped_column(Integer)
+    imported_at: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=text("(datetime('now','localtime'))")
+    )
+
+
+class ForeignCustomerRecord(Base):
+    """老外客人月度记录（独立模块）。
+
+    每月每客户一条，记欠款 / 税号 / 付款 / 托运。与 customers 表通过
+    customer_id 关联；customer 由销售交易自动 dedupe 出来，记录由用户手动填。
+    """
+
+    __tablename__ = "foreign_customer_records"
+    __table_args__ = (
+        UniqueConstraint("customer_id", "record_month", name="uq_foreign_customer_records"),
+        Index("idx_fcr_month", "record_month"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    customer_id: Mapped[str] = mapped_column(Text, nullable=False)
+    record_month: Mapped[str] = mapped_column(Text, nullable=False)  # YYYY-MM
+    amount_due: Mapped[float | None] = mapped_column()
+    tax_number: Mapped[str | None] = mapped_column(Text)
+    payment_date: Mapped[str | None] = mapped_column(Text)
+    shipping_date: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[str | None] = mapped_column(
+        Text, server_default=text("(datetime('now','localtime'))")
+    )
+
+
+class ImportProfile(Base):
+    """导入向导配置：列名 → 内部字段的映射。
+
+    profile_name 'purchase' / 'sales'，每种文件类型一行。column_mapping_json
+    存 dict {erp 列名: 内部字段名 or 'ignore'}。
+    """
+
+    __tablename__ = "import_profiles"
+
+    profile_name: Mapped[str] = mapped_column(Text, primary_key=True)
+    column_mapping_json: Mapped[str] = mapped_column(Text, nullable=False)
+    last_used_at: Mapped[str | None] = mapped_column(Text)
 
 
 _SessionFactory = sessionmaker(bind=_engine, future=True, expire_on_commit=False)
