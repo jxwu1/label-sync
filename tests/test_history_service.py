@@ -199,6 +199,68 @@ def test_build_response_not_found(memdb):
     assert "events" not in resp
 
 
+# ===== Fuzzy 子串匹配（精确未中时降级） =====
+
+
+def test_fuzzy_returns_substring_matches_including_inactive(memdb):
+    import history_service
+
+    _insert_stockpile(
+        memdb, product_barcode="ABC123", product_model="M1", stockpile_location="L1", is_active=1
+    )
+    _insert_stockpile(
+        memdb, product_barcode="ABC456", product_model="M2", stockpile_location="L2", is_active=0
+    )
+    _insert_stockpile(
+        memdb, product_barcode="ZZZ", product_model="OTHER", stockpile_location="L3", is_active=1
+    )
+
+    matches = history_service.find_fuzzy_matches("ABC")
+
+    assert {m["barcode"] for m in matches} == {"ABC123", "ABC456"}
+    # active 优先排序
+    assert matches[0]["barcode"] == "ABC123"
+    assert matches[0]["is_active"] is True
+    assert matches[1]["is_active"] is False
+
+
+def test_fuzzy_short_query_returns_empty(memdb):
+    import history_service
+
+    _insert_stockpile(
+        memdb, product_barcode="A1", product_model="X", stockpile_location="L", is_active=1
+    )
+    # 1 字符短路：避免 1 万行穷举
+    assert history_service.find_fuzzy_matches("A") == []
+
+
+def test_build_response_falls_back_to_fuzzy_on_exact_miss(memdb):
+    import history_service
+
+    _insert_stockpile(
+        memdb, product_barcode="ABC123", product_model="M1", stockpile_location="L1", is_active=1
+    )
+
+    resp = history_service.build_response("ABC")  # 不是完整 barcode
+
+    assert resp["found"] is False
+    assert len(resp["fuzzy_matches"]) == 1
+    assert resp["fuzzy_matches"][0]["barcode"] == "ABC123"
+
+
+def test_build_response_no_fuzzy_when_exact_hit(memdb):
+    import history_service
+
+    _insert_stockpile(
+        memdb, product_barcode="ABC123", product_model="M1", stockpile_location="L1", is_active=1
+    )
+
+    resp = history_service.build_response("ABC123")  # 精确
+
+    assert resp["found"] is True
+    assert "fuzzy_matches" not in resp
+
+
 def test_route_history_returns_json(memdb):
     """用 Flask test client 验证 GET /history 工作。"""
     _insert_stockpile(

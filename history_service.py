@@ -163,14 +163,54 @@ def aggregate_events(barcode: str) -> list[dict]:
     return events
 
 
+_FUZZY_MIN_QUERY = 2
+_FUZZY_LIMIT = 20
+
+
+def find_fuzzy_matches(query: str, limit: int = _FUZZY_LIMIT) -> list[dict]:
+    """LIKE %query% 子串模糊匹配 product_barcode 或 product_model。
+
+    与 stockpile_db.search_stockpile 的差异：本函数 **不**过滤 is_active —— 货号
+    历史页的目标是看历史，已下架记录就是用户想找的。排序为 active 优先 + barcode
+    字典序。
+
+    返回字段：barcode / model / location / is_active。
+    """
+    q = (query or "").strip()
+    if len(q) < _FUZZY_MIN_QUERY:
+        return []
+    pattern = f"%{q}%"
+    with stockpile_db._session() as session:
+        rows = session.execute(
+            select(
+                Stockpile.product_barcode,
+                Stockpile.product_model,
+                Stockpile.stockpile_location,
+                Stockpile.is_active,
+            )
+            .where(
+                or_(Stockpile.product_barcode.like(pattern), Stockpile.product_model.like(pattern))
+            )
+            .order_by(Stockpile.is_active.desc(), Stockpile.product_barcode)
+            .limit(limit)
+        ).all()
+    return [
+        {"barcode": r[0], "model": r[1], "location": r[2], "is_active": bool(r[3])} for r in rows
+    ]
+
+
 def build_response(query: str) -> dict:
     """供 routes_history.py 直接 jsonify 的顶层结构。
 
-    found=False  →  { "found": False }
-    found=True   →  { "found": True, "current": {...}, "events": [...] }
+    found=True  → { "found": True, "current": {...}, "events": [...] }
+    found=False → { "found": False }                              # 完全无匹配
+    found=False → { "found": False, "fuzzy_matches": [...] }      # 精确未中但子串有候选
     """
     record = find_record(query)
     if record is None:
+        matches = find_fuzzy_matches(query)
+        if matches:
+            return {"found": False, "fuzzy_matches": matches}
         return {"found": False}
 
     # 当前状态：从子表 stockpile_locations 拉结构化数据
