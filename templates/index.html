@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-history.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-scan-history.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-data-quality.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/page-inventory.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/terminal-log.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/transfer-drawer.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/quickmenu.css') }}">
@@ -255,6 +256,40 @@
           <div class="panel-bd" id="dqDuplicate"></div>
         </div>
       </div>
+      <div class="page" id="pageInventory" x-data :class="$store.nav.current === 'inventory' ? 'active' : ''">
+        <div class="panel">
+          <div class="panel-hd">进销存导入</div>
+          <div class="panel-bd">
+            <div class="inv-row">
+              <label><input type="radio" name="invType" value="purchase" checked> 采购单</label>
+              <label><input type="radio" name="invType" value="sales"> 销售单</label>
+              <input type="file" id="invFile" accept=".xls,.xlsx,.html">
+              <button class="btn btn-primary" id="invPreview">预览</button>
+              <button class="btn btn-primary" id="invImport">执行导入</button>
+            </div>
+            <div class="inv-hint" id="invHint">上传 ERP 导出的 .xls 文件（实际是 HTML 伪装格式）。先「预览」检查列映射，再「执行导入」入库。重复 import 同一文件不会重复落库。</div>
+          </div>
+        </div>
+        <div class="panel" id="invPreviewPanel" hidden>
+          <div class="panel-hd">列映射 <span class="inv-count" id="invPreviewCount"></span>
+            <div class="inv-actions"><button class="btn btn-ghost" id="invSaveMapping">保存映射</button></div>
+          </div>
+          <div class="panel-bd">
+            <table class="inv-mapping-table">
+              <thead><tr><th>ERP 列名</th><th>映射到内部字段</th><th>样本值</th></tr></thead>
+              <tbody id="invMappingBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="panel" id="invResultPanel" hidden>
+          <div class="panel-hd">导入结果</div>
+          <div class="panel-bd" id="invResult"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-hd">当前数据库状态 <button class="btn btn-ghost btn-sm" id="invStatsRefresh">刷新</button></div>
+          <div class="panel-bd" id="invStats">点「刷新」查看主档与事件计数</div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -359,5 +394,6 @@
 <script type="module" src="{{ url_for('static', filename='js/data-quality.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/index-recent-changes.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/index-scan-history.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/inventory.js') }}"></script>
 </body>
 </html>

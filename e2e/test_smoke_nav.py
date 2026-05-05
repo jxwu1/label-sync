@@ -34,6 +34,7 @@ _NAV_PAGES = [
     ("attendance", "pageAttendance"),
     ("history", "pageHistory"),
     ("data_quality", "pageDataQuality"),
+    ("inventory", "pageInventory"),
 ]
 
 
