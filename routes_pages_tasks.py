@@ -1,14 +1,35 @@
 import os
 
 from flask import Blueprint, jsonify, render_template, request, send_file
+from pydantic import BaseModel
 
 import barcode_service
 import storage_service
 import task_service
 from response_builder import json_result
+from route_helpers import NonEmptyStr, parse_body
 from state import INPUT_DIR, task_state
 
 bp = Blueprint("pages_tasks", __name__)
+
+
+class _BarcodeCorrect(BaseModel):
+    old_barcode: NonEmptyStr
+    new_barcode: NonEmptyStr
+
+
+class _LocationCorrect(BaseModel):
+    old_location: NonEmptyStr
+    new_location: NonEmptyStr
+
+
+class _ExceptionResolve(BaseModel):
+    barcode: NonEmptyStr
+    resolution: NonEmptyStr
+
+
+class _BarcodeDelete(BaseModel):
+    barcode: NonEmptyStr
 
 
 @bp.get("/")
@@ -75,41 +96,34 @@ def status():
 
 @bp.post("/correct")
 def correct():
-    data = request.get_json(silent=True) or {}
-    old_barcode = data.get("old_barcode", "").strip()
-    new_barcode = data.get("new_barcode", "").strip()
-    if not old_barcode or not new_barcode:
-        return jsonify({"ok": False, "msg": "条码不能为空"}), 400
-    return json_result(barcode_service.correct_barcode(old_barcode, new_barcode))
+    body, err = parse_body(_BarcodeCorrect)
+    if err:
+        return err
+    return json_result(barcode_service.correct_barcode(body.old_barcode, body.new_barcode))
 
 
 @bp.post("/correct_location")
 def correct_location():
-    data = request.get_json(silent=True) or {}
-    old_location = data.get("old_location", "").strip()
-    new_location = data.get("new_location", "").strip()
-    if not old_location or not new_location:
-        return jsonify({"ok": False, "msg": "库位不能为空"}), 400
-    return json_result(barcode_service.correct_location(old_location, new_location))
+    body, err = parse_body(_LocationCorrect)
+    if err:
+        return err
+    return json_result(barcode_service.correct_location(body.old_location, body.new_location))
 
 
 @bp.post("/resolve_exception")
 def resolve_exception():
-    data = request.get_json(silent=True) or {}
-    barcode = data.get("barcode", "").strip()
-    resolution = data.get("resolution", "").strip()
-    if not barcode or not resolution:
-        return jsonify({"ok": False, "msg": "参数不完整"}), 400
-    return json_result(barcode_service.resolve_phase2_exception(barcode, resolution))
+    body, err = parse_body(_ExceptionResolve)
+    if err:
+        return err
+    return json_result(barcode_service.resolve_phase2_exception(body.barcode, body.resolution))
 
 
 @bp.post("/delete_barcode")
 def delete_barcode():
-    data = request.get_json(silent=True) or {}
-    barcode = data.get("barcode", "").strip()
-    if not barcode:
-        return jsonify({"ok": False, "msg": "条码不能为空"}), 400
-    return json_result(barcode_service.delete_barcode(barcode))
+    body, err = parse_body(_BarcodeDelete)
+    if err:
+        return err
+    return json_result(barcode_service.delete_barcode(body.barcode))
 
 
 @bp.get("/download")
