@@ -132,6 +132,14 @@
 .attn-grid tr.attn-pre-join:hover td { background: rgba(120,120,120,.04); }
 .attn-st-pre-join { color: var(--c-text-dim); }
 
+/* 不在职区间 modal 列表行 */
+.attn-modal-hint { font-size: var(--fs-md); color: var(--c-text-muted); margin-bottom: var(--sp-3); padding: 8px 12px; background: var(--c-surface-deep); border-radius: var(--r-sm); }
+.attn-inactive-row { display: flex; align-items: center; gap: var(--sp-3); padding: 8px 0; border-bottom: 1px solid var(--c-border); }
+.attn-inactive-row:last-child { border-bottom: none; }
+.attn-inactive-range { font-variant-numeric: tabular-nums; font-weight: 500; }
+.attn-inactive-reason { color: var(--c-text-muted); flex: 1; }
+.attn-inactive-del { margin-left: auto; }
+
 /* ===== 日期 / 星期 ===== */
 .attn-day { font-variant-numeric: tabular-nums; font-weight: 500; }
 .attn-wk  { color: var(--c-text-dim); margin-left: 8px; font-size: var(--fs-md); }

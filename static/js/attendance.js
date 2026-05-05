@@ -19,6 +19,7 @@
           <span class="attn-spacer"></span>
           <button class="attn-btn" id="attnFillAll">一键填全月正常</button>
           <button class="attn-btn" id="attnLeaveRange">区间请假</button>
+          <button class="attn-btn" id="attnInactive">不在职区间</button>
           <button class="attn-btn attn-btn-dl" id="attnPdf">下载 PDF</button>
           <button class="attn-btn attn-btn-dl" id="attnPayrollPdf">下载工资单 PDF</button>
         </div>
@@ -87,6 +88,25 @@
           </div>
         </div>
       </div>
+      <div class="pur-modal-overlay attn-hidden" id="attnInactiveOverlay">
+        <div class="pur-modal">
+          <div class="pur-modal-hd">不在职区间（产假 / 长期休假 / 停薪留职）</div>
+          <div class="attn-modal-hint">
+            区间内每天完全不计入考勤（含周日 / 节假日）。与单日请假不同：单日请假周日仍算 1.0，这里的天周日也不算。
+          </div>
+          <div class="attn-time-row">
+            <input class="attn-inp" id="attnInactiveFrom" type="date">
+            <span>—</span>
+            <input class="attn-inp" id="attnInactiveTo" type="date">
+            <input class="attn-inp" id="attnInactiveReason" type="text" placeholder="原因（可选）">
+            <button class="attn-btn attn-btn-dl" id="attnInactiveAdd">添加</button>
+          </div>
+          <div id="attnInactiveList" class="pur-mgr-list"></div>
+          <div class="pur-modal-actions">
+            <button class="attn-btn" id="attnInactiveClose">关闭</button>
+          </div>
+        </div>
+      </div>
       <div class="pur-modal-overlay attn-hidden" id="attnHolidayOverlay">
         <div class="pur-modal">
           <div class="pur-modal-hd">节假日管理</div>
@@ -126,6 +146,11 @@
     document.getElementById('attnLeaveRangeSubmit').addEventListener('click', submitLeaveRange);
     document.getElementById('attnLeaveRangeCancel').addEventListener('click', () => {
       document.getElementById('attnLeaveRangeOverlay').style.display = 'none';
+    });
+    document.getElementById('attnInactive').addEventListener('click', openInactive);
+    document.getElementById('attnInactiveAdd').addEventListener('click', addInactivePeriod);
+    document.getElementById('attnInactiveClose').addEventListener('click', () => {
+      document.getElementById('attnInactiveOverlay').style.display = 'none';
     });
 
     document.getElementById('attnMonth').value = new Date().toISOString().slice(0, 7);
@@ -414,6 +439,84 @@
     } catch (e) { alert('区间请假失败：' + e.message); return; }
     document.getElementById('attnLeaveRangeOverlay').style.display = 'none';
     await loadMonth();
+  }
+
+  async function openInactive() {
+    if (!currentEmployeeId) {
+      alert('请先选择员工');
+      return;
+    }
+    document.getElementById('attnInactiveFrom').value = '';
+    document.getElementById('attnInactiveTo').value = '';
+    document.getElementById('attnInactiveReason').value = '';
+    await loadInactiveList();
+    document.getElementById('attnInactiveOverlay').style.display = 'flex';
+  }
+
+  async function loadInactiveList() {
+    try {
+      const res = await fetch(`/attendance/inactive-periods/${currentEmployeeId}`);
+      const body = await res.json();
+      renderInactiveList(body.periods || []);
+    } catch (e) {
+      renderInactiveList([]);
+    }
+  }
+
+  function renderInactiveList(periods) {
+    const list = document.getElementById('attnInactiveList');
+    if (!periods.length) {
+      list.innerHTML = '<div class="empty">暂无不在职区间</div>';
+      return;
+    }
+    list.innerHTML = periods.map(p => `
+      <div class="attn-inactive-row">
+        <span class="attn-inactive-range">${escapeHtml(p.from)} 至 ${escapeHtml(p.to)}</span>
+        ${p.reason ? `<span class="attn-inactive-reason">${escapeHtml(p.reason)}</span>` : ''}
+        <button class="attn-btn attn-btn-danger attn-inactive-del" data-from="${p.from}" data-to="${p.to}">删除</button>
+      </div>
+    `).join('');
+    list.querySelectorAll('.attn-inactive-del').forEach(btn => {
+      btn.addEventListener('click', () => removeInactivePeriod(btn.dataset.from, btn.dataset.to));
+    });
+  }
+
+  async function addInactivePeriod() {
+    const from = document.getElementById('attnInactiveFrom').value;
+    const to = document.getElementById('attnInactiveTo').value;
+    const reason = document.getElementById('attnInactiveReason').value.trim();
+    if (!from || !to) { alert('请填写起止日期'); return; }
+    if (from > to) { alert('起始日不能晚于结束日'); return; }
+    try {
+      const res = await fetch(`/attendance/inactive-periods/${currentEmployeeId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from_date: from, to_date: to, reason }),
+      });
+      const body = await res.json();
+      if (!body.ok) { alert(body.msg); return; }
+      renderInactiveList(body.periods);
+      document.getElementById('attnInactiveFrom').value = '';
+      document.getElementById('attnInactiveTo').value = '';
+      document.getElementById('attnInactiveReason').value = '';
+      // 刷新当月 summary（如果当前月份有受影响的天）
+      await loadMonth();
+    } catch (e) { alert('添加失败：' + e.message); }
+  }
+
+  async function removeInactivePeriod(from, to) {
+    if (!confirm(`删除不在职区间 ${from} ~ ${to}？`)) return;
+    try {
+      const res = await fetch(`/attendance/inactive-periods/${currentEmployeeId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from_date: from, to_date: to }),
+      });
+      const body = await res.json();
+      if (!body.ok) { alert(body.msg); return; }
+      renderInactiveList(body.periods);
+      await loadMonth();
+    } catch (e) { alert('删除失败：' + e.message); }
   }
 
   async function clearLeave(date) {
