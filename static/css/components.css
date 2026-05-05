@@ -74,6 +74,11 @@
   overflow: hidden;
   min-height: 0;
 }
+/* HTML5 [hidden] 默认 display:none，但被上面 .panel { display: flex } 等
+   author 样式覆盖。这条全局规则确保 hidden 属性始终生效。*/
+[hidden] {
+  display: none !important;
+}
 .panel-hd {
   padding: 11px 14px;
   border-bottom: 1px solid var(--c-border);
