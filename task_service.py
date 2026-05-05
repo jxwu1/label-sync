@@ -26,6 +26,14 @@ ReturnCodeHandler = Callable[[int], bool]
 
 
 def run_script(script_path: Path):
+    # phase 脚本搬到 phase_scripts/ 子目录后，子进程的 sys.path[0] 是脚本所在
+    # 子目录，import config / state / file_io 等根目录模块会失败。这里显式
+    # 注入 PYTHONPATH=resource_dir 让根目录进 sys.path，子进程 import 不变。
+    project_root = str(CONFIG.resource_dir)
+    existing_pythonpath = os.environ.get("PYTHONPATH", "")
+    pythonpath = (
+        f"{project_root}{os.pathsep}{existing_pythonpath}" if existing_pythonpath else project_root
+    )
     process = subprocess.Popen(
         ["python", "-u", str(script_path)],
         stdout=subprocess.PIPE,
@@ -33,7 +41,11 @@ def run_script(script_path: Path):
         text=True,
         encoding=CONFIG.child_process_encoding,
         errors="replace",
-        env={**os.environ, "PYTHONIOENCODING": CONFIG.child_process_encoding},
+        env={
+            **os.environ,
+            "PYTHONIOENCODING": CONFIG.child_process_encoding,
+            "PYTHONPATH": pythonpath,
+        },
     )
 
     if process.stdout is None:

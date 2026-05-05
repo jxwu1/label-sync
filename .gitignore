@@ -29,9 +29,7 @@ stockpile.db-wal
 stockpile.db-shm
 
 # Local-only throwaway scripts
-_bench_csv.py
-_bench_stockpile.py
-_investigate_multilocation.py
+_scratch/
 investigate_output.txt
 
 # Secrets

@@ -17,7 +17,7 @@ VALID_LOCATION_PREFIXES = {"A", "B", "C", "X", "Z"}
 
 INPUT_DIR = CONFIG.input_dir
 TEMP_MAPPING_FILE = CONFIG.temp_mapping_file
-TEMPLATE_PATH = Path(__file__).resolve().parent / "static" / "templates" / "产品信息导入模板.csv"
+TEMPLATE_PATH = CONFIG.resource_dir / "static" / "templates" / "产品信息导入模板.csv"
 
 _BARCODE_LENGTH_TOLERANCE = 2
 

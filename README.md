@@ -14,6 +14,35 @@
 
 ## 2. 目录说明
 
+### 顶层结构速览
+
+```
+双端处理/
+├─ server.py / config.py / routes.py / state.py / schemas.py  ← 入口与运行时基础
+├─ routes_*.py                              ← HTTP 蓝图（按业务域命名）
+├─ *_service.py                             ← 业务服务层
+├─ *_repository.py                          ← 旧式仓库层（input/output/transfer）
+├─ models.py / stockpile_db.py              ← ORM + 库存 DB 访问
+├─ inventory_importer.py / xls_html_parser.py / customer_classifier.py / erp_category_parser.py
+│                                            ← 阶段 4 进销存导入相关
+├─ route_helpers.py / file_io.py / location_parser.py / path_safety.py / response_builder.py
+│                                            ← 通用工具
+├─ phase_scripts/                           ← 标签处理三阶段脚本（subprocess 调用）
+├─ alembic/                                 ← schema 迁移
+├─ static/ + templates/                     ← 前端（Vanilla JS + Alpine）
+├─ tests/                                   ← pytest 单元 + 路由集成
+├─ e2e/                                     ← Playwright 浏览器烟雾测试（opt-in）
+├─ docs/                                    ← 设计 spec / 阶段 plan / 决策日志
+│   └─ zh/                                   ← 中文产品文档与历史更新日志
+├─ _scratch/                                ← 本地一次性脚本（gitignored）
+├─ input/ / output/ / transfer/ / 垃圾桶/   ← 运行时数据目录（gitignored）
+└─ requirements.txt + requirements-dev.txt + pyproject.toml + alembic.ini
+```
+
+> **导航提示**：找路由看 `routes_<域>.py`；找业务逻辑看 `<域>_service.py`；找 schema 看 `models.py`；找历史决策看 `docs/superpowers/plans/2026-04-28-roadmap.md`。
+
+### 详细模块清单
+
 - `server.py`：Flask 服务入口。
 - `config.py`：运行配置与目录配置。
 - `routes.py`：蓝图注册入口。
@@ -32,9 +61,9 @@
 - `query_service.py`：条码列表、型号列表、文件列表、月度统计查询。
 - `message_service.py`：文本互传消息管理。
 - `duplicate_service.py`：重复值检查上传处理。
-- `update_location_phase1.py`：阶段 1，扫描数据解析与异常条码检测。
-- `update_location_phase2.py`：阶段 2，系统匹配与新品条码识别。
-- `update_location.py`：阶段 3，输出结果生成与归档。
+- `phase_scripts/update_location_phase1.py`：阶段 1，扫描数据解析与异常条码检测。
+- `phase_scripts/update_location_phase2.py`：阶段 2，系统匹配与新品条码识别。
+- `phase_scripts/update_location.py`：阶段 3，输出结果生成与归档。
 - `check_duplicates.py`：重复值检查工具，检查上传文件第一列是否重复。
 - `templates/`：前端页面模板。
 - `input/`：待处理输入目录。

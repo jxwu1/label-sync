@@ -65,7 +65,7 @@ def load_phase2_results() -> dict | None:
     return data
 
 
-_TEMPLATE_PATH = Path(__file__).resolve().parent / "static" / "templates" / "产品信息导入模板.csv"
+_TEMPLATE_PATH = CONFIG.resource_dir / "static" / "templates" / "产品信息导入模板.csv"
 
 
 def find_template_path() -> Path | None:

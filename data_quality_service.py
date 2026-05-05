@@ -211,7 +211,7 @@ def build_whitespace_fix_dataframe() -> pd.DataFrame:
     raises FileNotFoundError 若找不到产品信息导入模板.csv（部署故障）。
     """
     from file_io import read_csv
-    from update_location import build_output_dataframe, find_template_path
+    from phase_scripts.update_location import build_output_dataframe, find_template_path
 
     template_path = find_template_path()
     if template_path is None:

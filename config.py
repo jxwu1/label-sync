@@ -51,15 +51,15 @@ class AppConfig:
 
     @property
     def phase1_script(self) -> Path:
-        return self.resource_dir / "update_location_phase1.py"
+        return self.resource_dir / "phase_scripts" / "update_location_phase1.py"
 
     @property
     def phase2_script(self) -> Path:
-        return self.resource_dir / "update_location_phase2.py"
+        return self.resource_dir / "phase_scripts" / "update_location_phase2.py"
 
     @property
     def phase3_script(self) -> Path:
-        return self.resource_dir / "update_location.py"
+        return self.resource_dir / "phase_scripts" / "update_location.py"
 
     @property
     def temp_mapping_file(self) -> Path:

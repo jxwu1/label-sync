@@ -7,16 +7,15 @@ from unittest import mock
 
 import pandas as pd
 
-import update_location
-import update_location_phase2
 from check_duplicates import check_duplicates
 from location_parser import categorize_locations, compose_location, parse_locations
-from update_location_phase1 import (
+from phase_scripts import update_location, update_location_phase2
+from phase_scripts.update_location_phase1 import (
     analyze_phase_one,
     detect_barcode_outliers,
     detect_invalid_locations,
 )
-from update_location_phase2 import (
+from phase_scripts.update_location_phase2 import (
     build_phase_two_results,
     write_phase2_results,
 )
