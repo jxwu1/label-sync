@@ -144,6 +144,61 @@ class TestComputeSummary(unittest.TestCase):
         result = svc.compute_summary("e001", "2026-04")
         self.assertEqual(len(result["detail"]), 30)
 
+    def _seed_employee(self, emp_id: str, name: str, created_at: str) -> None:
+        import json
+
+        path = self.test_dir / "employees.json"
+        existing = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
+        existing.append({"id": emp_id, "name": name, "created_at": created_at})
+        path.write_text(json.dumps(existing), encoding="utf-8")
+
+    def test_mid_month_hire_excludes_pre_join_sundays_and_absences(self):
+        """月底新来员工：入职日之前的天不算（包括周日 / 缺勤）。"""
+        # 2026-04-25 入职（周六）。本月 4 个周日 5/12/19/26 中只有 26 在入职日之后
+        self._seed_employee("e001", "新工人", "2026-04-25T10:30:00")
+
+        # 入职后录一天工
+        svc.set_day("e001", "2026-04-27", {"start": "09:30", "end": "20:00"})  # 周一
+
+        result = svc.compute_summary("e001", "2026-04")
+
+        # detail 长度依然 30（保留完整日历视图）
+        self.assertEqual(len(result["detail"]), 30)
+        # 入职前 24 天全是 pre_join
+        pre_join_rows = [d for d in result["detail"] if d["status"] == "pre_join"]
+        self.assertEqual(len(pre_join_rows), 24)
+        # 入职后剩 6 天（25-30）
+        post_join_rows = [d for d in result["detail"] if d["status"] != "pre_join"]
+        self.assertEqual(len(post_join_rows), 6)
+
+        # month_days 反映在职天数（不是日历 30）
+        self.assertEqual(result["month_days"], 6)
+        # 周日只算入职后那一个（4-26）
+        sunday_count = sum(1 for d in post_join_rows if d["status"] == "sunday")
+        self.assertEqual(sunday_count, 1)
+        # 缺勤只算入职后非周日没录的（25/27 录或不录 + 28/29/30）
+        # 27 已录 → 不缺；25/28/29/30 没录 → 4 缺勤；26 周日不算
+        self.assertEqual(result["absent_days"], 4)
+        # total_workdays = 6 - 4 = 2 (1 周日 + 27 这一天)
+        self.assertEqual(result["total_workdays"], 2)
+        # worked_days = 1 周日(1.0) + 27 fraction(1.0)
+        self.assertAlmostEqual(result["worked_days"], 2.0, places=2)
+
+    def test_employee_without_created_at_unchanged(self):
+        """老员工没 created_at（数据迁移情况）→ 按全月算，不影响。"""
+        self._seed_employee("e002", "老工人", "")
+        result = svc.compute_summary("e002", "2026-04")
+        # 老逻辑：30 天里 26 缺勤
+        self.assertEqual(result["absent_days"], 26)
+        self.assertEqual(result["month_days"], 30)
+
+    def test_employee_hired_before_month_unchanged(self):
+        """入职日在本月之前 → 没有 pre_join，所有天正常算。"""
+        self._seed_employee("e003", "去年来的", "2025-01-01T00:00:00")
+        result = svc.compute_summary("e003", "2026-04")
+        self.assertEqual(result["month_days"], 30)
+        self.assertEqual(sum(1 for d in result["detail"] if d["status"] == "pre_join"), 0)
+
 
 class TestHolidays(unittest.TestCase):
     def setUp(self):

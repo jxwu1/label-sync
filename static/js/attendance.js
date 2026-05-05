@@ -188,10 +188,20 @@
   function renderGrid(detail) {
     const wrap = document.getElementById('attnGridWrap');
     wrap.classList.add('attn-grid-wrap');
-    const statusMap = { sunday: '周日', holiday: '节假日', absent: '缺勤', normal: '正常', special: '特殊日', special_absent: '特殊日缺勤', leave: '请假' };
-    const statusClsMap = { sunday: 'attn-st-sunday', holiday: 'attn-st-holiday', absent: 'attn-st-absent', normal: 'attn-st-normal', special: 'attn-st-special', special_absent: 'attn-st-special', leave: 'attn-st-leave' };
+    const statusMap = { sunday: '周日', holiday: '节假日', absent: '缺勤', normal: '正常', special: '特殊日', special_absent: '特殊日缺勤', leave: '请假', pre_join: '未入职' };
+    const statusClsMap = { sunday: 'attn-st-sunday', holiday: 'attn-st-holiday', absent: 'attn-st-absent', normal: 'attn-st-normal', special: 'attn-st-special', special_absent: 'attn-st-special', leave: 'attn-st-leave', pre_join: 'attn-st-pre-join' };
 
     const rows = detail.map(r => {
+      const isPreJoin = r.status === 'pre_join';
+      // 月底新来员工：入职日之前的天，灰色不可编辑，不参与任何计数
+      if (isPreJoin) {
+        return `<tr class="attn-pre-join" data-date="${r.date}">
+          <td><span class="attn-day">${r.date.slice(5)}</span><span class="attn-wk">周${r.weekday}</span></td>
+          <td><span class="attn-time-auto">未入职</span></td>
+          <td class="attn-frac">—</td>
+          <td><span class="attn-st attn-st-pre-join">未入职</span></td>
+        </tr>`;
+      }
       const autoRow = r.status === 'sunday' || r.status === 'holiday';
       const isSpecial = r.status === 'special' || r.status === 'special_absent';
       const isLeave = r.status === 'leave';

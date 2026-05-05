@@ -127,6 +127,11 @@
 .attn-grid tr.absent td { background: rgba(248,113,113,.05); }
 .attn-grid tr.absent:hover td { background: rgba(248,113,113,.08); }
 
+/* 月底新来员工：入职日之前的天 —— 灰色不可编辑，全行 dim */
+.attn-grid tr.attn-pre-join td { color: var(--c-text-dim); opacity: .55; background: transparent; }
+.attn-grid tr.attn-pre-join:hover td { background: rgba(120,120,120,.04); }
+.attn-st-pre-join { color: var(--c-text-dim); }
+
 /* ===== 日期 / 星期 ===== */
 .attn-day { font-variant-numeric: tabular-nums; font-weight: 500; }
 .attn-wk  { color: var(--c-text-dim); margin-left: 8px; font-size: var(--fs-md); }

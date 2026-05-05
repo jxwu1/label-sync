@@ -284,6 +284,25 @@ def _iter_month_days(month: str):
         yield dt.isoformat(), dt.weekday(), _WEEKDAY_CN[dt.weekday()]
 
 
+def _employee_start_date(employee_id: str) -> date_cls | None:
+    """从 employees.json 读 created_at 并取日期部分。
+
+    用作"入职日"近似值——这一日之前的天不计入考勤（包括周日和节假日）。
+    employee 找不到 / created_at 缺失或无法解析 → 返回 None（按老逻辑处理，全月都算）。
+    """
+    for emp in list_employees():
+        if emp.get("id") != employee_id:
+            continue
+        s = emp.get("created_at")
+        if not s:
+            return None
+        try:
+            return datetime.fromisoformat(s).date()
+        except (ValueError, TypeError):
+            return None
+    return None
+
+
 def _make_row(
     date: str,
     weekday: str,
@@ -343,11 +362,17 @@ def compute_summary(employee_id: str, month: str) -> dict:
     holidays = set(list_holidays())
     special_days = list_special_days()
     leaves = list_leaves(month).get(employee_id, {})
+    emp_start = _employee_start_date(employee_id)
     detail = []
     worked_days = 0.0
     absent_days = 0
     leave_hours_total = 0.0
     for date_str, wd_int, wd_cn in _iter_month_days(month):
+        # 入职日之前的天不计入：含周日 / 节假日 / 缺勤都不算。
+        # 月底新来的员工不会被错算之前几周的周日 / 假日 / 缺勤。
+        if emp_start is not None and date_cls.fromisoformat(date_str) < emp_start:
+            detail.append(_make_row(date_str, wd_cn, "pre_join"))
+            continue
         leave_entry = leaves.get(date_str)
         leave_h = leave_entry["hours"] if leave_entry else 0.0
         leave_hours_total += leave_h
@@ -424,7 +449,9 @@ def compute_summary(employee_id: str, month: str) -> dict:
         else:
             detail.append(_make_row(date_str, wd_cn, "absent"))
             absent_days += 1
-    total_days = len(detail)
+    # 在职天数（detail 里非 pre_join 的天）。所有派生数字都基于这个，让月底新来
+    # 的员工看到一致的在职期间统计而不是被算上未入职的周日和缺勤。
+    total_days = sum(1 for r in detail if r["status"] != "pre_join")
     return {
         "worked_days": round(worked_days, 3),
         "absent_days": absent_days,
