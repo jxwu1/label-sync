@@ -1,0 +1,6 @@
+# 开发与测试环境额外依赖。生产部署不需要装。
+# 安装：pip install -r requirements-dev.txt && playwright install chromium
+
+# E2E 浏览器烟雾测试
+playwright
+pytest-playwright
