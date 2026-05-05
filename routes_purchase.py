@@ -3,11 +3,17 @@ import json
 from datetime import date
 
 from flask import Blueprint, jsonify, request, send_file
+from pydantic import BaseModel, Field
 
 import purchase_service
 import stockpile_db
+from route_helpers import parse_body
 
 bp = Blueprint("purchase", __name__, url_prefix="/purchase")
+
+
+class _ImportEntries(BaseModel):
+    entries: list[dict] = Field(min_length=1)
 
 
 @bp.post("/process")
@@ -40,11 +46,11 @@ def process():
 
 @bp.post("/import-to-stockpile")
 def import_to_stockpile():
-    data = request.get_json(silent=True)
-    if not data or not data.get("entries"):
-        return jsonify({"ok": False, "msg": "请提供条码列表"}), 400
+    body, err = parse_body(_ImportEntries)
+    if err:
+        return err
     try:
-        count = purchase_service.import_new_barcodes(data["entries"])
+        count = purchase_service.import_new_barcodes(body.entries)
     except Exception as exc:
         return jsonify({"ok": False, "msg": f"入库失败：{exc}"}), 500
     return jsonify({"ok": True, "count": count})

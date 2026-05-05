@@ -100,6 +100,25 @@ class TestImportToStockpile(unittest.TestCase):
         self.assertTrue(body["ok"])
         self.assertEqual(body["count"], 3)
 
+    def test_empty_entries_list_400(self):
+        response = self.client.post(
+            "/purchase/import-to-stockpile",
+            json={"entries": []},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("entries", response.get_json()["msg"])
+
+    def test_entries_not_a_list_400(self):
+        # Pydantic 引入的强化：原本 truthy 字符串能通过 `not data.get` 判断、
+        # 在 service 里 iterate 报错 → 500；现在边界 400
+        response = self.client.post(
+            "/purchase/import-to-stockpile",
+            json={"entries": "not a list"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+
 
 class TestExportZip(unittest.TestCase):
     def setUp(self):
