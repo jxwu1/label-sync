@@ -1,0 +1,33 @@
+<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="UTF-8">
+<title>详细查询 - 测试 fixture</title>
+</head>
+<body>
+<table class="sortable print_table">
+<thead>
+<tr>
+  <th>单号</th><th>查看</th><th>ID号</th><th>名称</th><th>联系方法</th><th>地址</th><th>邮编</th><th>城市</th>
+  <th>仓库</th><th>日期</th><th>型号</th><th>条形码</th><th>等级</th><th>产品种类</th><th>品名</th><th>本地品名</th>
+  <th>颜色</th><th>数量</th><th>差数</th><th>单价</th><th>折扣</th><th>金额(€)</th><th>备注</th><th>单据备注</th><th>状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>202605050002</td><td>流程</td><td>GR0007</td><td>HOMEPLAST 6972888853 (希腊塑料供应商)</td><td></td><td></td><td></td><td></td>
+  <td>店面</td><td>2026/5/5</td><td>5200310901638</td><td>5200310901638</td><td>1</td>
+  <td>FL017-11 - 塑料大盒子ΠΛΑΣΤΙΚΕΣ_ΚΟΥΤΙ_ΑΠΟΘΗΚΕΥΣΗΣ</td>
+  <td>塑料储物箱 67L 黑红</td><td>ΚΟΥΤΙ 67L ΚΑΠΑΚΙ ΜΑΥΡΟ</td>
+  <td></td><td>100</td><td>0</td><td>4.1250</td><td>0.00</td><td>412.50</td><td></td><td></td><td>未审核</td>
+</tr>
+<tr>
+  <td>202605050002</td><td>流程</td><td>GR0007</td><td>HOMEPLAST 6972888853 (希腊塑料供应商)</td><td></td><td></td><td></td><td></td>
+  <td>店面</td><td>2026/5/5</td><td>11342</td><td>5828079113422</td><td>3</td>
+  <td>FL004-01 - 渔具鱼竿_鱼竿</td>
+  <td>测试鱼竿 2.7m</td><td>ΚΑΛΑΜΙ 2.7m</td>
+  <td></td><td>50</td><td>0</td><td>15.50</td><td>0.00</td><td>775.00</td><td></td><td></td><td>未审核</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>

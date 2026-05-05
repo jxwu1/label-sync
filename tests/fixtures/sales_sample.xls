@@ -1,0 +1,37 @@
+<html xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="UTF-8"><title>销售订单 fixture</title></head>
+<body>
+<table>
+<thead>
+<tr>
+  <th>单号</th><th>查看</th><th>ID号</th><th>名称</th><th>联系方法</th><th>地址</th><th>邮编</th><th>城市</th>
+  <th>仓库</th><th>日期</th><th>型号</th><th>条形码</th><th>等级</th><th>产品种类</th><th>品名</th><th>本地品名</th>
+  <th>颜色</th><th>数量</th><th>差数</th><th>单价</th><th>折扣</th><th>金额(€)</th><th>备注</th><th>单据备注</th><th>状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>202605050033</td><td>流程</td><td>156188672</td><td>ΚΙΡΚΙΝΕΖΗΣ ΗΡΑΚΛΗΣ</td><td>6987892220</td><td></td><td></td><td></td>
+  <td>店面</td><td>2026-05-05</td><td>11775</td><td>5828079117758</td><td>1</td>
+  <td>FL021-01 - 木盒_木箱ΞΥΛΙΝΑ_ΚΟΥΤΙΑ</td>
+  <td>桐木盖挖酒瓶状抽盖酒盒</td><td>ΚΟΥΤΙ ΞΥΛ.</td>
+  <td></td><td>2</td><td>2</td><td>2.50</td><td>0.00</td><td>5.00</td><td></td><td></td><td>未审核</td>
+</tr>
+<tr>
+  <td>202605050033</td><td>流程</td><td>156188672</td><td>ΚΙΡΚΙΝΕΖΗΣ ΗΡΑΚΛΗΣ</td><td>6987892220</td><td></td><td></td><td></td>
+  <td>店面</td><td>2026-05-05</td><td>18894</td><td>5828079188949</td><td>1</td>
+  <td>FL098-04 - 挂饰系列ΣΤΟΛΙΔΗ_ΤΟΙΧΟΥ</td>
+  <td>椭圆独角兽黑板擦挂件</td><td>ΚΡΕΜΑΣΤΟ</td>
+  <td></td><td>4</td><td>4</td><td>0.65</td><td>50.00</td><td>1.30</td><td></td><td></td><td>未审核</td>
+</tr>
+<tr>
+  <td>202605050050</td><td>流程</td><td>200001</td><td>张三批发商</td><td></td><td></td><td></td><td></td>
+  <td>店面</td><td>2026-05-05</td><td>11342</td><td>5828079113422</td><td>3</td>
+  <td>FL004-01 - 渔具鱼竿_鱼竿</td>
+  <td>测试鱼竿 2.7m</td><td>ΚΑΛΑΜΙ 2.7m</td>
+  <td></td><td>500</td><td>500</td><td>14.00</td><td>0.00</td><td>7000.00</td><td></td><td></td><td>未审核</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>
