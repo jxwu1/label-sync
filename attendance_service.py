@@ -338,6 +338,69 @@ def _employee_start_date(employee_id: str) -> date_cls | None:
     return None
 
 
+def list_inactive_periods(employee_id: str) -> list[dict]:
+    """读员工的不在职区间列表（长期休假/产假/停薪留职等）。"""
+    for emp in list_employees():
+        if emp.get("id") == employee_id:
+            return emp.get("inactive_periods", [])
+    return []
+
+
+def add_inactive_period(employee_id: str, from_date: str, to_date: str, reason: str = "") -> dict:
+    """添加一个不在职区间。这段期间内每天都不计入考勤（包括周日 / 节假日）。
+
+    适用场景：长期病假回归后回到本月、产假、停薪留职等。
+    与单日 set_leave 区别：本接口的天完全不计任何数字（pre_join 状态）；
+    leave 的天周日仍算 1.0、accumulated leave_hours_total 也会算。
+    """
+    f = date_cls.fromisoformat(from_date)
+    t = date_cls.fromisoformat(to_date)
+    if f > t:
+        raise ValueError(f"from {from_date} 不能晚于 to {to_date}")
+    employees = list_employees()
+    for emp in employees:
+        if emp.get("id") != employee_id:
+            continue
+        periods = emp.setdefault("inactive_periods", [])
+        period = {"from": from_date, "to": to_date}
+        if reason:
+            period["reason"] = reason
+        periods.append(period)
+        _write_json(_employees_path(), employees)
+        return period
+    raise ValueError(f"员工不存在：{employee_id}")
+
+
+def remove_inactive_period(employee_id: str, from_date: str, to_date: str) -> bool:
+    """按 from+to 精确匹配删除一个不在职区间。返回 True 如果删了一条。"""
+    employees = list_employees()
+    for emp in employees:
+        if emp.get("id") != employee_id:
+            continue
+        periods = emp.get("inactive_periods", [])
+        for i, p in enumerate(periods):
+            if p.get("from") == from_date and p.get("to") == to_date:
+                periods.pop(i)
+                if not periods:
+                    emp.pop("inactive_periods", None)
+                _write_json(_employees_path(), employees)
+                return True
+        return False
+    return False
+
+
+def _date_in_inactive_periods(d: date_cls, periods: list[dict]) -> bool:
+    for p in periods:
+        try:
+            f = date_cls.fromisoformat(p["from"])
+            t = date_cls.fromisoformat(p["to"])
+            if f <= d <= t:
+                return True
+        except (KeyError, ValueError, TypeError):
+            continue
+    return False
+
+
 def _make_row(
     date: str,
     weekday: str,
@@ -398,14 +461,19 @@ def compute_summary(employee_id: str, month: str) -> dict:
     special_days = list_special_days()
     leaves = list_leaves(month).get(employee_id, {})
     emp_start = _employee_start_date(employee_id)
+    inactive_periods = list_inactive_periods(employee_id)
     detail = []
     worked_days = 0.0
     absent_days = 0
     leave_hours_total = 0.0
     for date_str, wd_int, wd_cn in _iter_month_days(month):
-        # 入职日之前的天不计入：含周日 / 节假日 / 缺勤都不算。
-        # 月底新来的员工不会被错算之前几周的周日 / 假日 / 缺勤。
-        if emp_start is not None and date_cls.fromisoformat(date_str) < emp_start:
+        # 入职日之前 + 不在职区间内的天都不计入：含周日 / 节假日 / 缺勤都不算。
+        # 月底新来 / 长期休假回归 / 产假等场景统一用 pre_join 状态。
+        cur_d = date_cls.fromisoformat(date_str)
+        if emp_start is not None and cur_d < emp_start:
+            detail.append(_make_row(date_str, wd_cn, "pre_join"))
+            continue
+        if _date_in_inactive_periods(cur_d, inactive_periods):
             detail.append(_make_row(date_str, wd_cn, "pre_join"))
             continue
         leave_entry = leaves.get(date_str)

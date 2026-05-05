@@ -48,6 +48,21 @@ class _LeaveRangeUpsert(BaseModel):
     end: OptionalStr = ""
 
 
+class _InactivePeriodUpsert(BaseModel):
+    """不在职区间：长期休假回归 / 产假 / 停薪留职等，区间内每天不计考勤。"""
+
+    from_date: NonEmptyStr
+    to_date: NonEmptyStr
+    reason: OptionalStr = ""
+
+
+class _InactivePeriodDelete(BaseModel):
+    """精确匹配删除一个不在职区间。"""
+
+    from_date: NonEmptyStr
+    to_date: NonEmptyStr
+
+
 @bp.get("/employees")
 def list_employees():
     return jsonify({"ok": True, "employees": attendance_service.list_employees()})
@@ -168,6 +183,42 @@ def clear_leave(employee_id: str, date: str):
     attendance_service.clear_leave(employee_id, date)
     summary = attendance_service.compute_summary(employee_id, date[:7])
     return jsonify({"ok": True, **summary})
+
+
+@bp.get("/inactive-periods/<employee_id>")
+def list_inactive_periods(employee_id: str):
+    return jsonify({"ok": True, "periods": attendance_service.list_inactive_periods(employee_id)})
+
+
+@bp.post("/inactive-periods/<employee_id>")
+def add_inactive_period(employee_id: str):
+    body, err = parse_body(_InactivePeriodUpsert)
+    if err:
+        return err
+    try:
+        period = attendance_service.add_inactive_period(
+            employee_id, body.from_date, body.to_date, body.reason
+        )
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
+    return jsonify(
+        {
+            "ok": True,
+            "period": period,
+            "periods": attendance_service.list_inactive_periods(employee_id),
+        }
+    )
+
+
+@bp.delete("/inactive-periods/<employee_id>")
+def delete_inactive_period(employee_id: str):
+    body, err = parse_body(_InactivePeriodDelete)
+    if err:
+        return err
+    removed = attendance_service.remove_inactive_period(employee_id, body.from_date, body.to_date)
+    if not removed:
+        return jsonify({"ok": False, "msg": "未找到匹配的不在职区间"}), 404
+    return jsonify({"ok": True, "periods": attendance_service.list_inactive_periods(employee_id)})
 
 
 @bp.post("/leave-range/<employee_id>")

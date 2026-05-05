@@ -199,6 +199,38 @@ class TestComputeSummary(unittest.TestCase):
         self.assertEqual(result["month_days"], 30)
         self.assertEqual(sum(1 for d in result["detail"] if d["status"] == "pre_join"), 0)
 
+    def test_inactive_period_excludes_days_within(self):
+        """老员工产假回归：4-01 到 4-15 标为不在职，剩 15 天算。"""
+        self._seed_employee("e004", "产假回归", "2024-01-01T00:00:00")
+        svc.add_inactive_period("e004", "2026-04-01", "2026-04-15", reason="产假")
+        result = svc.compute_summary("e004", "2026-04")
+        # 4-01 ~ 4-15 共 15 天 pre_join；4-16 ~ 4-30 共 15 天正常
+        pre_join = sum(1 for d in result["detail"] if d["status"] == "pre_join")
+        self.assertEqual(pre_join, 15)
+        self.assertEqual(result["month_days"], 15)
+        # 这 15 天里有 4-19 / 4-26 两个周日（含 1.0 各）
+        sunday_count = sum(1 for d in result["detail"] if d["status"] == "sunday")
+        self.assertEqual(sunday_count, 2)
+        # 其余 13 天没记录 → absent
+        self.assertEqual(result["absent_days"], 13)
+
+    def test_remove_inactive_period(self):
+        self._seed_employee("e005", "X", "2024-01-01T00:00:00")
+        svc.add_inactive_period("e005", "2026-04-10", "2026-04-20")
+        self.assertEqual(len(svc.list_inactive_periods("e005")), 1)
+        removed = svc.remove_inactive_period("e005", "2026-04-10", "2026-04-20")
+        self.assertTrue(removed)
+        self.assertEqual(svc.list_inactive_periods("e005"), [])
+
+    def test_add_inactive_period_invalid_range(self):
+        self._seed_employee("e006", "X", "2024-01-01T00:00:00")
+        with self.assertRaises(ValueError):
+            svc.add_inactive_period("e006", "2026-04-20", "2026-04-10")
+
+    def test_add_inactive_period_unknown_employee(self):
+        with self.assertRaises(ValueError):
+            svc.add_inactive_period("notexist", "2026-04-01", "2026-04-15")
+
 
 class TestHolidays(unittest.TestCase):
     def setUp(self):
