@@ -1,20 +1,29 @@
 from flask import Blueprint, jsonify, request
+from pydantic import BaseModel
 
 import duplicate_service
 import message_service
 from response_builder import json_result
+from route_helpers import NonEmptyStr, OptionalStr, parse_body
 
 bp = Blueprint("collab", __name__)
 
 
+class _TextSend(BaseModel):
+    text: NonEmptyStr
+    sender: OptionalStr = "A"
+
+
+class _TextDelete(BaseModel):
+    id: int
+
+
 @bp.post("/text_send")
 def text_send():
-    data = request.get_json(silent=True) or {}
-    text = data.get("text", "").strip()
-    sender = data.get("sender", "A").strip()
-    if not text:
-        return jsonify({"ok": False, "msg": "内容不能为空"}), 400
-    return jsonify(message_service.send_text_message(text, sender))
+    body, err = parse_body(_TextSend)
+    if err:
+        return err
+    return jsonify(message_service.send_text_message(body.text, body.sender))
 
 
 @bp.get("/text_list")
@@ -24,11 +33,10 @@ def text_list():
 
 @bp.post("/text_delete")
 def text_delete():
-    data = request.get_json(silent=True) or {}
-    message_id = data.get("id")
-    if message_id is None:
-        return jsonify({"ok": False, "msg": "id 不能为空"}), 400
-    return json_result(message_service.delete_text_message(message_id))
+    body, err = parse_body(_TextDelete)
+    if err:
+        return err
+    return json_result(message_service.delete_text_message(body.id))
 
 
 @bp.post("/text_clear")

@@ -53,7 +53,9 @@ class RouteTests(unittest.TestCase):
         response = self.client.post("/text_send", json={"text": "   ", "sender": "A"})
 
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.get_json(), {"ok": False, "msg": "内容不能为空"})
+        body = response.get_json()
+        self.assertFalse(body["ok"])
+        self.assertIn("text", body["msg"])
 
     def test_transfer_delete_validates_filename(self):
         response = self.client.post("/transfer_delete", json={"filename": "   "})
