@@ -18,6 +18,7 @@
           <button class="attn-btn" id="attnSpecial">特殊日</button>
           <span class="attn-spacer"></span>
           <button class="attn-btn" id="attnFillAll">一键填全月正常</button>
+          <button class="attn-btn" id="attnLeaveRange">区间请假</button>
           <button class="attn-btn attn-btn-dl" id="attnPdf">下载 PDF</button>
           <button class="attn-btn attn-btn-dl" id="attnPayrollPdf">下载工资单 PDF</button>
         </div>
@@ -65,6 +66,27 @@
           </div>
         </div>
       </div>
+      <div class="pur-modal-overlay attn-hidden" id="attnLeaveRangeOverlay">
+        <div class="pur-modal">
+          <div class="pur-modal-hd">区间请假（自动跳过周日）</div>
+          <div class="attn-stack">
+            <label>从 <input class="attn-inp" id="attnLeaveRangeFrom" type="date"></label>
+            <label>到 <input class="attn-inp" id="attnLeaveRangeTo" type="date"></label>
+            <label><input type="radio" name="attnLeaveRangeType" value="full" checked> 全天</label>
+            <label><input type="radio" name="attnLeaveRangeType" value="range"> 离开后回来：
+              <input class="attn-inp attn-narrow" id="attnLeaveRangeStart" type="text" placeholder="HH:MM" maxlength="5"> —
+              <input class="attn-inp attn-narrow" id="attnLeaveRangeEnd" type="text" placeholder="HH:MM" maxlength="5">
+            </label>
+            <label><input type="radio" name="attnLeaveRangeType" value="left"> 离开未回来：
+              <input class="attn-inp attn-narrow" id="attnLeaveRangeLeftStart" type="text" placeholder="HH:MM" maxlength="5">
+            </label>
+          </div>
+          <div class="pur-modal-actions">
+            <button class="attn-btn attn-btn-dl" id="attnLeaveRangeSubmit">确认</button>
+            <button class="attn-btn" id="attnLeaveRangeCancel">取消</button>
+          </div>
+        </div>
+      </div>
       <div class="pur-modal-overlay attn-hidden" id="attnHolidayOverlay">
         <div class="pur-modal">
           <div class="pur-modal-hd">节假日管理</div>
@@ -100,6 +122,11 @@
       document.getElementById('attnLeaveOverlay').style.display = 'none';
     });
     document.getElementById('attnFillAll').addEventListener('click', fillAllNormal);
+    document.getElementById('attnLeaveRange').addEventListener('click', openLeaveRange);
+    document.getElementById('attnLeaveRangeSubmit').addEventListener('click', submitLeaveRange);
+    document.getElementById('attnLeaveRangeCancel').addEventListener('click', () => {
+      document.getElementById('attnLeaveRangeOverlay').style.display = 'none';
+    });
 
     document.getElementById('attnMonth').value = new Date().toISOString().slice(0, 7);
     currentMonth = document.getElementById('attnMonth').value;
@@ -332,6 +359,60 @@
       if (!body.ok) { alert(body.msg); return; }
     } catch (e) { alert('请假失败：' + e.message); return; }
     document.getElementById('attnLeaveOverlay').style.display = 'none';
+    await loadMonth();
+  }
+
+  function openLeaveRange() {
+    if (!currentEmployeeId) {
+      alert('请先选择员工');
+      return;
+    }
+    // 默认填当月第 1 天到当月最后一天
+    const m = currentMonth || new Date().toISOString().slice(0, 7);
+    document.getElementById('attnLeaveRangeFrom').value = `${m}-01`;
+    // 算当月最后一天
+    const [yy, mm] = m.split('-').map(Number);
+    const last = new Date(yy, mm, 0).getDate();
+    document.getElementById('attnLeaveRangeTo').value = `${m}-${String(last).padStart(2, '0')}`;
+    document.querySelector('input[name="attnLeaveRangeType"][value="full"]').checked = true;
+    document.getElementById('attnLeaveRangeStart').value = '';
+    document.getElementById('attnLeaveRangeEnd').value = '';
+    document.getElementById('attnLeaveRangeLeftStart').value = '';
+    document.getElementById('attnLeaveRangeOverlay').style.display = 'flex';
+  }
+
+  async function submitLeaveRange() {
+    const from = document.getElementById('attnLeaveRangeFrom').value;
+    const to = document.getElementById('attnLeaveRangeTo').value;
+    if (!from || !to) { alert('请填写起止日期'); return; }
+    if (from > to) { alert('起始日不能晚于结束日'); return; }
+    const type = document.querySelector('input[name="attnLeaveRangeType"]:checked').value;
+    const payload = { from_date: from, to_date: to, type };
+    const timeRe = /^([01]\d|2[0-3]):([0-5]\d)$/;
+    if (type === 'range') {
+      const s = normalizeTime(document.getElementById('attnLeaveRangeStart').value);
+      const e = normalizeTime(document.getElementById('attnLeaveRangeEnd').value);
+      if (!timeRe.test(s) || !timeRe.test(e)) { alert('请填写正确的离开/回来时间（HH:MM）'); return; }
+      payload.start = s;
+      payload.end = e;
+    } else if (type === 'left') {
+      const s = normalizeTime(document.getElementById('attnLeaveRangeLeftStart').value);
+      if (!timeRe.test(s)) { alert('请填写正确的离开时间（HH:MM）'); return; }
+      payload.start = s;
+    }
+    try {
+      const res = await fetch(`/attendance/leave-range/${currentEmployeeId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json();
+      if (!body.ok) { alert(body.msg); return; }
+      const skipped = body.days_skipped_sunday || 0;
+      const set = body.days_set || 0;
+      alert(`已设置 ${set} 天请假${skipped > 0 ? `（跳过 ${skipped} 个周日）` : ''}`);
+    } catch (e) { alert('区间请假失败：' + e.message); return; }
+    document.getElementById('attnLeaveRangeOverlay').style.display = 'none';
     await loadMonth();
   }
 
