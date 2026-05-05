@@ -1,12 +1,14 @@
-/* 进销存导入页 */
-
-#pageInventory {
-  display: none;
+/* 进销存导入页 —— 与 pageHistory / pageAttendance 同款 override：
+   .page.active 默认 display:grid 在本 layout 里滚不动；改 block + 显式
+   高度 + overflow:auto 才行（其它顶级页都这么写，沿用约定）。*/
+#pageInventory.active {
+  display: block;
+  overflow: auto;
+  height: calc(100vh - 122px);
 }
 
-#pageInventory.active {
-  display: grid;
-  gap: var(--sp-4);
+#pageInventory .panel + .panel {
+  margin-top: var(--sp-4);
 }
 
 .inv-row {

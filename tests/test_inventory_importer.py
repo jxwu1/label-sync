@@ -230,6 +230,42 @@ class MissingFieldTests(_BaseImporterTest):
         assert result.rows_skipped_missing_key == 1
         assert "缺关键字段" in result.skipped_reasons[0]
 
+    def test_completely_empty_row_silently_skipped(self) -> None:
+        """ERP 导出常带末尾合计/页脚空行：不报 missing_key，静默跳过。"""
+        df = pd.DataFrame(
+            [
+                {
+                    "单号": "X2",
+                    "ID号": "C1",
+                    "名称": "客户1",
+                    "日期": "2026-05-05",
+                    "型号": "M2",
+                    "条形码": "BC-OK",
+                    "数量": 5,
+                    "单价": 1.0,
+                },
+                # 完全空行（合计行）
+                {
+                    "单号": None,
+                    "ID号": None,
+                    "名称": None,
+                    "日期": None,
+                    "型号": None,
+                    "条形码": None,
+                    "数量": None,
+                    "单价": None,
+                },
+            ]
+        )
+        with Session(self.engine) as session:
+            result = import_events(df, DEFAULT_MAPPING, "sale", session)
+            session.commit()
+        assert result.rows_imported == 1
+        # 关键：完全空行不算 missing_key（不让用户以为出错）
+        assert result.rows_skipped_missing_key == 0
+        assert result.rows_skipped == 0
+        assert result.skipped_reasons == []
+
 
 class InvalidEventTypeTests(_BaseImporterTest):
     def test_raises_on_unknown_event_type(self) -> None:

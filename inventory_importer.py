@@ -353,6 +353,14 @@ def import_events(
         partner_id = _clean_str(internal.get("partner_id"))
         partner_name = _clean_str(internal.get("partner_name"))
 
+        # ERP 导出末尾常带"合计/页脚"行：所有关键字段都空。静默跳过，不计入
+        # rows_skipped 也不报到 skipped_reasons，避免给用户错误的"有错"印象。
+        all_empty = (
+            not barcode and qty is None and not event_at and not partner_id and not partner_name
+        )
+        if all_empty:
+            continue
+
         if not barcode or qty is None or not event_at:
             result.rows_skipped_missing_key += 1
             if len(result.skipped_reasons) < 10:
