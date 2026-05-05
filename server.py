@@ -14,7 +14,7 @@ def create_app() -> Flask:
     app = Flask(__name__, template_folder=str(CONFIG.templates_dir))
 
     dirs = [INPUT_DIR, OUTPUT_DIR, CONFIG.trash_dir]
-    if CONFIG.dual_mode:
+    if CONFIG.enable_transfer:
         dirs.append(TRANSFER_DIR)
     for folder in dirs:
         folder.mkdir(exist_ok=True)
@@ -34,6 +34,6 @@ if __name__ == "__main__":
         ip = socket.gethostbyname(socket.gethostname())
     except OSError:
         ip = "127.0.0.1"
-    mode = "双端" if CONFIG.dual_mode else "单端"
+    mode = "双端" if CONFIG.enable_transfer else "单端"
     print(f"\n服务已启动（{mode}模式），浏览器访问：http://{ip}:{CONFIG.port}\n")
     app.run(host=CONFIG.host, port=CONFIG.port, debug=CONFIG.debug)

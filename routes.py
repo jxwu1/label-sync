@@ -22,7 +22,7 @@ def register_routes(app) -> None:
     app.register_blueprint(attendance_bp)
     app.register_blueprint(scan_history_bp)
     app.register_blueprint(stockpile_bp)
-    if CONFIG.dual_mode:
+    if CONFIG.enable_transfer:
         from routes_collab import bp as collab_bp
         from routes_transfer import bp as transfer_bp
 
