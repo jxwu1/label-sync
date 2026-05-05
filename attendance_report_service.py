@@ -231,7 +231,8 @@ _PAYROLL_HEADER = [
     "请假",
     "累计天数",
     "实际工资",
-    "应付工资",
+    "现金工资",
+    "银行工资",
 ]
 
 
@@ -252,7 +253,7 @@ def build_payroll_pdf(month: str) -> bytes:
 
     elements = [
         _make_title_paragraph(f"{month} 月度工资单", _FONT_NAME),
-        _make_meta_paragraph(f"共 {len(employees)} 名员工 · 实际/应付工资请手填", _FONT_NAME),
+        _make_meta_paragraph(f"共 {len(employees)} 名员工 · 实际/现金/银行工资请手填", _FONT_NAME),
     ]
 
     if not employees:
@@ -281,20 +282,32 @@ def build_payroll_pdf(month: str) -> bytes:
                 leave_text,
                 f"{s['worked_days']}",
                 "",  # 实际工资（横线由 TableStyle 画）
-                "",  # 应付工资
+                "",  # 现金工资
+                "",  # 银行工资
             ]
         )
 
-    col_widths = [40 * mm, 22 * mm, 24 * mm, 22 * mm, 30 * mm, 22 * mm, 50 * mm, 50 * mm]
+    col_widths = [
+        40 * mm,
+        22 * mm,
+        24 * mm,
+        22 * mm,
+        30 * mm,
+        22 * mm,
+        50 * mm,
+        25 * mm,
+        25 * mm,
+    ]
     table = Table(rows, colWidths=col_widths)
     style = _minimal_table_style(_FONT_NAME, header_row=0, font_size=10)
     # 列对齐：员工 左；数字列 右；请假 中；工资栏 中
     style.add("ALIGN", (1, 0), (5, -1), "RIGHT")
     style.add("ALIGN", (4, 0), (4, -1), "CENTER")
     style.add("ALIGN", (6, 0), (-1, -1), "CENTER")
-    # 工资块视觉分隔：累计列与实际工资列之间一条粗一点的线，实际工资与应付工资之间一条细线
+    # 工资块视觉分隔：累计列与实际工资列之间一条粗一点的线，工资三列之间细线
     style.add("LINEBEFORE", (6, 0), (6, -1), 1.0, _C_HEAD)
     style.add("LINEBEFORE", (7, 0), (7, -1), 0.5, _C_HEAD)
+    style.add("LINEBEFORE", (8, 0), (8, -1), 0.5, _C_HEAD)
     # 工资栏（最后两列）的数据行加 0.5pt 横线占位
     for row_idx in range(1, len(rows)):
         style.add("LINEBELOW", (6, row_idx), (-1, row_idx), 0.5, _C_HEAD)
