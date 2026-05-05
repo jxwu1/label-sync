@@ -6,3 +6,4 @@ pyarrow
 sqlalchemy
 alembic
 reportlab
+pydantic

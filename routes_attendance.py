@@ -1,13 +1,41 @@
 """考勤 HTTP 路由。"""
 
 import io
+from typing import Literal
 
-from flask import Blueprint, jsonify, request, send_file
+from flask import Blueprint, jsonify, send_file
+from pydantic import BaseModel
 
 import attendance_report_service
 import attendance_service
+from route_helpers import NonEmptyStr, OptionalStr, parse_body
 
 bp = Blueprint("attendance", __name__, url_prefix="/attendance")
+
+
+class _EmployeeCreate(BaseModel):
+    name: NonEmptyStr
+
+
+class _HolidayCreate(BaseModel):
+    date: NonEmptyStr
+
+
+class _SpecialDayUpsert(BaseModel):
+    date: NonEmptyStr
+    start: NonEmptyStr
+    end: NonEmptyStr
+
+
+class _DayUpsert(BaseModel):
+    start: NonEmptyStr
+    end: NonEmptyStr
+
+
+class _LeaveUpsert(BaseModel):
+    type: Literal["full", "range", "left"]
+    start: OptionalStr = ""
+    end: OptionalStr = ""
 
 
 @bp.get("/employees")
@@ -17,11 +45,10 @@ def list_employees():
 
 @bp.post("/employees")
 def create_employee():
-    data = request.get_json(silent=True) or {}
-    name = (data.get("name") or "").strip()
-    if not name:
-        return jsonify({"ok": False, "msg": "姓名不能为空"}), 400
-    emp = attendance_service.create_employee(name)
+    body, err = parse_body(_EmployeeCreate)
+    if err:
+        return err
+    emp = attendance_service.create_employee(body.name)
     return jsonify({"ok": True, "employee": emp})
 
 
@@ -38,11 +65,10 @@ def list_holidays():
 
 @bp.post("/holidays")
 def add_holiday():
-    data = request.get_json(silent=True) or {}
-    date = (data.get("date") or "").strip()
-    if not date:
-        return jsonify({"ok": False, "msg": "缺少 date"}), 400
-    attendance_service.add_holiday(date)
+    body, err = parse_body(_HolidayCreate)
+    if err:
+        return err
+    attendance_service.add_holiday(body.date)
     return jsonify({"ok": True, "holidays": attendance_service.list_holidays()})
 
 
@@ -59,14 +85,11 @@ def list_special_days():
 
 @bp.post("/special-days")
 def set_special_day():
-    data = request.get_json(silent=True) or {}
-    date = (data.get("date") or "").strip()
-    start = (data.get("start") or "").strip()
-    end = (data.get("end") or "").strip()
-    if not date or not start or not end:
-        return jsonify({"ok": False, "msg": "缺少 date / start / end"}), 400
+    body, err = parse_body(_SpecialDayUpsert)
+    if err:
+        return err
     try:
-        attendance_service.set_special_day(date, start, end)
+        attendance_service.set_special_day(body.date, body.start, body.end)
     except ValueError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 400
     return jsonify({"ok": True, "special_days": attendance_service.list_special_days()})
@@ -89,13 +112,12 @@ def month_summary(employee_id: str, month: str):
 
 @bp.post("/day/<employee_id>/<date>")
 def set_day(employee_id: str, date: str):
-    data = request.get_json(silent=True) or {}
-    start, end = data.get("start"), data.get("end")
-    if not start or not end:
-        return jsonify({"ok": False, "msg": "缺少 start / end"}), 400
+    body, err = parse_body(_DayUpsert)
+    if err:
+        return err
     try:
-        attendance_service.day_fraction(start, end)  # 校验
-        attendance_service.set_day(employee_id, date, {"start": start, "end": end})
+        attendance_service.day_fraction(body.start, body.end)  # 校验
+        attendance_service.set_day(employee_id, date, {"start": body.start, "end": body.end})
     except ValueError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 400
     except Exception as exc:
@@ -120,14 +142,11 @@ def list_leaves(month: str):
 
 @bp.post("/leave/<employee_id>/<date>")
 def set_leave(employee_id: str, date: str):
-    data = request.get_json(silent=True) or {}
-    leave_type = (data.get("type") or "").strip()
-    start = (data.get("start") or "").strip()
-    end = (data.get("end") or "").strip()
-    if leave_type not in ("full", "range", "left"):
-        return jsonify({"ok": False, "msg": "type 必须为 full / range / left"}), 400
+    body, err = parse_body(_LeaveUpsert)
+    if err:
+        return err
     try:
-        attendance_service.set_leave(employee_id, date, leave_type, start=start, end=end)
+        attendance_service.set_leave(employee_id, date, body.type, start=body.start, end=body.end)
     except ValueError as exc:
         return jsonify({"ok": False, "msg": str(exc)}), 400
     summary = attendance_service.compute_summary(employee_id, date[:7])
