@@ -112,6 +112,50 @@ class AttendanceRoutesTests(unittest.TestCase):
         self.assertEqual(rv.status_code, 200)
         self.assertTrue(rv.get_json()["ok"])
 
+    # ---------- /leave-range/<emp> ----------
+
+    def test_leave_range_full_ok(self) -> None:
+        emp = self.client.post("/attendance/employees", json={"name": "赵六"}).get_json()
+        # 2026-04-13 (一) ~ 2026-04-19 (日) 7 天，1 周日
+        rv = self.client.post(
+            f"/attendance/leave-range/{emp['employee']['id']}",
+            json={
+                "from_date": "2026-04-13",
+                "to_date": "2026-04-19",
+                "type": "full",
+            },
+        )
+        self.assertEqual(rv.status_code, 200)
+        body = rv.get_json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["days_set"], 6)
+        self.assertEqual(body["days_skipped_sunday"], 1)
+
+    def test_leave_range_missing_field_400(self) -> None:
+        emp = self.client.post("/attendance/employees", json={"name": "赵六"}).get_json()
+        rv = self.client.post(
+            f"/attendance/leave-range/{emp['employee']['id']}",
+            json={"from_date": "2026-04-13", "type": "full"},  # 缺 to_date
+        )
+        self.assertEqual(rv.status_code, 400)
+        self.assertIn("to_date", rv.get_json()["msg"])
+
+    def test_leave_range_invalid_type_400(self) -> None:
+        emp = self.client.post("/attendance/employees", json={"name": "赵六"}).get_json()
+        rv = self.client.post(
+            f"/attendance/leave-range/{emp['employee']['id']}",
+            json={"from_date": "2026-04-13", "to_date": "2026-04-15", "type": "bogus"},
+        )
+        self.assertEqual(rv.status_code, 400)
+
+    def test_leave_range_from_after_to_400(self) -> None:
+        emp = self.client.post("/attendance/employees", json={"name": "赵六"}).get_json()
+        rv = self.client.post(
+            f"/attendance/leave-range/{emp['employee']['id']}",
+            json={"from_date": "2026-04-15", "to_date": "2026-04-10", "type": "full"},
+        )
+        self.assertEqual(rv.status_code, 400)
+
 
 if __name__ == "__main__":
     unittest.main()

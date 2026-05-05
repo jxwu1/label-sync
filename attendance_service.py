@@ -252,6 +252,41 @@ def clear_leave(employee_id: str, date: str) -> None:
         _write_json(_leaves_path(month), data)
 
 
+def set_leave_range(
+    employee_id: str,
+    from_date: str,
+    to_date: str,
+    leave_type: str,
+    start: str = "",
+    end: str = "",
+) -> dict:
+    """批量设置区间请假。
+
+    每天调用 set_leave。**自动跳过周日**（auto-paid，不需要标 leave）；
+    leave_type 必须是 'full' / 'range' / 'left'。leave_type='full' 是日常最常见
+    用法，单次扫平整段假期。
+
+    返回 {days_set: int, days_skipped_sunday: int}。
+    """
+    if leave_type not in ("full", "range", "left"):
+        raise ValueError(f"未知请假类型：{leave_type}")
+    f = date_cls.fromisoformat(from_date)
+    t = date_cls.fromisoformat(to_date)
+    if f > t:
+        raise ValueError(f"from {from_date} 不能晚于 to {to_date}")
+    days_set = 0
+    days_skipped_sunday = 0
+    cur = f
+    while cur <= t:
+        if cur.weekday() == 6:
+            days_skipped_sunday += 1
+        else:
+            set_leave(employee_id, cur.isoformat(), leave_type, start=start, end=end)
+            days_set += 1
+        cur = date_cls.fromordinal(cur.toordinal() + 1)
+    return {"days_set": days_set, "days_skipped_sunday": days_skipped_sunday}
+
+
 def set_day(employee_id: str, date: str, times: dict) -> None:
     month = date[:7]
     data = load_month(month)

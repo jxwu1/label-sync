@@ -392,6 +392,48 @@ class TestLeaves(unittest.TestCase):
         with self.assertRaises(ValueError):
             svc.set_leave("e001", "2026-04-15", "bogus")
 
+    def test_set_leave_range_writes_full_to_each_non_sunday(self):
+        # 2026-04-13 (一) 到 2026-04-19 (日)：7 天，含 1 周日 (4-19)
+        result = svc.set_leave_range("e001", "2026-04-13", "2026-04-19", "full")
+        self.assertEqual(result["days_set"], 6)
+        self.assertEqual(result["days_skipped_sunday"], 1)
+        leaves = svc.list_leaves("2026-04").get("e001", {})
+        # 6 天非周日全有 leave 记录
+        for d in (
+            "2026-04-13",
+            "2026-04-14",
+            "2026-04-15",
+            "2026-04-16",
+            "2026-04-17",
+            "2026-04-18",
+        ):
+            self.assertIn(d, leaves)
+            self.assertEqual(leaves[d]["type"], "full")
+        # 周日没写入
+        self.assertNotIn("2026-04-19", leaves)
+
+    def test_set_leave_range_invalid_type(self):
+        with self.assertRaises(ValueError, msg="leave_type"):
+            svc.set_leave_range("e001", "2026-04-01", "2026-04-03", "bogus")
+
+    def test_set_leave_range_from_after_to_raises(self):
+        with self.assertRaises(ValueError):
+            svc.set_leave_range("e001", "2026-04-10", "2026-04-05", "full")
+
+    def test_set_leave_range_single_day(self):
+        # from == to 也合法
+        result = svc.set_leave_range("e001", "2026-04-15", "2026-04-15", "full")
+        self.assertEqual(result["days_set"], 1)
+        self.assertEqual(result["days_skipped_sunday"], 0)
+
+    def test_set_leave_range_cross_month(self):
+        # 跨月：4-29 到 5-2 = 4 天，无周日
+        result = svc.set_leave_range("e001", "2026-04-29", "2026-05-02", "full")
+        self.assertEqual(result["days_set"], 4)
+        # leaves 写到对应的月份文件
+        self.assertIn("2026-04-29", svc.list_leaves("2026-04").get("e001", {}))
+        self.assertIn("2026-05-01", svc.list_leaves("2026-05").get("e001", {}))
+
     def test_leave_not_counted_as_absent(self):
         svc.set_leave("e001", "2026-04-01", "full")  # 周三，全天请假
         result = svc.compute_summary("e001", "2026-04")

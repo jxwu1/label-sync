@@ -38,6 +38,16 @@ class _LeaveUpsert(BaseModel):
     end: OptionalStr = ""
 
 
+class _LeaveRangeUpsert(BaseModel):
+    """区间请假：from_date / to_date / type / 时段。自动跳过周日。"""
+
+    from_date: NonEmptyStr
+    to_date: NonEmptyStr
+    type: Literal["full", "range", "left"]
+    start: OptionalStr = ""
+    end: OptionalStr = ""
+
+
 @bp.get("/employees")
 def list_employees():
     return jsonify({"ok": True, "employees": attendance_service.list_employees()})
@@ -158,6 +168,28 @@ def clear_leave(employee_id: str, date: str):
     attendance_service.clear_leave(employee_id, date)
     summary = attendance_service.compute_summary(employee_id, date[:7])
     return jsonify({"ok": True, **summary})
+
+
+@bp.post("/leave-range/<employee_id>")
+def set_leave_range(employee_id: str):
+    """区间请假：from_date 到 to_date 的每天写一条 leave，自动跳过周日。"""
+    body, err = parse_body(_LeaveRangeUpsert)
+    if err:
+        return err
+    try:
+        result = attendance_service.set_leave_range(
+            employee_id,
+            body.from_date,
+            body.to_date,
+            body.type,
+            start=body.start,
+            end=body.end,
+        )
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
+    # 区间可能跨月，返回 from 月份的 summary 即可（前端拿到刷新当前月就行）
+    summary = attendance_service.compute_summary(employee_id, body.from_date[:7])
+    return jsonify({"ok": True, **result, **summary})
 
 
 @bp.get("/pdf/<month>")
