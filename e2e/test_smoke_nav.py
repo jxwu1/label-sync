@@ -36,6 +36,7 @@ _NAV_PAGES = [
     ("data_quality", "pageDataQuality"),
     ("inventory", "pageInventory"),
     ("foreign_customers", "pageForeignCustomers"),
+    ("sales_analytics", "pageSalesAnalytics"),
 ]
 
 
@@ -96,4 +97,66 @@ def test_data_quality_page_renders(live_server, page_with_console) -> None:
     # 沙箱里没数据，section 标题或骨架仍应渲染
     page.wait_for_timeout(_ALPINE_SETTLE_MS)
 
+    assert page.console_errors == [], f"console errors: {page.console_errors}"
+
+
+def test_sales_analytics_page_renders(live_server, page_with_console) -> None:
+    """PR 5.2 销售分析顶级 tab 切过去 + 筛选/排序控件挂上 + 不报错。"""
+    page = page_with_console
+    page.goto(live_server + "/")
+    _wait_alpine_ready(page)
+
+    page.evaluate("Alpine.store('nav').switch('sales_analytics')")
+    page.locator("#pageSalesAnalytics.active").wait_for(state="attached", timeout=2000)
+
+    # 4 组筛选 chip 都在
+    chip_groups = page.evaluate(
+        "Array.from(new Set([...document.querySelectorAll('.sa-chip')].map(b => b.dataset.filter)))"
+    )
+    assert set(chip_groups) == {"auto", "manual", "cust", "warn"}
+
+    # 排序下拉 + 表格骨架在
+    assert page.locator("#saSort").count() == 1
+    assert page.locator("#saTbody").count() == 1
+
+    page.wait_for_timeout(_ALPINE_SETTLE_MS)
+    assert page.console_errors == [], f"console errors: {page.console_errors}"
+
+
+def test_foreign_customers_page_renders(live_server, page_with_console) -> None:
+    """PR 4.4 老外客人页切过去 + 月份选择/CRUD 控件挂上 + 不报错。"""
+    page = page_with_console
+    page.goto(live_server + "/")
+    _wait_alpine_ready(page)
+
+    page.evaluate("Alpine.store('nav').switch('foreign_customers')")
+    page.locator("#pageForeignCustomers.active").wait_for(state="attached", timeout=2000)
+
+    # 关键控件在
+    assert page.locator("#fcMonth").count() == 1
+    assert page.locator("#fcAddBtn").count() == 1
+    assert page.locator("#fcRecordsBody").count() == 1
+
+    page.wait_for_timeout(_ALPINE_SETTLE_MS)
+    assert page.console_errors == [], f"console errors: {page.console_errors}"
+
+
+def test_history_analytics_panels_present(live_server, page_with_console) -> None:
+    """PR 5.2a/d 货号详情新加的 analytics + timeline chart panel DOM 在。
+
+    沙箱无数据，不真发起搜索；只验证 panel 容器和 chart canvas 已注入。
+    """
+    page = page_with_console
+    page.goto(live_server + "/")
+    _wait_alpine_ready(page)
+
+    page.evaluate("Alpine.store('nav').switch('history')")
+    page.locator("#pageHistory.active").wait_for(state="attached", timeout=2000)
+
+    # 两个 panel 默认 hidden 但 DOM 已存在
+    assert page.locator("#historyAnalyticsPanel").count() == 1
+    assert page.locator("#historyTimelineChartPanel").count() == 1
+    assert page.locator("#historyTimelineChart").count() == 1
+
+    page.wait_for_timeout(_ALPINE_SETTLE_MS)
     assert page.console_errors == [], f"console errors: {page.console_errors}"
