@@ -252,7 +252,27 @@ def _upsert(
     extra: dict,
     source: str,
     log_changes: bool = True,
+    *,
+    is_active: int | None = None,
+    product_name_zh: str | None = None,
+    product_name_local: str | None = None,
+    erp_category_raw: str | None = None,
+    erp_category_code: str | None = None,
+    manual_grade: int | None = None,
+    stock_price: float | None = None,
+    sale_price: float | None = None,
 ) -> None:
+    """所有 stockpile 写入路径的统一入口。
+
+    历史调用方（标签流程 / 月度 import）只传前 6 个位置参数 + log_changes。
+    is_active 默认 None → 保持现有行为（即遇到的都标 _ACTIVE，是为了兼容老语义）。
+    新调用方（product master）传 kwargs 写入名字 / 分类 / 价格等扩展字段。
+
+    每个 kwarg 默认 None = "不更新此字段"。Truthy 值或显式 0 才更新。
+    """
+    # 默认 is_active 行为：历史语义是"扫到/导到的都算 active"，保留这个语义
+    effective_is_active = _ACTIVE if is_active is None else is_active
+
     existing = session.execute(
         select(Stockpile).where(Stockpile.product_barcode == barcode)
     ).scalar_one_or_none()
@@ -261,12 +281,7 @@ def _upsert(
         if log_changes:
             if existing.product_model != model:
                 _log_change(
-                    session,
-                    barcode,
-                    "product_model",
-                    existing.product_model,
-                    model,
-                    "update",
+                    session, barcode, "product_model", existing.product_model, model, "update"
                 )
             if existing.stockpile_location != location:
                 _log_change(
@@ -277,21 +292,58 @@ def _upsert(
                     location,
                     "update",
                 )
-            if existing.is_active != _ACTIVE:
+            if existing.is_active != effective_is_active:
+                change_type = "reactivate" if effective_is_active == _ACTIVE else "deactivate"
                 _log_change(
                     session,
                     barcode,
                     "is_active",
                     str(existing.is_active),
-                    str(_ACTIVE),
-                    "reactivate",
+                    str(effective_is_active),
+                    change_type,
                 )
+            # 扩展字段的变更记录（仅在显式传入且不同时记）
+            for field_name, new_val in (
+                ("product_name_zh", product_name_zh),
+                ("product_name_local", product_name_local),
+                ("erp_category_code", erp_category_code),
+                ("stock_price", stock_price),
+                ("sale_price", sale_price),
+                ("manual_grade", manual_grade),
+            ):
+                if new_val is None:
+                    continue
+                old_val = getattr(existing, field_name)
+                if old_val != new_val:
+                    _log_change(
+                        session,
+                        barcode,
+                        field_name,
+                        None if old_val is None else str(old_val),
+                        str(new_val),
+                        "update",
+                    )
         existing.product_model = model
         existing.stockpile_location = location
-        existing.is_active = _ACTIVE
+        existing.is_active = effective_is_active
         existing.source = source
         existing.extra = extra_json
         existing.updated_at = func.datetime("now", "localtime")
+        # 扩展字段：仅当传入时更新（None = 保留旧值）
+        if product_name_zh is not None:
+            existing.product_name_zh = product_name_zh
+        if product_name_local is not None:
+            existing.product_name_local = product_name_local
+        if erp_category_raw is not None:
+            existing.erp_category_raw = erp_category_raw
+        if erp_category_code is not None:
+            existing.erp_category_code = erp_category_code
+        if manual_grade is not None:
+            existing.manual_grade = manual_grade
+        if stock_price is not None:
+            existing.stock_price = stock_price
+        if sale_price is not None:
+            existing.sale_price = sale_price
         _sync_locations(session, existing, location)
         return
 
@@ -299,9 +351,16 @@ def _upsert(
         product_barcode=barcode,
         product_model=model,
         stockpile_location=location,
-        is_active=_ACTIVE,
+        is_active=effective_is_active,
         extra=extra_json,
         source=source,
+        product_name_zh=product_name_zh,
+        product_name_local=product_name_local,
+        erp_category_raw=erp_category_raw,
+        erp_category_code=erp_category_code,
+        manual_grade=manual_grade,
+        stock_price=stock_price,
+        sale_price=sale_price,
     )
     session.add(new_obj)
     _sync_locations(session, new_obj, location)

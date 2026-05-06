@@ -89,6 +89,9 @@ class Stockpile(Base):
     # 系统自动判定的分类（每天后台重算）
     auto_category: Mapped[str | None] = mapped_column(Text)
     auto_category_computed_at: Mapped[str | None] = mapped_column(Text)
+    # 产品总档（product.csv）的档案价格 — 与 inventory_events 的实际成交价不同
+    stock_price: Mapped[float | None] = mapped_column()  # 进价档案
+    sale_price: Mapped[float | None] = mapped_column()  # 售价档案
 
     locations: Mapped[list[StockpileLocation]] = relationship(
         "StockpileLocation",

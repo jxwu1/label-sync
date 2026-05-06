@@ -143,6 +143,49 @@ class ImportTests(_BaseRouteTest):
         self.assertEqual(rv.status_code, 400)
 
 
+class ProductMasterImportRouteTests(_BaseRouteTest):
+    def _make_csv(self, rows: list[dict]) -> bytes:
+        import pandas as pd
+
+        df = pd.DataFrame(rows)
+        return df.to_csv(index=False).encode("utf-8-sig")
+
+    def test_import_product_master_creates_stockpile_and_supplier(self) -> None:
+        csv = self._make_csv(
+            [
+                {
+                    "product_barcode": "5828079113422",
+                    "product_model": "11342",
+                    "product_description": "测试鱼竿",
+                    "local_description": "ΚΑΛΑΜΙ",
+                    "stockpile_location": "A14-12-01",
+                    "product_kind_id": "FL004-01",
+                    "product_kind_name": "渔具鱼竿",
+                    "valid_grade": 3,
+                    "stock_price": 8.5,
+                    "sale_price": 15.0,
+                    "provider_id": "GR0001",
+                    "provider_name": "FORMOPLAST",
+                    "web_status": "Y",
+                }
+            ]
+        )
+        rv = self.client.post(
+            "/inventory/import/product-master",
+            data={"file": (io.BytesIO(csv), "product.csv")},
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(rv.status_code, 200)
+        body = rv.get_json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["rows_imported"], 1)
+        self.assertEqual(body["new_suppliers"], 1)
+
+    def test_import_no_file_400(self) -> None:
+        rv = self.client.post("/inventory/import/product-master")
+        self.assertEqual(rv.status_code, 400)
+
+
 class StatsTests(_BaseRouteTest):
     def test_stats_empty(self) -> None:
         rv = self.client.get("/inventory/stats")

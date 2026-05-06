@@ -15,6 +15,7 @@
 
 import os
 
+import pandas as pd
 from flask import Blueprint, jsonify, request
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
@@ -28,6 +29,10 @@ from inventory_importer import (
 )
 from models import Customer, ImportProfile, InventoryEvent, Stockpile, Supplier
 from path_safety import safe_filename
+from product_master_importer import (
+    DEFAULT_PRODUCT_MAPPING,
+    import_product_master,
+)
 from route_helpers import parse_body
 from state import INPUT_DIR
 from xls_html_parser import XlsHtmlParseError, parse_xls_html
@@ -205,6 +210,61 @@ def do_import(file_type: str) -> tuple:
             "new_customers": result.new_customers,
             "new_suppliers": result.new_suppliers,
             "new_skus": result.new_skus,
+            "skipped_reasons": result.skipped_reasons,
+        }
+    )
+
+
+@bp.post("/import/product-master")
+def do_import_product_master() -> tuple:
+    """上传 product.csv 导入产品总档（写 stockpile + suppliers 主档）。"""
+    f = request.files.get("file")
+    if not f or not f.filename:
+        return jsonify({"ok": False, "msg": "没有收到文件"}), 400
+    fn = safe_filename(secure_filename(f.filename) or "product.csv")
+    p = INPUT_DIR / fn
+    f.save(p)
+
+    try:
+        # 强制 string dtype 避免 barcode/model 数字精度损失
+        df = pd.read_csv(
+            p,
+            encoding="utf-8-sig",
+            dtype={
+                "product_barcode": str,
+                "product_model": str,
+                "product_kind_id": str,
+                "provider_id": str,
+            },
+            low_memory=False,
+        )
+    except Exception as exc:
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+        return jsonify({"ok": False, "msg": f"CSV 解析失败：{exc}"}), 400
+
+    try:
+        with stockpile_db._session() as session:
+            result = import_product_master(df, DEFAULT_PRODUCT_MAPPING, session)
+            session.commit()
+    except Exception as exc:
+        return jsonify({"ok": False, "msg": f"导入失败：{exc}"}), 500
+    finally:
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+
+    return jsonify(
+        {
+            "ok": True,
+            "rows_imported": result.rows_imported,
+            "rows_updated": result.rows_updated,
+            "rows_skipped_missing_barcode": result.rows_skipped_missing_barcode,
+            "rows_skipped_duplicate_barcode": result.rows_skipped_duplicate_barcode,
+            "new_suppliers": result.new_suppliers,
             "skipped_reasons": result.skipped_reasons,
         }
     )

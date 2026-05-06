@@ -195,12 +195,55 @@ async function refreshStats() {
   }
 }
 
+async function doImportProductMaster() {
+  const fileInput = $("invProductFile");
+  const f = fileInput && fileInput.files[0];
+  if (!f) {
+    setProductHint("请先选择 product.csv 文件", true);
+    return;
+  }
+  setProductHint("正在导入产品总档（4 万行约 30-60 秒）...");
+  const fd = new FormData();
+  fd.append("file", f);
+  try {
+    const resp = await fetch("/inventory/import/product-master", {
+      method: "POST",
+      body: fd,
+    });
+    const data = await resp.json();
+    if (!data.ok) {
+      setProductHint(`导入失败：${data.msg || "未知错误"}`, true);
+      return;
+    }
+    const reasonsHtml = (data.skipped_reasons || [])
+      .map((r) => `<li>${escapeHtml(r)}</li>`)
+      .join("");
+    setProductHint(
+      `产品总档导入完成：新建 SKU ${data.rows_imported} / 更新 ${data.rows_updated} / 跳过缺条码 ${data.rows_skipped_missing_barcode} / 跳过同 csv 重复 ${data.rows_skipped_duplicate_barcode} / 新供应商 ${data.new_suppliers}` +
+      (reasonsHtml ? ` <details><summary>跳过原因</summary><ul>${reasonsHtml}</ul></details>` : "")
+    );
+    refreshStats();
+  } catch (err) {
+    setProductHint(`网络错误：${err.message}`, true);
+  }
+}
+
+function setProductHint(msg, isError = false) {
+  const el = $("invProductHint");
+  if (!el) return;
+  el.innerHTML = msg;
+  el.style.color = isError ? "#dc3545" : "";
+}
+
 function init() {
   if (!$("invFile")) return; // 不在该页
   $("invPreview").addEventListener("click", doPreview);
   $("invSaveMapping").addEventListener("click", saveMapping);
   $("invImport").addEventListener("click", doImport);
   $("invStatsRefresh").addEventListener("click", refreshStats);
+  if ($("invProductImport")) {
+    $("invProductImport").addEventListener("click", doImportProductMaster);
+  }
 }
 
 init();
