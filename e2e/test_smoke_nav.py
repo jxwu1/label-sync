@@ -35,6 +35,7 @@ _NAV_PAGES = [
     ("history", "pageHistory"),
     ("data_quality", "pageDataQuality"),
     ("inventory", "pageInventory"),
+    ("foreign_customers", "pageForeignCustomers"),
 ]
 
 

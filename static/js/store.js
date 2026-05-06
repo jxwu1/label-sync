@@ -105,6 +105,7 @@ document.addEventListener("alpine:init", () => {
       { id: "history",      label: "货号历史", icon: "📜" },
       { id: "data_quality", label: "数据质量", icon: "🔍" },
       { id: "inventory",    label: "进销存导入", icon: "📥" },
+      { id: "foreign_customers", label: "老外客人", icon: "🌍" },
     ],
     switch(id) {
       this.current = id;

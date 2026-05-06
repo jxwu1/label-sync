@@ -1,0 +1,164 @@
+/* 老外客人月度记录 page —— 与 pageHistory / pageAttendance 同款约定：
+   default .page.active 用 grid 不能正常滚，改 block + 显式 height + overflow:auto */
+#pageForeignCustomers.active {
+  display: block;
+  overflow: auto;
+  height: calc(100vh - 122px);
+}
+
+#pageForeignCustomers .panel + .panel {
+  margin-top: var(--sp-4);
+}
+
+.fc-actions {
+  display: inline-flex;
+  gap: var(--sp-3);
+  align-items: center;
+  margin-left: auto;
+}
+
+.fc-actions label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-md);
+  color: var(--c-text-muted);
+}
+
+.fc-actions .btn {
+  width: auto;
+  height: 32px;
+  padding: 0 var(--sp-3);
+  margin-bottom: 0;
+}
+
+.fc-inp {
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  background: var(--c-bg);
+  color: var(--c-text);
+  font: inherit;
+  font-size: var(--fs-base);
+}
+
+textarea.fc-inp {
+  height: auto;
+  padding: 6px 8px;
+}
+
+select.fc-inp,
+input.fc-inp {
+  min-width: 140px;
+}
+
+/* === 月度汇总 === */
+.fc-summary {
+  font-size: var(--fs-base);
+}
+
+.fc-stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--sp-3);
+}
+
+.fc-stat {
+  background: var(--c-surface-deep);
+  padding: 12px 16px;
+  border-radius: var(--r-md);
+}
+
+.fc-stat-k {
+  font-size: var(--fs-md);
+  color: var(--c-text-muted);
+  margin-bottom: 4px;
+}
+
+.fc-stat-v {
+  font-size: var(--fs-lg, 18px);
+  font-weight: 600;
+  color: var(--c-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.fc-stat-v.fc-paid { color: #28a745; }
+.fc-stat-v.fc-unpaid { color: #dc3545; }
+
+/* === 列表表格 === */
+.fc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-base);
+}
+
+.fc-table th,
+.fc-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--c-border);
+  vertical-align: middle;
+}
+
+.fc-table thead th {
+  font-weight: 600;
+  color: var(--c-text-muted);
+  background: var(--c-surface-deep);
+  position: sticky;
+  top: 0;
+}
+
+.fc-table .fc-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.fc-table .fc-notes {
+  max-width: 280px;
+  white-space: pre-wrap;
+  color: var(--c-text-dim);
+  font-size: var(--fs-md);
+}
+
+.fc-table tbody tr:hover td { background: var(--c-accent-soft); }
+.fc-table tr.fc-row-paid td { background: rgba(40,167,69,.04); }
+.fc-table tr.fc-row-unpaid td { background: rgba(220,53,69,.04); }
+
+.fc-table .fc-ops {
+  display: flex;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.fc-table .empty {
+  text-align: center;
+  color: var(--c-text-muted);
+  padding: var(--sp-4);
+}
+
+.fc-count {
+  color: var(--c-text-muted);
+  font-weight: normal;
+  font-size: var(--fs-md);
+}
+
+/* === Modal === */
+.fc-modal {
+  min-width: 420px;
+  max-width: 560px;
+}
+
+.fc-stack {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.fc-stack label {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  align-items: center;
+  gap: var(--sp-3);
+  color: var(--c-text-muted);
+  font-size: var(--fs-md);
+}
