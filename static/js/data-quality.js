@@ -128,6 +128,27 @@ function renderUnknown(section) {
   `;
 }
 
+function renderEmptyLocations(section) {
+  if (section.samples.length === 0) {
+    $("dqEmptyLoc").innerHTML = '<div class="dq-empty">无</div>';
+    return;
+  }
+  const rows = section.samples.map((s) => `
+    <tr>
+      <td>${escapeHtml(s.barcode)}</td>
+      <td>${escapeHtml(s.model || "")}</td>
+      <td>${escapeHtml(s.product_name || "")}</td>
+      <td>${escapeHtml(s.updated_at || "")}</td>
+    </tr>
+  `).join("");
+  $("dqEmptyLoc").innerHTML = `
+    <table class="dq-table">
+      <thead><tr><th>条码</th><th>型号</th><th>品名</th><th>最近更新</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
 async function refresh() {
   const btn = $("dqRefresh");
   btn.disabled = true;
@@ -161,6 +182,10 @@ async function refresh() {
     showCount("dqDuplicateCount", data.duplicate_segments.count);
     renderDuplicate(data.duplicate_segments);
     $("dqDuplicatePanel").hidden = false;
+
+    showCount("dqEmptyLocCount", data.empty_locations.count);
+    renderEmptyLocations(data.empty_locations);
+    $("dqEmptyLocPanel").hidden = false;
   } catch (e) {
     $("dqHint").textContent = "加载异常：" + e.message;
   } finally {

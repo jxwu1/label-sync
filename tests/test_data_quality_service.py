@@ -224,6 +224,51 @@ class DataQualityTests(unittest.TestCase):
         self.assertEqual(by_barcode["B1"]["raw_location"], "B06-20-02/XB07-12/XB07-12")
         self.assertEqual(by_barcode["B2"]["duplicates"], ["XA09-04"])
 
+    def test_empty_locations_lists_active_skus_with_blank_location(self) -> None:
+        self._import(
+            [
+                {"product_barcode": "B1", "product_model": "M1", "stockpile_location": ""},
+                {"product_barcode": "B2", "product_model": "M2", "stockpile_location": "A1"},
+                {"product_barcode": "B3", "product_model": "M3", "stockpile_location": ""},
+            ]
+        )
+        report = data_quality_service.build_report()
+        self.assertEqual(report["empty_locations"]["count"], 2)
+        barcodes = {s["barcode"] for s in report["empty_locations"]["samples"]}
+        self.assertEqual(barcodes, {"B1", "B3"})
+
+    def test_empty_locations_excludes_inactive_skus(self) -> None:
+        """已下架的 SKU 即使位置空也不算异常（下架本来就该没位置）。"""
+        self._import(
+            [
+                {"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A1"},
+            ]
+        )
+        # 模拟 import 后下架（apply_export_updates 不含 B1 → B1 变成 inactive）
+        stockpile_db.apply_export_updates(pd.DataFrame([]))
+        # 现在 B1 是 inactive 且 location 不空，但下面再补一个 active 空 location
+        self._import(
+            [
+                {"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A1"},
+                {"product_barcode": "B2", "product_model": "M2", "stockpile_location": ""},
+            ]
+        )
+        report = data_quality_service.build_report()
+        # 只有 B2 算（active + 空）
+        self.assertEqual(report["empty_locations"]["count"], 1)
+        self.assertEqual(report["empty_locations"]["samples"][0]["barcode"], "B2")
+
+    def test_empty_locations_zero_when_all_active_have_locations(self) -> None:
+        self._import(
+            [
+                {"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A1"},
+                {"product_barcode": "B2", "product_model": "M2", "stockpile_location": "A2"},
+            ]
+        )
+        report = data_quality_service.build_report()
+        self.assertEqual(report["empty_locations"]["count"], 0)
+        self.assertEqual(report["empty_locations"]["samples"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -24,6 +24,7 @@ _FLIPPER_TOP_N = 50  # 最多返回 Top N
 _WHITESPACE_TOP_N = 100
 _MULTI_SAME_KIND_TOP_N = 200
 _DUPLICATE_SEGMENTS_TOP_N = 100
+_EMPTY_LOCATION_TOP_N = 200
 
 
 def _multi_same_kind(session) -> dict:
@@ -237,8 +238,47 @@ def build_whitespace_fix_dataframe() -> pd.DataFrame:
     return build_output_dataframe(template_df, results)
 
 
+def _empty_locations(session) -> dict:
+    """active SKU 但 stockpile_location 为空字符串或 NULL。
+
+    业务含义：货还在系统里活跃，但没有对应的库位记录。可能场景：
+    - 新进货号忘了贴位
+    - 标签扫描时位置漏录
+    - 老系统数据迁移残留
+    inactive SKU（已下架）有空 location 是正常的，不计入。
+    """
+    base_filter = (Stockpile.is_active == 1) & (
+        (Stockpile.stockpile_location == "") | Stockpile.stockpile_location.is_(None)
+    )
+    rows = session.execute(
+        select(
+            Stockpile.product_barcode,
+            Stockpile.product_model,
+            Stockpile.product_name_zh,
+            Stockpile.updated_at,
+        )
+        .where(base_filter)
+        .order_by(Stockpile.updated_at.desc())
+        .limit(_EMPTY_LOCATION_TOP_N)
+    ).all()
+    samples = [
+        {
+            "barcode": r[0],
+            "model": r[1] or "",
+            "product_name": r[2] or "",
+            "updated_at": r[3] or "",
+        }
+        for r in rows
+    ]
+    total = (
+        session.execute(select(func.count()).select_from(Stockpile).where(base_filter)).scalar()
+        or 0
+    )
+    return {"count": total, "samples": samples}
+
+
 def build_report() -> dict:
-    """顶层入口：返回 5 类异常的汇总。供 routes_data_quality jsonify。"""
+    """顶层入口：返回 6 类异常的汇总。供 routes_data_quality jsonify。"""
     with stockpile_db._session() as session:
         return {
             "multi_same_kind": _multi_same_kind(session),
@@ -246,4 +286,5 @@ def build_report() -> dict:
             "whitespace_anomalies": _whitespace_anomalies(session),
             "unknown_prefix": _unknown_prefix(session),
             "duplicate_segments": _duplicate_segments(session),
+            "empty_locations": _empty_locations(session),
         }

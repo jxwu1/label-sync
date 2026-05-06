@@ -256,6 +256,14 @@
           </div>
           <div class="panel-bd" id="dqDuplicate"></div>
         </div>
+        <div class="panel dq-section" id="dqEmptyLocPanel" hidden>
+          <div class="panel-hd">空库位（active 但无位置）<span class="dq-count" id="dqEmptyLocCount"></span>
+            <div class="dq-actions">
+              <button class="pur-btn-copy" data-copy-section="empty_locations">一键复制</button>
+            </div>
+          </div>
+          <div class="panel-bd" id="dqEmptyLoc"></div>
+        </div>
       </div>
       <div class="page" id="pageForeignCustomers" x-data :class="$store.nav.current === 'foreign_customers' ? 'active' : ''">
         <div class="panel">
