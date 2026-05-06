@@ -92,6 +92,13 @@ def find_record(query: str) -> dict | None:
                 Stockpile.source,
                 Stockpile.created_at,
                 Stockpile.updated_at,
+                Stockpile.product_name_zh,
+                Stockpile.product_name_local,
+                Stockpile.erp_category_raw,
+                Stockpile.erp_category_code,
+                Stockpile.manual_grade,
+                Stockpile.stock_price,
+                Stockpile.sale_price,
             )
             .where(or_(Stockpile.product_barcode == q, Stockpile.product_model == q))
             .limit(1)
@@ -106,6 +113,13 @@ def find_record(query: str) -> dict | None:
         "source": row[4],
         "created_at": row[5],
         "updated_at": row[6],
+        "product_name_zh": row[7],
+        "product_name_local": row[8],
+        "erp_category_raw": row[9],
+        "erp_category_code": row[10],
+        "manual_grade": row[11],
+        "stock_price": row[12],
+        "sale_price": row[13],
     }
 
 

@@ -88,13 +88,32 @@ function renderResult(data) {
   const unknownRow = unknown
     ? `<div><span class="k">其他位置</span><span class="v" style="color:#cc6600">${unknown}</span></div>`
     : "";
+  // 新加字段（来自 product.csv 主档）—— 有值才显示，避免老数据下空白行
+  // 注意：分类不展示（roadmap 决策：源 ERP 分类只参考不照抄）
+  // 进价不展示（源数据 CNY/EUR 混，无币种字段，会误导）
+  const nameZhRow = c.product_name_zh
+    ? `<div><span class="k">品名</span><span class="v">${escapeHtml(c.product_name_zh)}</span></div>`
+    : "";
+  const nameLocalRow = c.product_name_local
+    ? `<div><span class="k">本地品名</span><span class="v">${escapeHtml(c.product_name_local)}</span></div>`
+    : "";
+  const gradeRow = c.manual_grade !== null && c.manual_grade !== undefined
+    ? `<div><span class="k">等级</span><span class="v">${escapeHtml(String(c.manual_grade))}</span></div>`
+    : "";
+  const priceRow = c.sale_price !== null && c.sale_price !== undefined
+    ? `<div><span class="k">售价</span><span class="v">€${Number(c.sale_price).toFixed(2)}</span></div>`
+    : "";
   $("historyCurrent").innerHTML = `
     <div class="kv-grid">
       <div><span class="k">型号</span><span class="v">${escapeHtml(c.model)}</span></div>
       <div><span class="k">条码</span><span class="v">${escapeHtml(c.barcode)}</span></div>
+      ${nameZhRow}
+      ${nameLocalRow}
       <div><span class="k">店面位置</span><span class="v">${stores}</span></div>
       <div><span class="k">仓库位置</span><span class="v">${warehouses}</span></div>
       ${unknownRow}
+      ${priceRow}
+      ${gradeRow}
       <div><span class="k">状态</span><span class="v">${c.is_active ? "在架" : "下架"}</span></div>
       <div><span class="k">来源</span><span class="v">${escapeHtml(SOURCE_CN[c.source] || c.source)}</span></div>
       <div><span class="k">最后更新</span><span class="v">${escapeHtml(c.updated_at)}</span></div>
