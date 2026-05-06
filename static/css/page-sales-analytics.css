@@ -52,9 +52,9 @@
 }
 
 .sa-chip--active {
-  background: #586e75;
-  color: #fdf6e3;
-  border-color: #586e75;
+  background: var(--ink-1);
+  color: var(--bg-0);
+  border-color: var(--ink-1);
 }
 
 .sa-sort {
@@ -85,7 +85,7 @@
 }
 
 .sa-table th {
-  background: var(--color-surface-soft, #f6f1e7);
+  background: var(--color-surface-soft, var(--bg-2));
   font-weight: 600;
   position: sticky;
   top: 0;
@@ -101,7 +101,7 @@
 }
 
 .sa-row:hover {
-  background: var(--color-surface-hover, #faf6ec);
+  background: var(--color-surface-hover, var(--bg-3));
 }
 
 .sa-bc {
@@ -115,9 +115,9 @@
 }
 
 .sa-up {
-  color: #2d4a1d;
+  color: var(--accent);
 }
 
 .sa-down {
-  color: #6a2222;
+  color: var(--error);
 }

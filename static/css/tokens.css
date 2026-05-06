@@ -1,61 +1,164 @@
+/* ============================================================
+ * DataOps tokens — 暗色专业数据终端 (默认 dark) + 浅色 paper 备选
+ * ============================================================ */
+
 :root {
-  /* 表面（Solarized Light · 长时间阅读耐看） */
-  --c-bg: #fdf6e3;            /* base3 — 页面底色，最浅 */
-  --c-surface: #eee8d5;       /* base2 — 卡片，比页面略深 */
-  --c-surface-elev: #e8e2cc;  /* 卡片内面板/elev */
-  --c-surface-deep: #d8d2bd;  /* 选中/最深块 */
-  --c-border: #93a1a1;        /* base1 — 主边框 */
-  --c-border-subtle: #c4c0aa; /* 次边框 */
+  /* ====== Design tokens (default = dark) ====== */
 
-  /* 文字（Solarized 低对比深灰青，非纯黑） */
-  --c-text: #586e75;          /* base01 — 主文字 */
-  --c-text-muted: #657b83;    /* base00 */
-  --c-text-dim: #839496;      /* base0 */
-  --c-text-faint: #93a1a1;    /* base1 */
-  --c-text-mute2: #073642;    /* base02 — 标题/强调深墨 */
+  /* surfaces — 越大越亮 */
+  --bg-0: #0a0d12;       /* app 底色 */
+  --bg-1: #0f1319;       /* header / 子条 / panel 外壳 */
+  --bg-2: #151a23;       /* panel 内表面 */
+  --bg-3: #1c222d;       /* control / 输入 / hover 起 */
+  --bg-4: #232a37;       /* 强 hover / active */
+  --line: #2a3140;       /* 硬分隔线 */
+  --line-soft: #1f2530;  /* 软分隔 */
 
-  /* 强调（base02 深墨为主） */
-  --c-accent: #073642;        /* base02 */
-  --c-accent-hover: #002b36;  /* base03 */
-  --c-accent-soft: #d8d2bd;   /* 浅块/hover */
-  --c-accent-fg: #073642;
+  /* ink — 越小越亮 */
+  --ink-0: #e6ebf2;      /* 主文字 */
+  --ink-1: #b3bcc9;      /* 次文字 */
+  --ink-2: #7a8494;      /* 弱文字 */
+  --ink-3: #4d5666;      /* 标签 / 占位 */
 
-  /* 状态（Solarized 标准状态色） */
-  --c-info: #268bd2;          /* blue */
-  --c-info-bg: #d4e3eb;
-  --c-success: #859900;       /* green */
-  --c-success-bg: #e3e7c4;
-  --c-warn: #b58900;          /* yellow */
-  --c-warn-strong: #cb4b16;   /* orange */
-  --c-warn-bg: #f4eccb;
-  --c-warn-bg-strong: #ecdcb6;
-  --c-danger: #dc322f;        /* red */
-  --c-danger-bg: #f4d4d2;
-  --c-danger-border: #cb4b16;
+  /* accent — 终端绿 */
+  --accent: #00ff95;
+  --accent-dim: #00b86d;
+  --accent-glow: rgba(0, 255, 149, .18);
 
-  /* 代码色 */
-  --c-code: #cb4b16;
-  --c-loc: #268bd2;
+  /* status */
+  --warn: #ffb627;
+  --warn-dim: #b87f10;
+  --error: #ff3b6b;
+  --error-dim: #b8264a;
+  --info: #4ea3ff;
+  --info-dim: #1f6fc9;
 
-  /* 间距（保持） */
-  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px;
-  --sp-4: 16px; --sp-5: 20px; --sp-6: 24px;
+  /* fonts */
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'Cascadia Code', Consolas, Menlo, monospace;
+  --sans: 'Inter', system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
 
-  /* 圆角（保持） */
-  --r-sm: 6px; --r-md: 8px; --r-lg: 10px; --r-xl: 14px; --r-pill: 999px;
+  /* spacing / sizing */
+  --pad: 16px;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
 
-  /* 字号（保持） */
-  --fs-xs: 10px; --fs-sm: 11px; --fs-md: 12px; --fs-base: 13px; --fs-lg: 15px;
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 10px;
+  --r-pill: 999px;
 
-  /* 字体（保持） */
-  --ff-sans: "Inter", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
-  --ff-mono: "JetBrains Mono", "Cascadia Code", "Consolas", ui-monospace, monospace;
+  /* typography */
+  --fs-xs: 10px;
+  --fs-sm: 11px;
+  --fs-md: 12px;
+  --fs-base: 13px;
+  --fs-lg: 15px;
 
-  /* 阴影（浅底用更轻的阴影） */
-  --sh-fab: 0 4px 14px rgba(7,54,66,.10);
-  --sh-overlay: 0 12px 36px rgba(7,54,66,.16);
+  /* shadow (dark) */
+  --sh-fab: 0 4px 14px rgba(0, 0, 0, .55);
+  --sh-overlay: 0 12px 36px rgba(0, 0, 0, .65);
 
-  /* 动效（保持） */
+  /* timing */
   --t-fast: .12s ease;
   --t-base: .2s ease;
+
+  /* ============================================================
+   * Legacy 兼容：原 --c-* 变量映射到新 token，让现有 page-*.css
+   * 在没逐页改的情况下也能跑（文字会自动反白，UI 大多对）。
+   * 各页 PR-FE-1 后逐步直接用新 token。
+   * ============================================================ */
+  --c-bg: var(--bg-0);
+  --c-surface: var(--bg-2);
+  --c-surface-elev: var(--bg-3);
+  --c-surface-deep: var(--bg-4);
+  --c-border: var(--line);
+  --c-border-subtle: var(--line-soft);
+
+  --c-text: var(--ink-0);
+  --c-text-muted: var(--ink-1);
+  --c-text-dim: var(--ink-2);
+  --c-text-faint: var(--ink-3);
+  --c-text-mute2: var(--ink-0);
+
+  --c-accent: var(--accent);
+  --c-accent-hover: var(--accent-dim);
+  --c-accent-soft: var(--bg-3);
+  --c-accent-fg: var(--bg-0);
+
+  --c-info: var(--info);
+  --c-info-bg: rgba(78, 163, 255, .08);
+  --c-success: var(--accent);
+  --c-success-bg: rgba(0, 255, 149, .06);
+  --c-warn: var(--warn);
+  --c-warn-strong: var(--warn-dim);
+  --c-warn-bg: rgba(255, 182, 39, .08);
+  --c-warn-bg-strong: rgba(255, 182, 39, .14);
+  --c-danger: var(--error);
+  --c-danger-bg: rgba(255, 59, 107, .08);
+  --c-danger-border: var(--error-dim);
+  --c-code: var(--warn);
+  --c-loc: var(--info);
+
+  --ff-sans: var(--sans);
+  --ff-mono: var(--mono);
+
+  /* legacy 软底色兜底（page-history / data-quality 在用） */
+  --color-surface-soft: var(--bg-2);
+  --color-surface-hover: var(--bg-3);
+
+  color-scheme: dark;
+}
+
+/* ============================================================
+ * 浅色 paper 主题 — 头部 ☀/☾ 钮切到这个
+ * ============================================================ */
+
+body[data-theme="light"] {
+  --bg-0: #f5f3ee;
+  --bg-1: #ebe7dd;
+  --bg-2: #e1dccc;
+  --bg-3: #d6cfba;
+  --bg-4: #cabf9f;
+  --line: #b8aa82;
+  --line-soft: #cdc1a3;
+
+  --ink-0: #1f1a14;
+  --ink-1: #3f372c;
+  --ink-2: #6b5f47;
+  --ink-3: #8c8068;
+
+  --accent: #1a7a4c;
+  --accent-dim: #0f5a36;
+  --accent-glow: rgba(26, 122, 76, .16);
+
+  --warn: #b07a1a;
+  --warn-dim: #8d5e0e;
+  --error: #b03a2e;
+  --error-dim: #862919;
+  --info: #1f4a8a;
+  --info-dim: #143666;
+
+  --sh-fab: 0 4px 14px rgba(7, 54, 66, .10);
+  --sh-overlay: 0 12px 36px rgba(7, 54, 66, .16);
+
+  /* legacy paper alias */
+  --c-accent-fg: #f5f3ee;
+  --color-surface-soft: var(--bg-1);
+  --color-surface-hover: var(--bg-2);
+
+  color-scheme: light;
+}
+
+/* 主题切换时给所有颜色一个柔和过渡（避免闪烁，但太长会拖沓 — 150ms 经验值） */
+body,
+body * {
+  transition:
+    background-color var(--t-fast),
+    color var(--t-fast),
+    border-color var(--t-fast);
 }

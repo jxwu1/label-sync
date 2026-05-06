@@ -23,25 +23,156 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/quickmenu.css') }}">
 <script defer src="{{ url_for('static', filename='js/store.js') }}"></script>
 <script defer src="{{ url_for('static', filename='vendor/alpinejs/alpine.min.js') }}"></script>
+<script>
+  // FOUC 防御：Alpine 启动前先读 localStorage 把主题落到 body[data-theme]
+  // 否则 light 用户首屏会闪一下 dark
+  (function () {
+    try {
+      var t = localStorage.getItem('theme') || 'dark';
+      document.documentElement.dataset.theme = t;
+      document.addEventListener('DOMContentLoaded', function () {
+        document.body.dataset.theme = t;
+      });
+      // 万一 DOMContentLoaded 已触发（async race），双保险
+      if (document.body) document.body.dataset.theme = t;
+    } catch (e) {
+      document.documentElement.dataset.theme = 'dark';
+    }
+  })();
+</script>
 </head>
 <body>
-<div class="app-layout">
-  <div class="app-nav" id="nav" x-data>
-    <template x-for="p in $store.nav.pages" :key="p.id">
-      <div class="app-nav__item"
-           :class="$store.nav.current === p.id ? 'active' : ''"
-           @click="$store.nav.switch(p.id)">
-        <span class="app-nav__icon" x-text="p.icon"></span>
-        <span x-text="p.label"></span>
+<!-- 9 模块 SVG 图标 sprite（Lucide 风格，1.5px stroke + currentColor） -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="icon-tags" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 7v10a2 2 0 002 2h7l8-8a2 2 0 000-2.83l-4.17-4.17A2 2 0 0014 3H5a2 2 0 00-2 2z"/>
+      <circle cx="8" cy="8" r="1.5"/>
+    </symbol>
+    <symbol id="icon-dedupe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="11" height="11" rx="1.5"/>
+      <rect x="10" y="10" width="11" height="11" rx="1.5"/>
+      <path d="M14 8l-4 4"/>
+    </symbol>
+    <symbol id="icon-purchase" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 4h2l2.5 12h11l2-8H6.5"/>
+      <circle cx="9" cy="20" r="1.5"/>
+      <circle cx="17" cy="20" r="1.5"/>
+    </symbol>
+    <symbol id="icon-attendance" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="5" width="18" height="16" rx="1.5"/>
+      <path d="M3 10h18M8 3v4M16 3v4"/>
+      <circle cx="8" cy="15" r=".5" fill="currentColor"/>
+      <circle cx="12" cy="15" r=".5" fill="currentColor"/>
+      <circle cx="16" cy="15" r=".5" fill="currentColor"/>
+    </symbol>
+    <symbol id="icon-history" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 12a9 9 0 109-9"/>
+      <path d="M3 4v5h5"/>
+      <path d="M12 7v5l3 2"/>
+    </symbol>
+    <symbol id="icon-quality" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z"/>
+      <path d="M9 12l2 2 4-4"/>
+    </symbol>
+    <symbol id="icon-inout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 8l-4-4M21 8l-4 4M21 8H9"/>
+      <path d="M3 16l4 4M3 16l4-4M3 16h12"/>
+    </symbol>
+    <symbol id="icon-overseas" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/>
+    </symbol>
+    <symbol id="icon-sales" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 20h18M5 16l4-6 4 4 6-9"/>
+      <path d="M19 5h-3M19 5v3"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="app-layout" x-data>
+  <!-- 左侧栏：可折叠 200↔56 -->
+  <aside class="app-sidebar" :class="$store.nav.collapsed && 'is-collapsed'">
+    <div class="app-sidebar__head">
+      <div class="app-sidebar__logo">D</div>
+      <div class="app-sidebar__title">
+        <div class="app-sidebar__name">DataOps</div>
+        <div class="app-sidebar__sub">v3.5 · ADMIN</div>
       </div>
-    </template>
-    <span style="flex:1"></span>
-    <span class="badge" id="badge" x-data
-      :class="`badge-${$store.app.badgeType}`"
-      x-text="$store.app.badgeText"
-      style="margin-bottom: 14px; align-self: flex-end;">空闲</span>
-  </div>
+    </div>
+    <nav class="app-sidebar__nav">
+      <div class="app-sidebar__section-label">MODULES · 09</div>
+      <template x-for="p in $store.nav.pages" :key="p.id">
+        <button class="app-nav__item"
+                :class="$store.nav.current === p.id && 'active'"
+                :data-tooltip="p.label"
+                @click="$store.nav.switch(p.id)">
+          <span class="app-nav__icon">
+            <svg><use :href="'#icon-' + p.icon"></use></svg>
+          </span>
+          <span class="app-nav__label" x-text="p.label"></span>
+          <span class="app-nav__shortcut" x-text="'⌘' + p.shortcut"></span>
+        </button>
+      </template>
+    </nav>
+    <div class="app-sidebar__foot">
+      <button class="app-sidebar__collapse" @click="$store.nav.toggleCollapse()">
+        <span x-text="$store.nav.collapsed ? '›' : '‹'"></span>
+        <span x-show="!$store.nav.collapsed">collapse</span>
+      </button>
+    </div>
+  </aside>
+
   <div class="app-main">
+    <!-- header (44px) -->
+    <header class="app-header" x-data x-init="$store.clock.start()">
+      <div class="app-header__crumb">
+        <span class="app-header__crumb-prefix">OPS</span>
+        <span class="app-header__crumb-sep">/</span>
+        <span class="app-header__crumb-title"
+              x-text="($store.nav.pages.find(p => p.id === $store.nav.current) || {}).label"></span>
+        <span class="app-header__module"
+              x-text="'module · ' + (($store.nav.pages.find(p => p.id === $store.nav.current) || {}).code || '00')"></span>
+      </div>
+      <div class="app-header__spacer"></div>
+      <div class="app-header__search">
+        <span class="app-header__search-icon">⌕</span>
+        <input id="globalSearch" class="app-header__search-input" placeholder="搜索货号 / 文件 / 异常 ID...">
+        <span class="app-header__search-kbd">⌘K</span>
+      </div>
+      <div class="app-header__status">
+        <span class="dot"
+              :class="$store.app.badgeType === 'running' || $store.app.badgeType === 'waiting' ? 'dot--pulse' : ''"
+              :style="`color: var(--${$store.app.badgeType === 'running' ? 'accent' : ($store.app.badgeType === 'waiting' ? 'warn' : ($store.app.badgeType === 'done' ? 'accent' : ($store.app.badgeType === 'error' ? 'error' : 'ink-2')))})`"></span>
+        <span class="app-header__status-text"
+              :style="`color: var(--${$store.app.badgeType === 'running' ? 'accent' : ($store.app.badgeType === 'waiting' ? 'warn' : ($store.app.badgeType === 'done' ? 'accent' : ($store.app.badgeType === 'error' ? 'error' : 'ink-2')))})`"
+              x-text="($store.app.badgeText || '').toUpperCase()"></span>
+      </div>
+      <span class="app-header__clock" x-text="$store.clock.time"></span>
+      <span class="pill pill--info pill--xs">PROD</span>
+      <button class="app-header__icon-btn"
+              :title="$store.theme.current === 'dark' ? '切到浅色' : '切到暗色'"
+              @click="$store.theme.toggle()">
+        <span x-text="$store.theme.current === 'dark' ? '☀' : '☾'"></span>
+      </button>
+      <span class="app-header__locale">ZH</span>
+    </header>
+
+    <!-- sub-strip (28px) -->
+    <div class="app-substrip" x-data>
+      <span class="app-substrip__label">SESSION</span>
+      <span class="app-substrip__value" id="substripSession">SE-LOCAL</span>
+      <span class="app-substrip__sep">·</span>
+      <span class="app-substrip__label">OPERATOR</span>
+      <span class="app-substrip__value">admin@dataops</span>
+      <span class="app-substrip__sep">·</span>
+      <span class="app-substrip__label">WAREHOUSE</span>
+      <span class="app-substrip__value app-substrip__value--accent">WX-03</span>
+      <div class="app-substrip__spacer"></div>
+      <span class="app-substrip__label">STOCKPILE</span>
+      <span class="app-substrip__value app-substrip__value--accent" id="substripStockpile">—</span>
+    </div>
+
     <div class="app-pages">
 <div class="page" id="pageMain" x-data :class="$store.nav.current === 'main' ? 'active' : ''">
   <div class="page-main-grid">

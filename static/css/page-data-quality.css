@@ -58,14 +58,14 @@
 }
 
 .dq-table th {
-  background: var(--color-surface-soft, #f6f1e7);
+  background: var(--color-surface-soft, var(--bg-2));
   font-weight: 600;
   position: sticky;
   top: 0;
 }
 
 .dq-table tbody tr:hover {
-  background: var(--color-surface-hover, #faf6ec);
+  background: var(--color-surface-hover, var(--bg-3));
 }
 
 .dq-table .dq-num {
@@ -79,7 +79,7 @@
 }
 
 .dq-ws {
-  color: #cc6600;
+  color: var(--warn-dim);
   font-weight: bold;
   background: rgba(204, 102, 0, 0.1);
   padding: 0 2px;

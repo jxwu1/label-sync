@@ -83,8 +83,8 @@ input.fc-inp {
   font-variant-numeric: tabular-nums;
 }
 
-.fc-stat-v.fc-paid { color: #28a745; }
-.fc-stat-v.fc-unpaid { color: #dc3545; }
+.fc-stat-v.fc-paid { color: var(--accent); }
+.fc-stat-v.fc-unpaid { color: var(--error); }
 
 /* === 列表表格 === */
 .fc-table {
