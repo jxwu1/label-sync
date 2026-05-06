@@ -39,6 +39,7 @@ function renderEmpty(msg) {
   $("historyCurrentPanel").hidden = true;
   $("historyTimelinePanel").hidden = true;
   $("historyFuzzyPanel").hidden = true;
+  $("historyAnalyticsPanel").hidden = true;
 }
 
 function renderFuzzyMatches(matches, originalQuery) {
@@ -47,6 +48,7 @@ function renderFuzzyMatches(matches, originalQuery) {
   $("historyCurrentPanel").hidden = true;
   $("historyTimelinePanel").hidden = true;
   $("historyFuzzyPanel").hidden = false;
+  $("historyAnalyticsPanel").hidden = true;
 
   const rows = matches
     .map((m) => {
@@ -73,6 +75,86 @@ function renderFuzzyMatches(matches, originalQuery) {
   for (const tr of $("historyFuzzyList").querySelectorAll(".fuzzy-row")) {
     tr.addEventListener("click", () => window.historySearch(tr.dataset.barcode));
   }
+}
+
+const AUTO_CATEGORY_CN = {
+  new: "新品观察",
+  seasonal: "季节性",
+  declining: "衰退",
+  stable: "稳定",
+  unclassified: "未分类",
+};
+
+function fmtNum(n) {
+  if (n === null || n === undefined) return '<span class="empty-val">—</span>';
+  return String(n);
+}
+
+function fmtPct(n) {
+  if (n === null || n === undefined) return '<span class="empty-val">—</span>';
+  const sign = n > 0 ? "+" : "";
+  return `${sign}${n}%`;
+}
+
+function fmtDays(n) {
+  if (n === null || n === undefined) return '<span class="empty-val">—</span>';
+  return `${n} 天前`;
+}
+
+async function loadAnalytics(barcode) {
+  const panel = $("historyAnalyticsPanel");
+  const body = $("historyAnalytics");
+  panel.hidden = false;
+  body.innerHTML = '<div class="empty">加载中…</div>';
+  try {
+    const resp = await fetch(`/analytics/sku/${encodeURIComponent(barcode)}`);
+    const data = await resp.json();
+    if (!data.ok) {
+      body.innerHTML = `<div class="empty">${escapeHtml(data.msg || "加载失败")}</div>`;
+      return;
+    }
+    renderAnalytics(data);
+  } catch (err) {
+    body.innerHTML = `<div class="empty">网络错误：${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function renderAnalytics(data) {
+  const s = data.sales;
+  const p = data.purchase;
+  const autoCat = data.auto_category
+    ? `<span class="cat-badge cat-${escapeHtml(data.auto_category)}">${escapeHtml(AUTO_CATEGORY_CN[data.auto_category] || data.auto_category)}</span>`
+    : '<span class="empty-val">未计算</span>';
+  const computedAt = data.auto_category_computed_at
+    ? `<span class="cat-time">（${escapeHtml(data.auto_category_computed_at)}）</span>`
+    : "";
+  const manualCat = data.manual_category
+    ? `<span class="cat-badge cat-manual">${escapeHtml(data.manual_category)}（人工）</span>`
+    : "";
+
+  $("historyAnalytics").innerHTML = `
+    <div class="ana-cat-row">
+      <span class="k">分类</span>
+      <span class="v">${autoCat}${manualCat}${computedAt}</span>
+    </div>
+
+    <div class="ana-section">销售面</div>
+    <div class="kv-grid">
+      <div><span class="k">总销量</span><span class="v">${fmtNum(s.total_qty)}</span></div>
+      <div><span class="k">总营收</span><span class="v">€${(s.total_revenue || 0).toFixed(2)}</span></div>
+      <div><span class="k">独立客户</span><span class="v">${fmtNum(s.unique_customers)}</span></div>
+      <div><span class="k">寿命</span><span class="v">${s.lifespan_days} 天</span></div>
+      <div><span class="k">12 周趋势</span><span class="v">${fmtPct(s.trend_slope_pct_per_week)} / 周</span></div>
+    </div>
+
+    <div class="ana-section">采购面</div>
+    <div class="kv-grid">
+      <div><span class="k">库存推算</span><span class="v">${fmtNum(p.stock_balance)}</span></div>
+      <div><span class="k">毛利率</span><span class="v">${fmtPct(p.avg_margin_pct)}</span></div>
+      <div><span class="k">365 天采购笔数</span><span class="v">${fmtNum(p.purchase_freq_365d)}</span></div>
+      <div><span class="k">上次采购</span><span class="v">${fmtDays(p.last_purchase_days_ago)}</span></div>
+    </div>
+  `;
 }
 
 function renderResult(data) {
@@ -174,6 +256,7 @@ async function doSearch() {
       return;
     }
     renderResult(data);
+    loadAnalytics(data.current.barcode);
   } catch (err) {
     renderEmpty(`网络错误：${err.message}`);
   }

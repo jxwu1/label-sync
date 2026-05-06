@@ -1,4 +1,5 @@
 from config import CONFIG
+from routes_analytics import bp as analytics_bp
 from routes_attendance import bp as attendance_bp
 from routes_data_quality import bp as data_quality_bp
 from routes_foreign_customers import bp as foreign_customers_bp
@@ -26,6 +27,7 @@ def register_routes(app) -> None:
     app.register_blueprint(stockpile_bp)
     app.register_blueprint(inventory_bp)
     app.register_blueprint(foreign_customers_bp)
+    app.register_blueprint(analytics_bp)
     if CONFIG.enable_transfer:
         from routes_collab import bp as collab_bp
         from routes_transfer import bp as transfer_bp
