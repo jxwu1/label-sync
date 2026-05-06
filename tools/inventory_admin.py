@@ -20,6 +20,12 @@ from pathlib import Path
 # 让脚本能 import 项目根模块（不依赖 PYTHONPATH 设置）
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+# Windows PowerShell 默认 GBK，遇中文 / 货币符号会崩。强制 UTF-8 输出，
+# 终端显示可能有乱码但不再 crash。Windows Terminal / PowerShell 7 / VSCode
+# 终端能正常显示。
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 from sqlalchemy import func, select  # noqa: E402
 
 import stockpile_db  # noqa: E402
@@ -160,19 +166,65 @@ def cmd_stats(args: argparse.Namespace) -> int:
     return 0
 
 
+def _trunc(text: str, width: int) -> str:
+    """按显示宽度截断字符串（中文 / 希腊字符算 2 列）。"""
+    out = []
+    used = 0
+    for c in text or "":
+        w = 2 if ord(c) > 0x7F else 1
+        if used + w > width:
+            out.append("…")
+            break
+        out.append(c)
+        used += w
+    return "".join(out).ljust(width - max(0, used - width))
+
+
+def _pct(num: int | float, total: int | float) -> str:
+    if not total:
+        return "—"
+    return f"{100 * num / total:.1f}%"
+
+
 def cmd_verify(args: argparse.Namespace) -> int:
+    sale_amt = func.coalesce(InventoryEvent.qty, 0) * func.coalesce(InventoryEvent.unit_price, 0)
     with stockpile_db._session() as session:
+        # === 1. 异常计数 ===
         neg_qty = (
             session.scalar(
                 select(func.count()).select_from(InventoryEvent).where(InventoryEvent.qty < 0)
             )
             or 0
         )
-        zero_price = (
+        sales_total = (
             session.scalar(
                 select(func.count())
                 .select_from(InventoryEvent)
-                .where(InventoryEvent.unit_price == 0)
+                .where(InventoryEvent.event_type == "sale")
+            )
+            or 0
+        )
+        purchase_total = (
+            session.scalar(
+                select(func.count())
+                .select_from(InventoryEvent)
+                .where(InventoryEvent.event_type == "purchase")
+            )
+            or 0
+        )
+        sales_zero_price = (
+            session.scalar(
+                select(func.count())
+                .select_from(InventoryEvent)
+                .where((InventoryEvent.event_type == "sale") & (InventoryEvent.unit_price == 0))
+            )
+            or 0
+        )
+        purchase_zero_price = (
+            session.scalar(
+                select(func.count())
+                .select_from(InventoryEvent)
+                .where((InventoryEvent.event_type == "purchase") & (InventoryEvent.unit_price == 0))
             )
             or 0
         )
@@ -197,29 +249,101 @@ def cmd_verify(args: argparse.Namespace) -> int:
             )
             or 0
         )
-        unknown_customers = (
-            session.scalar(
-                select(func.count())
-                .select_from(Customer)
-                .where(Customer.customer_type == "unknown")
+
+        # === 2. 客户类型分布 ===
+        type_dist_rows = session.execute(
+            select(Customer.customer_type, func.count())
+            .group_by(Customer.customer_type)
+            .order_by(func.count().desc())
+        ).all()
+        type_dist = {t or "unknown": c for t, c in type_dist_rows}
+        customers_total = sum(type_dist.values())
+
+        # === 3. Top 10 客户（事件数 + 销售额） ===
+        top_by_count = session.execute(
+            select(
+                InventoryEvent.customer_id,
+                Customer.customer_name,
+                Customer.customer_type,
+                func.count().label("cnt"),
             )
-            or 0
-        )
-        mixed_customers = (
-            session.scalar(
-                select(func.count()).select_from(Customer).where(Customer.customer_type == "mixed")
+            .join(Customer, Customer.customer_id == InventoryEvent.customer_id)
+            .where(InventoryEvent.event_type == "sale")
+            .group_by(InventoryEvent.customer_id, Customer.customer_name, Customer.customer_type)
+            .order_by(func.count().desc())
+            .limit(10)
+        ).all()
+        top_by_amt = session.execute(
+            select(
+                InventoryEvent.customer_id,
+                Customer.customer_name,
+                Customer.customer_type,
+                func.sum(sale_amt).label("amt"),
             )
-            or 0
+            .join(Customer, Customer.customer_id == InventoryEvent.customer_id)
+            .where(InventoryEvent.event_type == "sale")
+            .group_by(InventoryEvent.customer_id, Customer.customer_name, Customer.customer_type)
+            .order_by(func.sum(sale_amt).desc())
+            .limit(10)
+        ).all()
+
+        # === 4. 销售额 by 客户类型 ===
+        sales_by_type_rows = session.execute(
+            select(
+                Customer.customer_type,
+                func.sum(sale_amt).label("amt"),
+                func.count().label("cnt"),
+            )
+            .join(Customer, Customer.customer_id == InventoryEvent.customer_id)
+            .where(InventoryEvent.event_type == "sale")
+            .group_by(Customer.customer_type)
+            .order_by(func.sum(sale_amt).desc())
+        ).all()
+        total_sales_amt = sum(float(r.amt or 0) for r in sales_by_type_rows)
+
+    # === 输出 ===
+    sales_zp_pct = _pct(sales_zero_price, sales_total)
+    purchase_zp_pct = _pct(purchase_zero_price, purchase_total)
+    sales_nc_pct = _pct(sales_no_customer, sales_total)
+    print("=== 数据验证 ===")
+    print(f"负 qty 事件:           {neg_qty}  (期望 0)")
+    sales_zp_line = f"{sales_zero_price} / {sales_total} ({sales_zp_pct})"
+    purchase_zp_line = f"{purchase_zero_price} / {purchase_total} ({purchase_zp_pct})"
+    print(f"销售单价 0:            {sales_zp_line}  (赠品 / 免单)")
+    print(f"采购单价 0:            {purchase_zp_line}")
+    print(f"无客户的销售事件:      {sales_no_customer} / {sales_total} ({sales_nc_pct})")
+    print(f"无供应商的采购事件:    {purchase_no_supplier}  (>0 异常)")
+
+    print("\n=== 客户类型分布 ===")
+    for t in ("foreign", "chinese", "mixed", "unknown"):
+        c = type_dist.get(t, 0)
+        print(f"  {t:10s} {c:>5d}  ({_pct(c, customers_total)})")
+
+    print("\n=== Top 10 客户（按销售事件数） ===")
+    print(f"  {'#':>3}  {'类型':6}  {'客户名':30}  {'事件数':>8}")
+    for i, r in enumerate(top_by_count, 1):
+        print(f"  {i:>3}  {r.customer_type:6}  {_trunc(r.customer_name, 30)}  {r.cnt:>8d}")
+
+    print("\n=== Top 10 客户（按销售额） ===")
+    print(f"  {'#':>3}  {'类型':6}  {'客户名':30}  {'销售额':>12}")
+    for i, r in enumerate(top_by_amt, 1):
+        amt = float(r.amt or 0)
+        print(f"  {i:>3}  {r.customer_type:6}  {_trunc(r.customer_name, 30)}  €{amt:>11,.2f}")
+
+    print("\n=== 销售额 by 客户类型 ===")
+    print(f"  {'类型':10}  {'销售额':>14}  {'占比':>8}  {'事件数':>8}")
+    for r in sales_by_type_rows:
+        amt = float(r.amt or 0)
+        print(
+            f"  {(r.customer_type or 'unknown'):10}  "
+            f"€{amt:>13,.2f}  {_pct(amt, total_sales_amt):>8}  {r.cnt:>8d}"
         )
 
-    print("=== 数据验证 ===")
-    print(f"负 qty 事件:           {neg_qty}  (期望 0；采购销售都是正数 + event_type 区分方向)")
-    print(f"单价 0 事件:           {zero_price}  (赠品 / 免单可能正常，看比例)")
-    print(f"无客户的销售事件:      {sales_no_customer}  (散客没记可能正常)")
-    print(f"无供应商的采购事件:    {purchase_no_supplier}  (采购都该有供应商，>0 异常)")
-    print("待人工归类客户:")
-    print(f"  unknown (纯数字/纯符号): {unknown_customers}")
-    print(f"  mixed (中希混合):        {mixed_customers}")
+    # === 备注 ===
+    print(
+        "\n备注：barcode 反查救回数仅在每次 import 时显示（ImportResult），"
+        "不入库；要看历史救回率需对照 import 时的输出。"
+    )
     return 0
 
 
