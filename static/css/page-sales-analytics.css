@@ -1,5 +1,11 @@
 /* 销售分析列表页（PR 5.2c） */
 
+#pageSalesAnalytics.active {
+  display: block;
+  overflow: auto;
+  height: calc(100vh - 122px);
+}
+
 .sa-actions {
   display: flex;
   gap: 12px;
