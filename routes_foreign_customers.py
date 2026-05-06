@@ -9,9 +9,12 @@
 - GET    /foreign-customers/summary/<month>    月度汇总
 """
 
-from flask import Blueprint, jsonify
+import io
+
+from flask import Blueprint, jsonify, send_file
 from pydantic import BaseModel
 
+import foreign_customer_report_service
 import foreign_customer_service
 from route_helpers import NonEmptyStr, OptionalStr, parse_body
 
@@ -108,3 +111,17 @@ def delete_record(record_id: int):
 @bp.get("/summary/<month>")
 def summary(month: str):
     return jsonify({"ok": True, "summary": foreign_customer_service.month_summary(month)})
+
+
+@bp.get("/pdf/<month>")
+def download_pdf(month: str):
+    try:
+        data = foreign_customer_report_service.build_pdf(month)
+    except Exception as exc:
+        return jsonify({"ok": False, "msg": f"生成 PDF 失败：{exc}"}), 500
+    return send_file(
+        io.BytesIO(data),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"老外客人_{month}.pdf",
+    )

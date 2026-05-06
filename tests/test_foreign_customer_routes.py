@@ -137,6 +137,41 @@ class RecordRouteTests(_Base):
         assert rv2.status_code == 404
 
 
+class PdfRouteTests(_Base):
+    def test_pdf_empty_month_ok(self) -> None:
+        rv = self.client.get("/foreign-customers/pdf/2099-01")
+        assert rv.status_code == 200
+        assert rv.mimetype == "application/pdf"
+        assert rv.data[:4] == b"%PDF"  # PDF magic header
+
+    def test_pdf_with_records_ok(self) -> None:
+        self.client.post(
+            "/foreign-customers/records",
+            json={
+                "customer_id": "F1",
+                "record_month": "2026-05",
+                "amount_due": 1000,
+                "tax_number": "GR123",
+                "payment_date": "2026-05-10",
+                "notes": "正常付款",
+            },
+        )
+        self.client.post(
+            "/foreign-customers/records",
+            json={
+                "customer_id": "C1",
+                "record_month": "2026-05",
+                "amount_due": 500,
+            },
+        )
+        rv = self.client.get("/foreign-customers/pdf/2026-05")
+        assert rv.status_code == 200
+        assert rv.mimetype == "application/pdf"
+        assert rv.data[:4] == b"%PDF"
+        # 文件名带月份
+        assert "2026-05" in rv.headers.get("Content-Disposition", "")
+
+
 class SummaryRouteTests(_Base):
     def test_summary_aggregates(self) -> None:
         self.client.post(

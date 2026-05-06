@@ -229,6 +229,10 @@ async function init() {
     loadMonth();
   });
   $("fcRefresh").addEventListener("click", loadMonth);
+  $("fcDownloadPdf").addEventListener("click", () => {
+    if (!currentMonth) return;
+    window.location.href = `/foreign-customers/pdf/${currentMonth}`;
+  });
   $("fcAddBtn").addEventListener("click", openAddModal);
   $("fcModalSubmit").addEventListener("click", submitModal);
   $("fcModalCancel").addEventListener("click", closeModal);
