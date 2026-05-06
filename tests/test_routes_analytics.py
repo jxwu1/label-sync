@@ -149,6 +149,57 @@ class ManualCategoryTests(AnalyticsRoutesTests):
         self.assertEqual(resp.status_code, 404)
 
 
+class TimelineTests(AnalyticsRoutesTests):
+    def test_timeline_returns_52_weeks(self) -> None:
+        self._seed_sku("B1")
+        self._seed_sale("B1", "2026-04-15", 5)
+        resp = self.client.get("/analytics/sku/B1/timeline")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(len(data["timeline"]), 52)
+        # 每周结构
+        wk = data["timeline"][0]
+        self.assertIn("week_start", wk)
+        self.assertIn("sale_qty", wk)
+        self.assertIn("purchase_unit_price", wk)
+
+    def test_timeline_aggregates_purchase_price_average(self) -> None:
+        from sqlalchemy import insert as sa_insert
+
+        from models import InventoryEvent
+
+        self._seed_sku("B1")
+        # 同一周内两条采购，均价 = (5 + 7) / 2 = 6
+        with stockpile_db._session() as s:
+            for i, price in enumerate([5.0, 7.0]):
+                s.execute(
+                    sa_insert(InventoryEvent).values(
+                        event_at="2026-04-01",
+                        event_type="purchase",
+                        product_barcode="B1",
+                        qty=10,
+                        unit_price=price,
+                        document_no=f"P{i}",
+                    )
+                )
+            s.commit()
+
+        resp = self.client.get("/analytics/sku/B1/timeline")
+        timeline = resp.get_json()["timeline"]
+        # 找到 2026-04 那周
+        wk = next(
+            (
+                t
+                for t in timeline
+                if t["week_start"].startswith("2026-03-30") or t["purchase_unit_price"] is not None
+            ),
+            None,
+        )
+        self.assertIsNotNone(wk)
+        self.assertEqual(wk["purchase_unit_price"], 6.0)
+
+
 class ListEndpointTests(AnalyticsRoutesTests):
     def test_list_returns_active_skus_with_aggregates(self) -> None:
         self._seed_sku("B1", auto_category="stable", manual_grade=5)

@@ -186,6 +186,58 @@ def _run_pct(session, stmt, barcode: str) -> float | None:
     return round(float(row[0]), 1)
 
 
+def compute_weekly_timeline(
+    barcode: str,
+    weeks: int = 52,
+    as_of: date | None = None,
+    session: Session | None = None,
+) -> list[dict[str, Any]]:
+    """每周销量 + 每周采购均价（折后）。Canvas 时间线图用。
+
+    最近 `weeks` 周（含 as_of 当周）。每周返回：
+        {week_start: 'YYYY-MM-DD', sale_qty: int, purchase_unit_price: float|None}
+
+    purchase_unit_price 是该周内的折后均价（unit_price × (1-discount/100)）。
+    无销售/采购时对应字段为 0 / None。
+    """
+    from datetime import timedelta
+
+    as_of = as_of or _today()
+    rows = _fetch_all_rows(barcode, session)
+
+    # 周右端：as_of 那周。第 i 周（i=0..weeks-1）右端 = as_of - i*7 天
+    sale_buckets = [0] * weeks
+    purchase_prices: list[list[float]] = [[] for _ in range(weeks)]
+
+    for r in rows:
+        d = _parse_date(r.event_at)
+        delta = (as_of - d).days
+        if delta < 0 or delta >= weeks * 7:
+            continue
+        idx = weeks - 1 - delta // 7
+        if r.event_type == "sale":
+            sale_buckets[idx] += r.qty
+        elif r.event_type == "purchase" and r.unit_price:
+            net = _net_unit(r.unit_price, r.discount_pct)
+            if net > 0:
+                purchase_prices[idx].append(net)
+
+    timeline: list[dict[str, Any]] = []
+    for i in range(weeks):
+        week_end = as_of - timedelta(days=(weeks - 1 - i) * 7)
+        week_start = week_end - timedelta(days=6)
+        prices = purchase_prices[i]
+        avg_price = round(sum(prices) / len(prices), 2) if prices else None
+        timeline.append(
+            {
+                "week_start": week_start.isoformat(),
+                "sale_qty": int(sale_buckets[i]),
+                "purchase_unit_price": avg_price,
+            }
+        )
+    return timeline
+
+
 def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
     """聚合所有 active SKU 的销售汇总（dashboard 列表页用）。
 

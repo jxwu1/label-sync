@@ -350,3 +350,44 @@
   font-size: 12px;
   font-weight: 600;
 }
+
+.chart-legend {
+  margin-top: 8px;
+  font-size: var(--fs-sm);
+  color: var(--c-text-dim);
+  display: flex;
+  gap: 18px;
+  align-items: center;
+}
+.chart-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 4px;
+  vertical-align: middle;
+  border-radius: 2px;
+}
+.chart-dot--sale { background: rgba(67, 145, 96, 0.55); }
+.chart-dot--price { background: #b0683b; border-radius: 50
+.chart-legend {
+  margin-top: 8px;
+  font-size: var(--fs-sm);
+  color: var(--c-text-dim);
+  display: flex;
+  gap: 18px;
+  align-items: center;
+}
+.chart-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 4px;
+  vertical-align: middle;
+  border-radius: 2px;
+}
+.chart-dot--sale { background: rgba(67, 145, 96, 0.55); }
+.chart-dot--price { background: #b0683b; border-radius: 50%; }
+#historyTimelineChart {
+  display: block;
+  max-width: 100%;
+}

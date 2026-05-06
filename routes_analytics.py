@@ -24,6 +24,19 @@ _VALID_MANUAL_CATEGORIES = frozenset(
 )
 
 
+@bp.get("/sku/<barcode>/timeline")
+def sku_timeline(barcode: str):
+    """单 SKU 周聚合时间线（销量 + 进价）。"""
+    barcode = barcode.strip()
+    if not barcode:
+        return jsonify({"ok": False, "msg": "缺少条码"}), 400
+    try:
+        timeline = analytics_service.compute_weekly_timeline(barcode)
+    except Exception as exc:
+        return jsonify({"ok": False, "msg": f"时间线失败：{exc}"}), 500
+    return jsonify({"ok": True, "barcode": barcode, "timeline": timeline})
+
+
 @bp.get("/list")
 def list_skus():
     """全部 active SKU 的指标汇总（dashboard 列表页用）。

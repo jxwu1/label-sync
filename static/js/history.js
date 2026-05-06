@@ -40,6 +40,7 @@ function renderEmpty(msg) {
   $("historyTimelinePanel").hidden = true;
   $("historyFuzzyPanel").hidden = true;
   $("historyAnalyticsPanel").hidden = true;
+  $("historyTimelineChartPanel").hidden = true;
 }
 
 function renderFuzzyMatches(matches, originalQuery) {
@@ -49,6 +50,7 @@ function renderFuzzyMatches(matches, originalQuery) {
   $("historyTimelinePanel").hidden = true;
   $("historyFuzzyPanel").hidden = false;
   $("historyAnalyticsPanel").hidden = true;
+  $("historyTimelineChartPanel").hidden = true;
 
   const rows = matches
     .map((m) => {
@@ -109,6 +111,162 @@ function fmtPct(n) {
 function fmtDays(n) {
   if (n === null || n === undefined) return '<span class="empty-val">—</span>';
   return `${n} 天前`;
+}
+
+async function loadTimelineChart(barcode) {
+  const panel = $("historyTimelineChartPanel");
+  const canvas = $("historyTimelineChart");
+  panel.hidden = false;
+  try {
+    const resp = await fetch(`/analytics/sku/${encodeURIComponent(barcode)}/timeline`);
+    const data = await resp.json();
+    if (!data.ok) {
+      drawChartEmpty(canvas, data.msg || "加载失败");
+      return;
+    }
+    drawTimeline(canvas, data.timeline);
+  } catch (err) {
+    drawChartEmpty(canvas, `网络错误：${err.message}`);
+  }
+}
+
+function drawChartEmpty(canvas, msg) {
+  const ctx = setupCanvas(canvas);
+  ctx.fillStyle = "#999";
+  ctx.font = "13px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(msg, canvas.clientWidth / 2, 140);
+}
+
+function setupCanvas(canvas) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.parentElement.clientWidth - 24; // 减 panel-bd padding
+  const h = 280;
+  canvas.style.width = w + "px";
+  canvas.style.height = h + "px";
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  return ctx;
+}
+
+function drawTimeline(canvas, timeline) {
+  const ctx = setupCanvas(canvas);
+  const w = canvas.clientWidth;
+  const h = 280;
+  const padL = 44;
+  const padR = 44;
+  const padT = 16;
+  const padB = 28;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+
+  if (!timeline || timeline.length === 0) {
+    drawChartEmpty(canvas, "无数据");
+    return;
+  }
+
+  const n = timeline.length;
+  const sales = timeline.map((t) => t.sale_qty || 0);
+  const prices = timeline.map((t) => t.purchase_unit_price);
+  const maxSale = Math.max(1, ...sales);
+  const validPrices = prices.filter((p) => p !== null && p !== undefined);
+  const hasPrices = validPrices.length > 0;
+  const minPrice = hasPrices ? Math.min(...validPrices) : 0;
+  const maxPrice = hasPrices ? Math.max(...validPrices) : 1;
+  const priceRange = Math.max(0.01, maxPrice - minPrice);
+
+  // 网格 + 轴
+  ctx.strokeStyle = "#e0d8c8";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + (plotH * i) / 4;
+    ctx.moveTo(padL, y);
+    ctx.lineTo(padL + plotW, y);
+  }
+  ctx.stroke();
+
+  // 左 Y 轴标签（销量）
+  ctx.fillStyle = "#666";
+  ctx.font = "11px sans-serif";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i <= 4; i++) {
+    const v = Math.round((maxSale * (4 - i)) / 4);
+    ctx.fillText(v, padL - 4, padT + (plotH * i) / 4);
+  }
+
+  // 右 Y 轴标签（进价）
+  if (hasPrices) {
+    ctx.fillStyle = "#586e75";
+    ctx.textAlign = "left";
+    for (let i = 0; i <= 4; i++) {
+      const v = (maxPrice - (priceRange * i) / 4).toFixed(2);
+      ctx.fillText(`€${v}`, padL + plotW + 4, padT + (plotH * i) / 4);
+    }
+  }
+
+  // X 轴标签（每 ~13 周一个，标月份）
+  ctx.fillStyle = "#666";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  const xStep = plotW / Math.max(n - 1, 1);
+  for (let i = 0; i < n; i += Math.max(1, Math.floor(n / 5))) {
+    const month = timeline[i].week_start.slice(0, 7);
+    ctx.fillText(month, padL + i * xStep, padT + plotH + 6);
+  }
+
+  // 销量：竖条（柱状）
+  ctx.fillStyle = "rgba(67, 145, 96, 0.55)";
+  const barW = Math.max(2, xStep * 0.6);
+  for (let i = 0; i < n; i++) {
+    const qty = sales[i];
+    if (qty === 0) continue;
+    const x = padL + i * xStep - barW / 2;
+    const barH = (qty / maxSale) * plotH;
+    const y = padT + plotH - barH;
+    ctx.fillRect(x, y, barW, barH);
+  }
+
+  // 进价：折线（仅连续非空段）
+  if (hasPrices) {
+    ctx.strokeStyle = "#b0683b";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    let started = false;
+    for (let i = 0; i < n; i++) {
+      const p = prices[i];
+      if (p === null || p === undefined) {
+        started = false;
+        continue;
+      }
+      const x = padL + i * xStep;
+      const y = padT + ((maxPrice - p) / priceRange) * plotH;
+      if (!started) {
+        ctx.moveTo(x, y);
+        started = true;
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+    ctx.stroke();
+
+    // 进价点标记
+    ctx.fillStyle = "#b0683b";
+    for (let i = 0; i < n; i++) {
+      const p = prices[i];
+      if (p === null || p === undefined) continue;
+      const x = padL + i * xStep;
+      const y = padT + ((maxPrice - p) / priceRange) * plotH;
+      ctx.beginPath();
+      ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
 }
 
 async function loadAnalytics(barcode) {
@@ -362,6 +520,7 @@ async function doSearch() {
     }
     renderResult(data);
     loadAnalytics(data.current.barcode);
+    loadTimelineChart(data.current.barcode);
   } catch (err) {
     renderEmpty(`网络错误：${err.message}`);
   }
