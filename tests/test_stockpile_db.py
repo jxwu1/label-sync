@@ -139,6 +139,48 @@ class StockpileDbTests(unittest.TestCase):
         self.assertEqual(system_records["222"]["model"], "M-222")
         self.assertNotIn("333", system_records)
 
+    def test_query_all_as_system_records_default_excludes_inactive(self) -> None:
+        df = pd.DataFrame(
+            [{"product_barcode": "ACT", "product_model": "MA", "stockpile_location": "A1"}]
+        )
+        stockpile_db.import_from_dataframe(df)
+        with stockpile_db._session() as session:
+            stockpile_db._upsert(
+                session,
+                barcode="INA",
+                model="MI",
+                location="B2",
+                extra={},
+                source="product_master",
+                is_active=0,
+            )
+            session.commit()
+        _, recs = stockpile_db.query_all_as_system_records()
+        self.assertIn("ACT", recs)
+        self.assertNotIn("INA", recs)
+
+    def test_query_all_as_system_records_include_inactive(self) -> None:
+        df = pd.DataFrame(
+            [{"product_barcode": "ACT", "product_model": "MA", "stockpile_location": "A1"}]
+        )
+        stockpile_db.import_from_dataframe(df)
+        with stockpile_db._session() as session:
+            stockpile_db._upsert(
+                session,
+                barcode="INA",
+                model="MI",
+                location="B2",
+                extra={},
+                source="product_master",
+                is_active=0,
+            )
+            session.commit()
+        bm, recs = stockpile_db.query_all_as_system_records(include_inactive=True)
+        # 标签处理流的关键诉求：inactive 条码也要可识别 + 拿到旧库位
+        self.assertIn("ACT", recs)
+        self.assertIn("INA", recs)
+        self.assertEqual(recs["INA"]["stockpile_location"], "B2")
+
     def test_insert_or_update_inserts_new(self) -> None:
         stockpile_db.insert_or_update("NEW1", "ModelNew", "LocNew", source="scan_new")
         record = stockpile_db.query_by_barcode("NEW1")

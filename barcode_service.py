@@ -45,7 +45,9 @@ def _correct_in_output_csv(old_barcode: str, new_barcode: str) -> ServiceResult:
 
 
 def _load_stockpile_records(stockpile_path: str) -> dict[str, dict[str, str]]:
-    _, records = stockpile_db.query_all_as_system_records()
+    # 标签处理流：inactive 条码也算已知（product.csv 的 web_status='N' 不代表
+    # 店里下架，仅"网店下架"，扫到时仍要走旧库位匹配）
+    _, records = stockpile_db.query_all_as_system_records(include_inactive=True)
     return records
 
 

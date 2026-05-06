@@ -134,7 +134,9 @@ def main() -> int:
         print("ERROR: input directory not found")
         return 1
 
-    barcode_model_map, system_records = query_all_as_system_records()
+    # 标签处理 phase2：inactive 条码也算已知（product.csv 的 web_status='N'
+    # 仅"网店下架"，店里仍可能有货，扫到时要走旧库位匹配而不是当新条码）
+    barcode_model_map, system_records = query_all_as_system_records(include_inactive=True)
     if not system_records:
         print("ERROR: stockpile database is empty, please initialize it first")
         return 1

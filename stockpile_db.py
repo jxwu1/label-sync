@@ -467,15 +467,25 @@ def query_by_barcode(barcode: str) -> dict | None:
         return _stockpile_to_dict(obj) if obj else None
 
 
-def query_all_as_system_records() -> tuple[dict[str, str], dict[str, dict[str, str]]]:
+def query_all_as_system_records(
+    include_inactive: bool = False,
+) -> tuple[dict[str, str], dict[str, dict[str, str]]]:
+    """主表全部记录 → barcode→model 字典 + barcode→{model, location} 字典。
+
+    `include_inactive=False`（默认）只返 is_active=1，是月度比对路径的语义。
+    `include_inactive=True` 把下架货也带上 —— 标签处理需要：product.csv 的
+    web_status='N' 会把很多 SKU 标 inactive，但 inactive ≠ 店里没货，
+    扫描时仍要识别这些条码并取它们的旧位置。
+    """
     with _session() as session:
-        rows = session.execute(
-            select(
-                Stockpile.product_barcode,
-                Stockpile.product_model,
-                Stockpile.stockpile_location,
-            ).where(Stockpile.is_active == _ACTIVE)
-        ).all()
+        stmt = select(
+            Stockpile.product_barcode,
+            Stockpile.product_model,
+            Stockpile.stockpile_location,
+        )
+        if not include_inactive:
+            stmt = stmt.where(Stockpile.is_active == _ACTIVE)
+        rows = session.execute(stmt).all()
     barcode_model_map: dict[str, str] = {}
     system_records: dict[str, dict[str, str]] = {}
     for barcode, model, location in rows:
