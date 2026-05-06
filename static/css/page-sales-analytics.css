@@ -40,21 +40,30 @@
 
 .sa-chip {
   padding: 3px 12px;
-  border: 1px solid var(--c-border);
+  border: 1px solid var(--line);
   border-radius: var(--r-pill);
-  background: transparent;
+  background: var(--bg-2);
+  color: var(--ink-1);
   font-size: var(--fs-md);
   cursor: pointer;
+  transition: all var(--t-fast);
 }
 
 .sa-chip:hover {
-  background: var(--c-accent-soft);
+  background: var(--bg-3);
+  color: var(--ink-0);
 }
 
 .sa-chip--active {
-  background: var(--ink-1);
-  color: var(--bg-0);
-  border-color: var(--ink-1);
+  background: rgba(0, 255, 149, .10);
+  color: var(--accent);
+  border-color: rgba(0, 255, 149, .35);
+  font-weight: 600;
+}
+body[data-theme="light"] .sa-chip--active {
+  background: rgba(26, 122, 76, .10);
+  color: var(--accent);
+  border-color: rgba(26, 122, 76, .35);
 }
 
 .sa-sort {
@@ -65,9 +74,18 @@
 .sa-sort select {
   margin-left: 6px;
   padding: 3px 8px;
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-sm, 4px);
-  background: white;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg-2);
+  color: var(--ink-0);
+  font-family: var(--mono);
+  font-size: var(--fs-md);
+  outline: none;
+  cursor: pointer;
+}
+.sa-sort select option {
+  background: var(--bg-2);
+  color: var(--ink-0);
 }
 
 .sa-table {

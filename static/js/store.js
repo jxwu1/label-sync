@@ -123,6 +123,23 @@ document.addEventListener("alpine:init", () => {
     },
   });
 
+  // ===== 子条 stockpile 计数（PR-FE-1 收尾）=====
+  Alpine.store("substrip", {
+    stockpileCount: null,
+    sessionId: "SE-" + new Date().toISOString().slice(0, 10).replace(/-/g, "") +
+                "-" + String(Math.floor(Date.now() / 1000) % 1000).padStart(3, "0"),
+    async loadStockpile() {
+      try {
+        const r = await fetch("/stockpile/status");
+        const j = await r.json();
+        if (j.ok) this.stockpileCount = j.count;
+      } catch (_) {
+        /* 离线时保持 null，UI 显示 — */
+      }
+    },
+  });
+  Alpine.store("substrip").loadStockpile();
+
   // ===== Nav (PR-FE-1：加 collapsed / 9 模块图标 / 数字快捷键) =====
   Alpine.store("nav", {
     current: "main",

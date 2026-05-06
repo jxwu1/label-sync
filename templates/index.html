@@ -161,7 +161,7 @@
     <!-- sub-strip (28px) -->
     <div class="app-substrip" x-data>
       <span class="app-substrip__label">SESSION</span>
-      <span class="app-substrip__value" id="substripSession">SE-LOCAL</span>
+      <span class="app-substrip__value" x-text="$store.substrip.sessionId"></span>
       <span class="app-substrip__sep">·</span>
       <span class="app-substrip__label">OPERATOR</span>
       <span class="app-substrip__value">admin@dataops</span>
@@ -170,7 +170,8 @@
       <span class="app-substrip__value app-substrip__value--accent">WX-03</span>
       <div class="app-substrip__spacer"></div>
       <span class="app-substrip__label">STOCKPILE</span>
-      <span class="app-substrip__value app-substrip__value--accent" id="substripStockpile">—</span>
+      <span class="app-substrip__value app-substrip__value--accent"
+            x-text="$store.substrip.stockpileCount === null ? '—' : $store.substrip.stockpileCount.toLocaleString()"></span>
     </div>
 
     <div class="app-pages">

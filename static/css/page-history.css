@@ -243,7 +243,16 @@
   cursor: pointer;
 }
 .rc-chip:hover { background: var(--c-accent-soft); }
-.rc-chip--active { background: var(--ink-1); color: var(--bg-0); border-color: var(--ink-1); }
+.rc-chip--active {
+  background: rgba(0, 255, 149, .10);
+  color: var(--accent);
+  border-color: rgba(0, 255, 149, .35);
+  font-weight: 600;
+}
+body[data-theme="light"] .rc-chip--active {
+  background: rgba(26, 122, 76, .10);
+  border-color: rgba(26, 122, 76, .35);
+}
 
 .rc-table {
   width: 100%;
@@ -335,10 +344,17 @@
 
 .manual-cat-select {
   padding: 3px 8px;
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-sm, 4px);
-  background: white;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg-2);
+  color: var(--ink-0);
   font-size: var(--fs-md);
+  outline: none;
+  cursor: pointer;
+}
+.manual-cat-select option {
+  background: var(--bg-2);
+  color: var(--ink-0);
 }
 
 .grade-warn {
