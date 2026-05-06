@@ -148,6 +148,44 @@ def compute_customer_split(
     }
 
 
+def compute_qty_percentile(barcode: str, session: Session | None = None) -> float | None:
+    """该 SKU 总销量在所有有销售的 SKU 中的百分位（0-100）。
+
+    用途：dashboard "等级 vs 销量" 对照（高等级低销量 = 等级失真，反之亦然）。
+    无销售 → None。
+    """
+    from sqlalchemy import text
+
+    stmt = text(
+        """
+        WITH totals AS (
+            SELECT product_barcode, SUM(qty) AS total
+            FROM inventory_events
+            WHERE event_type = 'sale'
+            GROUP BY product_barcode
+        ),
+        me AS (SELECT total FROM totals WHERE product_barcode = :bc)
+        SELECT
+            CASE WHEN (SELECT COUNT(*) FROM totals) = 0 THEN NULL
+                 ELSE
+                    (SELECT COUNT(*) FROM totals WHERE total < (SELECT total FROM me)) * 100.0
+                    / (SELECT COUNT(*) FROM totals)
+            END
+        """
+    )
+    if session is not None:
+        return _run_pct(session, stmt, barcode)
+    with stockpile_db._session() as s:
+        return _run_pct(s, stmt, barcode)
+
+
+def _run_pct(session, stmt, barcode: str) -> float | None:
+    row = session.execute(stmt, {"bc": barcode}).first()
+    if row is None or row[0] is None:
+        return None
+    return round(float(row[0]), 1)
+
+
 def recompute_categories(as_of: date | None = None) -> dict[str, Any]:
     """批量重算所有 active SKU 的 auto_category，写回 stockpile。
 

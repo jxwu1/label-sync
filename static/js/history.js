@@ -85,6 +85,16 @@ const AUTO_CATEGORY_CN = {
   unclassified: "未分类",
 };
 
+const MANUAL_CATEGORIES = [
+  "季节性",
+  "网红昙花",
+  "应需采购",
+  "消耗品",
+  "长期产品",
+  "阶段性多峰",
+  "滞销",
+];
+
 function fmtNum(n) {
   if (n === null || n === undefined) return '<span class="empty-val">—</span>';
   return String(n);
@@ -122,21 +132,30 @@ async function loadAnalytics(barcode) {
 function renderAnalytics(data) {
   const s = data.sales;
   const p = data.purchase;
+  const cs = data.customer_split || { cn: {}, fo: {} };
   const autoCat = data.auto_category
     ? `<span class="cat-badge cat-${escapeHtml(data.auto_category)}">${escapeHtml(AUTO_CATEGORY_CN[data.auto_category] || data.auto_category)}</span>`
     : '<span class="empty-val">未计算</span>';
   const computedAt = data.auto_category_computed_at
     ? `<span class="cat-time">（${escapeHtml(data.auto_category_computed_at)}）</span>`
     : "";
-  const manualCat = data.manual_category
-    ? `<span class="cat-badge cat-manual">${escapeHtml(data.manual_category)}（人工）</span>`
-    : "";
+
+  // manual_category 下拉：current 选中态
+  const dropdown = renderManualDropdown(data.barcode, data.manual_category);
+
+  // 等级 vs 销量百分位告警
+  const gradeRow = renderGradeRow(data.manual_grade, data.qty_percentile);
 
   $("historyAnalytics").innerHTML = `
     <div class="ana-cat-row">
-      <span class="k">分类</span>
-      <span class="v">${autoCat}${manualCat}${computedAt}</span>
+      <span class="k">自动分类</span>
+      <span class="v">${autoCat}${computedAt}</span>
     </div>
+    <div class="ana-cat-row">
+      <span class="k">人工标签</span>
+      <span class="v">${dropdown}</span>
+    </div>
+    ${gradeRow}
 
     <div class="ana-section">销售面</div>
     <div class="kv-grid">
@@ -147,12 +166,98 @@ function renderAnalytics(data) {
       <div><span class="k">12 周趋势</span><span class="v">${fmtPct(s.trend_slope_pct_per_week)} / 周</span></div>
     </div>
 
+    <div class="ana-section">客户端拆分</div>
+    <div class="ana-cust-split">
+      ${renderCustomerEnd("🇨🇳 中国端", cs.cn || {})}
+      ${renderCustomerEnd("🇬🇷 老外端", cs.fo || {})}
+    </div>
+
     <div class="ana-section">采购面</div>
     <div class="kv-grid">
       <div><span class="k">库存推算</span><span class="v">${fmtNum(p.stock_balance)}</span></div>
       <div><span class="k">毛利率</span><span class="v">${fmtPct(p.avg_margin_pct)}</span></div>
       <div><span class="k">365 天采购笔数</span><span class="v">${fmtNum(p.purchase_freq_365d)}</span></div>
       <div><span class="k">上次采购</span><span class="v">${fmtDays(p.last_purchase_days_ago)}</span></div>
+    </div>
+  `;
+
+  // 绑下拉 change → POST
+  const sel = $("manualCategorySelect");
+  if (sel) {
+    sel.addEventListener("change", async () => {
+      const val = sel.value;
+      try {
+        const resp = await fetch(
+          `/analytics/sku/${encodeURIComponent(data.barcode)}/manual-category`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ category: val }),
+          },
+        );
+        const r = await resp.json();
+        if (!r.ok) {
+          alert(`保存失败：${r.msg}`);
+          sel.value = data.manual_category || "";
+        } else {
+          // 改 data 状态以便下次渲染一致
+          data.manual_category = r.manual_category;
+        }
+      } catch (err) {
+        alert(`网络错误：${err.message}`);
+        sel.value = data.manual_category || "";
+      }
+    });
+  }
+}
+
+function renderManualDropdown(barcode, current) {
+  const opts = ['<option value="">— 未设置 —</option>']
+    .concat(
+      MANUAL_CATEGORIES.map(
+        (c) =>
+          `<option value="${escapeHtml(c)}"${c === current ? " selected" : ""}>${escapeHtml(c)}</option>`,
+      ),
+    )
+    .join("");
+  return `<select id="manualCategorySelect" class="manual-cat-select">${opts}</select>`;
+}
+
+function renderCustomerEnd(label, m) {
+  const last = m.last_at ? escapeHtml(m.last_at) : '<span class="empty-val">—</span>';
+  return `
+    <div class="cust-col">
+      <div class="cust-col-hd">${label}</div>
+      <div class="cust-col-bd">
+        <div><span class="k">销量</span><span class="v">${fmtNum(m.qty)}</span></div>
+        <div><span class="k">客户数</span><span class="v">${fmtNum(m.unique_customers)}</span></div>
+        <div><span class="k">单笔最大</span><span class="v">${fmtNum(m.max_single_qty)}</span></div>
+        <div><span class="k">月均频次</span><span class="v">${fmtNum(m.avg_freq_per_month)}</span></div>
+        <div><span class="k">上次购买</span><span class="v">${last}</span></div>
+      </div>
+    </div>
+  `;
+}
+
+function renderGradeRow(grade, percentile) {
+  if (grade === null || grade === undefined) return "";
+  const pctText =
+    percentile === null || percentile === undefined
+      ? '<span class="empty-val">无销售</span>'
+      : `${percentile}% 分位`;
+  // 不一致告警：grade ≥ 8 但 pct < 30，或 grade ≤ 3 但 pct > 70
+  let warn = "";
+  if (percentile !== null && percentile !== undefined) {
+    if (grade >= 8 && percentile < 30) {
+      warn = '<span class="grade-warn">⚠ 高等级低销量</span>';
+    } else if (grade <= 3 && percentile > 70) {
+      warn = '<span class="grade-warn">⚠ 低等级高销量</span>';
+    }
+  }
+  return `
+    <div class="ana-cat-row">
+      <span class="k">等级对照</span>
+      <span class="v">ERP 等级 ${grade} · 销量 ${pctText} ${warn}</span>
     </div>
   `;
 }

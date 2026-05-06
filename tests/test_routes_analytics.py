@@ -83,10 +83,71 @@ class AnalyticsRoutesTests(unittest.TestCase):
         self.assertIn("sales", data)
         self.assertIn("purchase", data)
         self.assertIn("customer_split", data)
+        self.assertIn("qty_percentile", data)
         self.assertEqual(data["auto_category"], "new")
         self.assertEqual(data["manual_grade"], 5)
         # sales metrics 实际有内容
         self.assertEqual(data["sales"]["total_qty"], 10)
+
+    def test_qty_percentile_lowest(self) -> None:
+        """3 个 SKU 销量 1/5/10：销 1 的那个是底部 → 0%。"""
+        self._seed_sku("LOW", manual_grade=8)  # 高等级低销 → 等级失真
+        self._seed_sku("MID")
+        self._seed_sku("HIGH")
+        self._seed_sale("LOW", "2026-04-15", 1)
+        self._seed_sale("MID", "2026-04-15", 5)
+        self._seed_sale("HIGH", "2026-04-15", 10)
+
+        resp = self.client.get("/analytics/sku/LOW")
+        data = resp.get_json()
+        self.assertEqual(data["qty_percentile"], 0.0)
+
+        resp = self.client.get("/analytics/sku/HIGH")
+        data = resp.get_json()
+        # 比 1 + 5 都大 = 2/3 = 66.7%
+        self.assertAlmostEqual(data["qty_percentile"], 66.7, places=1)
+
+
+class ManualCategoryTests(AnalyticsRoutesTests):
+    def test_set_valid_category(self) -> None:
+        self._seed_sku("B1")
+        resp = self.client.post(
+            "/analytics/sku/B1/manual-category",
+            json={"category": "网红昙花"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["manual_category"], "网红昙花")
+
+        # 复查 GET
+        resp = self.client.get("/analytics/sku/B1")
+        self.assertEqual(resp.get_json()["manual_category"], "网红昙花")
+
+    def test_clear_with_empty_string(self) -> None:
+        self._seed_sku("B1", manual_category="滞销")
+        resp = self.client.post(
+            "/analytics/sku/B1/manual-category",
+            json={"category": ""},
+        )
+        data = resp.get_json()
+        self.assertTrue(data["ok"])
+        self.assertIsNone(data["manual_category"])
+
+    def test_invalid_category_returns_400(self) -> None:
+        self._seed_sku("B1")
+        resp = self.client.post(
+            "/analytics/sku/B1/manual-category",
+            json={"category": "随便编一个"},
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_post_unknown_barcode_returns_404(self) -> None:
+        resp = self.client.post(
+            "/analytics/sku/NOPE/manual-category",
+            json={"category": "滞销"},
+        )
+        self.assertEqual(resp.status_code, 404)
 
 
 if __name__ == "__main__":
