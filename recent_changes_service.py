@@ -14,6 +14,21 @@ from models import Stockpile, StockpileChange, StockpileSnapshot
 
 _RECENT_IMPORTS_LIMIT = 10
 _EPOCH = "1970-01-01 00:00:00"
+_FAR_FUTURE = "9999-12-31 23:59:59"
+
+# 「开放批次」：上次 import snapshot 之后到现在的零散改动（标签修改 / 单条
+# 库位改 / 任何走 _log_change 的写入）。它没有正式 snapshot 关闭窗口，所以
+# 在不引入这个虚拟 batch 之前，这些改动会从最近改动 tab 完全消失。
+_OPEN_BATCH_ID = -1
+
+
+def _last_import_taken_at(session) -> str | None:
+    return session.execute(
+        select(StockpileSnapshot.taken_at)
+        .where(StockpileSnapshot.trigger == "import")
+        .order_by(StockpileSnapshot.taken_at.desc())
+        .limit(1)
+    ).scalar_one_or_none()
 
 
 def _batch_window(session, batch_id: int) -> tuple[str, str]:
@@ -21,7 +36,15 @@ def _batch_window(session, batch_id: int) -> tuple[str, str]:
 
     window_end = snapshot[batch_id].taken_at
     window_start = 上一个 trigger='import' snapshot 的 taken_at；不存在时取 _EPOCH
+
+    特殊 batch_id == _OPEN_BATCH_ID（-1）：开放批次，
+        window_start = 最近一次 import snapshot 之后
+        window_end   = _FAR_FUTURE（永远把"现在以后写入的"也算上）
     """
+    if batch_id == _OPEN_BATCH_ID:
+        last = _last_import_taken_at(session)
+        return (last or _EPOCH, _FAR_FUTURE)
+
     current = session.execute(
         select(StockpileSnapshot.taken_at).where(StockpileSnapshot.id == batch_id)
     ).scalar_one()
@@ -42,11 +65,40 @@ def _batch_window(session, batch_id: int) -> tuple[str, str]:
 
 
 def list_recent_imports(limit: int = _RECENT_IMPORTS_LIMIT) -> list[dict]:
-    """返回最近 N 次 import snapshot 概览。
+    """返回最近 N 次 import snapshot 概览，最前面可能含一个"开放批次"。
 
     每条 dict 字段：batch_id / taken_at / total_local / change_count / affected_barcodes
+                  / is_open（仅开放批次为 True）
+
+    开放批次：上次 import snapshot 之后的零散变更（标签修改 / 单条修正等
+    都走 _log_change 写 stockpile_changes 但没新 snapshot 闭合窗口，旧逻辑
+    下完全看不到）。
     """
     with stockpile_db._session() as session:
+        result: list[dict] = []
+
+        # === 开放批次：仅当上次 import 之后有 changes 才显示 ===
+        last_at = _last_import_taken_at(session) or _EPOCH
+        open_stats = session.execute(
+            select(
+                func.count().label("n"),
+                func.count(func.distinct(StockpileChange.product_barcode)).label("bc"),
+                func.max(StockpileChange.created_at).label("max_at"),
+            ).where(StockpileChange.created_at > last_at)
+        ).one()
+        if open_stats.n:
+            result.append(
+                {
+                    "batch_id": _OPEN_BATCH_ID,
+                    "taken_at": open_stats.max_at,  # 用最后一条 change 时间
+                    "total_local": None,
+                    "change_count": open_stats.n,
+                    "affected_barcodes": open_stats.bc,
+                    "is_open": True,
+                }
+            )
+
+        # === 已闭合的 import 批次（按 id desc，最新在前） ===
         snapshots = (
             session.execute(
                 select(StockpileSnapshot)
@@ -58,7 +110,6 @@ def list_recent_imports(limit: int = _RECENT_IMPORTS_LIMIT) -> list[dict]:
             .all()
         )
 
-        result = []
         for snap in snapshots:
             start, end = _batch_window(session, snap.id)
             stats = session.execute(
@@ -79,6 +130,7 @@ def list_recent_imports(limit: int = _RECENT_IMPORTS_LIMIT) -> list[dict]:
                     "total_local": snap.total_local,
                     "change_count": stats.n,
                     "affected_barcodes": stats.bc,
+                    "is_open": False,
                 }
             )
         return result

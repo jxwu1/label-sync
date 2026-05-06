@@ -74,9 +74,13 @@ async function loadInitial() {
 
 function populateBatchDropdown(imports) {
   const sel = $("rcBatchSelect");
-  sel.innerHTML = imports.map((b) =>
-    `<option value="${b.batch_id}">${escapeHtml(b.taken_at)} （${b.total_local} 条 / 改动 ${b.affected_barcodes} 个货号）</option>`
-  ).join("");
+  sel.innerHTML = imports.map((b) => {
+    if (b.is_open) {
+      // 开放批次：上次 import 之后到现在的零散改动（标签修改 / 单条修正等）
+      return `<option value="${b.batch_id}">🔄 进行中（上次 import 之后） — 改动 ${b.affected_barcodes} 个货号 · 最近 ${escapeHtml(b.taken_at || "—")}</option>`;
+    }
+    return `<option value="${b.batch_id}">${escapeHtml(b.taken_at)} （${b.total_local} 条 / 改动 ${b.affected_barcodes} 个货号）</option>`;
+  }).join("");
   sel.onchange = () => {
     _currentBatchId = parseInt(sel.value, 10);
     _currentFilter = { field: null, change_type: null };

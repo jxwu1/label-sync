@@ -119,6 +119,70 @@ class RecentChangesTests(unittest.TestCase):
         self.assertEqual(by_id[snap2]["change_count"], 1)
         self.assertEqual(by_id[snap2]["affected_barcodes"], 1)
 
+    def test_open_batch_appears_when_changes_after_last_snapshot(self) -> None:
+        """上次 import 之后有 changes（标签修改 / 单条修正）→ 顶部加开放批次。"""
+        self._insert_snapshot("2026-04-29 10:00:00", trigger="import", total_local=100)
+        # 这条 change 在最后 snapshot 之后，没新 snapshot 闭合窗口
+        self._insert_change(
+            "B1", "stockpile_location", "A1", "B7", created_at="2026-04-29 12:30:00"
+        )
+        self._insert_change(
+            "B2", "stockpile_location", "A2", "C5", created_at="2026-04-29 13:00:00"
+        )
+
+        result = recent_changes_service.list_recent_imports()
+        # 顶部是开放批次
+        self.assertEqual(result[0]["batch_id"], -1)
+        self.assertTrue(result[0]["is_open"])
+        self.assertEqual(result[0]["change_count"], 2)
+        self.assertEqual(result[0]["affected_barcodes"], 2)
+        self.assertEqual(result[0]["taken_at"], "2026-04-29 13:00:00")  # 最后 change 时间
+        self.assertIsNone(result[0]["total_local"])
+        # 已闭合批次仍在
+        self.assertEqual(len(result), 2)
+
+    def test_open_batch_not_in_list_when_no_post_snapshot_changes(self) -> None:
+        """所有 changes 都在 snapshot 之前 → 不该有开放批次。"""
+        self._insert_change("B1", "stockpile_location", "A", "B", created_at="2026-04-29 09:00:00")
+        self._insert_snapshot("2026-04-29 10:00:00", trigger="import", total_local=100)
+
+        result = recent_changes_service.list_recent_imports()
+        self.assertEqual(len(result), 1)
+        self.assertNotEqual(result[0]["batch_id"], -1)
+        self.assertFalse(result[0]["is_open"])
+
+    def test_open_batch_window_start_at_last_import(self) -> None:
+        """开放批次的 window_start = 最近一次 import snapshot taken_at。"""
+        self._insert_snapshot("2026-04-29 08:00:00", trigger="import")
+        self._insert_snapshot("2026-04-29 10:00:00", trigger="import")
+        with stockpile_db._session() as session:
+            start, end = recent_changes_service._batch_window(session, -1)
+        self.assertEqual(start, "2026-04-29 10:00:00")
+        # end 是 far future（不限定上限）
+        self.assertTrue(end.startswith("9999"))
+
+    def test_open_batch_window_no_snapshot_uses_epoch(self) -> None:
+        """没有任何 snapshot 时 → 开放窗口 = (epoch, far_future) 收所有 changes。"""
+        with stockpile_db._session() as session:
+            start, end = recent_changes_service._batch_window(session, -1)
+        self.assertEqual(start, "1970-01-01 00:00:00")
+        self.assertTrue(end.startswith("9999"))
+
+    def test_open_batch_summary_and_changes_work(self) -> None:
+        """get_batch_summary(-1) 和 get_batch_changes(-1) 应该正常返回开放窗口的数据。"""
+        self._insert_snapshot("2026-04-29 08:00:00", trigger="import")
+        self._insert_change(
+            "B1", "stockpile_location", "A1", "B7", created_at="2026-04-29 09:30:00"
+        )
+        self._insert_change("B2", "product_model", "M1", "M2", created_at="2026-04-29 10:00:00")
+
+        s = recent_changes_service.get_batch_summary(-1)
+        self.assertEqual(s["location_changes"], 1)
+        self.assertEqual(s["model_changes"], 1)
+
+        changes = recent_changes_service.get_batch_changes(-1, mode="raw")
+        self.assertEqual(len(changes), 2)
+
     def test_get_batch_summary_counts_by_field_and_change_type(self) -> None:
         """5 个数字 + roundtrip count。所有按 (barcode, field) 维度。"""
         snap_id = self._insert_snapshot("2026-04-29 14:00:00")

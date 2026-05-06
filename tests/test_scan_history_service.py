@@ -37,6 +37,30 @@ class ScanHistoryServiceTests(unittest.TestCase):
             (batch / xlsx_name).write_bytes(b"FAKE XLSX CONTENT" * 10)
         return batch
 
+    def _make_batch_new_filename(self, folder_name: str, csv_rows: int = 1) -> Path:
+        """造一个用新文件名（不带 1 前缀）的 batch。"""
+        batch = self.test_dir / folder_name
+        batch.mkdir()
+        csv = batch / "产品信息导入模板.csv"
+        lines = ["型号,唯一码"]
+        lines.extend(f"M{i},B{i}" for i in range(csv_rows))
+        csv.write_text("\n".join(lines), encoding="utf-8-sig")
+        return batch
+
+    def test_list_batches_finds_csv_with_new_filename(self):
+        """v2 起 phase 脚本输出的 csv 不带 "1" 前缀，service 必须兼容。"""
+        self._make_batch_new_filename("RAFIZUL价格标20260427165945", csv_rows=2)
+        result = scan_history_service.list_batches()
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["csv_filename"], "产品信息导入模板.csv")
+        self.assertEqual(result[0]["csv_rows"], 2)
+
+    def test_get_batch_csv_path_finds_new_filename(self):
+        self._make_batch_new_filename("RAFIZUL价格标20260427165945", csv_rows=1)
+        result = scan_history_service.get_batch_csv_path("RAFIZUL价格标20260427165945")
+        self.assertIsNotNone(result)
+        self.assertEqual(result.name, "产品信息导入模板.csv")
+
     def test_parse_folder_name_extracts_employee_and_timestamp(self):
         result = scan_history_service._parse_folder_name("ALI价格标20260423155137")
         self.assertEqual(result, {"employee": "ALI", "timestamp": "20260423155137"})

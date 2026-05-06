@@ -49,17 +49,30 @@ def list_batches(limit: int = 100) -> list[dict]:
     return [_build_batch_dict(entry, info) for entry, info in parsed]
 
 
-_CSV_FILENAME = "1产品信息导入模板.csv"
+# 历史上模板叫 "1产品信息导入模板.csv"，后来改成 "产品信息导入模板.csv"。
+# 旧文件夹保留旧名，新文件夹用新名。检测时按顺序找第一个存在的。
+_CSV_FILENAME_CANDIDATES = (
+    "产品信息导入模板.csv",
+    "1产品信息导入模板.csv",
+)
+
+
+def _find_csv_in_batch(batch_dir: Path) -> Path | None:
+    for name in _CSV_FILENAME_CANDIDATES:
+        p = batch_dir / name
+        if p.exists() and p.is_file():
+            return p
+    return None
 
 
 def _build_batch_dict(batch_dir: Path, info: dict) -> dict:
     """组装一条 batch 概览。CSV 缺失或不可读时 csv_* 字段为 None。"""
-    csv_path = batch_dir / _CSV_FILENAME
+    csv_path = _find_csv_in_batch(batch_dir)
     csv_filename: str | None = None
     csv_rows: int | None = None
     csv_size_bytes: int | None = None
-    if csv_path.exists() and csv_path.is_file():
-        csv_filename = _CSV_FILENAME
+    if csv_path is not None:
+        csv_filename = csv_path.name
         try:
             csv_size_bytes = csv_path.stat().st_size
             csv_rows = _count_csv_rows(csv_path)
@@ -119,14 +132,14 @@ def list_employees() -> list[str]:
 
 
 def get_batch_csv_path(batch_id: str) -> Path | None:
-    """返回 batch 内主 CSV 的 Path；不存在/不安全返回 None。"""
+    """返回 batch 内主 CSV 的 Path；不存在/不安全返回 None。
+
+    兼容新旧两种文件名（见 _CSV_FILENAME_CANDIDATES）。
+    """
     batch_dir = _safe_resolve_batch(batch_id)
     if batch_dir is None:
         return None
-    csv_path = batch_dir / _CSV_FILENAME
-    if not csv_path.exists() or not csv_path.is_file():
-        return None
-    return csv_path
+    return _find_csv_in_batch(batch_dir)
 
 
 def _safe_resolve_batch(batch_id: str) -> Path | None:
