@@ -146,11 +146,17 @@ async function doImport() {
     const reasonsHtml = (data.skipped_reasons || [])
       .map((r) => `<li>${escapeHtml(r)}</li>`)
       .join("");
+    const recovered = data.barcodes_recovered || 0;
+    const noDate = data.rows_skipped_no_date || 0;
+    const orphan = data.rows_skipped_orphan_barcode || 0;
     $("invResult").innerHTML = `
       <div class="inv-stats">
         <div><b>导入：</b>${data.rows_imported}</div>
         <div><b>跳过（重复）：</b>${data.rows_skipped_duplicate}</div>
         <div><b>跳过（缺字段）：</b>${data.rows_skipped_missing_key}</div>
+        <div><b>跳过（无日期）：</b>${noDate}</div>
+        <div><b>跳过（孤儿条码）：</b>${orphan}</div>
+        <div><b>条码反查救回：</b>${recovered}</div>
         <div><b>新建客户：</b>${data.new_customers}</div>
         <div><b>新建供应商：</b>${data.new_suppliers}</div>
         <div><b>新建 SKU：</b>${data.new_skus}</div>

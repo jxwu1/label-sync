@@ -86,6 +86,9 @@ class ImportResult:
     rows_imported: int = 0
     rows_skipped_duplicate: int = 0
     rows_skipped_missing_key: int = 0
+    rows_skipped_no_date: int = 0  # 销售：barcode 空 + 没日期，"莫名扫到"行
+    rows_skipped_orphan_barcode: int = 0  # 销售：barcode 空 + qty=0 / 反查失败
+    barcodes_recovered: int = 0  # 销售：barcode 空 + qty>0 + 型号反查成功
     new_customers: int = 0
     new_suppliers: int = 0
     new_skus: int = 0
@@ -93,7 +96,12 @@ class ImportResult:
 
     @property
     def rows_skipped(self) -> int:
-        return self.rows_skipped_duplicate + self.rows_skipped_missing_key
+        return (
+            self.rows_skipped_duplicate
+            + self.rows_skipped_missing_key
+            + self.rows_skipped_no_date
+            + self.rows_skipped_orphan_barcode
+        )
 
 
 # === 类型清洗 ===
@@ -155,6 +163,24 @@ def _clean_date(val: Any) -> str | None:
                 except ValueError:
                     pass
     return None
+
+
+# === 销售反查（仅 sale event_type 启用） ===
+
+
+def _lookup_barcode_by_model(session: Session, model: str) -> tuple[str, int]:
+    """按 product_model 在 stockpile 反查 barcode。返回 (barcode, match_count)。
+
+    match_count == 1 → 返回 barcode（业务上人为漏扫的情况，可救回）
+    match_count == 0 / >1 → 返回 ('', count)，调用方决定跳过逻辑
+    """
+    rows = session.execute(
+        Stockpile.__table__.select().where(Stockpile.product_model == model)
+    ).all()
+    count = len(rows)
+    if count == 1:
+        return rows[0].product_barcode, 1
+    return "", count
 
 
 # === 主档 UPSERT ===
@@ -360,6 +386,42 @@ def import_events(
         )
         if all_empty:
             continue
+
+        # === 销售专属：barcode 空时按业务规则处理（删 / 反查 / 跳过）===
+        if event_type == "sale" and not barcode:
+            # 1. 没日期 → 删（"莫名扫到"行，源数据噪声）
+            if not event_at:
+                result.rows_skipped_no_date += 1
+                if len(result.skipped_reasons) < 10:
+                    result.skipped_reasons.append(
+                        f"row {idx}: barcode 空 + 无日期，已删（莫名扫到）"
+                    )
+                continue
+            # 2. qty 0 或缺 → 删（扫描错误）
+            if not qty:
+                result.rows_skipped_orphan_barcode += 1
+                if len(result.skipped_reasons) < 10:
+                    result.skipped_reasons.append(f"row {idx}: barcode 空 + qty=0/缺，扫描错误已删")
+                continue
+            # 3. qty > 0 → 业务上人为漏扫，反查 stockpile.product_model 救回
+            model = _clean_barcode_or_model(internal.get("product_model"))
+            if not model:
+                result.rows_skipped_orphan_barcode += 1
+                if len(result.skipped_reasons) < 10:
+                    result.skipped_reasons.append(f"row {idx}: barcode 空 + 型号也空，无反查依据")
+                continue
+            recovered, match_count = _lookup_barcode_by_model(session, model)
+            if match_count == 1:
+                barcode = recovered
+                result.barcodes_recovered += 1
+            else:
+                result.rows_skipped_orphan_barcode += 1
+                if len(result.skipped_reasons) < 10:
+                    reason = "未找到" if match_count == 0 else f"{match_count} 个 match 无法确定"
+                    result.skipped_reasons.append(
+                        f"row {idx}: barcode 空 + 型号 {model} 反查 {reason}"
+                    )
+                continue
 
         if not barcode or qty is None or not event_at:
             result.rows_skipped_missing_key += 1

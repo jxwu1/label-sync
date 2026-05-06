@@ -227,8 +227,10 @@ class MissingFieldTests(_BaseImporterTest):
             result = import_events(df, DEFAULT_MAPPING, "sale", session)
             session.commit()
         assert result.rows_imported == 1
-        assert result.rows_skipped_missing_key == 1
-        assert "缺关键字段" in result.skipped_reasons[0]
+        # 销售里 barcode 空 + qty>0 走 orphan 路径反查；型号 M1 在 stockpile 里不存在 →
+        # 计入 orphan_barcode 而不是 missing_key（语义更精确）
+        assert result.rows_skipped_orphan_barcode == 1
+        assert any("反查 未找到" in s for s in result.skipped_reasons)
 
     def test_completely_empty_row_silently_skipped(self) -> None:
         """ERP 导出常带末尾合计/页脚空行：不报 missing_key，静默跳过。"""
@@ -272,6 +274,133 @@ class InvalidEventTypeTests(_BaseImporterTest):
         with Session(self.engine) as session:
             with self.assertRaises(ValueError, msg="event_type"):
                 import_events(pd.DataFrame(), DEFAULT_MAPPING, "transfer", session)
+
+
+class SalesOrphanBarcodeTests(_BaseImporterTest):
+    """销售：barcode 空时按业务规则处理（无日期删 / qty=0 删 / 反查救回）。"""
+
+    def _row(self, **fields) -> dict:
+        base = {
+            "单号": "S1",
+            "ID号": "C1",
+            "名称": "客户A",
+            "日期": "2026-05-05",
+            "型号": "SKU001",
+            "条形码": "BC-001",
+            "数量": 5,
+            "单价": 10.0,
+        }
+        base.update(fields)
+        return base
+
+    def _seed_stockpile(self, sku_records: list[dict]) -> None:
+        """直接 seed stockpile 主档（模拟"采购已先导入"场景）。"""
+        with Session(self.engine) as session:
+            for r in sku_records:
+                session.add(
+                    Stockpile(
+                        product_barcode=r["barcode"],
+                        product_model=r["model"],
+                        stockpile_location="",
+                        is_active=1,
+                    )
+                )
+            session.commit()
+
+    def test_sale_no_barcode_no_date_skipped_no_date_bucket(self) -> None:
+        df = pd.DataFrame([self._row(条形码=None, 日期=None)])
+        with Session(self.engine) as session:
+            r = import_events(df, DEFAULT_MAPPING, "sale", session)
+            session.commit()
+        assert r.rows_imported == 0
+        assert r.rows_skipped_no_date == 1
+        assert r.rows_skipped_orphan_barcode == 0
+        assert r.rows_skipped_missing_key == 0
+
+    def test_sale_no_barcode_qty_zero_skipped_orphan(self) -> None:
+        df = pd.DataFrame([self._row(条形码=None, 数量=0)])
+        with Session(self.engine) as session:
+            r = import_events(df, DEFAULT_MAPPING, "sale", session)
+            session.commit()
+        assert r.rows_imported == 0
+        assert r.rows_skipped_orphan_barcode == 1
+
+    def test_sale_no_barcode_qty_pos_model_match_recovered(self) -> None:
+        # stockpile 有 SKU001 → BC-001 的对应
+        self._seed_stockpile([{"barcode": "BC-001", "model": "SKU001"}])
+        df = pd.DataFrame([self._row(条形码=None, 型号="SKU001", 数量=3)])
+        with Session(self.engine) as session:
+            r = import_events(df, DEFAULT_MAPPING, "sale", session)
+            session.commit()
+            # 事件落库且 barcode 是反查救回的 BC-001
+            events = session.execute(select(InventoryEvent)).scalars().all()
+            assert len(events) == 1
+            assert events[0].product_barcode == "BC-001"
+        assert r.rows_imported == 1
+        assert r.barcodes_recovered == 1
+        assert r.rows_skipped_orphan_barcode == 0
+
+    def test_sale_no_barcode_qty_pos_model_not_found_orphan(self) -> None:
+        # stockpile 里没有 UNKNOWN_SKU → 反查 0 match
+        df = pd.DataFrame([self._row(条形码=None, 型号="UNKNOWN_SKU")])
+        with Session(self.engine) as session:
+            r = import_events(df, DEFAULT_MAPPING, "sale", session)
+            session.commit()
+        assert r.rows_imported == 0
+        assert r.rows_skipped_orphan_barcode == 1
+        assert r.barcodes_recovered == 0
+        # 报到 reason
+        assert any("反查 未找到" in s for s in r.skipped_reasons)
+
+    def test_sale_no_barcode_qty_pos_model_multi_match_orphan(self) -> None:
+        # 同 model 的 2 条 stockpile（不同 barcode）→ 反查 >1 不确定
+        self._seed_stockpile(
+            [
+                {"barcode": "BC-A", "model": "DUP_SKU"},
+                {"barcode": "BC-B", "model": "DUP_SKU"},
+            ]
+        )
+        df = pd.DataFrame([self._row(条形码=None, 型号="DUP_SKU")])
+        with Session(self.engine) as session:
+            r = import_events(df, DEFAULT_MAPPING, "sale", session)
+            session.commit()
+        assert r.rows_imported == 0
+        assert r.rows_skipped_orphan_barcode == 1
+        assert any("2 个 match" in s for s in r.skipped_reasons)
+
+    def test_sale_no_barcode_no_model_orphan(self) -> None:
+        df = pd.DataFrame([self._row(条形码=None, 型号=None)])
+        with Session(self.engine) as session:
+            r = import_events(df, DEFAULT_MAPPING, "sale", session)
+            session.commit()
+        assert r.rows_skipped_orphan_barcode == 1
+        assert any("无反查依据" in s for s in r.skipped_reasons)
+
+    def test_purchase_no_barcode_still_missing_key_no_recovery(self) -> None:
+        """采购导入不启用反查，barcode 空时仍走 missing_key（旧行为）。"""
+        # 即使 stockpile 里有 SKU001，采购导入也不去反查
+        self._seed_stockpile([{"barcode": "BC-001", "model": "SKU001"}])
+        df = pd.DataFrame(
+            [
+                {
+                    "单号": "P1",
+                    "ID号": "S1",
+                    "名称": "供应商A",
+                    "日期": "2026-05-05",
+                    "型号": "SKU001",
+                    "条形码": None,  # 采购里 barcode 空
+                    "数量": 100,
+                    "单价": 5.0,
+                }
+            ]
+        )
+        with Session(self.engine) as session:
+            r = import_events(df, DEFAULT_MAPPING, "purchase", session)
+            session.commit()
+        assert r.rows_imported == 0
+        assert r.rows_skipped_missing_key == 1
+        assert r.barcodes_recovered == 0  # 采购不反查
+        assert r.rows_skipped_orphan_barcode == 0
 
 
 if __name__ == "__main__":
