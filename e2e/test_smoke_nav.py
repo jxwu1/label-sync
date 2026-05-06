@@ -115,8 +115,8 @@ def test_sales_analytics_page_renders(live_server, page_with_console) -> None:
     )
     assert set(chip_groups) == {"auto", "manual", "cust", "warn"}
 
-    # 排序下拉 + 表格骨架在
-    assert page.locator("#saSort").count() == 1
+    # 列头排序（PR-FE-3 换掉旧 dropdown）+ 表格骨架在
+    assert page.locator(".sa-th-sort").count() >= 4
     assert page.locator("#saTbody").count() == 1
 
     page.wait_for_timeout(_ALPINE_SETTLE_MS)

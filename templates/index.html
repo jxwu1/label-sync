@@ -559,19 +559,6 @@
           <div class="panel-hd">
             列表
             <div class="sa-actions">
-              <label class="sa-sort">
-                排序
-                <select id="saSort">
-                  <option value="total_qty:desc">总销量 ↓</option>
-                  <option value="total_qty:asc">总销量 ↑</option>
-                  <option value="lifespan_days:desc">寿命 ↓</option>
-                  <option value="lifespan_days:asc">寿命 ↑</option>
-                  <option value="trend_slope_pct_per_week:desc">趋势 ↓</option>
-                  <option value="trend_slope_pct_per_week:asc">趋势 ↑</option>
-                  <option value="manual_grade:desc">等级 ↓</option>
-                  <option value="manual_grade:asc">等级 ↑</option>
-                </select>
-              </label>
               <span class="sa-stat" id="saStatShowing"></span>
             </div>
           </div>
@@ -582,17 +569,18 @@
                   <th>条码</th>
                   <th>型号 / 品名</th>
                   <th>分类</th>
-                  <th class="sa-num">总销量</th>
-                  <th class="sa-num">寿命(天)</th>
-                  <th class="sa-num">12 周趋势</th>
+                  <th class="sa-num sa-th-sort" data-sort="total_qty">总销量 <span class="sa-sort-ind"></span></th>
+                  <th class="sa-num sa-th-sort" data-sort="lifespan_days">寿命(天) <span class="sa-sort-ind"></span></th>
+                  <th class="sa-num sa-th-sort" data-sort="trend_slope_pct_per_week">12 周趋势 <span class="sa-sort-ind"></span></th>
+                  <th class="sa-num">趋势线</th>
                   <th class="sa-num">🇨🇳</th>
                   <th class="sa-num">🇬🇷</th>
-                  <th class="sa-num">等级</th>
+                  <th class="sa-num sa-th-sort" data-sort="manual_grade">等级 <span class="sa-sort-ind"></span></th>
                   <th>告警</th>
                 </tr>
               </thead>
               <tbody id="saTbody">
-                <tr><td colspan="10" class="empty">点「刷新」加载</td></tr>
+                <tr><td colspan="11" class="empty">点「刷新」加载</td></tr>
               </tbody>
             </table>
           </div>
