@@ -93,6 +93,66 @@ class RecentChangesRoutesTests(unittest.TestCase):
         resp = self.client.get(f"/recent_changes/{sid}/changes?mode=garbage")
         self.assertEqual(resp.status_code, 400)
 
+    def test_summary_open_batch_negative_id(self) -> None:
+        """开放批次 batch_id=-1 不能被 Flask 默认 <int:> 拒掉。"""
+        # seed 一个 import snapshot + 之后的 change（构造开放批次）
+        with stockpile_db._session() as session:
+            from sqlalchemy import insert as sa_insert
+
+            session.execute(
+                sa_insert(StockpileSnapshot).values(
+                    taken_at="2026-04-29 10:00:00", trigger="import", total_local=100
+                )
+            )
+            session.execute(
+                sa_insert(StockpileChange).values(
+                    product_barcode="B1",
+                    field_name="stockpile_location",
+                    old_value="A1",
+                    new_value="A2",
+                    change_type="update",
+                    created_at="2026-04-29 12:00:00",
+                )
+            )
+            session.commit()
+
+        resp = self.client.get("/recent_changes/-1/summary")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["summary"]["location_changes"], 1)
+
+    def test_changes_open_batch_negative_id(self) -> None:
+        with stockpile_db._session() as session:
+            from sqlalchemy import insert as sa_insert
+
+            session.execute(
+                sa_insert(StockpileSnapshot).values(
+                    taken_at="2026-04-29 10:00:00", trigger="import", total_local=100
+                )
+            )
+            session.execute(
+                sa_insert(StockpileChange).values(
+                    product_barcode="B1",
+                    field_name="stockpile_location",
+                    old_value="A1",
+                    new_value="A2",
+                    change_type="update",
+                    created_at="2026-04-29 12:00:00",
+                )
+            )
+            session.commit()
+
+        resp = self.client.get("/recent_changes/-1/changes?mode=raw")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(len(body["changes"]), 1)
+
+    def test_invalid_batch_id_string_returns_400(self) -> None:
+        resp = self.client.get("/recent_changes/not_a_number/summary")
+        self.assertEqual(resp.status_code, 400)
+
 
 if __name__ == "__main__":
     unittest.main()
