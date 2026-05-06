@@ -111,22 +111,6 @@ async function copyModelsAndDisplay(isUnique) {
 $("#copyModels").onclick = () => copyModelsAndDisplay(true);
 $("#copyModelsAll").onclick = () => copyModelsAndDisplay(false);
 
-function setupDupZone() { setupDropZone($("#dupDrop"), $("#dupInput"), (files) => { if (files[0]) runDup(files[0]); }); }
-
-async function runDup(file) {
-  const dupRes = $("#dupRes");
-  dupRes.innerHTML = '<div class="empty"><span class="spin"></span>检查中...</div>';
-  Alpine.store('term').push("开始重复检查：" + file.name, "", "dc");
-  const formData = new FormData(); formData.append("file", file);
-  try {
-    const data = await (await fetch("/check_dup", { method: "POST", body: formData })).json();
-    if (!data.ok) { dupRes.innerHTML = `<div class="empty text-danger-light">错误：${esc(data.msg)}</div>`; Alpine.store('term').push("检查失败：" + data.msg, "log-err", "dc"); return; }
-    if (data.dup_count === 0) { dupRes.innerHTML = `<div class="sum">列名：<b>${esc(data.column)}</b> | 总条数：<b>${data.total}</b> | <span class="ok">无重复</span></div>`; Alpine.store('term').push("重复检查完成：无重复", "log-ok", "dc"); return; }
-    dupRes.innerHTML = `<div class="sum">列名：<b>${esc(data.column)}</b> | 总条数：<b>${data.total}</b> | 重复值：<span class="hl">${data.dup_count}</span></div><table><thead><tr><th>值</th><th>出现次数</th><th>行号</th></tr></thead><tbody>${data.duplicates.map((i) => `<tr><td>${esc(i.value)}</td><td>${i.count}</td><td>${i.rows.join(", ")}</td></tr>`).join("")}</tbody></table>`;
-    Alpine.store('term').push("重复检查完成：发现 " + data.dup_count + " 个重复值", "log-warn", "dc");
-  } catch (e) { dupRes.innerHTML = `<div class="empty text-danger-light">请求失败：${esc(String(e))}</div>`; Alpine.store('term').push("请求失败：" + e, "log-err", "dc"); }
-}
-
 function setupTransferZone() { setupDropZone($("#tDrop"), $("#tInput"), async (files) => { await uploadTransferFiles(files, $("#tMsg")); loadTransferUI(); }); }
 
 async function loadTransferUI() {
@@ -171,6 +155,6 @@ async function restore() {
   } catch (e) { console.error("Status restore failed:", e); }
 }
 
-setupDupZone(); setupTransferZone(); loadTransferUI(); loadMsgsUI(); restore();
+setupTransferZone(); loadTransferUI(); loadMsgsUI(); restore();
 setInterval(loadTransferUI, 5000); setInterval(loadMsgsUI, 5000);
 initStockpile();

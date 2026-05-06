@@ -9,7 +9,6 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-main.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/page-dup.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-purchase.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-attendance.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-history.css') }}">
@@ -264,10 +263,50 @@
   </div>
 </div>
       <div class="page" id="pageDup" x-data :class="$store.nav.current === 'dup' ? 'active' : ''">
-        <div class="panel"><div class="panel-bd">
-          <div class="dup-top" id="dupDrop"><input type="file" id="dupInput" accept=".xlsx,.xls,.csv"><div>拖入或点击选择文件，检查第一列重复值</div><div class="hint">支持 .xlsx / .xls / .csv</div></div>
-          <div class="dup-res" id="dupRes"><div class="empty">上传文件后显示检查结果</div></div>
-        </div></div>
+        <div class="panel">
+          <div class="panel-hd">
+            标签查重 · 数据库清洁
+            <div class="dq-actions">
+              <button class="pur-btn-dl" id="ddRefresh">刷新</button>
+            </div>
+          </div>
+          <div class="panel-bd" id="ddHint">
+            扫 stockpile 主档 4 类脏数据：空白字符 / 异常前缀 / 重复段 / 空库位。本页只展示，不修改 DB；问题在老 ERP 修了，下次 import 自动同步。
+          </div>
+        </div>
+        <div class="panel dq-section" id="ddWhitespacePanel" hidden>
+          <div class="panel-hd">空白字符异常 <span class="dq-count" id="ddWhitespaceCount"></span>
+            <div class="dq-actions">
+              <a class="pur-btn-dl" href="/data_quality/whitespace_fix_template" download>下载修复模板</a>
+              <button class="pur-btn-copy" data-copy-section="whitespace_anomalies">一键复制</button>
+            </div>
+          </div>
+          <div class="panel-bd" id="ddWhitespace"></div>
+        </div>
+        <div class="panel dq-section" id="ddUnknownPanel" hidden>
+          <div class="panel-hd">异常前缀（非 A/B/C/X/Z 开头）<span class="dq-count" id="ddUnknownCount"></span>
+            <div class="dq-actions">
+              <button class="pur-btn-copy" data-copy-section="unknown_prefix">一键复制</button>
+            </div>
+          </div>
+          <div class="panel-bd" id="ddUnknown"></div>
+        </div>
+        <div class="panel dq-section" id="ddDuplicatePanel" hidden>
+          <div class="panel-hd">重复段（raw 字符串里同 location 段重复）<span class="dq-count" id="ddDuplicateCount"></span>
+            <div class="dq-actions">
+              <button class="pur-btn-copy" data-copy-section="duplicate_segments">一键复制</button>
+            </div>
+          </div>
+          <div class="panel-bd" id="ddDuplicate"></div>
+        </div>
+        <div class="panel dq-section" id="ddEmptyLocPanel" hidden>
+          <div class="panel-hd">空库位（active 但无位置）<span class="dq-count" id="ddEmptyLocCount"></span>
+            <div class="dq-actions">
+              <button class="pur-btn-copy" data-copy-section="empty_locations">一键复制</button>
+            </div>
+          </div>
+          <div class="panel-bd" id="ddEmptyLoc"></div>
+        </div>
       </div>
       <div class="page" id="pagePurchase" x-data :class="$store.nav.current === 'purchase' ? 'active' : ''"></div>
       <div class="page" id="pageAttendance" x-data :class="$store.nav.current === 'attendance' ? 'active' : ''"></div>
@@ -361,7 +400,7 @@
             </div>
           </div>
           <div class="panel-bd" id="dqHint">
-            点击「刷新」加载异常报告。本页只展示问题、不修改任何数据，请到老系统修复后下次 import 自动同步。
+            维度健康监测：同维度多库位 + 高频翻转货号。只展示不修复（清洁工作流在「标签查重」页）。
           </div>
         </div>
         <div class="panel dq-section" id="dqMultiKindPanel" hidden>
@@ -379,39 +418,6 @@
             </div>
           </div>
           <div class="panel-bd" id="dqFlippers"></div>
-        </div>
-        <div class="panel dq-section" id="dqWhitespacePanel" hidden>
-          <div class="panel-hd">空白字符异常 <span class="dq-count" id="dqWhitespaceCount"></span>
-            <div class="dq-actions">
-              <a class="pur-btn-dl" href="/data_quality/whitespace_fix_template" download>下载修复模板</a>
-              <button class="pur-btn-copy" data-copy-section="whitespace_anomalies">一键复制</button>
-            </div>
-          </div>
-          <div class="panel-bd" id="dqWhitespace"></div>
-        </div>
-        <div class="panel dq-section" id="dqUnknownPanel" hidden>
-          <div class="panel-hd">异常前缀（非 A/B/C/X/Z 开头）<span class="dq-count" id="dqUnknownCount"></span>
-            <div class="dq-actions">
-              <button class="pur-btn-copy" data-copy-section="unknown_prefix">一键复制</button>
-            </div>
-          </div>
-          <div class="panel-bd" id="dqUnknown"></div>
-        </div>
-        <div class="panel dq-section" id="dqDuplicatePanel" hidden>
-          <div class="panel-hd">重复段（raw 字符串里同 location 段重复）<span class="dq-count" id="dqDuplicateCount"></span>
-            <div class="dq-actions">
-              <button class="pur-btn-copy" data-copy-section="duplicate_segments">一键复制</button>
-            </div>
-          </div>
-          <div class="panel-bd" id="dqDuplicate"></div>
-        </div>
-        <div class="panel dq-section" id="dqEmptyLocPanel" hidden>
-          <div class="panel-hd">空库位（active 但无位置）<span class="dq-count" id="dqEmptyLocCount"></span>
-            <div class="dq-actions">
-              <button class="pur-btn-copy" data-copy-section="empty_locations">一键复制</button>
-            </div>
-          </div>
-          <div class="panel-bd" id="dqEmptyLoc"></div>
         </div>
       </div>
       <div class="page" id="pageForeignCustomers" x-data :class="$store.nav.current === 'foreign_customers' ? 'active' : ''">
@@ -694,6 +700,7 @@
 <script type="module" src="{{ url_for('static', filename='js/attendance.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/history.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/data-quality.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/dedupe.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/index-recent-changes.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/index-scan-history.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/inventory.js') }}"></script>

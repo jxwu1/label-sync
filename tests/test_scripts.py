@@ -7,7 +7,6 @@ from unittest import mock
 
 import pandas as pd
 
-from check_duplicates import check_duplicates
 from location_parser import categorize_locations, compose_location, parse_locations
 from phase_scripts import update_location, update_location_phase2
 from phase_scripts.update_location_phase1 import (
@@ -45,40 +44,6 @@ def _to_csv_with_retry(dataframe: pd.DataFrame, path: Path) -> None:
             last_error = exc
             time.sleep(0.02)
     raise last_error
-
-
-class CheckDuplicatesTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.test_dir = TEST_TMP_DIR / self._testMethodName
-        shutil.rmtree(self.test_dir, ignore_errors=True)
-        self.test_dir.mkdir(parents=True, exist_ok=True)
-
-    def tearDown(self) -> None:
-        shutil.rmtree(self.test_dir, ignore_errors=True)
-
-    def test_check_duplicates_reports_duplicate_rows_from_csv(self) -> None:
-        csv_path = self.test_dir / "duplicates.csv"
-        dataframe = pd.DataFrame({"barcode": ["A1", "B2", "A1", "", "B2"]})
-        _to_csv_with_retry(dataframe, csv_path)
-
-        result = check_duplicates(csv_path)
-
-        self.assertTrue(result["ok"])
-        self.assertEqual(result["column"], "barcode")
-        self.assertEqual(result["total"], 4)
-        self.assertEqual(result["dup_count"], 2)
-        self.assertEqual(
-            result["duplicates"],
-            [
-                {"value": "A1", "rows": [2, 4], "count": 2},
-                {"value": "B2", "rows": [3, 6], "count": 2},
-            ],
-        )
-
-    def test_check_duplicates_rejects_unsupported_suffix(self) -> None:
-        result = check_duplicates("sample.txt")
-
-        self.assertEqual(result, {"ok": False, "msg": "不支持的文件格式：.txt"})
 
 
 class PhaseOneTests(unittest.TestCase):

@@ -1,3 +1,6 @@
+// 数据质量（PR-FE-2 起）：维度健康监测
+// 只展示 multi_same_kind / flippers。清洁工作流（whitespace/prefix/duplicate/empty）
+// 在「标签查重」页（dedupe.js）。
 import { copyToClip } from "./shared.js";
 
 function $(id) { return document.getElementById(id); }
@@ -14,13 +17,6 @@ function escapeHtml(s) {
 function showCount(elId, n) {
   $(elId).textContent = n > 0 ? `· ${n}` : "· 0";
   $(elId).classList.toggle("dq-count--zero", n === 0);
-}
-
-function visibleSpace(s) {
-  // 把空格 / 制表符替换成可见标记，方便看
-  return String(s)
-    .replace(/ /g, '<span class="dq-ws">·</span>')
-    .replace(/\t/g, '<span class="dq-ws">→</span>');
 }
 
 function renderMultiKind(section) {
@@ -65,92 +61,9 @@ function renderFlippers(section) {
   `;
 }
 
-function renderWhitespace(section) {
-  if (section.samples.length === 0) {
-    $("dqWhitespace").innerHTML = '<div class="dq-empty">无</div>';
-    return;
-  }
-  const rows = section.samples.map((s) => `
-    <tr>
-      <td>${escapeHtml(s.barcode)}</td>
-      <td>${escapeHtml(s.model || "")}</td>
-      <td><code>${visibleSpace(escapeHtml(s.raw_location))}</code></td>
-      <td><code>${escapeHtml(s.normalized)}</code></td>
-    </tr>
-  `).join("");
-  $("dqWhitespace").innerHTML = `
-    <table class="dq-table">
-      <thead><tr><th>条码</th><th>型号</th><th>原 raw（· 表示空格）</th><th>strip 后</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
-}
-
-function renderDuplicate(section) {
-  if (section.samples.length === 0) {
-    $("dqDuplicate").innerHTML = '<div class="dq-empty">无</div>';
-    return;
-  }
-  const rows = section.samples.map((s) => `
-    <tr>
-      <td>${escapeHtml(s.barcode)}</td>
-      <td>${escapeHtml(s.model || "")}</td>
-      <td><code>${escapeHtml(s.raw_location)}</code></td>
-      <td>${s.duplicates.map((d) => `<code>${escapeHtml(d)}</code>`).join(" ")}</td>
-    </tr>
-  `).join("");
-  $("dqDuplicate").innerHTML = `
-    <table class="dq-table">
-      <thead><tr><th>条码</th><th>型号</th><th>原 raw</th><th>重复段</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
-}
-
-function renderUnknown(section) {
-  if (section.samples.length === 0) {
-    $("dqUnknown").innerHTML = '<div class="dq-empty">无</div>';
-    return;
-  }
-  const rows = section.samples.map((s) => `
-    <tr>
-      <td>${escapeHtml(s.barcode)}</td>
-      <td>${escapeHtml(s.model || "")}</td>
-      <td>${escapeHtml(s.raw_location || "")}</td>
-      <td><code>${escapeHtml(s.anomalous_segment)}</code></td>
-    </tr>
-  `).join("");
-  $("dqUnknown").innerHTML = `
-    <table class="dq-table">
-      <thead><tr><th>条码</th><th>型号</th><th>当前 location</th><th>异常段</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
-}
-
-function renderEmptyLocations(section) {
-  if (section.samples.length === 0) {
-    $("dqEmptyLoc").innerHTML = '<div class="dq-empty">无</div>';
-    return;
-  }
-  const rows = section.samples.map((s) => `
-    <tr>
-      <td>${escapeHtml(s.barcode)}</td>
-      <td>${escapeHtml(s.model || "")}</td>
-      <td>${escapeHtml(s.product_name || "")}</td>
-      <td>${escapeHtml(s.updated_at || "")}</td>
-    </tr>
-  `).join("");
-  $("dqEmptyLoc").innerHTML = `
-    <table class="dq-table">
-      <thead><tr><th>条码</th><th>型号</th><th>品名</th><th>最近更新</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
-}
-
 async function refresh() {
   const btn = $("dqRefresh");
+  if (!btn) return;
   btn.disabled = true;
   $("dqHint").textContent = "加载中…";
   try {
@@ -160,7 +73,7 @@ async function refresh() {
       $("dqHint").textContent = "加载失败：" + (data.msg || "未知错误");
       return;
     }
-    $("dqHint").textContent = "本页只展示，不修改数据。在老系统修复后，下次 import 自动同步。";
+    $("dqHint").textContent = "维度健康监测：multi 维度 + 高频翻转。清洁工作流（4 类脏数据）请到「标签查重」页。";
     _lastReport = data;
 
     showCount("dqMultiKindCount", data.multi_same_kind.count);
@@ -170,22 +83,6 @@ async function refresh() {
     showCount("dqFlippersCount", data.flippers.count);
     renderFlippers(data.flippers);
     $("dqFlippersPanel").hidden = false;
-
-    showCount("dqWhitespaceCount", data.whitespace_anomalies.count);
-    renderWhitespace(data.whitespace_anomalies);
-    $("dqWhitespacePanel").hidden = false;
-
-    showCount("dqUnknownCount", data.unknown_prefix.count);
-    renderUnknown(data.unknown_prefix);
-    $("dqUnknownPanel").hidden = false;
-
-    showCount("dqDuplicateCount", data.duplicate_segments.count);
-    renderDuplicate(data.duplicate_segments);
-    $("dqDuplicatePanel").hidden = false;
-
-    showCount("dqEmptyLocCount", data.empty_locations.count);
-    renderEmptyLocations(data.empty_locations);
-    $("dqEmptyLocPanel").hidden = false;
   } catch (e) {
     $("dqHint").textContent = "加载异常：" + e.message;
   } finally {
@@ -226,8 +123,12 @@ function flashBtn(btn, text, extraClass) {
   }, 2000);
 }
 
-document.querySelectorAll("[data-copy-section]").forEach((btn) => {
-  btn.addEventListener("click", () => copyModels(btn.dataset.copySection, btn));
-});
+// 限定到 pageDataQuality 内的复制按钮（避免和 dedupe 页同名 button 冲突）
+const dqRoot = $("pageDataQuality");
+if (dqRoot) {
+  dqRoot.querySelectorAll("[data-copy-section]").forEach((btn) => {
+    btn.addEventListener("click", () => copyModels(btn.dataset.copySection, btn));
+  });
+}
 
 $("dqRefresh")?.addEventListener("click", refresh);
