@@ -36,16 +36,15 @@ class AnalyticsRoutesTests(unittest.TestCase):
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def _seed_sku(self, barcode: str = "B1", **fields) -> None:
+        values = {
+            "product_barcode": barcode,
+            "product_model": barcode,
+            "stockpile_location": "",
+            "is_active": 1,
+        }
+        values.update(fields)
         with stockpile_db._session() as s:
-            s.execute(
-                insert(Stockpile).values(
-                    product_barcode=barcode,
-                    product_model=barcode,
-                    stockpile_location="",
-                    is_active=1,
-                    **fields,
-                )
-            )
+            s.execute(insert(Stockpile).values(**values))
             s.commit()
 
     def _seed_sale(self, barcode: str = "B1", event_at: str = "2026-04-15", qty: int = 10):
@@ -148,6 +147,41 @@ class ManualCategoryTests(AnalyticsRoutesTests):
             json={"category": "滞销"},
         )
         self.assertEqual(resp.status_code, 404)
+
+
+class ListEndpointTests(AnalyticsRoutesTests):
+    def test_list_returns_active_skus_with_aggregates(self) -> None:
+        self._seed_sku("B1", auto_category="stable", manual_grade=5)
+        self._seed_sku("B2", auto_category="new")
+        self._seed_sku("B3", is_active=0)  # 应被过滤
+        self._seed_sale("B1", "2026-04-01", 10)
+        self._seed_sale("B1", "2026-04-15", 5)
+        self._seed_sale("B2", "2026-04-25", 100)
+
+        resp = self.client.get("/analytics/list")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["total"], 2)
+        bcs = {it["barcode"] for it in data["items"]}
+        self.assertEqual(bcs, {"B1", "B2"})
+        b1 = next(it for it in data["items"] if it["barcode"] == "B1")
+        self.assertEqual(b1["total_qty"], 15)
+        self.assertEqual(b1["lifespan_days"], 14)
+
+    def test_list_grade_inconsistent_flag(self) -> None:
+        # 高等级低销 → warn
+        self._seed_sku("HI_GRADE_LOW_SALES", manual_grade=9)
+        self._seed_sku("MID_QTY")
+        self._seed_sale("HI_GRADE_LOW_SALES", "2026-04-01", 1)
+        self._seed_sale("MID_QTY", "2026-04-01", 100)
+
+        resp = self.client.get("/analytics/list")
+        items = resp.get_json()["items"]
+        hi = next(it for it in items if it["barcode"] == "HI_GRADE_LOW_SALES")
+        # 1 件 → 排在 0% 分位（mid_qty 100 件比它多）
+        self.assertEqual(hi["qty_percentile"], 0.0)
+        self.assertTrue(hi["is_grade_inconsistent"])
 
 
 if __name__ == "__main__":

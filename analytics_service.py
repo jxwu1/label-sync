@@ -186,6 +186,97 @@ def _run_pct(session, stmt, barcode: str) -> float | None:
     return round(float(row[0]), 1)
 
 
+def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
+    """聚合所有 active SKU 的销售汇总（dashboard 列表页用）。
+
+    单次拉所有 active stockpile 主档 + 所有销售事件（带客户类型），
+    内存 group by barcode 算每个 SKU 的指标。199k events / 27k SKU 在
+    1-2 秒内完成。
+
+    返回字段：barcode / model / name_zh / auto_category / manual_category /
+    manual_grade / total_qty / lifespan_days / trend_slope_pct_per_week /
+    qty_percentile / cn_qty / fo_qty / is_grade_inconsistent。
+    """
+    import bisect
+
+    as_of = as_of or _today()
+    with stockpile_db._session() as session:
+        sp_rows = session.execute(
+            select(
+                Stockpile.product_barcode,
+                Stockpile.product_model,
+                Stockpile.product_name_zh,
+                Stockpile.auto_category,
+                Stockpile.manual_category,
+                Stockpile.manual_grade,
+            ).where(Stockpile.is_active == 1)
+        ).all()
+        sales_rows = session.execute(
+            select(
+                InventoryEvent.product_barcode,
+                InventoryEvent.event_at,
+                InventoryEvent.qty,
+                Customer.customer_type,
+            )
+            .join(Customer, Customer.customer_id == InventoryEvent.customer_id, isouter=True)
+            .where(InventoryEvent.event_type == "sale")
+        ).all()
+
+    by_bc: dict[str, list] = {}
+    for r in sales_rows:
+        by_bc.setdefault(r.product_barcode, []).append(r)
+
+    items: list[dict[str, Any]] = []
+    for bc, model, name_zh, auto_cat, manual_cat, grade in sp_rows:
+        sales = by_bc.get(bc, [])
+        total_qty = int(sum(r.qty for r in sales))
+        if sales:
+            dates = [_parse_date(r.event_at) for r in sales]
+            lifespan = (max(dates) - min(dates)).days
+            weekly = _weekly_qty_array(dates, [r.qty for r in sales], as_of, _TREND_WEEKS)
+            trend = _trend_slope_pct(weekly)
+        else:
+            lifespan = 0
+            trend = None
+        cn_qty = int(sum(r.qty for r in sales if r.customer_type == "chinese"))
+        fo_qty = int(sum(r.qty for r in sales if r.customer_type == "foreign"))
+        items.append(
+            {
+                "barcode": bc,
+                "model": model,
+                "name_zh": name_zh,
+                "auto_category": auto_cat,
+                "manual_category": manual_cat,
+                "manual_grade": grade,
+                "total_qty": total_qty,
+                "lifespan_days": lifespan,
+                "trend_slope_pct_per_week": (round(trend, 2) if trend is not None else None),
+                "cn_qty": cn_qty,
+                "fo_qty": fo_qty,
+            }
+        )
+
+    # 全表 percentile：基于有销量 SKU
+    sorted_qty = sorted(it["total_qty"] for it in items if it["total_qty"] > 0)
+    n_with_sales = len(sorted_qty)
+    for it in items:
+        if it["total_qty"] > 0 and n_with_sales > 0:
+            cnt_below = bisect.bisect_left(sorted_qty, it["total_qty"])
+            it["qty_percentile"] = round(cnt_below * 100.0 / n_with_sales, 1)
+        else:
+            it["qty_percentile"] = None
+        # 不一致告警
+        g = it["manual_grade"]
+        p = it["qty_percentile"]
+        warn = False
+        if g is not None and p is not None:
+            if (g >= 8 and p < 30) or (g <= 3 and p > 70):
+                warn = True
+        it["is_grade_inconsistent"] = warn
+
+    return items
+
+
 def recompute_categories(as_of: date | None = None) -> dict[str, Any]:
     """批量重算所有 active SKU 的 auto_category，写回 stockpile。
 

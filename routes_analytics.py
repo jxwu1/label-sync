@@ -24,6 +24,20 @@ _VALID_MANUAL_CATEGORIES = frozenset(
 )
 
 
+@bp.get("/list")
+def list_skus():
+    """全部 active SKU 的指标汇总（dashboard 列表页用）。
+
+    无分页、无后端筛选/排序：~27k 行 × 小 dict ≈ 4MB JSON，浏览器侧
+    一次拉完后做 filter / sort 更顺手（用户改 chip 不用再请求）。
+    """
+    try:
+        items = analytics_service.list_sku_summary()
+    except Exception as exc:
+        return jsonify({"ok": False, "msg": f"列表失败：{exc}"}), 500
+    return jsonify({"ok": True, "items": items, "total": len(items)})
+
+
 @bp.get("/sku/<barcode>")
 def sku_metrics(barcode: str):
     barcode = barcode.strip()

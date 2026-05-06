@@ -1,0 +1,117 @@
+/* 销售分析列表页（PR 5.2c） */
+
+.sa-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.sa-stat {
+  font-size: var(--fs-sm);
+  color: var(--c-text-dim);
+}
+
+.sa-filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.sa-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sa-filter-label {
+  min-width: 64px;
+  font-size: var(--fs-sm);
+  color: var(--c-text-dim);
+  font-weight: 600;
+}
+
+.sa-chip {
+  padding: 3px 12px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-pill);
+  background: transparent;
+  font-size: var(--fs-md);
+  cursor: pointer;
+}
+
+.sa-chip:hover {
+  background: var(--c-accent-soft);
+}
+
+.sa-chip--active {
+  background: #586e75;
+  color: #fdf6e3;
+  border-color: #586e75;
+}
+
+.sa-sort {
+  font-size: var(--fs-md);
+  color: var(--c-text-dim);
+}
+
+.sa-sort select {
+  margin-left: 6px;
+  padding: 3px 8px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm, 4px);
+  background: white;
+}
+
+.sa-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.sa-table th,
+.sa-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--c-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.sa-table th {
+  background: var(--color-surface-soft, #f6f1e7);
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+}
+
+.sa-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-row {
+  cursor: pointer;
+}
+
+.sa-row:hover {
+  background: var(--color-surface-hover, #faf6ec);
+}
+
+.sa-bc {
+  font-family: var(--font-mono, monospace);
+  color: var(--c-text-dim);
+}
+
+.sa-name {
+  font-size: 12px;
+  color: var(--c-text-dim);
+}
+
+.sa-up {
+  color: #2d4a1d;
+}
+
+.sa-down {
+  color: #6a2222;
+}

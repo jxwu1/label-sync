@@ -17,6 +17,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-data-quality.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-inventory.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-foreign-customers.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/page-sales-analytics.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/terminal-log.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/transfer-drawer.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/quickmenu.css') }}">
@@ -364,6 +365,91 @@
           <div class="panel-bd" id="invStats">点「刷新」查看主档与事件计数</div>
         </div>
       </div>
+      <div class="page" id="pageSalesAnalytics" x-data :class="$store.nav.current === 'sales_analytics' ? 'active' : ''">
+        <div class="panel">
+          <div class="panel-hd">
+            销售分析（全部 SKU）
+            <div class="sa-actions">
+              <span class="sa-stat" id="saStatTotal"></span>
+              <button class="btn-mini" id="saRefresh">刷新</button>
+            </div>
+          </div>
+          <div class="panel-bd">
+            <div class="sa-filter-bar">
+              <div class="sa-filter-group">
+                <span class="sa-filter-label">自动分类</span>
+                <button class="sa-chip sa-chip--active" data-filter="auto" data-value="">全部</button>
+                <button class="sa-chip" data-filter="auto" data-value="new">新品</button>
+                <button class="sa-chip" data-filter="auto" data-value="seasonal">季节性</button>
+                <button class="sa-chip" data-filter="auto" data-value="declining">衰退</button>
+                <button class="sa-chip" data-filter="auto" data-value="stable">稳定</button>
+                <button class="sa-chip" data-filter="auto" data-value="unclassified">未分类</button>
+              </div>
+              <div class="sa-filter-group">
+                <span class="sa-filter-label">人工标签</span>
+                <button class="sa-chip sa-chip--active" data-filter="manual" data-value="">全部</button>
+                <button class="sa-chip" data-filter="manual" data-value="__none">未设</button>
+                <button class="sa-chip" data-filter="manual" data-value="__set">已设</button>
+              </div>
+              <div class="sa-filter-group">
+                <span class="sa-filter-label">客户端</span>
+                <button class="sa-chip sa-chip--active" data-filter="cust" data-value="">全部</button>
+                <button class="sa-chip" data-filter="cust" data-value="cn">🇨🇳 中国主导</button>
+                <button class="sa-chip" data-filter="cust" data-value="fo">🇬🇷 老外主导</button>
+                <button class="sa-chip" data-filter="cust" data-value="balanced">均衡</button>
+                <button class="sa-chip" data-filter="cust" data-value="none">无销售</button>
+              </div>
+              <div class="sa-filter-group">
+                <span class="sa-filter-label">告警</span>
+                <button class="sa-chip sa-chip--active" data-filter="warn" data-value="">全部</button>
+                <button class="sa-chip" data-filter="warn" data-value="1">仅不一致 ⚠</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-hd">
+            列表
+            <div class="sa-actions">
+              <label class="sa-sort">
+                排序
+                <select id="saSort">
+                  <option value="total_qty:desc">总销量 ↓</option>
+                  <option value="total_qty:asc">总销量 ↑</option>
+                  <option value="lifespan_days:desc">寿命 ↓</option>
+                  <option value="lifespan_days:asc">寿命 ↑</option>
+                  <option value="trend_slope_pct_per_week:desc">趋势 ↓</option>
+                  <option value="trend_slope_pct_per_week:asc">趋势 ↑</option>
+                  <option value="manual_grade:desc">等级 ↓</option>
+                  <option value="manual_grade:asc">等级 ↑</option>
+                </select>
+              </label>
+              <span class="sa-stat" id="saStatShowing"></span>
+            </div>
+          </div>
+          <div class="panel-bd">
+            <table class="sa-table">
+              <thead>
+                <tr>
+                  <th>条码</th>
+                  <th>型号 / 品名</th>
+                  <th>分类</th>
+                  <th class="sa-num">总销量</th>
+                  <th class="sa-num">寿命(天)</th>
+                  <th class="sa-num">12 周趋势</th>
+                  <th class="sa-num">🇨🇳</th>
+                  <th class="sa-num">🇬🇷</th>
+                  <th class="sa-num">等级</th>
+                  <th>告警</th>
+                </tr>
+              </thead>
+              <tbody id="saTbody">
+                <tr><td colspan="10" class="empty">点「刷新」加载</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -470,5 +556,6 @@
 <script type="module" src="{{ url_for('static', filename='js/index-scan-history.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/inventory.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/foreign-customers.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/sales-analytics.js') }}"></script>
 </body>
 </html>
