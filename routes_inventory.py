@@ -14,6 +14,7 @@
 """
 
 import os
+from pathlib import Path
 
 import pandas as pd
 from flask import Blueprint, jsonify, request
@@ -27,7 +28,14 @@ from inventory_importer import (
     INTERNAL_FIELDS,
     import_events,
 )
-from models import Customer, ImportProfile, InventoryEvent, Stockpile, Supplier
+from models import (
+    Customer,
+    ImportProfile,
+    InventoryEvent,
+    InventoryImport,
+    Stockpile,
+    Supplier,
+)
 from path_safety import safe_filename
 from product_master_importer import (
     DEFAULT_PRODUCT_MAPPING,
@@ -190,6 +198,22 @@ def do_import(file_type: str) -> tuple:
             prof = session.get(ImportProfile, file_type)
             if prof is not None:
                 prof.last_used_at = func.datetime("now", "localtime")
+            # PR-FE-5b：写一行 audit 给「最近导入」表用
+            session.add(
+                InventoryImport(
+                    event_type=event_type,
+                    filename=Path(path).name,
+                    total_rows=int(df.shape[0]),
+                    ok_count=result.rows_imported,
+                    dup_count=result.rows_skipped_duplicate,
+                    error_count=(
+                        result.rows_skipped_missing_key
+                        + result.rows_skipped_no_date
+                        + result.rows_skipped_orphan_barcode
+                    ),
+                    operator="admin",
+                )
+            )
             session.commit()
     except Exception as exc:
         _cleanup(path)
@@ -298,3 +322,42 @@ def stats() -> tuple:
         ).all()
         totals["customers_by_type"] = {t or "unknown": c for t, c in type_rows}
     return jsonify({"ok": True, **totals})
+
+
+_RECENT_IMPORTS_DEFAULT_LIMIT = 20
+_RECENT_IMPORTS_MAX_LIMIT = 200
+
+
+@bp.get("/imports")
+def recent_imports() -> tuple:
+    """PR-FE-5b：返回最近 N 条 import audit 行。给前端「最近导入」表格用。"""
+    try:
+        limit = int(request.args.get("limit", _RECENT_IMPORTS_DEFAULT_LIMIT))
+    except ValueError:
+        limit = _RECENT_IMPORTS_DEFAULT_LIMIT
+    limit = max(1, min(limit, _RECENT_IMPORTS_MAX_LIMIT))
+    with stockpile_db._session() as session:
+        rows = (
+            session.execute(
+                select(InventoryImport)
+                .order_by(InventoryImport.imported_at.desc(), InventoryImport.id.desc())
+                .limit(limit)
+            )
+            .scalars()
+            .all()
+        )
+        out = [
+            {
+                "id": r.id,
+                "imported_at": r.imported_at,
+                "event_type": r.event_type,
+                "filename": r.filename,
+                "total_rows": r.total_rows,
+                "ok_count": r.ok_count,
+                "dup_count": r.dup_count,
+                "error_count": r.error_count,
+                "operator": r.operator,
+            }
+            for r in rows
+        ]
+    return jsonify({"ok": True, "imports": out})

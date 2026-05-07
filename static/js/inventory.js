@@ -165,8 +165,53 @@ async function doImport() {
     `;
     $("invResultPanel").hidden = false;
     refreshStats();
+    refreshImports();
   } catch (err) {
     setHint(`网络错误：${err.message}`, true);
+  }
+}
+
+const _EVENT_TYPE_CN = { purchase: "采购", sale: "销售" };
+
+async function refreshImports() {
+  try {
+    const resp = await fetch("/inventory/imports");
+    const data = await resp.json();
+    if (!data.ok) return;
+    if (!data.imports.length) {
+      $("invImports").innerHTML = '<div class="inv-imports-empty">暂无 import 记录</div>';
+      return;
+    }
+    const rows = data.imports
+      .map((r) => {
+        const typeCls = r.event_type === "sale" ? "inv-imp-type--sale" : "inv-imp-type--purchase";
+        const typeLabel = _EVENT_TYPE_CN[r.event_type] || r.event_type;
+        const errCls = r.error_count > 0 ? " inv-imp-err" : "";
+        const dupCls = r.dup_count > 0 ? " inv-imp-dup" : "";
+        return `<tr>
+          <td class="inv-imp-time">${escapeHtml(r.imported_at)}</td>
+          <td><span class="inv-imp-type ${typeCls}">${typeLabel}</span></td>
+          <td class="inv-imp-file">${escapeHtml(r.filename)}</td>
+          <td class="inv-imp-num">${r.total_rows}</td>
+          <td class="inv-imp-num inv-imp-ok">${r.ok_count}</td>
+          <td class="inv-imp-num${dupCls}">${r.dup_count}</td>
+          <td class="inv-imp-num${errCls}">${r.error_count}</td>
+          <td>${escapeHtml(r.operator)}</td>
+        </tr>`;
+      })
+      .join("");
+    $("invImports").innerHTML = `
+      <table class="inv-imports-table">
+        <thead><tr>
+          <th>时间</th><th>类型</th><th>文件</th>
+          <th class="inv-imp-num">行数</th><th class="inv-imp-num">OK</th>
+          <th class="inv-imp-num">重复</th><th class="inv-imp-num">错误</th>
+          <th>操作员</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  } catch (err) {
+    void err;
   }
 }
 
@@ -267,6 +312,7 @@ function init() {
   $("invSaveMapping").addEventListener("click", saveMapping);
   $("invImport").addEventListener("click", doImport);
   $("invStatsRefresh").addEventListener("click", refreshStats);
+  $("invImportsRefresh").addEventListener("click", refreshImports);
   if ($("invProductImport")) {
     $("invProductImport").addEventListener("click", doImportProductMaster);
   }

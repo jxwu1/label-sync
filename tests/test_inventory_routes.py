@@ -205,5 +205,49 @@ class StatsTests(_BaseRouteTest):
         self.assertEqual(body["customers_by_type"]["chinese"], 1)
 
 
+class RecentImportsTests(_BaseRouteTest):
+    """PR-FE-5b：每次 import 写一行 audit；GET /inventory/imports 返回近期列表。"""
+
+    def test_imports_endpoint_empty_returns_empty_list(self) -> None:
+        rv = self.client.get("/inventory/imports")
+        self.assertEqual(rv.status_code, 200)
+        body = rv.get_json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["imports"], [])
+
+    def test_do_import_writes_audit_row(self) -> None:
+        self._upload("/inventory/import/purchase", "purchase_sample.xls")
+        rv = self.client.get("/inventory/imports")
+        body = rv.get_json()
+        self.assertEqual(len(body["imports"]), 1)
+        row = body["imports"][0]
+        self.assertEqual(row["event_type"], "purchase")
+        self.assertEqual(row["filename"], "purchase_sample.xls")
+        self.assertEqual(row["ok_count"], 2)
+        self.assertEqual(row["dup_count"], 0)
+        self.assertEqual(row["error_count"], 0)
+        self.assertEqual(row["operator"], "admin")
+        self.assertIn("imported_at", row)
+
+    def test_imports_endpoint_returns_recent_desc(self) -> None:
+        self._upload("/inventory/import/purchase", "purchase_sample.xls")
+        self._upload("/inventory/import/sales", "sales_sample.xls")
+        rv = self.client.get("/inventory/imports")
+        body = rv.get_json()
+        self.assertEqual(len(body["imports"]), 2)
+        # 最新（sales）在前
+        self.assertEqual(body["imports"][0]["event_type"], "sale")
+        self.assertEqual(body["imports"][1]["event_type"], "purchase")
+
+    def test_reimport_records_dup_count(self) -> None:
+        self._upload("/inventory/import/purchase", "purchase_sample.xls")
+        self._upload("/inventory/import/purchase", "purchase_sample.xls")
+        rv = self.client.get("/inventory/imports")
+        body = rv.get_json()
+        # 第二次（同文件）→ dup=2 ok=0
+        self.assertEqual(body["imports"][0]["dup_count"], 2)
+        self.assertEqual(body["imports"][0]["ok_count"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

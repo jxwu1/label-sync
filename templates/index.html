@@ -523,6 +523,10 @@
           <div class="panel-hd">当前数据库状态 <button class="btn-mini" id="invStatsRefresh">刷新</button></div>
           <div class="panel-bd" id="invStats">点「刷新」查看主档与事件计数</div>
         </div>
+        <div class="panel">
+          <div class="panel-hd">最近导入 <button class="btn-mini" id="invImportsRefresh">刷新</button></div>
+          <div class="panel-bd" id="invImports">点「刷新」查看最近 import 记录</div>
+        </div>
       </div>
       <div class="page" id="pageSalesAnalytics" x-data :class="$store.nav.current === 'sales_analytics' ? 'active' : ''">
         <div class="panel">

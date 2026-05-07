@@ -215,6 +215,69 @@
   transition: width var(--t-base);
 }
 
+/* PR-FE-5b：最近导入表格 */
+.inv-imports-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--ink-3);
+  font-size: var(--fs-md);
+}
+.inv-imports-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-md);
+}
+.inv-imports-table th,
+.inv-imports-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line-soft, var(--line));
+  text-align: left;
+}
+.inv-imports-table th {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: var(--bg-2);
+}
+.inv-imports-table tr:hover td { background: var(--bg-2); }
+
+.inv-imp-time {
+  font-family: var(--mono);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.inv-imp-file {
+  font-family: var(--mono);
+  color: var(--ink-1);
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inv-imp-num {
+  font-family: var(--mono);
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+}
+.inv-imp-ok  { color: var(--accent); }
+.inv-imp-dup { color: var(--info); }
+.inv-imp-err { color: var(--error); font-weight: 600; }
+
+.inv-imp-type {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  border: 1px solid;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+.inv-imp-type--purchase { color: var(--warn); border-color: rgba(255,182,39,.40); background: rgba(255,182,39,.10); }
+.inv-imp-type--sale     { color: var(--info); border-color: rgba(78,163,255,.40); background: rgba(78,163,255,.10); }
+
 /* PR-FE-5：自定义 radio (dot 风格) */
 .inv-radio {
   display: inline-flex;
