@@ -133,14 +133,46 @@
   margin-bottom: var(--sp-3, 12px);
 }
 
+/* ===== 时间线（vertical timeline + 类型色 dot） ===== */
+#pageHistory .event-timeline {
+  position: relative;
+  padding-left: 22px;
+}
+#pageHistory .event-timeline::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background: var(--line-soft, var(--line));
+}
+
 /* ===== 事件项 ===== */
 #pageHistory .event-item {
-  border-left: 2px solid var(--c-info, var(--info));
+  position: relative;
   padding: var(--sp-3, 12px) var(--sp-4, 16px);
   margin-bottom: var(--sp-3, 12px);
   background: var(--c-surface, var(--bg-1));
-  border-radius: 0 var(--r-sm, 6px) var(--r-sm, 6px) 0;
+  border: 1px solid var(--line-soft, var(--line));
+  border-radius: var(--r-sm, 6px);
 }
+
+#pageHistory .event-dot {
+  position: absolute;
+  left: -22px;
+  top: 16px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  border: 2px solid var(--bg-0, var(--bg-1));
+  box-shadow: 0 0 0 1px var(--line);
+}
+#pageHistory .event-item[data-type="insert"]     .event-dot { background: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 6px var(--accent-glow); }
+#pageHistory .event-item[data-type="update"]     .event-dot { background: var(--info);   box-shadow: 0 0 0 1px var(--info); }
+#pageHistory .event-item[data-type="deactivate"] .event-dot { background: var(--warn);   box-shadow: 0 0 0 1px var(--warn); }
+#pageHistory .event-item[data-type="reactivate"] .event-dot { background: var(--accent-dim); box-shadow: 0 0 0 1px var(--accent-dim); }
 
 #pageHistory .event-head {
   display: flex;
@@ -406,4 +438,11 @@ body[data-theme="light"] .rc-chip--active {
 #historyTimelineChart {
   display: block;
   max-width: 100%;
+}
+
+/* PR-FE-4a：panel-hd 内的操作按钮容器 */
+#pageHistory .hist-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
 }
