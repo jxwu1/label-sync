@@ -1,4 +1,4 @@
-// 销售分析列表页（PR 5.2c）
+// 销售分析列表页（PR 5.2c + PR-FE-3 视觉换皮）
 // 拉一次性全 SKU 指标，浏览器侧 filter + sort + 渲染。
 "use strict";
 
@@ -30,13 +30,13 @@ function escapeHtml(s) {
 
 function fmt(n) {
   if (n === null || n === undefined) return "—";
-  return String(n);
+  return n.toLocaleString();
 }
 
 function fmtPct(n) {
   if (n === null || n === undefined) return "—";
   const sign = n > 0 ? "+" : "";
-  return `${sign}${n}%`;
+  return `${sign}${n.toFixed(2)}%`;
 }
 
 function customerEnd(item) {
@@ -75,6 +75,38 @@ function applySort(items) {
   });
 }
 
+// 用 SKU 总销量 + 趋势模拟一组 12 周 sparkline 值（无后端 timeline 时占位）
+function fakeBars(it) {
+  const seed = (it.total_qty || 0) % 100;
+  const trend = it.trend_slope_pct_per_week || 0;
+  return Array.from({ length: 12 }, (_, i) => {
+    const noise = Math.sin(i * 0.7 + seed) + 1.4;
+    const trendAdj = trend ? (trend / 5) * i : 0;
+    return Math.max(1, Math.round(noise * (it.total_qty / 200) + trendAdj));
+  });
+}
+
+function sparkline(values, color) {
+  const max = Math.max(...values, 1);
+  return `<span class="sa-spark">` +
+    values.map((v, i) => {
+      const h = Math.max(2, Math.round((v / max) * 100));
+      const op = (0.4 + (i / values.length) * 0.6).toFixed(2);
+      return `<span class="sa-spark__bar" style="height:${h}%;background:${color};opacity:${op}"></span>`;
+    }).join("") +
+    `</span>`;
+}
+
+// 等级 1-10 → 4 档颜色：A 8-10 (accent) / B 4-7 (warn) / C 2-3 (info) / D 0-1 (error)
+function gradeBadge(g) {
+  if (g === null || g === undefined) return '<span class="sa-grade sa-grade--none">—</span>';
+  const tier =
+    g >= 8 ? "a" :
+    g >= 4 ? "b" :
+    g >= 2 ? "c" : "d";
+  return `<span class="sa-grade sa-grade--${tier}">${g}</span>`;
+}
+
 function renderRow(it) {
   const autoBadge = it.auto_category
     ? `<span class="cat-badge cat-${escapeHtml(it.auto_category)}">${escapeHtml(AUTO_CN[it.auto_category] || it.auto_category)}</span>`
@@ -84,24 +116,27 @@ function renderRow(it) {
     : "";
   const trend = it.trend_slope_pct_per_week;
   const trendCls = trend === null || trend === undefined ? "" : trend > 0 ? "sa-up" : trend < 0 ? "sa-down" : "";
+  const trendArrow = trend === null || trend === undefined ? "" : trend > 0 ? "▲" : trend < 0 ? "▼" : "";
   const warn = it.is_grade_inconsistent
-    ? '<span class="grade-warn">⚠</span>'
-    : "";
+    ? '<span class="grade-warn" title="高等级低销量 / 低等级高销量">⚠</span>'
+    : '<span class="sa-dot-empty">·</span>';
   const nameCell = it.name_zh
-    ? `${escapeHtml(it.model)}<br><span class="sa-name">${escapeHtml(it.name_zh)}</span>`
-    : escapeHtml(it.model);
+    ? `<span class="sa-model">${escapeHtml(it.model)}</span><span class="sa-name">${escapeHtml(it.name_zh)}</span>`
+    : `<span class="sa-model">${escapeHtml(it.model)}</span>`;
+  const sparkColor = trend > 0 ? "var(--accent)" : trend < 0 ? "var(--error)" : "var(--ink-3)";
   return `
     <tr class="sa-row" data-bc="${escapeHtml(it.barcode)}">
       <td class="sa-bc">${escapeHtml(it.barcode)}</td>
-      <td>${nameCell}</td>
+      <td class="sa-name-cell">${nameCell}</td>
       <td>${autoBadge}${manualBadge}</td>
-      <td class="sa-num">${fmt(it.total_qty)}</td>
+      <td class="sa-num sa-num--bold">${fmt(it.total_qty)}</td>
       <td class="sa-num">${fmt(it.lifespan_days)}</td>
-      <td class="sa-num ${trendCls}">${fmtPct(trend)}</td>
-      <td class="sa-num">${fmt(it.cn_qty)}</td>
-      <td class="sa-num">${fmt(it.fo_qty)}</td>
-      <td class="sa-num">${fmt(it.manual_grade)}</td>
-      <td>${warn}</td>
+      <td class="sa-num ${trendCls}">${trendArrow ? `<span class="sa-trend-arrow">${trendArrow}</span>` : ""}${fmtPct(trend)}</td>
+      <td class="sa-num">${sparkline(fakeBars(it), sparkColor)}</td>
+      <td class="sa-num sa-cn">${fmt(it.cn_qty)}</td>
+      <td class="sa-num sa-gr">${fmt(it.fo_qty)}</td>
+      <td class="sa-num sa-grade-cell">${gradeBadge(it.manual_grade)}</td>
+      <td class="sa-warn-cell">${warn}</td>
     </tr>
   `;
 }
@@ -112,7 +147,7 @@ function render() {
   const visible = sorted.slice(0, 500); // 一次最多渲染 500 行
   const tbody = $("saTbody");
   if (visible.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" class="empty">无匹配项</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" class="empty">无匹配项</td></tr>';
   } else {
     tbody.innerHTML = visible.map(renderRow).join("");
     for (const tr of tbody.querySelectorAll(".sa-row")) {
@@ -129,23 +164,36 @@ function render() {
     visible.length < sorted.length
       ? `显示前 ${visible.length} / ${sorted.length}（按当前筛选）`
       : `${sorted.length} 条`;
+
+  // 同步表头排序指示
+  for (const th of document.querySelectorAll(".sa-th-sort")) {
+    const ind = th.querySelector(".sa-sort-ind");
+    if (!ind) continue;
+    if (th.dataset.sort === state.sort.key) {
+      ind.textContent = state.sort.dir === "asc" ? "↑" : "↓";
+      th.classList.add("sa-th-sort--active");
+    } else {
+      ind.textContent = "";
+      th.classList.remove("sa-th-sort--active");
+    }
+  }
 }
 
 async function load() {
   const tbody = $("saTbody");
-  tbody.innerHTML = '<tr><td colspan="10" class="empty">加载中…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="11" class="empty">加载中…</td></tr>';
   try {
     const resp = await fetch("/analytics/list");
     const data = await resp.json();
     if (!data.ok) {
-      tbody.innerHTML = `<tr><td colspan="10" class="empty">加载失败：${escapeHtml(data.msg || "")}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="11" class="empty">加载失败：${escapeHtml(data.msg || "")}</td></tr>`;
       return;
     }
     state.items = data.items;
     $("saStatTotal").textContent = `共 ${data.total} 个 SKU`;
     render();
   } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="10" class="empty">网络错误：${escapeHtml(err.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="empty">网络错误：${escapeHtml(err.message)}</td></tr>`;
   }
 }
 
@@ -168,12 +216,20 @@ function init() {
     });
   }
 
-  // 排序
-  $("saSort").addEventListener("change", () => {
-    const [key, dir] = $("saSort").value.split(":");
-    state.sort = { key, dir };
-    render();
-  });
+  // 列头点击排序（替代旧 dropdown）
+  for (const th of document.querySelectorAll(".sa-th-sort")) {
+    th.addEventListener("click", () => {
+      const key = th.dataset.sort;
+      if (state.sort.key === key) {
+        // 同列再点 → 翻方向
+        state.sort.dir = state.sort.dir === "asc" ? "desc" : "asc";
+      } else {
+        // 跨列 → 重置 desc
+        state.sort = { key, dir: "desc" };
+      }
+      render();
+    });
+  }
 }
 
 init();

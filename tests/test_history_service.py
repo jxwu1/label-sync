@@ -54,6 +54,20 @@ def _insert_change(db_path, barcode, field, old, new, ctype, at):
     conn.close()
 
 
+def _insert_inventory_event(
+    db_path, barcode, event_type, qty, at, unit_price=None, customer_id=None, supplier_id=None
+):
+    conn = sqlite3.connect(str(db_path))
+    conn.execute(
+        "INSERT INTO inventory_events "
+        "(product_barcode, event_type, qty, unit_price, customer_id, supplier_id, event_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (barcode, event_type, qty, unit_price, customer_id, supplier_id, at),
+    )
+    conn.commit()
+    conn.close()
+
+
 def test_find_record_by_barcode(memdb):
     import history_service
 
@@ -299,6 +313,80 @@ def test_route_history_not_found(memdb):
     assert resp.status_code == 200
     body = resp.get_json()
     assert body["found"] is False
+
+
+# ===== aggregate_full_timeline 测试（PR-FE-4b） =====
+
+
+def test_full_timeline_empty_for_unknown_barcode(memdb):
+    import history_service
+
+    assert history_service.aggregate_full_timeline("never_exists") == []
+
+
+def test_full_timeline_returns_inventory_sale_event(memdb):
+    """单独一条销售事件应该返回带 summary、change_type='sale' 的 event。"""
+    import history_service
+
+    bc = "5828079100248"
+    _insert_inventory_event(
+        memdb, bc, "sale", qty=5, at="2026-04-25", unit_price=12.5, customer_id="C001"
+    )
+    events = history_service.aggregate_full_timeline(bc)
+    assert len(events) == 1
+    e = events[0]
+    assert e["change_type"] == "sale"
+    assert e["at"] == "2026-04-25"
+    assert "summary" in e
+    assert "5" in e["summary"] and "12.5" in e["summary"]
+
+
+def test_full_timeline_purchase_event_mentions_supplier(memdb):
+    import history_service
+
+    bc = "B5"
+    _insert_inventory_event(
+        memdb, bc, "purchase", qty=10, at="2026-04-26", unit_price=8.0, supplier_id="S99"
+    )
+    events = history_service.aggregate_full_timeline(bc)
+    assert len(events) == 1
+    e = events[0]
+    assert e["change_type"] == "purchase"
+    assert "S99" in e["summary"]
+
+
+def test_full_timeline_merges_changes_and_inventory_desc(memdb):
+    """stockpile_changes + inventory_events 混合，按时间倒序。"""
+    import history_service
+
+    bc = "B6"
+    # 较早的 stockpile_change
+    _insert_change(memdb, bc, "stockpile_location", "X", "Y", "update", "2026-04-25 10:00:00")
+    # 中间的 sale
+    _insert_inventory_event(memdb, bc, "sale", qty=3, at="2026-04-26", unit_price=5.0)
+    # 较晚的 stockpile_change
+    _insert_change(memdb, bc, "stockpile_location", "Y", "Z", "update", "2026-04-27 10:00:00")
+    # 最晚的 purchase
+    _insert_inventory_event(memdb, bc, "purchase", qty=8, at="2026-04-28", unit_price=4.0)
+
+    events = history_service.aggregate_full_timeline(bc)
+    assert len(events) == 4
+    # 倒序：purchase / update(2026-04-27) / sale / update(2026-04-25)
+    assert events[0]["change_type"] == "purchase"
+    assert events[1]["change_type"] == "update"
+    assert events[2]["change_type"] == "sale"
+    assert events[3]["change_type"] == "update"
+
+
+def test_full_timeline_no_inventory_falls_back_to_changes_only(memdb):
+    """没有 inventory_events 时退化为 aggregate_events 行为。"""
+    import history_service
+
+    bc = "B7"
+    _insert_change(memdb, bc, "stockpile_location", "X", "Y", "update", "2026-04-27 10:00:00")
+    events = history_service.aggregate_full_timeline(bc)
+    assert len(events) == 1
+    assert events[0]["change_type"] == "update"
 
 
 # ===== split_location 单测：纯函数，无需 fixture =====

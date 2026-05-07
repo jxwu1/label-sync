@@ -144,12 +144,15 @@ class TestComputeSummary(unittest.TestCase):
         result = svc.compute_summary("e001", "2026-04")
         self.assertEqual(len(result["detail"]), 30)
 
-    def _seed_employee(self, emp_id: str, name: str, created_at: str) -> None:
+    def _seed_employee(self, emp_id: str, name: str, start_date: str = "") -> None:
         import json
 
         path = self.test_dir / "employees.json"
         existing = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
-        existing.append({"id": emp_id, "name": name, "created_at": created_at})
+        rec: dict = {"id": emp_id, "name": name, "created_at": "2024-01-01T00:00:00"}
+        if start_date:
+            rec["start_date"] = start_date
+        existing.append(rec)
         path.write_text(json.dumps(existing), encoding="utf-8")
 
     def test_mid_month_hire_excludes_pre_join_sundays_and_absences(self):
@@ -184,9 +187,9 @@ class TestComputeSummary(unittest.TestCase):
         # worked_days = 1 周日(1.0) + 27 fraction(1.0)
         self.assertAlmostEqual(result["worked_days"], 2.0, places=2)
 
-    def test_employee_without_created_at_unchanged(self):
-        """老员工没 created_at（数据迁移情况）→ 按全月算，不影响。"""
-        self._seed_employee("e002", "老工人", "")
+    def test_employee_without_start_date_unchanged(self):
+        """老员工无 start_date（数据迁移 / 历史导入场景）→ 按全月算，不影响。"""
+        self._seed_employee("e002", "老工人")  # 不传 start_date
         result = svc.compute_summary("e002", "2026-04")
         # 老逻辑：30 天里 26 缺勤
         self.assertEqual(result["absent_days"], 26)

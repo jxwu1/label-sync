@@ -123,7 +123,10 @@ export function renderDupCard(warning) {
   const storeHtml = renderDupSide(barcode, key, "store", storeSide, "店面", "保留全部店面");
   const warehouseHtml = renderDupSide(barcode, key, "warehouse", warehouseSide, "仓库", "保留全部仓库");
   setTimeout(() => dupTryResolve(barcode), 0);
-  return `<div class="warn"><div class="row"><div class="col"><span class="code">${esc(barcode)}</span><span class="sub text-warn-amber">多库位冲突，请手动选择</span></div></div><div class="col u-gap-2 u-mt-2">${storeHtml}${warehouseHtml}</div><div class="actions u-mt-2"><button class="btn-s is-warn-solid" id="dpconf_${key}" disabled onclick="confirmDupLoc('${jesc(barcode)}')">确认选择</button></div></div>`;
+  return `<div class="warn ex-card" data-ex-sev="med">
+    <div class="ex-meta"><span class="ex-dot"></span><span class="ex-code">LOC.MULTI</span></div>
+    <div class="row"><div class="col"><span class="code">${esc(barcode)}</span><span class="sub text-warn-amber">多库位冲突，请手动选择</span></div></div><div class="col u-gap-2 u-mt-2">${storeHtml}${warehouseHtml}</div><div class="actions u-mt-2"><button class="btn-s is-warn-solid" id="dpconf_${key}" disabled onclick="confirmDupLoc('${jesc(barcode)}')">确认选择</button></div>
+  </div>`;
 }
 
 window.toggleDupLoc = toggleDupLoc;

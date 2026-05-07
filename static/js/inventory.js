@@ -165,8 +165,53 @@ async function doImport() {
     `;
     $("invResultPanel").hidden = false;
     refreshStats();
+    refreshImports();
   } catch (err) {
     setHint(`网络错误：${err.message}`, true);
+  }
+}
+
+const _EVENT_TYPE_CN = { purchase: "采购", sale: "销售" };
+
+async function refreshImports() {
+  try {
+    const resp = await fetch("/inventory/imports");
+    const data = await resp.json();
+    if (!data.ok) return;
+    if (!data.imports.length) {
+      $("invImports").innerHTML = '<div class="inv-imports-empty">暂无 import 记录</div>';
+      return;
+    }
+    const rows = data.imports
+      .map((r) => {
+        const typeCls = r.event_type === "sale" ? "inv-imp-type--sale" : "inv-imp-type--purchase";
+        const typeLabel = _EVENT_TYPE_CN[r.event_type] || r.event_type;
+        const errCls = r.error_count > 0 ? " inv-imp-err" : "";
+        const dupCls = r.dup_count > 0 ? " inv-imp-dup" : "";
+        return `<tr>
+          <td class="inv-imp-time">${escapeHtml(r.imported_at)}</td>
+          <td><span class="inv-imp-type ${typeCls}">${typeLabel}</span></td>
+          <td class="inv-imp-file">${escapeHtml(r.filename)}</td>
+          <td class="inv-imp-num">${r.total_rows}</td>
+          <td class="inv-imp-num inv-imp-ok">${r.ok_count}</td>
+          <td class="inv-imp-num${dupCls}">${r.dup_count}</td>
+          <td class="inv-imp-num${errCls}">${r.error_count}</td>
+          <td>${escapeHtml(r.operator)}</td>
+        </tr>`;
+      })
+      .join("");
+    $("invImports").innerHTML = `
+      <table class="inv-imports-table">
+        <thead><tr>
+          <th>时间</th><th>类型</th><th>文件</th>
+          <th class="inv-imp-num">行数</th><th class="inv-imp-num">OK</th>
+          <th class="inv-imp-num">重复</th><th class="inv-imp-num">错误</th>
+          <th>操作员</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  } catch (err) {
+    void err;
   }
 }
 
@@ -176,18 +221,44 @@ async function refreshStats() {
     const data = await resp.json();
     if (!data.ok) return;
     const byType = data.customers_by_type || {};
+    const total = (byType.chinese || 0) + (byType.foreign || 0) +
+                  (byType.mixed || 0) + (byType.unknown || 0);
+    const seg = (n, color) => total > 0
+      ? `<span class="inv-bar__seg" style="width:${(n / total) * 100}%;background:${color}"></span>`
+      : "";
     $("invStats").innerHTML = `
-      <div class="inv-stats">
-        <div><b>事件总数：</b>${data.events_total}（采购 ${data.events_purchase} / 销售 ${data.events_sale}）</div>
-        <div><b>客户：</b>${data.customers_total}</div>
-        <div><b>供应商：</b>${data.suppliers_total}</div>
-        <div><b>SKU：</b>${data.skus_total}</div>
+      <div class="inv-stat-grid">
+        <div class="inv-stat-box inv-stat-box--accent">
+          <div class="inv-stat-k">事件总数</div>
+          <div class="inv-stat-v">${data.events_total.toLocaleString()}</div>
+          <div class="inv-stat-sub">采购 ${data.events_purchase.toLocaleString()} / 销售 ${data.events_sale.toLocaleString()}</div>
+        </div>
+        <div class="inv-stat-box inv-stat-box--info">
+          <div class="inv-stat-k">客户</div>
+          <div class="inv-stat-v">${data.customers_total.toLocaleString()}</div>
+        </div>
+        <div class="inv-stat-box">
+          <div class="inv-stat-k">供应商</div>
+          <div class="inv-stat-v">${data.suppliers_total.toLocaleString()}</div>
+        </div>
+        <div class="inv-stat-box inv-stat-box--accent">
+          <div class="inv-stat-k">SKU</div>
+          <div class="inv-stat-v">${data.skus_total.toLocaleString()}</div>
+        </div>
       </div>
-      <div class="inv-stats-sub">
-        <span>客户类型分布：</span>
-        ${Object.entries(byType)
-          .map(([k, v]) => `<span class="inv-badge">${escapeHtml(k)} ${v}</span>`)
-          .join("")}
+      <div class="inv-cust-types">
+        <div class="inv-cust-types__legend">
+          <span class="inv-cust-pill inv-cust-pill--cn">chinese · ${byType.chinese || 0}</span>
+          <span class="inv-cust-pill inv-cust-pill--fo">foreign · ${byType.foreign || 0}</span>
+          <span class="inv-cust-pill inv-cust-pill--mx">mixed · ${byType.mixed || 0}</span>
+          <span class="inv-cust-pill inv-cust-pill--un">unknown · ${byType.unknown || 0}</span>
+        </div>
+        <div class="inv-bar">
+          ${seg(byType.chinese || 0, "var(--accent)")}
+          ${seg(byType.foreign || 0, "var(--info)")}
+          ${seg(byType.mixed || 0, "var(--warn)")}
+          ${seg(byType.unknown || 0, "var(--ink-3)")}
+        </div>
       </div>
     `;
   } catch (err) {
@@ -241,6 +312,7 @@ function init() {
   $("invSaveMapping").addEventListener("click", saveMapping);
   $("invImport").addEventListener("click", doImport);
   $("invStatsRefresh").addEventListener("click", refreshStats);
+  $("invImportsRefresh").addEventListener("click", refreshImports);
   if ($("invProductImport")) {
     $("invProductImport").addEventListener("click", doImportProductMaster);
   }

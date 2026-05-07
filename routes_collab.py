@@ -1,7 +1,6 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 from pydantic import BaseModel
 
-import duplicate_service
 import message_service
 from response_builder import json_result
 from route_helpers import NonEmptyStr, OptionalStr, parse_body
@@ -42,14 +41,3 @@ def text_delete():
 @bp.post("/text_clear")
 def text_clear():
     return jsonify(message_service.clear_text_messages())
-
-
-@bp.post("/check_dup")
-def check_dup():
-    uploaded_file = request.files.get("file")
-    if not uploaded_file or not uploaded_file.filename:
-        return jsonify({"ok": False, "msg": "没有收到文件"}), 400
-    payload = duplicate_service.check_duplicate_file(uploaded_file)
-    if not payload["ok"]:
-        return jsonify(payload), 400
-    return jsonify(payload)

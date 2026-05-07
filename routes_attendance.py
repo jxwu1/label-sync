@@ -103,6 +103,61 @@ def remove_holiday(date: str):
     return jsonify({"ok": True, "holidays": attendance_service.list_holidays()})
 
 
+@bp.post("/holidays/import-year/<int:year>")
+def import_holidays_year(year: int):
+    """PR-FE-7d：批量导入指定年份法定节假日。"""
+    try:
+        result = attendance_service.import_holidays_for_year(year)
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 404
+    return jsonify({"ok": True, **result})
+
+
+@bp.get("/fill-rates/<month>")
+def fill_rates(month: str):
+    """PR-FE-7d-2：返回每员工在指定月份的填写率，给员工 rail 用。
+
+    口径：仅统计"用户需要填的工作日"，自动的周日 / 节假日 / pre_join 不计。
+    - filled = total_workdays（已填：normal / special / leave）
+    - total  = total_workdays + absent_days（应填：含未填的 absent）
+    - rate = filled / total（0-1，total 为 0 时给 0）
+    """
+    employees = attendance_service.list_employees()
+    out = []
+    for emp in employees:
+        try:
+            summary = attendance_service.compute_summary(emp["id"], month)
+        except Exception:
+            summary = {"total_workdays": 0, "absent_days": 0}
+        filled = summary.get("total_workdays", 0)
+        absent = summary.get("absent_days", 0)
+        # 把周日/节假日等"自动满"的天排出 — 但 total_workdays 已经含 sunday/holiday，
+        # 需要再减回去；最简单：从 detail 里数 status in {normal, special, leave, absent}
+        detail = summary.get("detail", [])
+        action_total = sum(
+            1
+            for r in detail
+            if r.get("status") in ("normal", "special", "special_absent", "leave", "absent")
+        )
+        action_filled = sum(
+            1 for r in detail if r.get("status") in ("normal", "special", "special_absent", "leave")
+        )
+        rate = (action_filled / action_total) if action_total > 0 else 0.0
+        out.append(
+            {
+                "id": emp["id"],
+                "name": emp["name"],
+                "filled": action_filled,
+                "total": action_total,
+                "rate": round(rate, 3),
+                # 兼容字段（暂未使用，留作前端备选）
+                "worked_days": filled,
+                "absent_days": absent,
+            }
+        )
+    return jsonify({"ok": True, "employees": out})
+
+
 @bp.get("/special-days")
 def list_special_days():
     return jsonify({"ok": True, "special_days": attendance_service.list_special_days()})

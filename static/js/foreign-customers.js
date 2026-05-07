@@ -97,21 +97,54 @@ async function loadRecords() {
   }
 }
 
+// status 派生：paid / unpaid / overdue（>30 天未付）
+// partial 暂不支持（需后端 partial-payment 字段，留 v2）
+function deriveStatus(r) {
+  if (r.payment_date) return { key: "paid", label: "已付", cls: "fc-st--paid" };
+  if (!r.amount_due || r.amount_due <= 0) return { key: "free", label: "无欠款", cls: "fc-st--free" };
+  // record_month 比当前月早 ≥ 1 个月 → 算逾期
+  const now = new Date();
+  const cur = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  if (r.record_month && r.record_month < cur) {
+    return { key: "overdue", label: "逾期", cls: "fc-st--overdue" };
+  }
+  return { key: "unpaid", label: "未付", cls: "fc-st--unpaid" };
+}
+
+let _allRecords = [];
+
+function applySearch(query) {
+  if (!query) return _allRecords;
+  const q = query.toLowerCase();
+  return _allRecords.filter(
+    (r) =>
+      (r.customer_name || "").toLowerCase().includes(q) ||
+      (r.tax_number || "").toLowerCase().includes(q),
+  );
+}
+
 function renderRecords(records) {
+  _allRecords = records;
+  doRender(records);
+}
+
+function doRender(records) {
   $("fcRecordCount").textContent = records.length ? `(${records.length})` : "";
   if (!records.length) {
-    $("fcRecordsBody").innerHTML = `<tr><td colspan="7" class="empty">本月暂无记录</td></tr>`;
+    $("fcRecordsBody").innerHTML = `<tr><td colspan="8" class="empty">本月暂无记录</td></tr>`;
     return;
   }
   $("fcRecordsBody").innerHTML = records
     .map((r) => {
       const paidCls = r.payment_date ? "fc-row-paid" : "fc-row-unpaid";
+      const st = deriveStatus(r);
       return `<tr class="${paidCls}" data-id="${r.id}">
         <td>${escapeHtml(r.customer_name)}</td>
         <td class="fc-num">€${fmtMoney(r.amount_due)}</td>
         <td>${escapeHtml(r.tax_number) || "—"}</td>
         <td>${fmtDate(r.payment_date)}</td>
         <td>${fmtDate(r.shipping_date)}</td>
+        <td><span class="fc-st ${st.cls}">${st.label}</span></td>
         <td class="fc-notes">${escapeHtml(r.notes) || "—"}</td>
         <td class="fc-ops">
           <button class="btn-mini fc-edit-btn" data-id="${r.id}">编辑</button>
@@ -122,7 +155,7 @@ function renderRecords(records) {
     .join("");
   // bind ops
   for (const btn of $("fcRecordsBody").querySelectorAll(".fc-edit-btn")) {
-    btn.addEventListener("click", () => openEditModal(parseInt(btn.dataset.id, 10), records));
+    btn.addEventListener("click", () => openEditModal(parseInt(btn.dataset.id, 10), _allRecords));
   }
   for (const btn of $("fcRecordsBody").querySelectorAll(".fc-del-btn")) {
     btn.addEventListener("click", () => deleteRecord(parseInt(btn.dataset.id, 10)));
@@ -234,6 +267,7 @@ async function init() {
     window.location.href = `/foreign-customers/pdf/${currentMonth}`;
   });
   $("fcAddBtn").addEventListener("click", openAddModal);
+  $("fcSearch")?.addEventListener("input", (e) => doRender(applySearch(e.target.value)));
   $("fcModalSubmit").addEventListener("click", submitModal);
   $("fcModalCancel").addEventListener("click", closeModal);
 

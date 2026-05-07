@@ -256,6 +256,28 @@ class InventoryEvent(Base):
     )
 
 
+class InventoryImport(Base):
+    """每次 inventory_events import 的 audit 行（PR-FE-5b）。
+
+    给「最近导入」表格用：时间 / 类型 / 文件 / 总行 / OK / 重复 / 错误 / 操作员。
+    """
+
+    __tablename__ = "inventory_imports"
+    __table_args__ = (Index("idx_inventory_imports_at", "imported_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    imported_at: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=text("(datetime('now','localtime'))")
+    )
+    event_type: Mapped[str] = mapped_column(Text, nullable=False)  # 'purchase' / 'sale'
+    filename: Mapped[str] = mapped_column(Text, nullable=False)
+    total_rows: Mapped[int] = mapped_column(Integer, nullable=False)
+    ok_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    dup_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    error_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    operator: Mapped[str] = mapped_column(Text, nullable=False, server_default="admin")
+
+
 class ForeignCustomerRecord(Base):
     """老外客人月度记录（独立模块）。
 

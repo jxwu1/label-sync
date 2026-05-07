@@ -7,6 +7,7 @@ const SOURCE_CN = {
   scan_import: "扫描导入",
   user_correction: "手动修正",
   system_export: "系统导出",
+  inventory_events: "进销存",
 };
 
 const FIELD_CN = {
@@ -21,7 +22,11 @@ const CHANGE_TYPE_CN = {
   insert: "新增",
   deactivate: "下架",
   reactivate: "上架",
+  sale: "销售",
+  purchase: "采购",
 };
+
+let _currentBarcode = null;
 
 function escapeHtml(s) {
   if (s === null || s === undefined) return "";
@@ -321,6 +326,7 @@ function renderAnalytics(data) {
       <div><span class="k">总营收</span><span class="v">€${(s.total_revenue || 0).toFixed(2)}</span></div>
       <div><span class="k">独立客户</span><span class="v">${fmtNum(s.unique_customers)}</span></div>
       <div><span class="k">寿命</span><span class="v">${s.lifespan_days} 天</span></div>
+      <div><span class="k">日均件数</span><span class="v">${((s.total_qty || 0) / Math.max(1, s.lifespan_days || 1)).toFixed(2)}</span></div>
       <div><span class="k">12 周趋势</span><span class="v">${fmtPct(s.trend_slope_pct_per_week)} / 周</span></div>
     </div>
 
@@ -427,6 +433,8 @@ function renderResult(data) {
   $("historyFuzzyPanel").hidden = true;
 
   const c = data.current;
+  _currentBarcode = c.barcode;
+  $("historyCopyBarcodeBtn").hidden = false;
   const stores = (c.store_locations || []).map(escapeHtml).join(", ") || '<span class="empty-val">—</span>';
   const warehouses = (c.warehouse_locations || []).map(escapeHtml).join(", ") || '<span class="empty-val">—</span>';
   const unknown = (c.unknown_locations || []).map(escapeHtml).join(", ");
@@ -472,28 +480,32 @@ function renderResult(data) {
   }
 
   const items = events.map((ev) => {
-    const changes = ev.changes
-      .map((ch) => {
-        const fieldCn = FIELD_CN[ch.field] || ch.field;
-        const oldVal = ch.old || '<span class="empty-val">空</span>';
-        const newVal = ch.new || '<span class="empty-val">空</span>';
-        return `<div class="change-row"><span class="change-field">${escapeHtml(fieldCn)}</span><span class="change-arrow">${oldVal === '<span class="empty-val">空</span>' ? oldVal : escapeHtml(ch.old)} → ${newVal === '<span class="empty-val">空</span>' ? newVal : escapeHtml(ch.new)}</span></div>`;
-      })
-      .join("");
+    // sale / purchase 等 inventory_events 事件用 summary，单行不带 old→new 箭头
+    const body = ev.summary
+      ? `<div class="event-summary">${escapeHtml(ev.summary)}</div>`
+      : ev.changes
+          .map((ch) => {
+            const fieldCn = FIELD_CN[ch.field] || ch.field;
+            const oldVal = ch.old || '<span class="empty-val">空</span>';
+            const newVal = ch.new || '<span class="empty-val">空</span>';
+            return `<div class="change-row"><span class="change-field">${escapeHtml(fieldCn)}</span><span class="change-arrow">${oldVal === '<span class="empty-val">空</span>' ? oldVal : escapeHtml(ch.old)} → ${newVal === '<span class="empty-val">空</span>' ? newVal : escapeHtml(ch.new)}</span></div>`;
+          })
+          .join("");
     return `
-      <div class="event-item">
+      <div class="event-item" data-type="${escapeHtml(ev.change_type)}">
+        <span class="event-dot"></span>
         <div class="event-head">
           <span class="event-time">${escapeHtml(ev.at)}</span>
           <span class="event-source">${escapeHtml(SOURCE_CN[ev.source] || ev.source || "")}</span>
           <span class="event-type">[${escapeHtml(CHANGE_TYPE_CN[ev.change_type] || ev.change_type)}]</span>
         </div>
-        <div class="event-body">${changes}</div>
+        <div class="event-body">${body}</div>
       </div>
     `;
   });
   $("historyTimeline").innerHTML = `
     <div class="event-count">共 ${events.length} 次操作</div>
-    ${items.join("")}
+    <div class="event-timeline">${items.join("")}</div>
   `;
 }
 
@@ -526,6 +538,50 @@ async function doSearch() {
   }
 }
 
+// HTTP 局域网部署常见：navigator.clipboard 仅在 secure context 可用
+// fallback 用 execCommand。两条路径都失败才弹 alert
+function copyTextFallback(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.setAttribute("readonly", "");
+  ta.style.position = "fixed";
+  ta.style.left = "-9999px";
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try {
+    ok = document.execCommand("copy");
+  } catch {
+    ok = false;
+  }
+  document.body.removeChild(ta);
+  return ok;
+}
+
+async function copyCurrentBarcode(btn) {
+  if (!_currentBarcode) return;
+  let ok = false;
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(_currentBarcode);
+      ok = true;
+    } catch {
+      // 非安全上下文 / 权限拒绝 → 走 fallback
+      ok = false;
+    }
+  }
+  if (!ok) ok = copyTextFallback(_currentBarcode);
+  if (!ok) {
+    alert(`复制失败，请手动复制：${_currentBarcode}`);
+    return;
+  }
+  const orig = btn.textContent;
+  btn.textContent = "已复制 ✓";
+  setTimeout(() => {
+    btn.textContent = orig;
+  }, 1200);
+}
+
 function init() {
   const input = $("historyInput");
   if (!input) return; // 当前不在 history tab
@@ -538,6 +594,9 @@ function init() {
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") doSearch();
   });
+  $("historyCopyBarcodeBtn").addEventListener("click", (e) =>
+    copyCurrentBarcode(e.currentTarget),
+  );
 
   // 暴露给最近改动模块下钻调用
   window.historySearch = (q) => {

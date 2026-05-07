@@ -18,6 +18,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
         <div class="hint">供应商：第1列条码/型号 · 第3列价格 · 第6列数量</div>
       </div>
       <div class="pur-results" id="purResults"><div class="empty">上传文件后显示结果</div></div>
+      <div class="pur-footer pur-hidden" id="purFooter"></div>
       <div class="pur-newbox pur-hidden" id="purNewBox">
         <div class="pur-newbox-hd">新条码处理 <button class="pur-new-copy-all" id="purNewCopyAll">复制全部条码</button></div>
         <div class="pur-supplier">
@@ -113,32 +114,73 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
       savedNewEntries = [];
       renderResults();
       renderNewBox();
-      const flagCount = rows.filter(r => r.price_flagged).length;
-      setStatus(`共 ${rows.length} 条，${newEntries.length} 个新条码${flagCount ? `，${flagCount} 条需改价` : ''}`);
+      setStatus(`解析完成`);
     } catch (e) {
       setStatus('解析失败：' + e.message, true);
     }
   }
 
+  function rowStatus(r) {
+    if (r.price_flagged) return { key: 'check', label: 'CHECK' };
+    if (!systemBarcodes.has(r.barcode)) return { key: 'new', label: 'NEW' };
+    return { key: 'match', label: 'MATCH' };
+  }
+
   function renderResults() {
     const container = document.getElementById('purResults');
-    if (!rows.length) { container.innerHTML = '<div class="empty">未解析到数据</div>'; updateButtons(); return; }
+    if (!rows.length) {
+      container.innerHTML = '<div class="empty">未解析到数据</div>';
+      updateButtons();
+      renderFooter();
+      return;
+    }
     container.innerHTML = rows.map((r, i) => {
+      const st = rowStatus(r);
+      const pill = `<span class="pur-pill pur-pill--${st.key}">${st.label}</span>`;
       if (r.price_flagged) {
         const parts = r.formatted.split(',');
         return `<div class="pur-row flagged" data-i="${i}">
+          ${pill}
           <span class="pur-text">${parts[0]},</span>
           <input class="pur-price-input" data-i="${i}" value="${parts[1]}" title="价格小数超2位，请修改">
           <span class="pur-text">,,${parts[3]}</span>
         </div>`;
       }
-      return `<div class="pur-row" data-i="${i}"><span class="pur-text">${r.formatted}</span></div>`;
+      return `<div class="pur-row" data-i="${i}">${pill}<span class="pur-text">${r.formatted}</span></div>`;
     }).join('');
     container.querySelectorAll('.pur-price-input').forEach(el => {
       el.addEventListener('input', onPriceEdit);
       el.addEventListener('change', onPriceEdit);
     });
     updateButtons();
+    renderFooter();
+  }
+
+  function renderFooter() {
+    const el = document.getElementById('purFooter');
+    if (!el) return;
+    if (!rows.length) {
+      el.classList.add('pur-hidden');
+      el.innerHTML = '';
+      return;
+    }
+    const units = rows.reduce((s, r) => s + (Number(r.quantity) || 0), 0);
+    const sum = rows.reduce(
+      (s, r) => s + (Number(r.price) || 0) * (Number(r.quantity) || 0),
+      0,
+    );
+    const flagN = rows.filter(r => r.price_flagged).length;
+    const newN = rows.filter(r => !systemBarcodes.has(r.barcode)).length;
+    const cell = (k, v, mod) =>
+      `<span class="pur-foot-cell${mod ? ' pur-foot-cell--' + mod : ''}"><span class="k">${k}</span><span class="v">${v}</span></span>`;
+    el.classList.remove('pur-hidden');
+    el.innerHTML = [
+      cell('SUM', '€' + sum.toFixed(2)),
+      cell('ROWS', rows.length),
+      cell('UNITS', units.toLocaleString()),
+      newN ? cell('NEW', newN, 'new') : '',
+      flagN ? cell('CHECK', flagN, 'check') : '',
+    ].join('');
   }
 
   async function copyNewBarcodes() {
@@ -272,7 +314,17 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     } else {
       rows[i].price_flagged = true;
     }
+    // 价格变化后：当前行 pill 文本/颜色就地刷新，不重渲染避免 input 失焦
+    const rowEl = e.target.closest('.pur-row');
+    const pillEl = rowEl?.querySelector('.pur-pill');
+    if (pillEl) {
+      const st = rowStatus(rows[i]);
+      pillEl.className = `pur-pill pur-pill--${st.key}`;
+      pillEl.textContent = st.label;
+    }
+    rowEl?.classList.toggle('flagged', !valid);
     updateButtons();
+    renderFooter();
   }
 
   function updateButtons() {

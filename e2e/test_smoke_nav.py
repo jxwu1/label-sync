@@ -115,8 +115,8 @@ def test_sales_analytics_page_renders(live_server, page_with_console) -> None:
     )
     assert set(chip_groups) == {"auto", "manual", "cust", "warn"}
 
-    # 排序下拉 + 表格骨架在
-    assert page.locator("#saSort").count() == 1
+    # 列头排序（PR-FE-3 换掉旧 dropdown）+ 表格骨架在
+    assert page.locator(".sa-th-sort").count() >= 4
     assert page.locator("#saTbody").count() == 1
 
     page.wait_for_timeout(_ALPINE_SETTLE_MS)
@@ -138,6 +138,78 @@ def test_foreign_customers_page_renders(live_server, page_with_console) -> None:
     assert page.locator("#fcRecordsBody").count() == 1
 
     page.wait_for_timeout(_ALPINE_SETTLE_MS)
+    assert page.console_errors == [], f"console errors: {page.console_errors}"
+
+
+def test_theme_toggle_persists(live_server, page_with_console) -> None:
+    """PR-FE-1：主题切换 + localStorage 持久化 + body[data-theme] 正确反映。"""
+    page = page_with_console
+    page.goto(live_server + "/")
+    _wait_alpine_ready(page)
+
+    # 默认 dark
+    assert page.evaluate("document.body.dataset.theme") == "dark"
+    # 切换
+    page.evaluate("Alpine.store('theme').toggle()")
+    page.wait_for_timeout(_ALPINE_SETTLE_MS)
+    assert page.evaluate("document.body.dataset.theme") == "light"
+    assert page.evaluate("localStorage.getItem('theme')") == "light"
+    assert page.console_errors == [], f"console errors: {page.console_errors}"
+
+
+def test_sidebar_collapse(live_server, page_with_console) -> None:
+    """PR-FE-1：侧栏折叠 200↔56 + Alpine store 持久化。"""
+    page = page_with_console
+    page.goto(live_server + "/")
+    _wait_alpine_ready(page)
+
+    assert page.evaluate("Alpine.store('nav').collapsed") is False
+    page.evaluate("Alpine.store('nav').toggleCollapse()")
+    page.wait_for_timeout(_ALPINE_SETTLE_MS)
+    assert page.evaluate("Alpine.store('nav').collapsed") is True
+    # CSS class 跟着变
+    assert page.locator(".app-sidebar.is-collapsed").count() == 1
+    assert page.evaluate("localStorage.getItem('nav.collapsed')") == "1"
+    assert page.console_errors == [], f"console errors: {page.console_errors}"
+
+
+def test_clock_running(live_server, page_with_console) -> None:
+    """PR-FE-1：实时时钟显示 HH:MM:SS。"""
+    page = page_with_console
+    page.goto(live_server + "/")
+    _wait_alpine_ready(page)
+    # 等 1.5s 看时钟应该被触发
+    page.wait_for_timeout(1500)
+    clock_text = page.locator(".app-header__clock").inner_text().strip()
+    # HH:MM:SS 格式
+    import re
+
+    assert re.match(r"^\d{2}:\d{2}:\d{2}$", clock_text), f"got '{clock_text}'"
+    assert page.console_errors == [], f"console errors: {page.console_errors}"
+
+
+def test_keyboard_shortcut_switches_nav(live_server, page_with_console) -> None:
+    """PR-FE-1：⌘/Ctrl + 1-9 全局快捷键切 nav。
+
+    验证两个不同 shortcut 都生效，确认 keydown 监听器和 store.bySortcut 路径都活着。
+    """
+    page = page_with_console
+    page.goto(live_server + "/")
+    _wait_alpine_ready(page)
+
+    # 默认在 main
+    assert page.evaluate("Alpine.store('nav').current") == "main"
+
+    # Ctrl+3 → purchase
+    page.keyboard.press("Control+3")
+    page.wait_for_timeout(_ALPINE_SETTLE_MS)
+    assert page.evaluate("Alpine.store('nav').current") == "purchase"
+
+    # Ctrl+9 → sales_analytics
+    page.keyboard.press("Control+9")
+    page.wait_for_timeout(_ALPINE_SETTLE_MS)
+    assert page.evaluate("Alpine.store('nav').current") == "sales_analytics"
+
     assert page.console_errors == [], f"console errors: {page.console_errors}"
 
 

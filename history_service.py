@@ -13,7 +13,7 @@ from sqlalchemy import or_, select
 
 import stockpile_db
 from location_parser import parse_to_locations
-from models import Stockpile, StockpileChange, StockpileLocation
+from models import InventoryEvent, Stockpile, StockpileChange, StockpileLocation
 
 _AGGREGATE_WINDOW_SECONDS = 5
 
@@ -177,6 +177,56 @@ def aggregate_events(barcode: str) -> list[dict]:
     return events
 
 
+def _fetch_inventory_events(barcode: str) -> list[dict]:
+    """读 inventory_events 中该条码的销售/采购记录，转成 timeline event 形态。
+
+    与 stockpile_changes 不同：每条 inventory_event 单独一个 event（无 5s 窗口聚合），
+    用 summary 字段承载"销售 5 件 × €12.50 给 C001"这类描述，前端不走 changes 模板。
+    """
+    with stockpile_db._session() as session:
+        rows = session.execute(
+            select(
+                InventoryEvent.event_at,
+                InventoryEvent.event_type,
+                InventoryEvent.qty,
+                InventoryEvent.unit_price,
+                InventoryEvent.customer_id,
+                InventoryEvent.supplier_id,
+            )
+            .where(InventoryEvent.product_barcode == barcode)
+            .order_by(InventoryEvent.event_at.desc())
+        ).all()
+    out: list[dict] = []
+    for r in rows:
+        is_sale = r.event_type == "sale"
+        actor = r.customer_id if is_sale else r.supplier_id
+        verb = "销售" if is_sale else "采购"
+        price_part = f" × €{r.unit_price}" if r.unit_price is not None else ""
+        actor_part = f"（{actor}）" if actor else ""
+        out.append(
+            {
+                "at": r.event_at,
+                "change_type": r.event_type,  # 'sale' / 'purchase'
+                "source": "inventory_events",
+                "changes": [],
+                "summary": f"{verb} {r.qty} 件{price_part}{actor_part}",
+            }
+        )
+    return out
+
+
+def aggregate_full_timeline(barcode: str) -> list[dict]:
+    """合并 stockpile_changes 聚合事件 + inventory_events，按时间倒序。
+
+    PR-FE-4b：原 aggregate_events 只覆盖 stockpile 主档变更（insert/update/
+    deactivate/reactivate）。本函数额外把 sale / purchase 业务事件并入同一时间线，
+    供货号历史页统一展示。
+    """
+    events = aggregate_events(barcode) + _fetch_inventory_events(barcode)
+    events.sort(key=lambda e: _parse_dt(e["at"]), reverse=True)
+    return events
+
+
 _FUZZY_MIN_QUERY = 2
 _FUZZY_LIMIT = 20
 
@@ -233,12 +283,14 @@ def build_response(query: str) -> dict:
     record["warehouse_locations"] = current["warehouses"]
     record["unknown_locations"] = current["unknown"]
 
-    events = aggregate_events(record["barcode"])
+    events = aggregate_full_timeline(record["barcode"])
     for e in events:
-        # source 来自主表，注入到每个事件方便前端显示
-        e["source"] = record["source"]
+        # stockpile_changes 的 source 来自主表；
+        # inventory_events 已在 _fetch 里写好 'inventory_events'
+        if e.get("source") is None:
+            e["source"] = record["source"]
         # 库位变更行：拆 old/new
-        for ch in e["changes"]:
+        for ch in e.get("changes", []):
             if ch["field"] == "stockpile_location":
                 ch["old_split"] = split_location(ch["old"])
                 ch["new_split"] = split_location(ch["new"])

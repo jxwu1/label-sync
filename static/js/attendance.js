@@ -4,6 +4,27 @@
   let currentMonth = '';
   let currentSummary = null;
 
+  // PR-FE-7a：日历视图常量
+  const WEEKDAY_HEADERS = ['一', '二', '三', '四', '五', '六', '日'];
+  const WEEKDAY_INDEX = { '一': 0, '二': 1, '三': 2, '四': 3, '五': 4, '六': 5, '日': 6 };
+  const STATUS_LABEL = {
+    sunday: '周日', holiday: '节假日', absent: '缺勤', normal: '正常',
+    special: '特殊日', special_absent: '特殊缺勤', leave: '请假',
+    pre_join: '未入职', todo: '待填',
+  };
+  // 视觉 dot 用的 key（special_absent 折叠成 absent；空 → todo）
+  const STATUS_VISUAL_KEY = {
+    sunday: 'sunday', holiday: 'holiday', absent: 'absent', normal: 'normal',
+    special: 'special', special_absent: 'absent', leave: 'leave',
+    pre_join: 'pre-join',
+  };
+
+  // PR-FE-7c：多选状态
+  const _selectedDates = new Set();
+  let _lastClickDate = null;
+  // 数字键 → batch action
+  const KEY_TO_BATCH = { '1': 'normal', '2': 'absent', '3': 'am', '4': 'pm', '5': 'clear' };
+
   function init() {
     const page = document.getElementById('pageAttendance');
     if (!page) return;
@@ -11,26 +32,73 @@
       <div class="attn-wrap">
         <div class="attn-top">
           <label>月份 <input class="attn-inp" id="attnMonth" type="month"></label>
-          <label>员工 <select class="attn-inp" id="attnEmployee"></select></label>
-          <button class="attn-btn" id="attnEmpNew">+ 新建</button>
-          <button class="attn-btn attn-btn-danger" id="attnEmpDel">删除员工</button>
+          <label class="attn-hide-emp-select">员工 <select class="attn-inp" id="attnEmployee"></select></label>
           <button class="attn-btn" id="attnHolidays">节假日</button>
           <button class="attn-btn" id="attnSpecial">特殊日</button>
           <span class="attn-spacer"></span>
           <button class="attn-btn" id="attnFillAll">一键填全月正常</button>
           <button class="attn-btn" id="attnLeaveRange">区间请假</button>
-          <button class="attn-btn" id="attnInactive">不在职区间</button>
           <button class="attn-btn attn-btn-dl" id="attnPdf">下载 PDF</button>
-          <button class="attn-btn attn-btn-dl" id="attnPayrollPdf">下载工资单 PDF</button>
+          <button class="attn-btn attn-btn-dl" id="attnPayrollPdf">工资单 PDF</button>
         </div>
-        <div class="attn-stats">
-          <div class="attn-stat"><div class="attn-stat-k">累计</div><div class="attn-stat-v"><span id="attnWorked">0</span> <small>天</small></div></div>
-          <div class="attn-stat"><div class="attn-stat-k">缺勤</div><div class="attn-stat-v"><span id="attnAbsent">0</span> <small>天</small></div></div>
-          <div class="attn-stat"><div class="attn-stat-k">总工作日</div><div class="attn-stat-v" id="attnTotal">0</div></div>
-          <div class="attn-stat"><div class="attn-stat-k">本月天数</div><div class="attn-stat-v" id="attnMonthDays">0</div></div>
-          <div class="attn-stat"><div class="attn-stat-k">请假</div><div class="attn-stat-v"><span id="attnLeaveH">0</span> <small>h ≈ <span id="attnLeaveD">0</span> 天</small></div></div>
+        <div class="attn-main">
+          <!-- PR-FE-7d-3：日历 card（header + body + footer） -->
+          <section class="attn-cal-card">
+            <div class="attn-cal-card-hd">
+              <span class="up-panel-code">04</span>
+              <span class="up-panel-title">考勤 · 月历</span>
+              <span class="up-panel-sub">attendance · calendar</span>
+              <span class="up-panel-spacer"></span>
+              <div class="attn-batch attn-hidden" id="attnBatch">
+                <span class="attn-batch-count">已选 <b id="attnBatchN">0</b> 天</span>
+                <button class="attn-batch-btn" data-batch="normal">正常 <kbd>1</kbd></button>
+                <button class="attn-batch-btn" data-batch="absent">缺勤 <kbd>2</kbd></button>
+                <button class="attn-batch-btn" data-batch="am">上半天 <kbd>3</kbd></button>
+                <button class="attn-batch-btn" data-batch="pm">下半天 <kbd>4</kbd></button>
+                <button class="attn-batch-btn attn-batch-btn-danger" data-batch="clear">清除 <kbd>5</kbd></button>
+                <button class="attn-batch-btn" id="attnBatchCancel">取消 <kbd>Esc</kbd></button>
+              </div>
+              <span class="attn-fillrate" id="attnFillRate">填写率 —</span>
+            </div>
+            <div class="attn-cal-body" id="attnGridWrap"></div>
+            <div class="attn-cal-card-ft">
+              <span class="attn-legend"><span class="attn-legend-dot attn-legend-dot--normal"></span>正常 <span class="attn-legend-num" id="attnLegendNormal">0</span></span>
+              <span class="attn-legend"><span class="attn-legend-dot attn-legend-dot--absent"></span>缺勤 <span class="attn-legend-num" id="attnLegendAbsent">0</span></span>
+              <span class="attn-legend"><span class="attn-legend-dot attn-legend-dot--leave"></span>请假 <span class="attn-legend-num" id="attnLegendLeave">0</span></span>
+              <span class="attn-legend"><span class="attn-legend-dot attn-legend-dot--sunday"></span>周日/假 <span class="attn-legend-num" id="attnLegendAuto">0</span></span>
+              <span class="attn-spacer"></span>
+              <span class="attn-key-hint">KEY · <kbd>1-5</kbd> 设状态 · <kbd>Esc</kbd> 取消</span>
+            </div>
+          </section>
+          <aside class="attn-rail" id="attnRail">
+            <!-- mini stats（设计 §3.4：移自顶部 5 stat → 2×2 mini） -->
+            <div class="attn-rail-stats">
+              <div class="attn-mini-stat attn-mini-stat--accent">
+                <div class="attn-mini-stat-k">累计</div>
+                <div class="attn-mini-stat-v"><span id="attnWorked">0</span> <small>天</small></div>
+              </div>
+              <div class="attn-mini-stat attn-mini-stat--err">
+                <div class="attn-mini-stat-k">缺勤</div>
+                <div class="attn-mini-stat-v"><span id="attnAbsent">0</span> <small>天</small></div>
+              </div>
+              <div class="attn-mini-stat">
+                <div class="attn-mini-stat-k">工作日</div>
+                <div class="attn-mini-stat-v"><span id="attnTotal">0</span><small> / <span id="attnMonthDays">0</span></small></div>
+              </div>
+              <div class="attn-mini-stat attn-mini-stat--warn">
+                <div class="attn-mini-stat-k">请假</div>
+                <div class="attn-mini-stat-v"><span id="attnLeaveH">0</span><small> h · <span id="attnLeaveD">0</span> 天</small></div>
+              </div>
+            </div>
+            <div class="attn-rail-hd">员工 · <span class="attn-rail-count" id="attnRailCount">0</span></div>
+            <div class="attn-rail-list" id="attnRailList"></div>
+            <div class="attn-rail-ft">
+              <button class="attn-btn attn-btn-mini" id="attnEmpNew">+ 新建</button>
+              <button class="attn-btn attn-btn-mini attn-btn-danger" id="attnEmpDel">− 删除</button>
+              <button class="attn-btn attn-btn-mini" id="attnInactive">不在职区间</button>
+            </div>
+          </aside>
         </div>
-        <div id="attnGridWrap"></div>
       </div>
       <div class="pur-modal-overlay attn-hidden" id="attnSpecialOverlay">
         <div class="pur-modal">
@@ -90,7 +158,8 @@
       </div>
       <div class="pur-modal-overlay attn-hidden" id="attnInactiveOverlay">
         <div class="pur-modal">
-          <div class="pur-modal-hd">不在职区间（产假 / 长期休假 / 停薪留职）</div>
+          <div class="pur-modal-hd" id="attnInactiveTitle">不在职区间</div>
+          <div class="attn-modal-hint">产假 / 长期休假 / 停薪留职</div>
           <div class="attn-modal-hint">
             区间内每天完全不计入考勤（含周日 / 节假日）。与单日请假不同：单日请假周日仍算 1.0，这里的天周日也不算。
           </div>
@@ -114,10 +183,40 @@
             <input class="attn-inp" id="attnHolidayInput" type="date">
             <button class="attn-btn attn-btn-dl" id="attnHolidayAdd">添加</button>
           </div>
+          <div class="attn-time-row">
+            <span class="attn-hint-inline">批量导入希腊法定节假日：</span>
+            <select class="attn-inp" id="attnHolidayYear">
+              <option value="2025">2025</option>
+              <option value="2026" selected>2026</option>
+            </select>
+            <button class="attn-btn attn-btn-dl" id="attnHolidayImport">导入</button>
+          </div>
           <div id="attnHolidayList" class="pur-mgr-list"></div>
           <div class="pur-modal-actions">
             <button class="attn-btn" id="attnHolidayClose">关闭</button>
           </div>
+        </div>
+      </div>
+      <div class="attn-pop attn-hidden" id="attnPop">
+        <div class="attn-pop-hd" id="attnPopHd"></div>
+        <div class="attn-pop-status">
+          <button class="attn-pop-btn" data-pop="normal">正常</button>
+          <button class="attn-pop-btn" data-pop="leave">请假</button>
+          <button class="attn-pop-btn attn-pop-btn-danger" data-pop="clear">清除</button>
+        </div>
+        <div class="attn-pop-times">
+          <input type="text" id="attnPopStart" maxlength="5" placeholder="HH:MM">
+          <span class="attn-pop-arr">→</span>
+          <input type="text" id="attnPopEnd" maxlength="5" placeholder="HH:MM">
+          <button class="attn-pop-btn attn-pop-btn-primary" data-pop="save">保存</button>
+        </div>
+        <div class="attn-pop-quick">
+          <button class="attn-pop-btn-quick" data-quick="standard">按标准</button>
+          <button class="attn-pop-btn-quick" data-quick="am">上半天</button>
+          <button class="attn-pop-btn-quick" data-quick="pm">下半天</button>
+        </div>
+        <div class="attn-pop-foot">
+          <button class="attn-pop-btn" data-pop="cancel">取消</button>
         </div>
       </div>`;
 
@@ -129,6 +228,7 @@
     document.getElementById('attnPayrollPdf').addEventListener('click', downloadPayrollPdf);
     document.getElementById('attnHolidays').addEventListener('click', openHolidays);
     document.getElementById('attnHolidayAdd').addEventListener('click', addHoliday);
+    document.getElementById('attnHolidayImport').addEventListener('click', importHolidaysYear);
     document.getElementById('attnHolidayClose').addEventListener('click', () => {
       document.getElementById('attnHolidayOverlay').style.display = 'none';
     });
@@ -155,6 +255,8 @@
 
     document.getElementById('attnMonth').value = new Date().toISOString().slice(0, 7);
     currentMonth = document.getElementById('attnMonth').value;
+    bindPopover();
+    bindBatchBar();
     loadEmployees();
   }
 
@@ -171,13 +273,70 @@
       currentEmployeeId = employees[0].id;
       document.getElementById('attnEmployee').value = currentEmployeeId;
     }
-    loadMonth();
+    await loadMonth();
   }
 
   function renderEmployeeSelect() {
     const sel = document.getElementById('attnEmployee');
     sel.innerHTML = employees.map(e => `<option value="${e.id}">${escapeHtml(e.name)}</option>`).join('');
     if (currentEmployeeId) sel.value = currentEmployeeId;
+  }
+
+  // ===== PR-FE-7d-2：员工 rail（右侧栏 + 月填写率） =====
+
+  async function refreshRail() {
+    if (!currentMonth) return;
+    let rates = [];
+    try {
+      const res = await fetch(`/attendance/fill-rates/${currentMonth}`);
+      const body = await res.json();
+      if (body.ok) rates = body.employees;
+    } catch {
+      rates = [];
+    }
+    renderRail(rates);
+  }
+
+  function renderRail(rates) {
+    const list = document.getElementById('attnRailList');
+    document.getElementById('attnRailCount').textContent = rates.length;
+    updateInactiveButtonLabel();
+    if (!rates.length) {
+      list.innerHTML = '<div class="attn-rail-empty">暂无员工</div>';
+      return;
+    }
+    list.innerHTML = rates.map((r) => {
+      const pct = Math.round((r.rate || 0) * 100);
+      const active = r.id === currentEmployeeId ? ' is-active' : '';
+      const fillCls = pct >= 100 ? ' attn-rail-bar-fill--full'
+                    : pct >= 70 ? ' attn-rail-bar-fill--ok'
+                    : pct >= 30 ? ' attn-rail-bar-fill--mid'
+                    : ' attn-rail-bar-fill--low';
+      // 头像方块：取 id 末尾两位（e001 → "01"）+ accent 高亮态
+      const avatar = (r.id || '').slice(-2).toUpperCase();
+      return `<button class="attn-rail-item${active}" data-emp-id="${r.id}">
+        <div class="attn-rail-row1">
+          <span class="attn-rail-avatar">${escapeHtml(avatar)}</span>
+          <span class="attn-rail-name">${escapeHtml(r.name)}</span>
+        </div>
+        <div class="attn-rail-row2">
+          <div class="attn-rail-bar"><div class="attn-rail-bar-fill${fillCls}" style="width:${pct}%"></div></div>
+          <span class="attn-rail-pct">${pct}%</span>
+        </div>
+        <div class="attn-rail-meta">${r.filled} / ${r.total} 天</div>
+      </button>`;
+    }).join('');
+    list.querySelectorAll('.attn-rail-item').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.empId;
+        if (id === currentEmployeeId) return;
+        currentEmployeeId = id;
+        document.getElementById('attnEmployee').value = id;
+        _selectedDates.clear();
+        _lastClickDate = null;
+        loadMonth();
+      });
+    });
   }
 
   async function createEmployee() {
@@ -212,11 +371,15 @@
 
   function onEmployeeChange(e) {
     currentEmployeeId = e.target.value;
+    _selectedDates.clear();
+    _lastClickDate = null;
     loadMonth();
   }
 
   function onMonthChange(e) {
     currentMonth = e.target.value;
+    _selectedDates.clear();
+    _lastClickDate = null;
     loadMonth();
   }
 
@@ -225,6 +388,7 @@
     if (!currentEmployeeId || !currentMonth) {
       wrap.innerHTML = '<div class="attn-empty-msg">请先选择员工和月份</div>';
       updateStats(null);
+      refreshRail();
       return;
     }
     try {
@@ -232,116 +396,386 @@
       const body = await res.json();
       if (!body.ok) { wrap.innerHTML = `<div class="attn-error-msg">${body.msg}</div>`; return; }
       currentSummary = body;
-      renderGrid(body.detail);
+      renderCalendar(body.detail);
       updateStats(body);
     } catch (e) { wrap.innerHTML = `<div class="attn-error-msg">加载失败：${e.message}</div>`; }
+    refreshRail();
   }
 
-  function renderGrid(detail) {
+  // ===== PR-FE-7a：日历视图渲染 =====
+
+  function isAutoStatus(status) {
+    return status === 'sunday' || status === 'holiday';
+  }
+
+  function deriveCellStatus(r) {
+    if (r.status === 'pre_join') return { key: 'pre-join', label: '未入职' };
+    const isLeave = r.status === 'leave';
+    const isEmpty = !isAutoStatus(r.status) && !isLeave && !r.start && !r.end;
+    if (isEmpty) return { key: 'todo', label: '待填' };
+    return {
+      key: STATUS_VISUAL_KEY[r.status] || 'normal',
+      label: STATUS_LABEL[r.status] || r.status,
+    };
+  }
+
+  function buildTimeText(r) {
+    if (r.status === 'pre_join') return '—';
+    if (r.status === 'sunday') return '自动 · 周日';
+    if (r.status === 'holiday') return '自动 · 节假日';
+    if (r.status === 'leave') {
+      if (r.leave_type === 'range' && r.leave_start && r.leave_end) {
+        return `请假 ${r.leave_start}–${r.leave_end}`;
+      }
+      if (r.leave_type === 'left' && r.leave_start) {
+        return `请假 ${r.leave_start} 起`;
+      }
+      return `请假 ${r.leave_hours || 0}h`;
+    }
+    if (r.start || r.end) return `${r.start || '—'} → ${r.end || '—'}`;
+    return '—';
+  }
+
+  function buildCellHtml(r) {
+    const dayNum = parseInt(r.date.slice(8, 10), 10);
+    const st = deriveCellStatus(r);
+    const time = buildTimeText(r);
+    const showFrac = !isAutoStatus(r.status) && r.status !== 'pre_join'
+      && (r.day_fraction || r.status === 'leave');
+    const fracText = showFrac ? `<div class="attn-cell-frac">${(r.day_fraction || 0).toFixed(2)}d</div>` : '';
+    return `<div class="attn-cell attn-cell--${st.key}" data-date="${r.date}">
+      <div class="attn-cell-hd">
+        <span class="attn-cell-day">${dayNum}</span>
+        <span class="attn-cell-dot"></span>
+      </div>
+      <div class="attn-cell-bd">
+        <div class="attn-cell-time">${escapeHtml(time)}</div>
+        ${fracText}
+        <div class="attn-cell-st">${st.label}</div>
+      </div>
+    </div>`;
+  }
+
+  function buildEmptyCellHtml() {
+    return '<div class="attn-cell attn-cell--out"></div>';
+  }
+
+  function buildCalendarHtml(detail) {
+    if (!detail.length) return '<div class="attn-empty-msg">无数据</div>';
+    const leadingEmpty = WEEKDAY_INDEX[detail[0].weekday] || 0;
+    const cells = [];
+    for (let i = 0; i < leadingEmpty; i++) cells.push(buildEmptyCellHtml());
+    for (const r of detail) cells.push(buildCellHtml(r));
+    while (cells.length % 7 !== 0) cells.push(buildEmptyCellHtml());
+    const headers = WEEKDAY_HEADERS.map((w) => `<div class="attn-cal-hd">周${w}</div>`).join('');
+    return `<div class="attn-cal">
+      <div class="attn-cal-headers">${headers}</div>
+      <div class="attn-cal-grid">${cells.join('')}</div>
+    </div>`;
+  }
+
+  function isCellEditable(cell) {
+    return !(cell.classList.contains('attn-cell--out')
+      || cell.classList.contains('attn-cell--pre-join')
+      || cell.classList.contains('attn-cell--sunday')
+      || cell.classList.contains('attn-cell--holiday'));
+  }
+
+  function bindCellClicks(wrap) {
+    wrap.querySelectorAll('.attn-cell[data-date]').forEach((cell) => {
+      if (!isCellEditable(cell)) return;
+      cell.addEventListener('click', (e) => onCellClick(e, cell));
+    });
+  }
+
+  function onCellClick(e, cell) {
+    const date = cell.dataset.date;
+    if (e.metaKey || e.ctrlKey) {
+      if (_popDate) closePopover();
+      toggleSelected(date);
+    } else if (e.shiftKey && _lastClickDate) {
+      if (_popDate) closePopover();
+      selectDateRange(_lastClickDate, date);
+    } else {
+      // 单击：清空选择，开 popover
+      if (_selectedDates.size > 0) clearSelection();
+      openPopover(date, cell);
+    }
+    _lastClickDate = date;
+  }
+
+  function toggleSelected(date) {
+    if (_selectedDates.has(date)) _selectedDates.delete(date);
+    else _selectedDates.add(date);
+    syncSelectionUI();
+  }
+
+  function selectDateRange(fromDate, toDate) {
+    if (!currentSummary || !Array.isArray(currentSummary.detail)) return;
+    const dates = currentSummary.detail.map((r) => r.date);
+    let i = dates.indexOf(fromDate);
+    let j = dates.indexOf(toDate);
+    if (i < 0 || j < 0) return;
+    if (i > j) [i, j] = [j, i];
+    for (let k = i; k <= j; k++) {
+      const d = dates[k];
+      const r = currentSummary.detail[k];
+      // 跳过不可编辑日
+      if (r.status === 'pre_join' || r.status === 'sunday' || r.status === 'holiday') continue;
+      _selectedDates.add(d);
+    }
+    syncSelectionUI();
+  }
+
+  function clearSelection() {
+    _selectedDates.clear();
+    syncSelectionUI();
+  }
+
+  function syncSelectionUI() {
+    const wrap = document.getElementById('attnGridWrap');
+    wrap.querySelectorAll('.attn-cell.is-selected').forEach((c) => c.classList.remove('is-selected'));
+    _selectedDates.forEach((d) => {
+      const cell = wrap.querySelector(`.attn-cell[data-date="${d}"]`);
+      if (cell) cell.classList.add('is-selected');
+    });
+    const bar = document.getElementById('attnBatch');
+    document.getElementById('attnBatchN').textContent = _selectedDates.size;
+    if (_selectedDates.size > 0) bar.classList.remove('attn-hidden');
+    else bar.classList.add('attn-hidden');
+  }
+
+  function renderCalendar(detail) {
     const wrap = document.getElementById('attnGridWrap');
     wrap.classList.add('attn-grid-wrap');
-    const statusMap = { sunday: '周日', holiday: '节假日', absent: '缺勤', normal: '正常', special: '特殊日', special_absent: '特殊日缺勤', leave: '请假', pre_join: '未入职' };
-    const statusClsMap = { sunday: 'attn-st-sunday', holiday: 'attn-st-holiday', absent: 'attn-st-absent', normal: 'attn-st-normal', special: 'attn-st-special', special_absent: 'attn-st-special', leave: 'attn-st-leave', pre_join: 'attn-st-pre-join' };
+    wrap.innerHTML = buildCalendarHtml(detail);
+    bindCellClicks(wrap);
+    syncSelectionUI();
+    updateLegend(detail);
+  }
 
-    const rows = detail.map(r => {
-      const isPreJoin = r.status === 'pre_join';
-      // 月底新来员工：入职日之前的天，灰色不可编辑，不参与任何计数
-      if (isPreJoin) {
-        return `<tr class="attn-pre-join" data-date="${r.date}">
-          <td><span class="attn-day">${r.date.slice(5)}</span><span class="attn-wk">周${r.weekday}</span></td>
-          <td><span class="attn-time-auto">未入职</span></td>
-          <td class="attn-frac">—</td>
-          <td><span class="attn-st attn-st-pre-join">未入职</span></td>
-        </tr>`;
-      }
-      const autoRow = r.status === 'sunday' || r.status === 'holiday';
-      const isSpecial = r.status === 'special' || r.status === 'special_absent';
-      const isLeave = r.status === 'leave';
-      const isAbsent = r.status === 'absent' || r.status === 'special_absent';
-      const isEmpty = !autoRow && !r.start && !r.end && !isLeave;
+  function updateLegend(detail) {
+    const counts = { normal: 0, absent: 0, leave: 0, auto: 0 };
+    for (const r of detail) {
+      if (r.status === 'normal' || r.status === 'special') counts.normal += 1;
+      else if (r.status === 'absent' || r.status === 'special_absent') counts.absent += 1;
+      else if (r.status === 'leave') counts.leave += 1;
+      else if (r.status === 'sunday' || r.status === 'holiday') counts.auto += 1;
+    }
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    set('attnLegendNormal', counts.normal);
+    set('attnLegendAbsent', counts.absent);
+    set('attnLegendLeave',  counts.leave);
+    set('attnLegendAuto',   counts.auto);
+  }
 
-      const rowCls = [
-        isAbsent ? 'absent' : '',
-        isLeave ? 'attn-has-leave' : '',
-      ].filter(Boolean).join(' ');
+  // ===== PR-FE-7b：DayEditor popover =====
 
-      // 时段单元
-      let timeCell;
-      if (autoRow) {
-        const label = r.status === 'sunday' ? '自动（周日）' : '自动（节假日）';
-        timeCell = `<td><span class="attn-time-auto">${label}</span></td>`;
+  let _popDate = '';
+
+  function detailFor(date) {
+    if (!currentSummary || !Array.isArray(currentSummary.detail)) return null;
+    return currentSummary.detail.find((r) => r.date === date) || null;
+  }
+
+  function defaultTimes(r) {
+    const isSpecial = r && (r.status === 'special' || r.status === 'special_absent');
+    return {
+      start: isSpecial ? r.special_start : '09:30',
+      end: isSpecial ? r.special_end : '20:00',
+    };
+  }
+
+  function positionPopover(pop, anchor) {
+    const ar = anchor.getBoundingClientRect();
+    const margin = 8;
+    pop.style.visibility = 'hidden';
+    pop.classList.remove('attn-hidden');
+    const pr = pop.getBoundingClientRect();
+    let top = ar.bottom + margin;
+    if (top + pr.height > window.innerHeight - margin) {
+      top = Math.max(margin, ar.top - margin - pr.height);
+    }
+    let left = ar.left;
+    if (left + pr.width > window.innerWidth - margin) {
+      left = window.innerWidth - margin - pr.width;
+    }
+    if (left < margin) left = margin;
+    pop.style.top = `${top}px`;
+    pop.style.left = `${left}px`;
+    pop.style.visibility = '';
+  }
+
+  function openPopover(date, anchor) {
+    const r = detailFor(date);
+    if (!r) return;
+    _popDate = date;
+    const pop = document.getElementById('attnPop');
+    const def = defaultTimes(r);
+    document.getElementById('attnPopHd').textContent = `${date} · 周${r.weekday}`;
+    document.getElementById('attnPopStart').value = r.start || '';
+    document.getElementById('attnPopEnd').value = r.end || '';
+    document.getElementById('attnPopStart').placeholder = def.start;
+    document.getElementById('attnPopEnd').placeholder = def.end;
+    positionPopover(pop, anchor);
+  }
+
+  function closePopover() {
+    _popDate = '';
+    document.getElementById('attnPop').classList.add('attn-hidden');
+  }
+
+  async function popoverAction(action) {
+    if (!_popDate) return;
+    if (action === 'cancel') { closePopover(); return; }
+    if (action === 'leave') {
+      const date = _popDate;
+      closePopover();
+      addLeave(date);
+      return;
+    }
+    if (action === 'clear') {
+      const r = detailFor(_popDate);
+      if (r && r.status === 'leave') {
+        const date = _popDate;
+        closePopover();
+        await clearLeave(date);
       } else {
-        const placeholderStart = isSpecial ? r.special_start : '09:30';
-        const placeholderEnd = isSpecial ? r.special_end : '20:00';
-        const hint = isSpecial ? `<span class="attn-time-hint">特殊日 · 标准 ${r.special_start}–${r.special_end}</span>` : '';
-        timeCell = `<td>
-          <span class="attn-time">
-            <input type="text" inputmode="numeric" maxlength="5" placeholder="${placeholderStart}" data-date="${r.date}" data-field="start" value="${r.start || ''}">
-            <span class="attn-arr">→</span>
-            <input type="text" inputmode="numeric" maxlength="5" placeholder="${placeholderEnd}" data-date="${r.date}" data-field="end" value="${r.end || ''}">
-          </span>
-          ${hint}
-        </td>`;
+        await saveCellTimes(_popDate, '', '');
+        closePopover();
       }
+      return;
+    }
+    if (action === 'normal') {
+      const r = detailFor(_popDate);
+      const def = defaultTimes(r);
+      const ok = await saveCellTimes(_popDate, def.start, def.end);
+      if (ok) closePopover();
+      return;
+    }
+    if (action === 'save') {
+      const start = document.getElementById('attnPopStart').value;
+      const end = document.getElementById('attnPopEnd').value;
+      const ok = await saveCellTimes(_popDate, start, end);
+      if (ok) closePopover();
+    }
+  }
 
-      // 天数
-      const fracText = autoRow ? '—' : (isEmpty ? '—' : r.day_fraction.toFixed(2));
+  async function popoverQuickFill(kind) {
+    if (!_popDate) return;
+    let start;
+    let end;
+    if (kind === 'standard') {
+      const r = detailFor(_popDate);
+      const def = defaultTimes(r);
+      start = def.start;
+      end = def.end;
+    } else if (kind === 'am') {
+      start = '09:30';
+      end = '14:00';
+    } else if (kind === 'pm') {
+      start = '14:00';
+      end = '20:00';
+    } else {
+      return;
+    }
+    document.getElementById('attnPopStart').value = start;
+    document.getElementById('attnPopEnd').value = end;
+    const ok = await saveCellTimes(_popDate, start, end);
+    if (ok) closePopover();
+  }
 
-      // 状态文字 + 已存在请假 tag
-      let stCls, stText;
-      if (isEmpty) {
-        stCls = 'attn-st-todo';
-        stText = '待填';
-      } else {
-        stCls = statusClsMap[r.status] || '';
-        stText = isLeave ? `请假 ${r.leave_hours || 0}h` : (statusMap[r.status] || r.status);
-      }
-      const leaveTag = (isLeave && r.leave_type === 'range' && r.leave_start && r.leave_end)
-        ? `<span class="attn-leave-tag">${r.leave_start}–${r.leave_end}</span>`
-        : (isLeave && r.leave_type === 'left' && r.leave_start
-            ? `<span class="attn-leave-tag">${r.leave_start} 起</span>`
-            : '');
+  function bindPopover() {
+    const pop = document.getElementById('attnPop');
+    pop.addEventListener('click', (e) => {
+      const popBtn = e.target.closest('[data-pop]');
+      if (popBtn) { popoverAction(popBtn.dataset.pop); return; }
+      const quickBtn = e.target.closest('[data-quick]');
+      if (quickBtn) popoverQuickFill(quickBtn.dataset.quick);
+    });
+    document.addEventListener('click', (e) => {
+      if (!_popDate) return;
+      if (e.target.closest('#attnPop')) return;
+      if (e.target.closest('.attn-cell[data-date]')) return; // 让 cell click 自己换 anchor
+      closePopover();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && _popDate) closePopover();
+    });
+  }
 
-      // 行尾操作（hover 浮现）
-      let ops = '';
-      if (!autoRow) {
-        if (isLeave) {
-          ops = `<span class="attn-ops"><button class="attn-op attn-op-danger attn-leave-clear" data-date="${r.date}">取消</button></span>`;
-        } else {
-          const fillStart = isSpecial ? r.special_start : '09:30';
-          const fillEnd = isSpecial ? r.special_end : '20:00';
-          ops = `<span class="attn-ops">
-            <button class="attn-op attn-fill" data-date="${r.date}" data-start="${fillStart}" data-end="${fillEnd}">按标准</button>
-            <button class="attn-op attn-leave-add" data-date="${r.date}">请假</button>
-          </span>`;
+  // ===== PR-FE-7c：批量操作 =====
+
+  function batchActionUrlAndBody(action, date, r) {
+    if (action === 'normal') {
+      const isSpecial = r && (r.status === 'special' || r.status === 'special_absent');
+      const start = isSpecial ? r.special_start : '09:30';
+      const end = isSpecial ? r.special_end : '20:00';
+      return { method: 'POST', url: `/attendance/day/${currentEmployeeId}/${date}`, body: { start, end } };
+    }
+    if (action === 'am') {
+      return { method: 'POST', url: `/attendance/day/${currentEmployeeId}/${date}`, body: { start: '09:30', end: '14:00' } };
+    }
+    if (action === 'pm') {
+      return { method: 'POST', url: `/attendance/day/${currentEmployeeId}/${date}`, body: { start: '14:00', end: '20:00' } };
+    }
+    if (action === 'absent' || action === 'clear') {
+      // 缺勤 = 清除时段（backend 派生 absent）
+      return { method: 'DELETE', url: `/attendance/day/${currentEmployeeId}/${date}`, body: null };
+    }
+    return null;
+  }
+
+  async function applyBatchAction(action) {
+    if (_selectedDates.size === 0) return;
+    const dates = [..._selectedDates];
+    const detail = (currentSummary && currentSummary.detail) || [];
+    let ok = 0;
+    let fail = 0;
+    for (const date of dates) {
+      const r = detail.find((x) => x.date === date);
+      const req = batchActionUrlAndBody(action, date, r);
+      if (!req) continue;
+      try {
+        const init = { method: req.method };
+        if (req.body) {
+          init.headers = { 'Content-Type': 'application/json' };
+          init.body = JSON.stringify(req.body);
         }
+        const res = await fetch(req.url, init);
+        if (req.method !== 'DELETE') {
+          const body = await res.json();
+          if (body.ok) ok++; else fail++;
+        } else {
+          ok++;
+        }
+      } catch {
+        fail++;
       }
+    }
+    clearSelection();
+    await loadMonth();
+    if (fail > 0) alert(`批量操作完成：成功 ${ok} 天，失败 ${fail} 天`);
+  }
 
-      return `<tr class="${rowCls}" data-date="${r.date}">
-        <td><span class="attn-day">${r.date.slice(5)}</span><span class="attn-wk">周${r.weekday}</span></td>
-        ${timeCell}
-        <td class="attn-frac">${fracText}</td>
-        <td><span class="attn-st ${stCls}">${stText}</span>${leaveTag}${ops}</td>
-      </tr>`;
-    }).join('');
-
-    wrap.innerHTML = `
-      <table class="attn-grid">
-        <thead><tr><th style="width:130px">日期</th><th>时段</th><th style="width:80px">天数</th><th>状态</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>`;
-
-    wrap.querySelectorAll('input[data-field]').forEach(inp => {
-      inp.addEventListener('change', () => onCellChange(inp.dataset.date));
+  function bindBatchBar() {
+    const bar = document.getElementById('attnBatch');
+    bar.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-batch]');
+      if (btn) applyBatchAction(btn.dataset.batch);
     });
-    wrap.querySelectorAll('.attn-fill').forEach(btn => {
-      btn.addEventListener('click', () => fillNormal(btn.dataset.date, btn.dataset.start, btn.dataset.end));
-    });
-    wrap.querySelectorAll('.attn-leave-add').forEach(btn => {
-      btn.addEventListener('click', () => addLeave(btn.dataset.date));
-    });
-    wrap.querySelectorAll('.attn-leave-clear').forEach(btn => {
-      btn.addEventListener('click', () => clearLeave(btn.dataset.date));
+    document.getElementById('attnBatchCancel').addEventListener('click', clearSelection);
+    document.addEventListener('keydown', (e) => {
+      if (_selectedDates.size === 0) return;
+      // 跳过输入态
+      const tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+      if (e.key === 'Escape') { clearSelection(); return; }
+      const action = KEY_TO_BATCH[e.key];
+      if (action) {
+        e.preventDefault();
+        applyBatchAction(action);
+      }
     });
   }
 
@@ -446,11 +880,22 @@
       alert('请先选择员工');
       return;
     }
+    // 更新 modal 标题显示当前员工名（避免误以为是全局操作）
+    const emp = employees.find((e) => e.id === currentEmployeeId);
+    const titleEl = document.getElementById('attnInactiveTitle');
+    if (titleEl) titleEl.textContent = emp ? `${emp.name} · 不在职区间` : '不在职区间';
     document.getElementById('attnInactiveFrom').value = '';
     document.getElementById('attnInactiveTo').value = '';
     document.getElementById('attnInactiveReason').value = '';
     await loadInactiveList();
     document.getElementById('attnInactiveOverlay').style.display = 'flex';
+  }
+
+  function updateInactiveButtonLabel() {
+    const btn = document.getElementById('attnInactive');
+    if (!btn) return;
+    const emp = employees.find((e) => e.id === currentEmployeeId);
+    btn.textContent = emp ? `${emp.name} · 不在职` : '不在职区间';
   }
 
   async function loadInactiveList() {
@@ -529,14 +974,34 @@
     await loadMonth();
   }
 
+  async function saveCellTimes(date, start, end) {
+    const s = normalizeTime(start);
+    const e = normalizeTime(end);
+    const timeRe = /^([01]\d|2[0-3]):([0-5]\d)$/;
+    if (!s && !e) {
+      await fetch(`/attendance/day/${currentEmployeeId}/${date}`, { method: 'DELETE' });
+    } else if (s && e) {
+      if (!timeRe.test(s) || !timeRe.test(e)) {
+        alert('时间格式错误，请按 HH:MM 填写（如 09:30）');
+        return false;
+      }
+      const res = await fetch(`/attendance/day/${currentEmployeeId}/${date}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ start: s, end: e }),
+      });
+      const body = await res.json();
+      if (!body.ok) { alert(body.msg); return false; }
+    } else {
+      alert('开始和结束时间需都填或都空');
+      return false;
+    }
+    await loadMonth();
+    return true;
+  }
+
   async function fillNormal(date, start, end) {
-    const row = document.querySelector(`tr[data-date="${date}"]`);
-    if (!row) return;
-    const startInp = row.querySelector('input[data-field="start"]');
-    const endInp = row.querySelector('input[data-field="end"]');
-    if (startInp) startInp.value = start || '09:30';
-    if (endInp) endInp.value = end || '20:00';
-    await onCellChange(date);
+    await saveCellTimes(date, start || '09:30', end || '20:00');
   }
 
   async function fillAllNormal() {
@@ -591,36 +1056,6 @@
     return s;
   }
 
-  async function onCellChange(date) {
-    const row = document.querySelector(`tr[data-date="${date}"]`);
-    if (!row) return;
-    const startInp = row.querySelector('input[data-field="start"]');
-    const endInp = row.querySelector('input[data-field="end"]');
-    if (startInp) startInp.value = normalizeTime(startInp.value);
-    if (endInp) endInp.value = normalizeTime(endInp.value);
-    const start = startInp ? startInp.value : '';
-    const end = endInp ? endInp.value : '';
-    const timeRe = /^([01]\d|2[0-3]):([0-5]\d)$/;
-    if (!start && !end) {
-      await fetch(`/attendance/day/${currentEmployeeId}/${date}`, { method: 'DELETE' });
-    } else if (start && end) {
-      if (!timeRe.test(start) || !timeRe.test(end)) {
-        alert('时间格式错误，请按 HH:MM 填写（如 09:30）');
-        return;
-      }
-      const res = await fetch(`/attendance/day/${currentEmployeeId}/${date}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ start, end }),
-      });
-      const body = await res.json();
-      if (!body.ok) { alert(body.msg); return; }
-    } else {
-      return;
-    }
-    await loadMonth();
-  }
-
   function updateStats(summary) {
     document.getElementById('attnWorked').textContent = summary ? summary.worked_days : 0;
     document.getElementById('attnAbsent').textContent = summary ? summary.absent_days : 0;
@@ -628,6 +1063,18 @@
     document.getElementById('attnMonthDays').textContent = summary ? summary.month_days : 0;
     document.getElementById('attnLeaveH').textContent = summary ? (summary.leave_hours_total || 0) : 0;
     document.getElementById('attnLeaveD').textContent = summary ? (summary.leave_days_equivalent || 0) : 0;
+    // 填写率（与 /fill-rates 同口径：仅计需用户填的工作日）
+    const fillEl = document.getElementById('attnFillRate');
+    if (fillEl) {
+      if (!summary || !Array.isArray(summary.detail)) { fillEl.textContent = '填写率 —'; return; }
+      const action = summary.detail.filter(r => ['normal', 'special', 'special_absent', 'leave', 'absent'].includes(r.status));
+      const filled = action.filter(r => r.status !== 'absent').length;
+      const total = action.length;
+      const pct = total > 0 ? Math.round(filled / total * 100) : 0;
+      fillEl.textContent = `填写率 ${pct}%`;
+      fillEl.classList.toggle('attn-fillrate--full', pct >= 100);
+      fillEl.classList.toggle('attn-fillrate--low', pct < 100 && pct < 70);
+    }
   }
 
   async function openHolidays() {
@@ -670,6 +1117,18 @@
       if (!body.ok) { alert(body.msg); return; }
     } catch (e) { alert('添加失败：' + e.message); return; }
     document.getElementById('attnHolidayInput').value = '';
+    await renderHolidayList();
+    await loadMonth();
+  }
+
+  async function importHolidaysYear() {
+    const year = document.getElementById('attnHolidayYear').value;
+    try {
+      const res = await fetch(`/attendance/holidays/import-year/${year}`, { method: 'POST' });
+      const body = await res.json();
+      if (!body.ok) { alert(body.msg || '导入失败'); return; }
+      alert(`已导入 ${year} 年希腊法定节假日：新增 ${body.added} 天`);
+    } catch (e) { alert('导入失败：' + e.message); return; }
     await renderHolidayList();
     await loadMonth();
   }
