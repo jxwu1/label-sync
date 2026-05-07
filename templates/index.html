@@ -324,7 +324,25 @@
           <div id="spSearchRes" class="hint stockpile-search-results"></div>
         </div>
       </div>
-    </div>
+    </section>
+
+    <!-- PR-FE-8e：ActivityLog inline（plan §3.1 收口）— 复用 Alpine.store('term').logs -->
+    <section class="up-panel" id="activityPanel">
+      <div class="up-panel-hd">
+        <span class="up-panel-code">06</span>
+        <span class="up-panel-title">活动日志</span>
+        <span class="up-panel-sub">tail · live</span>
+        <span class="up-panel-spacer"></span>
+        <span class="al-live" x-data><span class="al-live-dot"></span>LIVE</span>
+        <button class="up-panel-pill al-clear" type="button" x-data @click="$store.term.clear()">清空</button>
+      </div>
+      <div class="up-panel-bd al-bd" id="activityBox" x-data>
+        <template x-for="(item, i) in $store.term.logs.slice(-200)" :key="i">
+          <div class="al-row" :class="`${item.src === 'dc' ? 'log-dc' : 'log-lp'} ${item.cls}`" x-text="item.text"></div>
+        </template>
+        <div class="al-empty" x-show="$store.term.logs.length === 0">等待操作 · 暂无日志</div>
+      </div>
+    </section>
 
   </div>
   </div>
