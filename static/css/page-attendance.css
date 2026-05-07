@@ -414,6 +414,65 @@
 }
 /* 比 .attn-pop 特异性高 → attn-hidden 才能真生效 */
 .attn-pop.attn-hidden { display: none; }
+
+/* PR-FE-7c：多选高亮 + 批量操作条 */
+.attn-cell.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 8px var(--accent-glow);
+}
+
+.attn-batch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-md);
+  flex-wrap: wrap;
+}
+.attn-batch.attn-hidden { display: none; }
+.attn-batch-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-1);
+}
+.attn-batch-count b {
+  font-family: var(--display);
+  font-size: 14px;
+  color: var(--accent);
+  margin: 0 2px;
+}
+.attn-batch-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--line);
+}
+.attn-batch-btn {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 4px 10px;
+  border-radius: var(--r-sm);
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  color: var(--ink-1);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.attn-batch-btn:hover { border-color: var(--accent); color: var(--accent); }
+.attn-batch-btn-danger { color: var(--error); border-color: rgba(255,59,107,.35); }
+.attn-batch-btn-danger:hover { border-color: var(--error); color: var(--error); }
+.attn-batch-btn kbd {
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 1px 4px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  color: var(--ink-3);
+  background: var(--bg-1);
+}
 .attn-pop-hd {
   font-family: var(--mono);
   font-size: 11px;

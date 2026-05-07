@@ -19,6 +19,12 @@
     pre_join: 'pre-join',
   };
 
+  // PR-FE-7c：多选状态
+  const _selectedDates = new Set();
+  let _lastClickDate = null;
+  // 数字键 → batch action
+  const KEY_TO_BATCH = { '1': 'normal', '2': 'absent', '3': 'am', '4': 'pm', '5': 'clear' };
+
   function init() {
     const page = document.getElementById('pageAttendance');
     if (!page) return;
@@ -44,6 +50,17 @@
           <div class="attn-stat"><div class="attn-stat-k">总工作日</div><div class="attn-stat-v" id="attnTotal">0</div></div>
           <div class="attn-stat"><div class="attn-stat-k">本月天数</div><div class="attn-stat-v" id="attnMonthDays">0</div></div>
           <div class="attn-stat"><div class="attn-stat-k">请假</div><div class="attn-stat-v"><span id="attnLeaveH">0</span> <small>h ≈ <span id="attnLeaveD">0</span> 天</small></div></div>
+        </div>
+        <div class="attn-batch attn-hidden" id="attnBatch">
+          <span class="attn-batch-count">已选 <b id="attnBatchN">0</b> 天</span>
+          <span class="attn-batch-sep"></span>
+          <button class="attn-batch-btn" data-batch="normal">正常 <kbd>1</kbd></button>
+          <button class="attn-batch-btn" data-batch="absent">缺勤 <kbd>2</kbd></button>
+          <button class="attn-batch-btn" data-batch="am">上半天 <kbd>3</kbd></button>
+          <button class="attn-batch-btn" data-batch="pm">下半天 <kbd>4</kbd></button>
+          <button class="attn-batch-btn attn-batch-btn-danger" data-batch="clear">清除 <kbd>5</kbd></button>
+          <span class="attn-spacer"></span>
+          <button class="attn-batch-btn" id="attnBatchCancel">取消选择 <kbd>Esc</kbd></button>
         </div>
         <div id="attnGridWrap"></div>
       </div>
@@ -193,6 +210,7 @@
     document.getElementById('attnMonth').value = new Date().toISOString().slice(0, 7);
     currentMonth = document.getElementById('attnMonth').value;
     bindPopover();
+    bindBatchBar();
     loadEmployees();
   }
 
@@ -250,11 +268,15 @@
 
   function onEmployeeChange(e) {
     currentEmployeeId = e.target.value;
+    _selectedDates.clear();
+    _lastClickDate = null;
     loadMonth();
   }
 
   function onMonthChange(e) {
     currentMonth = e.target.value;
+    _selectedDates.clear();
+    _lastClickDate = null;
     loadMonth();
   }
 
@@ -347,15 +369,75 @@
     </div>`;
   }
 
+  function isCellEditable(cell) {
+    return !(cell.classList.contains('attn-cell--out')
+      || cell.classList.contains('attn-cell--pre-join')
+      || cell.classList.contains('attn-cell--sunday')
+      || cell.classList.contains('attn-cell--holiday'));
+  }
+
   function bindCellClicks(wrap) {
     wrap.querySelectorAll('.attn-cell[data-date]').forEach((cell) => {
-      // 不可编辑态：跳过
-      if (cell.classList.contains('attn-cell--out')) return;
-      if (cell.classList.contains('attn-cell--pre-join')) return;
-      if (cell.classList.contains('attn-cell--sunday')) return;
-      if (cell.classList.contains('attn-cell--holiday')) return;
-      cell.addEventListener('click', () => openPopover(cell.dataset.date, cell));
+      if (!isCellEditable(cell)) return;
+      cell.addEventListener('click', (e) => onCellClick(e, cell));
     });
+  }
+
+  function onCellClick(e, cell) {
+    const date = cell.dataset.date;
+    if (e.metaKey || e.ctrlKey) {
+      if (_popDate) closePopover();
+      toggleSelected(date);
+    } else if (e.shiftKey && _lastClickDate) {
+      if (_popDate) closePopover();
+      selectDateRange(_lastClickDate, date);
+    } else {
+      // 单击：清空选择，开 popover
+      if (_selectedDates.size > 0) clearSelection();
+      openPopover(date, cell);
+    }
+    _lastClickDate = date;
+  }
+
+  function toggleSelected(date) {
+    if (_selectedDates.has(date)) _selectedDates.delete(date);
+    else _selectedDates.add(date);
+    syncSelectionUI();
+  }
+
+  function selectDateRange(fromDate, toDate) {
+    if (!currentSummary || !Array.isArray(currentSummary.detail)) return;
+    const dates = currentSummary.detail.map((r) => r.date);
+    let i = dates.indexOf(fromDate);
+    let j = dates.indexOf(toDate);
+    if (i < 0 || j < 0) return;
+    if (i > j) [i, j] = [j, i];
+    for (let k = i; k <= j; k++) {
+      const d = dates[k];
+      const r = currentSummary.detail[k];
+      // 跳过不可编辑日
+      if (r.status === 'pre_join' || r.status === 'sunday' || r.status === 'holiday') continue;
+      _selectedDates.add(d);
+    }
+    syncSelectionUI();
+  }
+
+  function clearSelection() {
+    _selectedDates.clear();
+    syncSelectionUI();
+  }
+
+  function syncSelectionUI() {
+    const wrap = document.getElementById('attnGridWrap');
+    wrap.querySelectorAll('.attn-cell.is-selected').forEach((c) => c.classList.remove('is-selected'));
+    _selectedDates.forEach((d) => {
+      const cell = wrap.querySelector(`.attn-cell[data-date="${d}"]`);
+      if (cell) cell.classList.add('is-selected');
+    });
+    const bar = document.getElementById('attnBatch');
+    document.getElementById('attnBatchN').textContent = _selectedDates.size;
+    if (_selectedDates.size > 0) bar.classList.remove('attn-hidden');
+    else bar.classList.add('attn-hidden');
   }
 
   function renderCalendar(detail) {
@@ -363,6 +445,7 @@
     wrap.classList.add('attn-grid-wrap');
     wrap.innerHTML = buildCalendarHtml(detail);
     bindCellClicks(wrap);
+    syncSelectionUI();
   }
 
   // ===== PR-FE-7b：DayEditor popover =====
@@ -497,6 +580,81 @@
     });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && _popDate) closePopover();
+    });
+  }
+
+  // ===== PR-FE-7c：批量操作 =====
+
+  function batchActionUrlAndBody(action, date, r) {
+    if (action === 'normal') {
+      const isSpecial = r && (r.status === 'special' || r.status === 'special_absent');
+      const start = isSpecial ? r.special_start : '09:30';
+      const end = isSpecial ? r.special_end : '20:00';
+      return { method: 'POST', url: `/attendance/day/${currentEmployeeId}/${date}`, body: { start, end } };
+    }
+    if (action === 'am') {
+      return { method: 'POST', url: `/attendance/day/${currentEmployeeId}/${date}`, body: { start: '09:30', end: '14:00' } };
+    }
+    if (action === 'pm') {
+      return { method: 'POST', url: `/attendance/day/${currentEmployeeId}/${date}`, body: { start: '14:00', end: '20:00' } };
+    }
+    if (action === 'absent' || action === 'clear') {
+      // 缺勤 = 清除时段（backend 派生 absent）
+      return { method: 'DELETE', url: `/attendance/day/${currentEmployeeId}/${date}`, body: null };
+    }
+    return null;
+  }
+
+  async function applyBatchAction(action) {
+    if (_selectedDates.size === 0) return;
+    const dates = [..._selectedDates];
+    const detail = (currentSummary && currentSummary.detail) || [];
+    let ok = 0;
+    let fail = 0;
+    for (const date of dates) {
+      const r = detail.find((x) => x.date === date);
+      const req = batchActionUrlAndBody(action, date, r);
+      if (!req) continue;
+      try {
+        const init = { method: req.method };
+        if (req.body) {
+          init.headers = { 'Content-Type': 'application/json' };
+          init.body = JSON.stringify(req.body);
+        }
+        const res = await fetch(req.url, init);
+        if (req.method !== 'DELETE') {
+          const body = await res.json();
+          if (body.ok) ok++; else fail++;
+        } else {
+          ok++;
+        }
+      } catch {
+        fail++;
+      }
+    }
+    clearSelection();
+    await loadMonth();
+    if (fail > 0) alert(`批量操作完成：成功 ${ok} 天，失败 ${fail} 天`);
+  }
+
+  function bindBatchBar() {
+    const bar = document.getElementById('attnBatch');
+    bar.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-batch]');
+      if (btn) applyBatchAction(btn.dataset.batch);
+    });
+    document.getElementById('attnBatchCancel').addEventListener('click', clearSelection);
+    document.addEventListener('keydown', (e) => {
+      if (_selectedDates.size === 0) return;
+      // 跳过输入态
+      const tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+      if (e.key === 'Escape') { clearSelection(); return; }
+      const action = KEY_TO_BATCH[e.key];
+      if (action) {
+        e.preventDefault();
+        applyBatchAction(action);
+      }
     });
   }
 
