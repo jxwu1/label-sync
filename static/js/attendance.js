@@ -32,41 +32,71 @@
       <div class="attn-wrap">
         <div class="attn-top">
           <label>月份 <input class="attn-inp" id="attnMonth" type="month"></label>
-          <label>员工 <select class="attn-inp" id="attnEmployee"></select></label>
-          <button class="attn-btn" id="attnEmpNew">+ 新建</button>
-          <button class="attn-btn attn-btn-danger" id="attnEmpDel">删除员工</button>
+          <label class="attn-hide-emp-select">员工 <select class="attn-inp" id="attnEmployee"></select></label>
           <button class="attn-btn" id="attnHolidays">节假日</button>
           <button class="attn-btn" id="attnSpecial">特殊日</button>
           <span class="attn-spacer"></span>
           <button class="attn-btn" id="attnFillAll">一键填全月正常</button>
           <button class="attn-btn" id="attnLeaveRange">区间请假</button>
-          <button class="attn-btn" id="attnInactive">不在职区间</button>
           <button class="attn-btn attn-btn-dl" id="attnPdf">下载 PDF</button>
-          <button class="attn-btn attn-btn-dl" id="attnPayrollPdf">下载工资单 PDF</button>
-        </div>
-        <div class="attn-stats">
-          <div class="attn-stat"><div class="attn-stat-k">累计</div><div class="attn-stat-v"><span id="attnWorked">0</span> <small>天</small></div></div>
-          <div class="attn-stat"><div class="attn-stat-k">缺勤</div><div class="attn-stat-v"><span id="attnAbsent">0</span> <small>天</small></div></div>
-          <div class="attn-stat"><div class="attn-stat-k">总工作日</div><div class="attn-stat-v" id="attnTotal">0</div></div>
-          <div class="attn-stat"><div class="attn-stat-k">本月天数</div><div class="attn-stat-v" id="attnMonthDays">0</div></div>
-          <div class="attn-stat"><div class="attn-stat-k">请假</div><div class="attn-stat-v"><span id="attnLeaveH">0</span> <small>h ≈ <span id="attnLeaveD">0</span> 天</small></div></div>
-        </div>
-        <div class="attn-batch attn-hidden" id="attnBatch">
-          <span class="attn-batch-count">已选 <b id="attnBatchN">0</b> 天</span>
-          <span class="attn-batch-sep"></span>
-          <button class="attn-batch-btn" data-batch="normal">正常 <kbd>1</kbd></button>
-          <button class="attn-batch-btn" data-batch="absent">缺勤 <kbd>2</kbd></button>
-          <button class="attn-batch-btn" data-batch="am">上半天 <kbd>3</kbd></button>
-          <button class="attn-batch-btn" data-batch="pm">下半天 <kbd>4</kbd></button>
-          <button class="attn-batch-btn attn-batch-btn-danger" data-batch="clear">清除 <kbd>5</kbd></button>
-          <span class="attn-spacer"></span>
-          <button class="attn-batch-btn" id="attnBatchCancel">取消选择 <kbd>Esc</kbd></button>
+          <button class="attn-btn attn-btn-dl" id="attnPayrollPdf">工资单 PDF</button>
         </div>
         <div class="attn-main">
-          <div id="attnGridWrap"></div>
+          <!-- PR-FE-7d-3：日历 card（header + body + footer） -->
+          <section class="attn-cal-card">
+            <div class="attn-cal-card-hd">
+              <span class="up-panel-code">04</span>
+              <span class="up-panel-title">考勤 · 月历</span>
+              <span class="up-panel-sub">attendance · calendar</span>
+              <span class="up-panel-spacer"></span>
+              <div class="attn-batch attn-hidden" id="attnBatch">
+                <span class="attn-batch-count">已选 <b id="attnBatchN">0</b> 天</span>
+                <button class="attn-batch-btn" data-batch="normal">正常 <kbd>1</kbd></button>
+                <button class="attn-batch-btn" data-batch="absent">缺勤 <kbd>2</kbd></button>
+                <button class="attn-batch-btn" data-batch="am">上半天 <kbd>3</kbd></button>
+                <button class="attn-batch-btn" data-batch="pm">下半天 <kbd>4</kbd></button>
+                <button class="attn-batch-btn attn-batch-btn-danger" data-batch="clear">清除 <kbd>5</kbd></button>
+                <button class="attn-batch-btn" id="attnBatchCancel">取消 <kbd>Esc</kbd></button>
+              </div>
+              <span class="attn-fillrate" id="attnFillRate">填写率 —</span>
+            </div>
+            <div class="attn-cal-body" id="attnGridWrap"></div>
+            <div class="attn-cal-card-ft">
+              <span class="attn-legend"><span class="attn-legend-dot attn-legend-dot--normal"></span>正常 <span class="attn-legend-num" id="attnLegendNormal">0</span></span>
+              <span class="attn-legend"><span class="attn-legend-dot attn-legend-dot--absent"></span>缺勤 <span class="attn-legend-num" id="attnLegendAbsent">0</span></span>
+              <span class="attn-legend"><span class="attn-legend-dot attn-legend-dot--leave"></span>请假 <span class="attn-legend-num" id="attnLegendLeave">0</span></span>
+              <span class="attn-legend"><span class="attn-legend-dot attn-legend-dot--sunday"></span>周日/假 <span class="attn-legend-num" id="attnLegendAuto">0</span></span>
+              <span class="attn-spacer"></span>
+              <span class="attn-key-hint">KEY · <kbd>1-5</kbd> 设状态 · <kbd>Esc</kbd> 取消</span>
+            </div>
+          </section>
           <aside class="attn-rail" id="attnRail">
-            <div class="attn-rail-hd">员工 <span class="attn-rail-count" id="attnRailCount">0</span></div>
+            <!-- mini stats（设计 §3.4：移自顶部 5 stat → 2×2 mini） -->
+            <div class="attn-rail-stats">
+              <div class="attn-mini-stat attn-mini-stat--accent">
+                <div class="attn-mini-stat-k">累计</div>
+                <div class="attn-mini-stat-v"><span id="attnWorked">0</span> <small>天</small></div>
+              </div>
+              <div class="attn-mini-stat attn-mini-stat--err">
+                <div class="attn-mini-stat-k">缺勤</div>
+                <div class="attn-mini-stat-v"><span id="attnAbsent">0</span> <small>天</small></div>
+              </div>
+              <div class="attn-mini-stat">
+                <div class="attn-mini-stat-k">工作日</div>
+                <div class="attn-mini-stat-v"><span id="attnTotal">0</span><small> / <span id="attnMonthDays">0</span></small></div>
+              </div>
+              <div class="attn-mini-stat attn-mini-stat--warn">
+                <div class="attn-mini-stat-k">请假</div>
+                <div class="attn-mini-stat-v"><span id="attnLeaveH">0</span><small> h · <span id="attnLeaveD">0</span> 天</small></div>
+              </div>
+            </div>
+            <div class="attn-rail-hd">员工 · <span class="attn-rail-count" id="attnRailCount">0</span></div>
             <div class="attn-rail-list" id="attnRailList"></div>
+            <div class="attn-rail-ft">
+              <button class="attn-btn attn-btn-mini" id="attnEmpNew">+ 新建</button>
+              <button class="attn-btn attn-btn-mini attn-btn-danger" id="attnEmpDel">− 删除</button>
+              <button class="attn-btn attn-btn-mini" id="attnInactive">不在职区间</button>
+            </div>
           </aside>
         </div>
       </div>
@@ -128,7 +158,8 @@
       </div>
       <div class="pur-modal-overlay attn-hidden" id="attnInactiveOverlay">
         <div class="pur-modal">
-          <div class="pur-modal-hd">不在职区间（产假 / 长期休假 / 停薪留职）</div>
+          <div class="pur-modal-hd" id="attnInactiveTitle">不在职区间</div>
+          <div class="attn-modal-hint">产假 / 长期休假 / 停薪留职</div>
           <div class="attn-modal-hint">
             区间内每天完全不计入考勤（含周日 / 节假日）。与单日请假不同：单日请假周日仍算 1.0，这里的天周日也不算。
           </div>
@@ -226,7 +257,6 @@
     currentMonth = document.getElementById('attnMonth').value;
     bindPopover();
     bindBatchBar();
-    window.addEventListener('resize', syncRailHeight);
     loadEmployees();
   }
 
@@ -270,6 +300,7 @@
   function renderRail(rates) {
     const list = document.getElementById('attnRailList');
     document.getElementById('attnRailCount').textContent = rates.length;
+    updateInactiveButtonLabel();
     if (!rates.length) {
       list.innerHTML = '<div class="attn-rail-empty">暂无员工</div>';
       return;
@@ -281,10 +312,18 @@
                     : pct >= 70 ? ' attn-rail-bar-fill--ok'
                     : pct >= 30 ? ' attn-rail-bar-fill--mid'
                     : ' attn-rail-bar-fill--low';
+      // 头像方块：取 id 末尾两位（e001 → "01"）+ accent 高亮态
+      const avatar = (r.id || '').slice(-2).toUpperCase();
       return `<button class="attn-rail-item${active}" data-emp-id="${r.id}">
-        <div class="attn-rail-name">${escapeHtml(r.name)}</div>
-        <div class="attn-rail-bar"><div class="attn-rail-bar-fill${fillCls}" style="width:${pct}%"></div></div>
-        <div class="attn-rail-meta">${r.filled} / ${r.total} 天 · ${pct}%</div>
+        <div class="attn-rail-row1">
+          <span class="attn-rail-avatar">${escapeHtml(avatar)}</span>
+          <span class="attn-rail-name">${escapeHtml(r.name)}</span>
+        </div>
+        <div class="attn-rail-row2">
+          <div class="attn-rail-bar"><div class="attn-rail-bar-fill${fillCls}" style="width:${pct}%"></div></div>
+          <span class="attn-rail-pct">${pct}%</span>
+        </div>
+        <div class="attn-rail-meta">${r.filled} / ${r.total} 天</div>
       </button>`;
     }).join('');
     list.querySelectorAll('.attn-rail-item').forEach((btn) => {
@@ -512,25 +551,22 @@
     wrap.innerHTML = buildCalendarHtml(detail);
     bindCellClicks(wrap);
     syncSelectionUI();
-    observeCalendarHeight();
+    updateLegend(detail);
   }
 
-  function syncRailHeight() {
-    const cal = document.querySelector('.attn-cal');
-    const rail = document.getElementById('attnRail');
-    if (!cal || !rail) return;
-    const h = cal.offsetHeight;
-    if (h > 0) rail.style.maxHeight = h + 'px';
-  }
-
-  let _calHeightObserver = null;
-  function observeCalendarHeight() {
-    if (_calHeightObserver) _calHeightObserver.disconnect();
-    const cal = document.querySelector('.attn-cal');
-    if (!cal) return;
-    // ResizeObserver 在 cal 任何尺寸变化（包括从 display:none 变可见）时触发
-    _calHeightObserver = new ResizeObserver(syncRailHeight);
-    _calHeightObserver.observe(cal);
+  function updateLegend(detail) {
+    const counts = { normal: 0, absent: 0, leave: 0, auto: 0 };
+    for (const r of detail) {
+      if (r.status === 'normal' || r.status === 'special') counts.normal += 1;
+      else if (r.status === 'absent' || r.status === 'special_absent') counts.absent += 1;
+      else if (r.status === 'leave') counts.leave += 1;
+      else if (r.status === 'sunday' || r.status === 'holiday') counts.auto += 1;
+    }
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    set('attnLegendNormal', counts.normal);
+    set('attnLegendAbsent', counts.absent);
+    set('attnLegendLeave',  counts.leave);
+    set('attnLegendAuto',   counts.auto);
   }
 
   // ===== PR-FE-7b：DayEditor popover =====
@@ -844,11 +880,22 @@
       alert('请先选择员工');
       return;
     }
+    // 更新 modal 标题显示当前员工名（避免误以为是全局操作）
+    const emp = employees.find((e) => e.id === currentEmployeeId);
+    const titleEl = document.getElementById('attnInactiveTitle');
+    if (titleEl) titleEl.textContent = emp ? `${emp.name} · 不在职区间` : '不在职区间';
     document.getElementById('attnInactiveFrom').value = '';
     document.getElementById('attnInactiveTo').value = '';
     document.getElementById('attnInactiveReason').value = '';
     await loadInactiveList();
     document.getElementById('attnInactiveOverlay').style.display = 'flex';
+  }
+
+  function updateInactiveButtonLabel() {
+    const btn = document.getElementById('attnInactive');
+    if (!btn) return;
+    const emp = employees.find((e) => e.id === currentEmployeeId);
+    btn.textContent = emp ? `${emp.name} · 不在职` : '不在职区间';
   }
 
   async function loadInactiveList() {
@@ -1016,6 +1063,18 @@
     document.getElementById('attnMonthDays').textContent = summary ? summary.month_days : 0;
     document.getElementById('attnLeaveH').textContent = summary ? (summary.leave_hours_total || 0) : 0;
     document.getElementById('attnLeaveD').textContent = summary ? (summary.leave_days_equivalent || 0) : 0;
+    // 填写率（与 /fill-rates 同口径：仅计需用户填的工作日）
+    const fillEl = document.getElementById('attnFillRate');
+    if (fillEl) {
+      if (!summary || !Array.isArray(summary.detail)) { fillEl.textContent = '填写率 —'; return; }
+      const action = summary.detail.filter(r => ['normal', 'special', 'special_absent', 'leave', 'absent'].includes(r.status));
+      const filled = action.filter(r => r.status !== 'absent').length;
+      const total = action.length;
+      const pct = total > 0 ? Math.round(filled / total * 100) : 0;
+      fillEl.textContent = `填写率 ${pct}%`;
+      fillEl.classList.toggle('attn-fillrate--full', pct >= 100);
+      fillEl.classList.toggle('attn-fillrate--low', pct < 100 && pct < 70);
+    }
   }
 
   async function openHolidays() {

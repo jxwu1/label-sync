@@ -1,16 +1,19 @@
-/* ========== Page: 考勤（Notion 暗色极简风） ========== */
+/* ========== Page: 考勤（DataOps Terminal — PR-FE-7d-3 完整对齐 design） ========== */
+/* flex chain：page flex column → wrap flex:1 → main flex:1 → cal/rail stretch */
 #pageAttendance.active {
-  display: block;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
   height: calc(100vh - 122px);
+  overflow: hidden;
 }
 
-/* ===== 外层 ===== */
 .attn-wrap {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
   padding: var(--sp-4);
+  min-height: 0;
 }
 
 /* ===== 顶部工具条 ===== */
@@ -270,13 +273,12 @@
 .attn-cal {
   display: flex;
   flex-direction: column;
-  gap: 4px;
 }
-.attn-cal-headers,
-.attn-cal-grid {
+.attn-cal-headers {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  border-bottom: 1px solid var(--line-soft);
+  margin-bottom: 1px;
 }
 .attn-cal-hd {
   font-family: var(--mono);
@@ -285,28 +287,33 @@
   text-transform: uppercase;
   color: var(--ink-3);
   text-align: center;
-  padding: 4px 0;
+  padding: 6px 0;
+}
+/* Cell grid：1px gap + bg=line-soft 做细网格线（设计 §3.4） */
+.attn-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: var(--line-soft);
+  padding: 1px;
 }
 
 .attn-cell {
   position: relative;
-  min-height: 88px;
+  min-height: 100px;
   background: var(--bg-1, var(--c-surface));
-  border: 1px solid var(--line-soft, var(--c-border));
-  border-radius: var(--r-sm);
   padding: 6px 8px;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  transition: border-color var(--t-fast), background var(--t-fast);
+  transition: background var(--t-fast);
 }
-.attn-cell:hover { border-color: var(--line, var(--c-border)); }
+.attn-cell:hover { background: var(--bg-2); }
 
 .attn-cell--out {
-  background: transparent;
-  border: 1px dashed var(--line-soft, var(--c-border));
+  background: var(--bg-2);
   opacity: .35;
-  min-height: 88px;
+  min-height: 100px;
 }
 .attn-cell--pre-join { opacity: .5; background: var(--bg-2, var(--c-surface)); }
 
@@ -421,14 +428,11 @@
   box-shadow: 0 0 0 1px var(--accent), 0 0 8px var(--accent-glow);
 }
 
+/* PR-FE-7d-3：attn-batch 现位于日历 header 内，去掉外框 */
 .attn-batch {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: var(--bg-2);
-  border: 1px solid var(--accent);
-  border-radius: var(--r-md);
+  gap: 6px;
   flex-wrap: wrap;
 }
 .attn-batch.attn-hidden { display: none; }
@@ -481,18 +485,90 @@
   margin-right: 6px;
 }
 
-/* PR-FE-7d-2：员工 rail（右侧栏） */
-/* 高度由 JS 同步到日历真实 offsetHeight（renderCalendar 末尾 + window resize） */
+/* PR-FE-7d-3：日历 card + rail 280px，flex 自适应高度 */
 .attn-main {
+  flex: 1;
   display: grid;
-  grid-template-columns: 1fr 240px;
+  grid-template-columns: 1fr 280px;
   gap: 12px;
-  align-items: start;
+  min-height: 0;
 }
 @media (max-width: 900px) {
   .attn-main { grid-template-columns: 1fr; }
 }
 
+/* 日历 card */
+.attn-cal-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-1);
+  border: 1px solid var(--line-soft, var(--line));
+  border-radius: var(--r-md);
+  min-height: 0;
+  overflow: hidden;
+}
+.attn-cal-card-hd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line-soft);
+  font-family: var(--mono);
+  font-size: 11px;
+  flex-wrap: wrap;
+}
+.attn-cal-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px;
+}
+.attn-cal-card-ft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--line-soft);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-2);
+  flex-wrap: wrap;
+}
+.attn-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.attn-legend-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--ink-3);
+}
+.attn-legend-dot--normal { background: var(--accent); }
+.attn-legend-dot--absent { background: var(--error); }
+.attn-legend-dot--leave  { background: var(--warn); }
+.attn-legend-dot--sunday { background: var(--ink-3); }
+.attn-legend-num {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-1);
+  font-weight: 600;
+}
+.attn-key-hint { color: var(--ink-3); font-size: 10px; letter-spacing: 0.04em; }
+.attn-key-hint kbd {
+  font-family: var(--mono); font-size: 9px;
+  padding: 1px 4px; margin: 0 2px;
+  border: 1px solid var(--line); border-radius: 2px;
+  color: var(--ink-3); background: var(--bg-2);
+}
+
+.attn-fillrate {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-1);
+}
+.attn-fillrate--full { color: var(--accent); }
+.attn-fillrate--low  { color: var(--warn); }
+
+/* Rail：保留 box，但宽 280 + 内含 stats / list / footer 三段 */
 .attn-rail {
   background: var(--bg-1);
   border: 1px solid var(--line-soft, var(--line));
@@ -500,10 +576,62 @@
   padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  /* max-height 由 JS 设：rail.style.maxHeight = calendar.offsetHeight */
+  gap: 8px;
+  min-height: 0;
   overflow: hidden;
 }
+.attn-rail-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.attn-mini-stat {
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  border-left: 2px solid var(--ink-3);
+  border-radius: var(--r-sm);
+  padding: 6px 8px;
+}
+.attn-mini-stat--accent { border-left-color: var(--accent); }
+.attn-mini-stat--err    { border-left-color: var(--error); }
+.attn-mini-stat--warn   { border-left-color: var(--warn); }
+.attn-mini-stat-k {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.attn-mini-stat-v {
+  font-family: var(--display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink-0);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.attn-mini-stat-v small {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink-3);
+  font-weight: normal;
+}
+.attn-mini-stat--accent .attn-mini-stat-v { color: var(--accent); }
+.attn-mini-stat--err    .attn-mini-stat-v { color: var(--error); }
+.attn-mini-stat--warn   .attn-mini-stat-v { color: var(--warn); }
+
+.attn-rail-ft {
+  flex-shrink: 0;
+  display: flex;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+}
+.attn-rail-ft .attn-btn-mini { flex: 1; min-width: 0; padding: 4px 6px; font-size: 10.5px; }
+
+/* 隐藏顶部已挪走的元素 */
+.attn-hide-emp-select { display: none; }
 .attn-rail-hd {
   font-family: var(--mono);
   font-size: 9.5px;
@@ -524,7 +652,6 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 4px;
 }
 .attn-rail-empty {
   padding: 16px;
@@ -537,28 +664,73 @@
   width: 100%;
   text-align: left;
   background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--r-sm);
-  padding: 6px 8px;
+  border: none;
+  border-left: 2px solid transparent;
+  border-bottom: 1px solid var(--line-soft);
+  padding: 8px 10px;
   cursor: pointer;
   font: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
-.attn-rail-item:hover { background: var(--bg-2); border-color: var(--line-soft); }
+.attn-rail-item:hover { background: var(--bg-2); }
 .attn-rail-item.is-active {
-  background: var(--bg-2);
-  border-color: var(--accent);
+  background: var(--bg-3);
+  border-left-color: var(--accent);
+}
+.attn-rail-item.is-active .attn-rail-avatar {
+  background: var(--accent);
+  color: var(--bg-0);
+  border-color: var(--accent-dim);
+}
+.attn-rail-row1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.attn-rail-avatar {
+  width: 24px; height: 24px; flex-shrink: 0;
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ink-1);
+  letter-spacing: 0.04em;
 }
 .attn-rail-name {
   font-size: 12px;
-  color: var(--ink-0);
-  margin-bottom: 4px;
+  font-weight: 600;
+  color: var(--ink-1);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.attn-rail-item.is-active .attn-rail-name { color: var(--ink-0); }
+.attn-rail-row2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .attn-rail-bar {
-  height: 4px;
+  flex: 1;
+  height: 3px;
   background: var(--bg-3);
   border-radius: 2px;
   overflow: hidden;
-  margin-bottom: 3px;
+}
+.attn-rail-pct {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  width: 32px;
+  text-align: right;
 }
 .attn-rail-bar-fill {
   height: 100%;
