@@ -292,6 +292,139 @@
   border-radius: 2px;
   background: var(--bg-2);
 }
+
+/* PR-FE-8c：FilesPanel 视觉换皮 */
+.files-bd {
+  display: block !important;
+  padding: 0 !important;
+}
+.files-bd .files {
+  max-height: 200px;
+  overflow-y: auto;
+}
+.files-bd .files:empty::before {
+  content: "暂无待上传文件";
+  display: block;
+  padding: 16px 14px;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+.files-bd .fl-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line-soft, var(--c-border));
+}
+.files-bd .fl-row:last-child { border-bottom: none; }
+.fl-type {
+  width: 36px;
+  flex-shrink: 0;
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft, var(--line));
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  text-align: center;
+  padding: 4px 0;
+  color: var(--ink-2);
+  letter-spacing: 0.04em;
+}
+.fl-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--ink-0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fl-rm {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-3);
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 14px;
+}
+.fl-rm:hover { color: var(--error); background: var(--bg-2); }
+
+.files-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--line-soft, var(--c-border));
+}
+.files-actions .btn {
+  flex: 1 1 auto;
+  min-width: 100px;
+  font-size: 11.5px;
+  padding: 6px 10px;
+  margin: 0;
+}
+.files-bd #status {
+  padding: 8px 14px;
+  border-top: 1px solid var(--line-soft, var(--c-border));
+  font-size: 11px;
+}
+
+/* PR-FE-8c：StockpilePanel 视觉换皮 */
+.sp-online {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+}
+.sp-online-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 4px var(--accent-glow);
+  animation: sp-pulse 2s ease-in-out infinite;
+}
+@keyframes sp-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .4; }
+}
+.sp-bd {
+  display: block !important;
+  padding: 0 !important;
+}
+.sp-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--line-soft, var(--c-border));
+  padding: 0 8px;
+}
+.sp-tabs .tabs__tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.sp-tabs .tabs__tab:hover { color: var(--ink-1); }
+.sp-tabs .tabs__tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.sp-bd .tabs__panel { padding: 12px 14px; }
 #filesPanel { flex: 0 0 auto; }
 #stockpilePanel { flex: 1; min-height: 0; }
 .stockpile-search-results { max-height: 200px; overflow-y: auto; margin-top: 6px; }

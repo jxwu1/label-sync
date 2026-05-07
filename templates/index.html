@@ -248,33 +248,49 @@
 
   <div class="right-stack">
 
-    <div class="panel" id="filesPanel">
-      <div class="panel-hd">文件管理</div>
-      <div class="panel-bd">
+    <!-- PR-FE-8c：FilesPanel 视觉换皮 -->
+    <section class="up-panel" id="filesPanel">
+      <div class="up-panel-hd">
+        <span class="up-panel-code">04</span>
+        <span class="up-panel-title">文件队列</span>
+        <span class="up-panel-sub" x-data x-text="`${$store.upload.selected.length} files`">0 files</span>
+        <span class="up-panel-spacer"></span>
+      </div>
+      <div class="up-panel-bd files-bd">
         <div class="files" id="files" x-data>
           <template x-for="(f, i) in $store.upload.selected" :key="i">
-            <div class="file">
-              <span class="name" x-text="f.name"></span>
-              <span class="rm" @click="$store.upload.remove(i)">×</span>
+            <div class="file fl-row">
+              <span class="fl-type" x-text="(f.name.split('.').pop() || '').toUpperCase().slice(0,4)"></span>
+              <span class="fl-name name" x-text="f.name"></span>
+              <span class="rm fl-rm" @click="$store.upload.remove(i)">×</span>
             </div>
           </template>
         </div>
-        <button class="btn btn-secondary" id="upload" x-data :disabled="$store.upload.selected.length === 0">上传文件</button>
-        <button class="btn btn-warning" id="cont">继续处理</button>
-        <button class="btn btn-success" id="download">下载结果</button>
-        <button class="btn btn-info" id="copyModels">复制所有型号</button>
-        <button class="btn btn-info" id="copyModelsAll">复制所有型号（含重复）</button>
-        <button class="btn btn-ghost" id="reset">清空界面，准备下一批</button>
+        <div class="files-actions">
+          <button class="btn btn-secondary" id="upload" x-data :disabled="$store.upload.selected.length === 0">上传文件</button>
+          <button class="btn btn-warning" id="cont">继续处理</button>
+          <button class="btn btn-success" id="download">下载结果</button>
+          <button class="btn btn-info" id="copyModels">复制所有型号</button>
+          <button class="btn btn-info" id="copyModelsAll">复制所有型号（含重复）</button>
+          <button class="btn btn-ghost" id="reset">清空界面，准备下一批</button>
+        </div>
         <div id="status" x-data
      :class="$store.app.statusCls ? `status ${$store.app.statusCls}` : 'status'"
      x-html="$store.app.statusText">请先上传文件</div>
       </div>
-    </div>
+    </section>
 
-    <div class="panel" id="stockpilePanel">
-      <div class="panel-hd">Stockpile 数据库</div>
-      <div class="panel-bd">
-        <div class="tabs" id="spTabs">
+    <!-- PR-FE-8c：StockpilePanel 视觉换皮 -->
+    <section class="up-panel" id="stockpilePanel">
+      <div class="up-panel-hd">
+        <span class="up-panel-code">05</span>
+        <span class="up-panel-title">STOCKPILE</span>
+        <span class="up-panel-sub">数据仓库</span>
+        <span class="up-panel-spacer"></span>
+        <span class="sp-online"><span class="sp-online-dot"></span>ONLINE</span>
+      </div>
+      <div class="up-panel-bd sp-bd">
+        <div class="tabs sp-tabs" id="spTabs">
           <button class="tabs__tab active" data-tab="status" type="button">状态</button>
           <button class="tabs__tab" data-tab="init" type="button">初始化</button>
           <button class="tabs__tab" data-tab="cmp" type="button">月度比对</button>
