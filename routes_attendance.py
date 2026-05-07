@@ -103,6 +103,16 @@ def remove_holiday(date: str):
     return jsonify({"ok": True, "holidays": attendance_service.list_holidays()})
 
 
+@bp.post("/holidays/import-year/<int:year>")
+def import_holidays_year(year: int):
+    """PR-FE-7d：批量导入指定年份法定节假日。"""
+    try:
+        result = attendance_service.import_holidays_for_year(year)
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 404
+    return jsonify({"ok": True, **result})
+
+
 @bp.get("/special-days")
 def list_special_days():
     return jsonify({"ok": True, "special_days": attendance_service.list_special_days()})

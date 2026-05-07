@@ -200,6 +200,35 @@ class AttendanceRoutesTests(unittest.TestCase):
         )
         self.assertEqual(rv.status_code, 400)
 
+    # ---------- /holidays/import-year/<year> (PR-FE-7d) ----------
+
+    def test_import_holidays_year_unknown_404(self) -> None:
+        rv = self.client.post("/attendance/holidays/import-year/1900")
+        self.assertEqual(rv.status_code, 404)
+        self.assertFalse(rv.get_json()["ok"])
+
+    def test_import_holidays_year_2025_ok(self) -> None:
+        rv = self.client.post("/attendance/holidays/import-year/2025")
+        self.assertEqual(rv.status_code, 200)
+        body = rv.get_json()
+        self.assertTrue(body["ok"])
+        self.assertGreater(body["added"], 0)
+        # 元旦肯定在
+        self.assertIn("2025-01-01", body["holidays"])
+
+    def test_import_holidays_idempotent(self) -> None:
+        r1 = self.client.post("/attendance/holidays/import-year/2025").get_json()
+        r2 = self.client.post("/attendance/holidays/import-year/2025").get_json()
+        # 第二次添加 0 个新（都是 dedupe 后已存在）
+        self.assertGreater(r1["added"], 0)
+        self.assertEqual(r2["added"], 0)
+        # 列表里日期数量不变
+        self.assertEqual(len(r1["holidays"]), len(r2["holidays"]))
+
+    def test_import_holidays_invalid_year_400(self) -> None:
+        rv = self.client.post("/attendance/holidays/import-year/abc")
+        self.assertIn(rv.status_code, (400, 404))
+
 
 if __name__ == "__main__":
     unittest.main()

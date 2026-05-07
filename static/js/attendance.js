@@ -146,6 +146,14 @@
             <input class="attn-inp" id="attnHolidayInput" type="date">
             <button class="attn-btn attn-btn-dl" id="attnHolidayAdd">添加</button>
           </div>
+          <div class="attn-time-row">
+            <span class="attn-hint-inline">批量导入希腊法定节假日：</span>
+            <select class="attn-inp" id="attnHolidayYear">
+              <option value="2025">2025</option>
+              <option value="2026" selected>2026</option>
+            </select>
+            <button class="attn-btn attn-btn-dl" id="attnHolidayImport">导入</button>
+          </div>
           <div id="attnHolidayList" class="pur-mgr-list"></div>
           <div class="pur-modal-actions">
             <button class="attn-btn" id="attnHolidayClose">关闭</button>
@@ -183,6 +191,7 @@
     document.getElementById('attnPayrollPdf').addEventListener('click', downloadPayrollPdf);
     document.getElementById('attnHolidays').addEventListener('click', openHolidays);
     document.getElementById('attnHolidayAdd').addEventListener('click', addHoliday);
+    document.getElementById('attnHolidayImport').addEventListener('click', importHolidaysYear);
     document.getElementById('attnHolidayClose').addEventListener('click', () => {
       document.getElementById('attnHolidayOverlay').style.display = 'none';
     });
@@ -973,6 +982,18 @@
       if (!body.ok) { alert(body.msg); return; }
     } catch (e) { alert('添加失败：' + e.message); return; }
     document.getElementById('attnHolidayInput').value = '';
+    await renderHolidayList();
+    await loadMonth();
+  }
+
+  async function importHolidaysYear() {
+    const year = document.getElementById('attnHolidayYear').value;
+    try {
+      const res = await fetch(`/attendance/holidays/import-year/${year}`, { method: 'POST' });
+      const body = await res.json();
+      if (!body.ok) { alert(body.msg || '导入失败'); return; }
+      alert(`已导入 ${year} 年希腊法定节假日：新增 ${body.added} 天`);
+    } catch (e) { alert('导入失败：' + e.message); return; }
     await renderHolidayList();
     await loadMonth();
   }

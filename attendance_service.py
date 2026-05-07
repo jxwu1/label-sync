@@ -110,6 +110,60 @@ def remove_holiday(date: str) -> None:
     _write_json(_holidays_path(), holidays)
 
 
+# 希腊法定节假日。固定日期 + Orthodox Easter 衍生的几个浮动日。
+# Easter 浮动衍生：Clean Monday = -48d，Good Friday = -2d，Easter Monday = +1d，Holy Spirit = +50d。
+# Easter 复活节周日本身已是周日（不需要单独标），所以这里不收录。
+# 每年新加之前请核对 Easter 日期（如 2027 = 5/2）。
+_GR_HOLIDAYS_BY_YEAR: dict[int, list[str]] = {
+    # Easter 2025 = 04/20
+    2025: [
+        "2025-01-01",  # Πρωτοχρονιά New Year
+        "2025-01-06",  # Θεοφάνεια Epiphany
+        "2025-03-03",  # Καθαρά Δευτέρα Clean Monday
+        "2025-03-25",  # Independence Day
+        "2025-04-18",  # Μεγάλη Παρασκευή Good Friday
+        "2025-04-21",  # Δευτέρα του Πάσχα Easter Monday
+        "2025-05-01",  # Πρωτομαγιά Labor Day
+        "2025-06-09",  # Αγίου Πνεύματος Holy Spirit (Whit Monday)
+        "2025-08-15",  # Κοίμηση της Θεοτόκου Assumption
+        "2025-10-28",  # Επέτειος του Όχι Ohi Day
+        "2025-12-25",  # Christmas
+        "2025-12-26",  # Σύναξη της Θεοτόκου Synaxis (Boxing Day)
+    ],
+    # Easter 2026 = 04/12
+    2026: [
+        "2026-01-01",
+        "2026-01-06",
+        "2026-02-23",  # Clean Monday
+        "2026-03-25",
+        "2026-04-10",  # Good Friday
+        "2026-04-13",  # Easter Monday
+        "2026-05-01",
+        "2026-06-01",  # Holy Spirit
+        "2026-08-15",
+        "2026-10-28",
+        "2026-12-25",
+        "2026-12-26",
+    ],
+}
+
+
+def import_holidays_for_year(year: int) -> dict:
+    """批量导入指定年份的希腊法定节假日。
+
+    返回 {added: int, holidays: list[str]}。已存在的日期不重复。
+    年份未收录 → ValueError。
+    """
+    if year not in _GR_HOLIDAYS_BY_YEAR:
+        raise ValueError(f"未收录 {year} 年节假日数据，请手动添加或在 _GR_HOLIDAYS_BY_YEAR 补全")
+    existing = set(list_holidays())
+    new_dates = [d for d in _GR_HOLIDAYS_BY_YEAR[year] if d not in existing]
+    if new_dates:
+        merged = sorted(existing.union(new_dates))
+        _write_json(_holidays_path(), merged)
+    return {"added": len(new_dates), "holidays": list_holidays()}
+
+
 def _special_days_path() -> Path:
     return _ATTENDANCE_DIR / _SPECIAL_DAYS_FILE
 

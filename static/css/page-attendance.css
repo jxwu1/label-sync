@@ -473,6 +473,13 @@
   color: var(--ink-3);
   background: var(--bg-1);
 }
+
+.attn-hint-inline {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-3);
+  margin-right: 6px;
+}
 .attn-pop-hd {
   font-family: var(--mono);
   font-size: 11px;
