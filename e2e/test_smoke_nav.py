@@ -188,6 +188,31 @@ def test_clock_running(live_server, page_with_console) -> None:
     assert page.console_errors == [], f"console errors: {page.console_errors}"
 
 
+def test_keyboard_shortcut_switches_nav(live_server, page_with_console) -> None:
+    """PR-FE-1：⌘/Ctrl + 1-9 全局快捷键切 nav。
+
+    验证两个不同 shortcut 都生效，确认 keydown 监听器和 store.bySortcut 路径都活着。
+    """
+    page = page_with_console
+    page.goto(live_server + "/")
+    _wait_alpine_ready(page)
+
+    # 默认在 main
+    assert page.evaluate("Alpine.store('nav').current") == "main"
+
+    # Ctrl+3 → purchase
+    page.keyboard.press("Control+3")
+    page.wait_for_timeout(_ALPINE_SETTLE_MS)
+    assert page.evaluate("Alpine.store('nav').current") == "purchase"
+
+    # Ctrl+9 → sales_analytics
+    page.keyboard.press("Control+9")
+    page.wait_for_timeout(_ALPINE_SETTLE_MS)
+    assert page.evaluate("Alpine.store('nav').current") == "sales_analytics"
+
+    assert page.console_errors == [], f"console errors: {page.console_errors}"
+
+
 def test_history_analytics_panels_present(live_server, page_with_console) -> None:
     """PR 5.2a/d 货号详情新加的 analytics + timeline chart panel DOM 在。
 
