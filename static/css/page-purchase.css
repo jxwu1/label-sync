@@ -35,10 +35,36 @@
   font-size: var(--fs-base);
   line-height: 1.8;
 }
-.pur-row { display: flex; align-items: center; gap: var(--sp-2); padding: 2px 0; }
+.pur-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  transition: background var(--t-fast);
+}
+.pur-row:hover { background: var(--bg-2); }
 .pur-row .pur-text { flex: 1; color: var(--ink-2); }    /* 深底上的浅灰青 */
 .pur-row.flagged { color: var(--error); }
 .pur-row.flagged .pur-text { color: var(--error); }
+
+/* PR-FE-6：状态 pill (MATCH/NEW/CHECK) */
+.pur-pill {
+  display: inline-block;
+  min-width: 52px;
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
+  border: 1px solid;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-align: center;
+  flex-shrink: 0;
+}
+.pur-pill--match { color: var(--accent); border-color: rgba(0,255,149,.35);  background: rgba(0,255,149,.08); }
+.pur-pill--new   { color: var(--info);   border-color: rgba(78,163,255,.35); background: rgba(78,163,255,.08); }
+.pur-pill--check { color: var(--warn);   border-color: rgba(255,182,39,.40); background: rgba(255,182,39,.10); }
 
 .pur-price-input {
   width: 80px;
@@ -230,3 +256,36 @@
 
 /* ========== Purchase: hidden overlay (toggled by JS) ========== */
 .pur-hidden { display: none; }
+
+/* PR-FE-6：footer SUM · ROWS · UNITS · NEW · CHECK */
+.pur-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 8px 14px;
+  background: var(--bg-1);
+  border: 1px solid var(--line-soft, var(--c-border));
+  border-radius: var(--r-md);
+  flex-shrink: 0;
+}
+.pur-foot-cell {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--mono);
+}
+.pur-foot-cell .k {
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.pur-foot-cell .v {
+  font-family: var(--display);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-0);
+  font-variant-numeric: tabular-nums;
+}
+.pur-foot-cell--new   .v { color: var(--info); }
+.pur-foot-cell--check .v { color: var(--warn); }
