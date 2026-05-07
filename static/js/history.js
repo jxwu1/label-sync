@@ -7,6 +7,7 @@ const SOURCE_CN = {
   scan_import: "扫描导入",
   user_correction: "手动修正",
   system_export: "系统导出",
+  inventory_events: "进销存",
 };
 
 const FIELD_CN = {
@@ -21,6 +22,8 @@ const CHANGE_TYPE_CN = {
   insert: "新增",
   deactivate: "下架",
   reactivate: "上架",
+  sale: "销售",
+  purchase: "采购",
 };
 
 let _currentBarcode = null;
@@ -477,14 +480,17 @@ function renderResult(data) {
   }
 
   const items = events.map((ev) => {
-    const changes = ev.changes
-      .map((ch) => {
-        const fieldCn = FIELD_CN[ch.field] || ch.field;
-        const oldVal = ch.old || '<span class="empty-val">空</span>';
-        const newVal = ch.new || '<span class="empty-val">空</span>';
-        return `<div class="change-row"><span class="change-field">${escapeHtml(fieldCn)}</span><span class="change-arrow">${oldVal === '<span class="empty-val">空</span>' ? oldVal : escapeHtml(ch.old)} → ${newVal === '<span class="empty-val">空</span>' ? newVal : escapeHtml(ch.new)}</span></div>`;
-      })
-      .join("");
+    // sale / purchase 等 inventory_events 事件用 summary，单行不带 old→new 箭头
+    const body = ev.summary
+      ? `<div class="event-summary">${escapeHtml(ev.summary)}</div>`
+      : ev.changes
+          .map((ch) => {
+            const fieldCn = FIELD_CN[ch.field] || ch.field;
+            const oldVal = ch.old || '<span class="empty-val">空</span>';
+            const newVal = ch.new || '<span class="empty-val">空</span>';
+            return `<div class="change-row"><span class="change-field">${escapeHtml(fieldCn)}</span><span class="change-arrow">${oldVal === '<span class="empty-val">空</span>' ? oldVal : escapeHtml(ch.old)} → ${newVal === '<span class="empty-val">空</span>' ? newVal : escapeHtml(ch.new)}</span></div>`;
+          })
+          .join("");
     return `
       <div class="event-item" data-type="${escapeHtml(ev.change_type)}">
         <span class="event-dot"></span>
@@ -493,7 +499,7 @@ function renderResult(data) {
           <span class="event-source">${escapeHtml(SOURCE_CN[ev.source] || ev.source || "")}</span>
           <span class="event-type">[${escapeHtml(CHANGE_TYPE_CN[ev.change_type] || ev.change_type)}]</span>
         </div>
-        <div class="event-body">${changes}</div>
+        <div class="event-body">${body}</div>
       </div>
     `;
   });

@@ -173,6 +173,15 @@
 #pageHistory .event-item[data-type="update"]     .event-dot { background: var(--info);   box-shadow: 0 0 0 1px var(--info); }
 #pageHistory .event-item[data-type="deactivate"] .event-dot { background: var(--warn);   box-shadow: 0 0 0 1px var(--warn); }
 #pageHistory .event-item[data-type="reactivate"] .event-dot { background: var(--accent-dim); box-shadow: 0 0 0 1px var(--accent-dim); }
+/* PR-FE-4b：业务事件（销售 / 采购） */
+#pageHistory .event-item[data-type="sale"]       .event-dot { background: var(--error); box-shadow: 0 0 0 1px var(--error); }
+#pageHistory .event-item[data-type="purchase"]   .event-dot { background: var(--warn);  box-shadow: 0 0 0 1px var(--warn); }
+#pageHistory .event-summary {
+  font-family: var(--mono);
+  font-size: var(--fs-md);
+  color: var(--ink-1);
+  padding: 2px 0;
+}
 
 #pageHistory .event-head {
   display: flex;
