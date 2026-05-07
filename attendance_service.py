@@ -320,15 +320,19 @@ def _iter_month_days(month: str):
 
 
 def _employee_start_date(employee_id: str) -> date_cls | None:
-    """从 employees.json 读 created_at 并取日期部分。
+    """读员工显式 start_date 字段。这一日之前的天计为 pre_join。
 
-    用作"入职日"近似值——这一日之前的天不计入考勤（包括周日和节假日）。
-    employee 找不到 / created_at 缺失或无法解析 → 返回 None（按老逻辑处理，全月都算）。
+    **不再 fallback 到 created_at**：created_at 是系统建档时间，不等于入职日；
+    用户先有历史考勤数据、后才在系统建账号的场景下，回退会把历史数据全部
+    挡掉变成 pre_join（实际数据未删，仅视图遮蔽）。
+
+    缺 start_date / 解析失败 → None → 全月正常显示，无 pre_join 过滤。
+    新员工想用 pre_join 时手动加 start_date 字段（或将来 UI 加入职日 field）。
     """
     for emp in list_employees():
         if emp.get("id") != employee_id:
             continue
-        s = emp.get("created_at")
+        s = emp.get("start_date")
         if not s:
             return None
         try:
