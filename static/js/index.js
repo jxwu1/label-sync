@@ -48,9 +48,10 @@ function handleStatus(data) {
   }
   if (data.running) { Alpine.store('app').setBadge("running", "处理中"); Alpine.store('app').setStatus('<span class="spin"></span>处理中，请稍候...'); return; }
   clearInterval(poll); cont.style.display = "none";
-  if (data.error) { Alpine.store('app').setStatus("处理失败，请查看日志", "error"); Alpine.store('app').setBadge("error", "出错"); $("#run").disabled = false; return; }
+  if (data.error) { Alpine.store('app').setStatus("处理失败，请查看日志", "error"); Alpine.store('app').setBadge("error", "出错"); $("#run").disabled = false; plReset(); return; }
   if (data.done) {
     Alpine.store('app').setStatus("处理完成，可下载结果", "success"); Alpine.store('app').setBadge("done", "完成");
+    plFinish();
     $("#download").style.display = "block"; $("#copyModels").style.display = "block";
     $("#copyModelsAll").style.display = "block"; $("#reset").style.display = "block"; return;
   }
@@ -62,15 +63,57 @@ function startPoll() {
   poll = setInterval(async () => { try { handleStatus(await (await fetch("/status")).json()); } catch (e) { console.error("Status poll failed:", e); } }, 1000);
 }
 
+// PR-FE-8a：Pipeline 假壳动画（B 选项 — 后端只发开始/完成，前端时间驱动 5 阶段）
+const PL_STAGES = ["parse", "norm", "match", "audit", "commit"];
+let _plTimer = null;
+function plReset() {
+  clearInterval(_plTimer); _plTimer = null;
+  $("#plBarFill").style.width = "0%"; $("#plPct").textContent = "0%";
+  document.querySelectorAll(".pl-stage").forEach(el => el.classList.remove("is-current", "is-done"));
+}
+function plStart() {
+  plReset();
+  let pct = 0;
+  // 走 0→90% 慢速（约 8 秒）；剩 10% 等 backend done 信号补满
+  const cap = 90;
+  const tickMs = 200;
+  const totalSec = 8;
+  const inc = cap / (totalSec * 1000 / tickMs);
+  _plTimer = setInterval(() => {
+    pct = Math.min(cap, pct + inc);
+    plRender(pct);
+    if (pct >= cap) { clearInterval(_plTimer); _plTimer = null; }
+  }, tickMs);
+}
+function plRender(pct) {
+  $("#plBarFill").style.width = pct + "%";
+  $("#plPct").textContent = Math.round(pct) + "%";
+  // 当前阶段：每 20% 一段
+  const idx = Math.min(PL_STAGES.length - 1, Math.floor(pct / 20));
+  document.querySelectorAll(".pl-stage").forEach((el, i) => {
+    el.classList.toggle("is-current", i === idx && pct < 100);
+    el.classList.toggle("is-done", i < idx || pct >= 100);
+  });
+}
+function plFinish() {
+  clearInterval(_plTimer); _plTimer = null;
+  plRender(100);
+}
+
 $("#run").onclick = async () => {
   const run = $("#run"); run.disabled = true; $("#cont").style.display = "none";
   Alpine.store('app').setStatus('<span class="spin"></span>正在启动处理流程...'); Alpine.store('app').setBadge("running", "处理中"); Alpine.store('term').push("开始处理");
+  plStart();
   try {
     const data = await (await fetch("/run", { method: "POST" })).json();
-    if (!data.ok) { Alpine.store('app').setStatus(data.msg, "error"); Alpine.store('app').setBadge("error", "出错"); Alpine.store('term').push("启动失败：" + data.msg, "log-err"); run.disabled = false; return; }
+    if (!data.ok) { Alpine.store('app').setStatus(data.msg, "error"); Alpine.store('app').setBadge("error", "出错"); Alpine.store('term').push("启动失败：" + data.msg, "log-err"); run.disabled = false; plReset(); return; }
     startPoll();
-  } catch (e) { Alpine.store('app').setStatus("启动失败：" + e, "error"); Alpine.store('app').setBadge("error", "出错"); Alpine.store('term').push("启动失败：" + e, "log-err"); run.disabled = false; }
+  } catch (e) { Alpine.store('app').setStatus("启动失败：" + e, "error"); Alpine.store('app').setBadge("error", "出错"); Alpine.store('term').push("启动失败：" + e, "log-err"); run.disabled = false; plReset(); }
 };
+
+// 占位按钮：配置规则 / 重放上次（PR-FE-8 后续 PR 实现）
+const _upRules = $("#upRules"); if (_upRules) _upRules.onclick = () => alert("配置规则：留作后续 PR 实现");
+const _upReplay = $("#upReplay"); if (_upReplay) _upReplay.onclick = () => alert("重放上次：留作后续 PR 实现");
 
 $("#cont").onclick = async () => {
   const cont = $("#cont"); cont.disabled = true; cont.textContent = "处理中...";

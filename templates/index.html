@@ -177,15 +177,58 @@
 <div class="page" id="pageMain" x-data :class="$store.nav.current === 'main' ? 'active' : ''">
   <div class="page-main-grid">
 
-  <!-- 顶部 action bar（跨两列） -->
-  <div class="top-action-bar">
-    <div class="drop" id="drop">
-      <input type="file" id="fileInput" multiple accept=".xlsx,.csv">
-      <div>📂 拖入文件或点击选择</div>
-      <div class="hint">支持扫描 .xlsx、stockpile .csv、模板 .csv</div>
+  <!-- PR-FE-8a：UploadPanel（DataOps 风 drop zone + 4 角刻线 + 三按钮） -->
+  <section class="up-panel">
+    <div class="up-panel-hd">
+      <span class="up-panel-code">01</span>
+      <span class="up-panel-title">文件投递</span>
+      <span class="up-panel-sub">ingestion · drop zone</span>
+      <span class="up-panel-spacer"></span>
+      <span class="up-panel-pill">.xlsx</span>
+      <span class="up-panel-pill">.csv</span>
+      <span class="up-panel-pill">stockpile</span>
     </div>
-    <button class="btn btn-primary" id="run" disabled>开始处理</button>
-  </div>
+    <div class="up-panel-bd">
+      <div class="drop up-drop" id="drop">
+        <input type="file" id="fileInput" multiple accept=".xlsx,.csv">
+        <span class="up-corner up-corner--tl"></span>
+        <span class="up-corner up-corner--tr"></span>
+        <span class="up-corner up-corner--bl"></span>
+        <span class="up-corner up-corner--br"></span>
+        <div class="up-icon">⇣</div>
+        <div class="up-text">
+          <div class="up-text-main"><b>拖拽文件到此区域</b> 或 <span class="up-link">浏览本地文件</span></div>
+          <div class="up-text-sub">扫描 .xlsx · stockpile .csv · 模板 .csv</div>
+        </div>
+      </div>
+      <div class="up-actions">
+        <button class="btn btn-primary up-btn-go" id="run" disabled>▶ 开始处理</button>
+        <button class="btn btn-ghost up-btn-mini" id="upRules" type="button">⚙ 配置规则</button>
+        <button class="btn btn-ghost up-btn-mini" id="upReplay" type="button">↺ 重放上次</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- PR-FE-8a：PipelinePanel（5 阶段假壳：B 选项） -->
+  <section class="pl-panel" id="pipelinePanel">
+    <div class="up-panel-hd">
+      <span class="up-panel-code">02</span>
+      <span class="up-panel-title">处理管线</span>
+      <span class="up-panel-sub">pipeline · 5 stages</span>
+      <span class="up-panel-spacer"></span>
+      <span class="pl-pct" id="plPct">0%</span>
+    </div>
+    <div class="up-panel-bd">
+      <div class="pl-bar"><div class="pl-bar-fill" id="plBarFill"></div></div>
+      <div class="pl-stages" id="plStages">
+        <div class="pl-stage" data-stage="parse"><span class="pl-stage-num">01</span><span class="pl-stage-label">PARSE</span><span class="pl-stage-desc">解析文件结构</span></div>
+        <div class="pl-stage" data-stage="norm"><span class="pl-stage-num">02</span><span class="pl-stage-label">NORMALIZE</span><span class="pl-stage-desc">字段标准化</span></div>
+        <div class="pl-stage" data-stage="match"><span class="pl-stage-num">03</span><span class="pl-stage-label">MATCH</span><span class="pl-stage-desc">匹配数据库</span></div>
+        <div class="pl-stage" data-stage="audit"><span class="pl-stage-num">04</span><span class="pl-stage-label">AUDIT</span><span class="pl-stage-desc">异常检测</span></div>
+        <div class="pl-stage" data-stage="commit"><span class="pl-stage-num">05</span><span class="pl-stage-label">COMMIT</span><span class="pl-stage-desc">写入仓库</span></div>
+      </div>
+    </div>
+  </section>
 
   <!-- 主区：异常处理 -->
   <div class="panel" id="warnPanel">
