@@ -393,3 +393,88 @@
 .attn-cell-ops .attn-op:hover { border-color: var(--accent); color: var(--accent); }
 .attn-cell-ops .attn-op-danger { color: var(--error); border-color: rgba(255,59,107,.40); }
 .attn-cell-ops .attn-op-danger:hover { border-color: var(--error); }
+
+/* PR-FE-7b：DayEditor popover */
+.attn-cell { cursor: pointer; }
+.attn-cell--out, .attn-cell--pre-join,
+.attn-cell--sunday, .attn-cell--holiday { cursor: default; }
+
+.attn-pop {
+  position: fixed;
+  z-index: 1000;
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, .45);
+  padding: 12px;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* 比 .attn-pop 特异性高 → attn-hidden 才能真生效 */
+.attn-pop.attn-hidden { display: none; }
+.attn-pop-hd {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-2);
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 8px;
+}
+
+.attn-pop-status, .attn-pop-quick, .attn-pop-foot {
+  display: flex;
+  gap: 6px;
+}
+.attn-pop-times {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.attn-pop-times input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 5px 8px;
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--ink-0);
+  text-align: center;
+}
+.attn-pop-times input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.attn-pop-arr { color: var(--ink-3); font-family: var(--mono); }
+
+.attn-pop-btn,
+.attn-pop-btn-quick {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 4px 10px;
+  border-radius: var(--r-sm);
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  color: var(--ink-1);
+  cursor: pointer;
+  flex: 1;
+}
+.attn-pop-btn:hover,
+.attn-pop-btn-quick:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.attn-pop-btn-primary {
+  background: var(--accent);
+  color: var(--bg-0);
+  border-color: var(--accent);
+  flex: 0 0 auto;
+}
+.attn-pop-btn-primary:hover { background: var(--accent-dim); border-color: var(--accent-dim); color: var(--bg-0); }
+.attn-pop-btn-danger { color: var(--error); border-color: rgba(255,59,107,.35); }
+.attn-pop-btn-danger:hover { border-color: var(--error); color: var(--error); }
+.attn-pop-foot { justify-content: flex-end; }
+.attn-pop-foot .attn-pop-btn { flex: 0 0 auto; }

@@ -134,6 +134,28 @@
             <button class="attn-btn" id="attnHolidayClose">关闭</button>
           </div>
         </div>
+      </div>
+      <div class="attn-pop attn-hidden" id="attnPop">
+        <div class="attn-pop-hd" id="attnPopHd"></div>
+        <div class="attn-pop-status">
+          <button class="attn-pop-btn" data-pop="normal">正常</button>
+          <button class="attn-pop-btn" data-pop="leave">请假</button>
+          <button class="attn-pop-btn attn-pop-btn-danger" data-pop="clear">清除</button>
+        </div>
+        <div class="attn-pop-times">
+          <input type="text" id="attnPopStart" maxlength="5" placeholder="HH:MM">
+          <span class="attn-pop-arr">→</span>
+          <input type="text" id="attnPopEnd" maxlength="5" placeholder="HH:MM">
+          <button class="attn-pop-btn attn-pop-btn-primary" data-pop="save">保存</button>
+        </div>
+        <div class="attn-pop-quick">
+          <button class="attn-pop-btn-quick" data-quick="standard">按标准</button>
+          <button class="attn-pop-btn-quick" data-quick="am">上半天</button>
+          <button class="attn-pop-btn-quick" data-quick="pm">下半天</button>
+        </div>
+        <div class="attn-pop-foot">
+          <button class="attn-pop-btn" data-pop="cancel">取消</button>
+        </div>
       </div>`;
 
     document.getElementById('attnEmpNew').addEventListener('click', createEmployee);
@@ -170,6 +192,7 @@
 
     document.getElementById('attnMonth').value = new Date().toISOString().slice(0, 7);
     currentMonth = document.getElementById('attnMonth').value;
+    bindPopover();
     loadEmployees();
   }
 
@@ -286,22 +309,6 @@
     return '—';
   }
 
-  function buildCellOps(r) {
-    if (r.status === 'pre_join' || isAutoStatus(r.status)) return '';
-    if (r.status === 'leave') {
-      return `<div class="attn-cell-ops">
-        <button class="attn-op attn-op-danger attn-leave-clear" data-date="${r.date}">取消</button>
-      </div>`;
-    }
-    const isSpecial = r.status === 'special' || r.status === 'special_absent';
-    const fillStart = isSpecial ? r.special_start : '09:30';
-    const fillEnd = isSpecial ? r.special_end : '20:00';
-    return `<div class="attn-cell-ops">
-      <button class="attn-op attn-fill" data-date="${r.date}" data-start="${fillStart}" data-end="${fillEnd}">按标准</button>
-      <button class="attn-op attn-leave-add" data-date="${r.date}">请假</button>
-    </div>`;
-  }
-
   function buildCellHtml(r) {
     const dayNum = parseInt(r.date.slice(8, 10), 10);
     const st = deriveCellStatus(r);
@@ -319,7 +326,6 @@
         ${fracText}
         <div class="attn-cell-st">${st.label}</div>
       </div>
-      ${buildCellOps(r)}
     </div>`;
   }
 
@@ -341,15 +347,14 @@
     </div>`;
   }
 
-  function bindCellOps(wrap) {
-    wrap.querySelectorAll('.attn-fill').forEach((btn) => {
-      btn.addEventListener('click', () => fillNormal(btn.dataset.date, btn.dataset.start, btn.dataset.end));
-    });
-    wrap.querySelectorAll('.attn-leave-add').forEach((btn) => {
-      btn.addEventListener('click', () => addLeave(btn.dataset.date));
-    });
-    wrap.querySelectorAll('.attn-leave-clear').forEach((btn) => {
-      btn.addEventListener('click', () => clearLeave(btn.dataset.date));
+  function bindCellClicks(wrap) {
+    wrap.querySelectorAll('.attn-cell[data-date]').forEach((cell) => {
+      // 不可编辑态：跳过
+      if (cell.classList.contains('attn-cell--out')) return;
+      if (cell.classList.contains('attn-cell--pre-join')) return;
+      if (cell.classList.contains('attn-cell--sunday')) return;
+      if (cell.classList.contains('attn-cell--holiday')) return;
+      cell.addEventListener('click', () => openPopover(cell.dataset.date, cell));
     });
   }
 
@@ -357,7 +362,142 @@
     const wrap = document.getElementById('attnGridWrap');
     wrap.classList.add('attn-grid-wrap');
     wrap.innerHTML = buildCalendarHtml(detail);
-    bindCellOps(wrap);
+    bindCellClicks(wrap);
+  }
+
+  // ===== PR-FE-7b：DayEditor popover =====
+
+  let _popDate = '';
+
+  function detailFor(date) {
+    if (!currentSummary || !Array.isArray(currentSummary.detail)) return null;
+    return currentSummary.detail.find((r) => r.date === date) || null;
+  }
+
+  function defaultTimes(r) {
+    const isSpecial = r && (r.status === 'special' || r.status === 'special_absent');
+    return {
+      start: isSpecial ? r.special_start : '09:30',
+      end: isSpecial ? r.special_end : '20:00',
+    };
+  }
+
+  function positionPopover(pop, anchor) {
+    const ar = anchor.getBoundingClientRect();
+    const margin = 8;
+    pop.style.visibility = 'hidden';
+    pop.classList.remove('attn-hidden');
+    const pr = pop.getBoundingClientRect();
+    let top = ar.bottom + margin;
+    if (top + pr.height > window.innerHeight - margin) {
+      top = Math.max(margin, ar.top - margin - pr.height);
+    }
+    let left = ar.left;
+    if (left + pr.width > window.innerWidth - margin) {
+      left = window.innerWidth - margin - pr.width;
+    }
+    if (left < margin) left = margin;
+    pop.style.top = `${top}px`;
+    pop.style.left = `${left}px`;
+    pop.style.visibility = '';
+  }
+
+  function openPopover(date, anchor) {
+    const r = detailFor(date);
+    if (!r) return;
+    _popDate = date;
+    const pop = document.getElementById('attnPop');
+    const def = defaultTimes(r);
+    document.getElementById('attnPopHd').textContent = `${date} · 周${r.weekday}`;
+    document.getElementById('attnPopStart').value = r.start || '';
+    document.getElementById('attnPopEnd').value = r.end || '';
+    document.getElementById('attnPopStart').placeholder = def.start;
+    document.getElementById('attnPopEnd').placeholder = def.end;
+    positionPopover(pop, anchor);
+  }
+
+  function closePopover() {
+    _popDate = '';
+    document.getElementById('attnPop').classList.add('attn-hidden');
+  }
+
+  async function popoverAction(action) {
+    if (!_popDate) return;
+    if (action === 'cancel') { closePopover(); return; }
+    if (action === 'leave') {
+      const date = _popDate;
+      closePopover();
+      addLeave(date);
+      return;
+    }
+    if (action === 'clear') {
+      const r = detailFor(_popDate);
+      if (r && r.status === 'leave') {
+        const date = _popDate;
+        closePopover();
+        await clearLeave(date);
+      } else {
+        await saveCellTimes(_popDate, '', '');
+        closePopover();
+      }
+      return;
+    }
+    if (action === 'normal') {
+      const r = detailFor(_popDate);
+      const def = defaultTimes(r);
+      const ok = await saveCellTimes(_popDate, def.start, def.end);
+      if (ok) closePopover();
+      return;
+    }
+    if (action === 'save') {
+      const start = document.getElementById('attnPopStart').value;
+      const end = document.getElementById('attnPopEnd').value;
+      const ok = await saveCellTimes(_popDate, start, end);
+      if (ok) closePopover();
+    }
+  }
+
+  async function popoverQuickFill(kind) {
+    if (!_popDate) return;
+    let start;
+    let end;
+    if (kind === 'standard') {
+      const r = detailFor(_popDate);
+      const def = defaultTimes(r);
+      start = def.start;
+      end = def.end;
+    } else if (kind === 'am') {
+      start = '09:30';
+      end = '14:00';
+    } else if (kind === 'pm') {
+      start = '14:00';
+      end = '20:00';
+    } else {
+      return;
+    }
+    document.getElementById('attnPopStart').value = start;
+    document.getElementById('attnPopEnd').value = end;
+    const ok = await saveCellTimes(_popDate, start, end);
+    if (ok) closePopover();
+  }
+
+  function bindPopover() {
+    const pop = document.getElementById('attnPop');
+    pop.addEventListener('click', (e) => {
+      const popBtn = e.target.closest('[data-pop]');
+      if (popBtn) { popoverAction(popBtn.dataset.pop); return; }
+      const quickBtn = e.target.closest('[data-quick]');
+      if (quickBtn) popoverQuickFill(quickBtn.dataset.quick);
+    });
+    document.addEventListener('click', (e) => {
+      if (!_popDate) return;
+      if (e.target.closest('#attnPop')) return;
+      if (e.target.closest('.attn-cell[data-date]')) return; // 让 cell click 自己换 anchor
+      closePopover();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && _popDate) closePopover();
+    });
   }
 
   let pendingLeaveDate = '';
@@ -544,14 +684,34 @@
     await loadMonth();
   }
 
+  async function saveCellTimes(date, start, end) {
+    const s = normalizeTime(start);
+    const e = normalizeTime(end);
+    const timeRe = /^([01]\d|2[0-3]):([0-5]\d)$/;
+    if (!s && !e) {
+      await fetch(`/attendance/day/${currentEmployeeId}/${date}`, { method: 'DELETE' });
+    } else if (s && e) {
+      if (!timeRe.test(s) || !timeRe.test(e)) {
+        alert('时间格式错误，请按 HH:MM 填写（如 09:30）');
+        return false;
+      }
+      const res = await fetch(`/attendance/day/${currentEmployeeId}/${date}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ start: s, end: e }),
+      });
+      const body = await res.json();
+      if (!body.ok) { alert(body.msg); return false; }
+    } else {
+      alert('开始和结束时间需都填或都空');
+      return false;
+    }
+    await loadMonth();
+    return true;
+  }
+
   async function fillNormal(date, start, end) {
-    const row = document.querySelector(`tr[data-date="${date}"]`);
-    if (!row) return;
-    const startInp = row.querySelector('input[data-field="start"]');
-    const endInp = row.querySelector('input[data-field="end"]');
-    if (startInp) startInp.value = start || '09:30';
-    if (endInp) endInp.value = end || '20:00';
-    await onCellChange(date);
+    await saveCellTimes(date, start || '09:30', end || '20:00');
   }
 
   async function fillAllNormal() {
@@ -604,36 +764,6 @@
     if (digits.length === 3) return `0${digits[0]}:${digits.slice(1)}`;
     if (digits.length === 4) return `${digits.slice(0, 2)}:${digits.slice(2)}`;
     return s;
-  }
-
-  async function onCellChange(date) {
-    const row = document.querySelector(`tr[data-date="${date}"]`);
-    if (!row) return;
-    const startInp = row.querySelector('input[data-field="start"]');
-    const endInp = row.querySelector('input[data-field="end"]');
-    if (startInp) startInp.value = normalizeTime(startInp.value);
-    if (endInp) endInp.value = normalizeTime(endInp.value);
-    const start = startInp ? startInp.value : '';
-    const end = endInp ? endInp.value : '';
-    const timeRe = /^([01]\d|2[0-3]):([0-5]\d)$/;
-    if (!start && !end) {
-      await fetch(`/attendance/day/${currentEmployeeId}/${date}`, { method: 'DELETE' });
-    } else if (start && end) {
-      if (!timeRe.test(start) || !timeRe.test(end)) {
-        alert('时间格式错误，请按 HH:MM 填写（如 09:30）');
-        return;
-      }
-      const res = await fetch(`/attendance/day/${currentEmployeeId}/${date}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ start, end }),
-      });
-      const body = await res.json();
-      if (!body.ok) { alert(body.msg); return; }
-    } else {
-      return;
-    }
-    await loadMonth();
   }
 
   function updateStats(summary) {
