@@ -233,25 +233,48 @@
   border: 1px solid var(--c-border);
 }
 
+/* PR-FE-4c：汇总卡 DataOps 风格化（左 accent 条 + mono label + display 数字） */
 .rc-summary-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
+  gap: 10px;
   margin-bottom: 8px;
 }
 .rc-summary-cell {
-  padding: 12px;
-  text-align: center;
-  border: 1px solid var(--c-border);
+  padding: 12px 14px;
+  text-align: left;
+  border: 1px solid var(--line-soft, var(--c-border));
+  border-left: 2px solid var(--line);
   border-radius: var(--r-md);
-  background: transparent;
+  background: var(--bg-1, var(--c-surface));
   cursor: pointer;
   font: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  transition: border-color var(--t-fast), background var(--t-fast);
 }
-.rc-summary-cell:hover { background: var(--c-accent-soft); }
-.rc-summary-icon { font-size: 18px; }
-.rc-summary-num { font-size: 22px; font-weight: 700; line-height: 1.2; }
-.rc-summary-label { font-size: var(--fs-md); color: var(--c-text-dim); }
+.rc-summary-cell:hover {
+  border-left-color: var(--accent);
+  background: var(--bg-2, var(--c-surface));
+}
+.rc-summary-icon { font-size: 14px; opacity: .7; }
+.rc-summary-num {
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink-0);
+  font-variant-numeric: tabular-nums;
+}
+.rc-summary-label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
 .rc-summary-foot {
   font-size: var(--fs-md);
   color: var(--c-text-dim);
@@ -301,10 +324,19 @@ body[data-theme="light"] .rc-chip--active {
 .rc-row:hover { background: var(--color-surface-hover, var(--bg-3)); }
 .rc-time { color: var(--c-text-dim); font-variant-numeric: tabular-nums; }
 
-.rc-tag { padding: 1px 8px; border-radius: var(--r-pill); background: var(--c-accent-soft); font-size: 12px; }
-.rc-tag--insert { background: rgba(0,255,149,.14); color: var(--accent); }
-.rc-tag--del { background: rgba(255,59,107,.14); color: var(--error); }
-.rc-tag--ok { background: rgba(78,163,255,.14); color: var(--info); }
+.rc-tag {
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--ink-1);
+}
+.rc-tag--insert { background: rgba(0,255,149,.10);  border-color: rgba(0,255,149,.35);  color: var(--accent); }
+.rc-tag--del    { background: rgba(255,59,107,.10); border-color: rgba(255,59,107,.35); color: var(--error); }
+.rc-tag--ok     { background: rgba(78,163,255,.10); border-color: rgba(78,163,255,.35); color: var(--info); }
 
 .rc-empty, .rc-error {
   padding: 24px;
