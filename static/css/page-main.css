@@ -43,8 +43,13 @@
 #stockpilePanel { flex: 1; min-height: 0; }
 .stockpile-search-results { max-height: 200px; overflow-y: auto; margin-top: 6px; }
 
-/* ========== Page: 重复检查 ========== */
-#pageDup.active { grid-template-columns: 1fr; height: 100%; }
+/* ========== Page: 重复检查 ==========
+   和其它顶级页一致：block + 显式高度 + overflow 才滚得动（默认 grid 不滚） */
+#pageDup.active {
+  display: block;
+  overflow: auto;
+  height: calc(100vh - 122px);
+}
 
 @media (max-width: 1100px) {
   .page-main-grid { grid-template-columns: 1fr; }
