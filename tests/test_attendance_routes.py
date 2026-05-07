@@ -229,6 +229,46 @@ class AttendanceRoutesTests(unittest.TestCase):
         rv = self.client.post("/attendance/holidays/import-year/abc")
         self.assertIn(rv.status_code, (400, 404))
 
+    # ---------- /fill-rates/<month> (PR-FE-7d-2) ----------
+
+    def test_fill_rates_empty_no_employees(self) -> None:
+        rv = self.client.get("/attendance/fill-rates/2026-04")
+        self.assertEqual(rv.status_code, 200)
+        body = rv.get_json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["employees"], [])
+
+    def test_fill_rates_returns_per_employee_stats(self) -> None:
+        emp = self.client.post("/attendance/employees", json={"name": "张三"}).get_json()
+        eid = emp["employee"]["id"]
+        rv = self.client.get("/attendance/fill-rates/2026-04")
+        self.assertEqual(rv.status_code, 200)
+        body = rv.get_json()
+        self.assertEqual(len(body["employees"]), 1)
+        row = body["employees"][0]
+        self.assertEqual(row["id"], eid)
+        self.assertEqual(row["name"], "张三")
+        self.assertIn("filled", row)
+        self.assertIn("total", row)
+        self.assertIn("rate", row)
+        # 没填任何天 → filled=0
+        self.assertEqual(row["filled"], 0)
+        self.assertGreater(row["total"], 0)
+        self.assertEqual(row["rate"], 0.0)
+
+    def test_fill_rates_reflects_filled_days(self) -> None:
+        emp = self.client.post("/attendance/employees", json={"name": "李四"}).get_json()
+        eid = emp["employee"]["id"]
+        # 填 1 天
+        self.client.post(
+            f"/attendance/day/{eid}/2026-04-01",
+            json={"start": "09:30", "end": "20:00"},
+        )
+        rv = self.client.get("/attendance/fill-rates/2026-04")
+        row = rv.get_json()["employees"][0]
+        self.assertGreater(row["filled"], 0)
+        self.assertGreater(row["rate"], 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()

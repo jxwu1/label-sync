@@ -62,7 +62,13 @@
           <span class="attn-spacer"></span>
           <button class="attn-batch-btn" id="attnBatchCancel">取消选择 <kbd>Esc</kbd></button>
         </div>
-        <div id="attnGridWrap"></div>
+        <div class="attn-main">
+          <div id="attnGridWrap"></div>
+          <aside class="attn-rail" id="attnRail">
+            <div class="attn-rail-hd">员工 <span class="attn-rail-count" id="attnRailCount">0</span></div>
+            <div class="attn-rail-list" id="attnRailList"></div>
+          </aside>
+        </div>
       </div>
       <div class="pur-modal-overlay attn-hidden" id="attnSpecialOverlay">
         <div class="pur-modal">
@@ -220,6 +226,7 @@
     currentMonth = document.getElementById('attnMonth').value;
     bindPopover();
     bindBatchBar();
+    window.addEventListener('resize', syncRailHeight);
     loadEmployees();
   }
 
@@ -236,13 +243,61 @@
       currentEmployeeId = employees[0].id;
       document.getElementById('attnEmployee').value = currentEmployeeId;
     }
-    loadMonth();
+    await loadMonth();
   }
 
   function renderEmployeeSelect() {
     const sel = document.getElementById('attnEmployee');
     sel.innerHTML = employees.map(e => `<option value="${e.id}">${escapeHtml(e.name)}</option>`).join('');
     if (currentEmployeeId) sel.value = currentEmployeeId;
+  }
+
+  // ===== PR-FE-7d-2：员工 rail（右侧栏 + 月填写率） =====
+
+  async function refreshRail() {
+    if (!currentMonth) return;
+    let rates = [];
+    try {
+      const res = await fetch(`/attendance/fill-rates/${currentMonth}`);
+      const body = await res.json();
+      if (body.ok) rates = body.employees;
+    } catch {
+      rates = [];
+    }
+    renderRail(rates);
+  }
+
+  function renderRail(rates) {
+    const list = document.getElementById('attnRailList');
+    document.getElementById('attnRailCount').textContent = rates.length;
+    if (!rates.length) {
+      list.innerHTML = '<div class="attn-rail-empty">暂无员工</div>';
+      return;
+    }
+    list.innerHTML = rates.map((r) => {
+      const pct = Math.round((r.rate || 0) * 100);
+      const active = r.id === currentEmployeeId ? ' is-active' : '';
+      const fillCls = pct >= 100 ? ' attn-rail-bar-fill--full'
+                    : pct >= 70 ? ' attn-rail-bar-fill--ok'
+                    : pct >= 30 ? ' attn-rail-bar-fill--mid'
+                    : ' attn-rail-bar-fill--low';
+      return `<button class="attn-rail-item${active}" data-emp-id="${r.id}">
+        <div class="attn-rail-name">${escapeHtml(r.name)}</div>
+        <div class="attn-rail-bar"><div class="attn-rail-bar-fill${fillCls}" style="width:${pct}%"></div></div>
+        <div class="attn-rail-meta">${r.filled} / ${r.total} 天 · ${pct}%</div>
+      </button>`;
+    }).join('');
+    list.querySelectorAll('.attn-rail-item').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.empId;
+        if (id === currentEmployeeId) return;
+        currentEmployeeId = id;
+        document.getElementById('attnEmployee').value = id;
+        _selectedDates.clear();
+        _lastClickDate = null;
+        loadMonth();
+      });
+    });
   }
 
   async function createEmployee() {
@@ -294,6 +349,7 @@
     if (!currentEmployeeId || !currentMonth) {
       wrap.innerHTML = '<div class="attn-empty-msg">请先选择员工和月份</div>';
       updateStats(null);
+      refreshRail();
       return;
     }
     try {
@@ -304,6 +360,7 @@
       renderCalendar(body.detail);
       updateStats(body);
     } catch (e) { wrap.innerHTML = `<div class="attn-error-msg">加载失败：${e.message}</div>`; }
+    refreshRail();
   }
 
   // ===== PR-FE-7a：日历视图渲染 =====
@@ -455,6 +512,25 @@
     wrap.innerHTML = buildCalendarHtml(detail);
     bindCellClicks(wrap);
     syncSelectionUI();
+    observeCalendarHeight();
+  }
+
+  function syncRailHeight() {
+    const cal = document.querySelector('.attn-cal');
+    const rail = document.getElementById('attnRail');
+    if (!cal || !rail) return;
+    const h = cal.offsetHeight;
+    if (h > 0) rail.style.maxHeight = h + 'px';
+  }
+
+  let _calHeightObserver = null;
+  function observeCalendarHeight() {
+    if (_calHeightObserver) _calHeightObserver.disconnect();
+    const cal = document.querySelector('.attn-cal');
+    if (!cal) return;
+    // ResizeObserver 在 cal 任何尺寸变化（包括从 display:none 变可见）时触发
+    _calHeightObserver = new ResizeObserver(syncRailHeight);
+    _calHeightObserver.observe(cal);
   }
 
   // ===== PR-FE-7b：DayEditor popover =====
