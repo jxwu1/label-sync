@@ -5,6 +5,30 @@ const $ = (selector) => document.querySelector(selector);
 
 export function initWarnings() {}
 
+// PR-FE-8b：异常类型 → 严重度 / code 映射（视觉换皮，数据模型不变）
+const EX_CAT = {
+  bc_len:    { sev: "high", code: "BC.LEN" },
+  bc_resolved: { sev: "low", code: "BC.LEN" },
+  loc_fmt:   { sev: "med",  code: "LOC.FMT" },
+  loc_resolved: { sev: "low", code: "LOC.FMT" },
+  bc_new:    { sev: "low",  code: "BC.NEW" },
+  bc_new_header: { sev: "low", code: "BC.NEW" },
+  loc_unknown: { sev: "med", code: "LOC.UNKNOWN" },
+  loc_no_store: { sev: "med", code: "LOC.NOSTORE" },
+  loc_multi: { sev: "med",  code: "LOC.MULTI" },
+  generic:   { sev: "med",  code: "EX.OTHER" },
+  resolved:  { sev: "low",  code: "EX.DONE" },
+};
+
+function exCard(cat, attrs, innerHtml) {
+  const meta = EX_CAT[cat] || EX_CAT.generic;
+  const attrStr = attrs ? " " + attrs : "";
+  return `<div class="warn ex-card" data-ex-sev="${meta.sev}"${attrStr}>
+    <div class="ex-meta"><span class="ex-dot"></span><span class="ex-code">${meta.code}</span></div>
+    ${innerHtml}
+  </div>`;
+}
+
 export function waitMsg(stage) {
   if (stage === "anomaly" || stage === "phase1_barcode") return "发现异常条码，请校正、删除或忽略后继续处理";
   if (stage === "location_format" || stage === "phase1_location") return "发现库位格式异常，请手工校正后继续处理";
@@ -15,25 +39,25 @@ export function waitMsg(stage) {
 function renderBarcodes(items) {
   if (!items.length) return '<div class="empty">暂无异常条码</div>';
   return items.map((warning, index) => {
-    if (warning.deleted) return `<div class="warn"><div class="row"><div class="col"><span class="code code--struck">${esc(warning.barcode)}</span></div><span class="tag-del">已删除</span></div></div>`;
-    if (warning.corrected) return `<div class="warn"><div class="row"><div class="col"><span class="code code--struck">${esc(warning.barcode)}</span></div><span class="tag-ok">已校正为 ${esc(warning.new_barcode || "")}</span></div></div>`;
-    return `<div class="warn" id="bc_${index}"><div class="row"><div class="col"><span class="code">${esc(warning.barcode)}</span><span class="sub">长度 ${warning.length} 位，正常长度 ${warning.normal} 位</span></div><div class="actions"><button class="btn-s is-warn" onclick="showBc(${index})">校正</button><button class="btn-s is-danger" onclick="delBc('${jesc(warning.barcode)}',${index})">删除</button><button class="btn-s is-ghost" onclick="ignoreBc(${index})">忽略</button></div></div><div class="form" id="bcf_${index}"><input id="bci_${index}" placeholder="输入正确条码"><button class="btn-s is-warn-solid" onclick="submitBc('${jesc(warning.barcode)}',${index})">确认</button><button class="btn-s is-ghost-strong" onclick="hideBc(${index})">取消</button></div></div>`;
+    if (warning.deleted) return exCard("resolved", "", `<div class="row"><div class="col"><span class="code code--struck">${esc(warning.barcode)}</span></div><span class="tag-del">已删除</span></div>`);
+    if (warning.corrected) return exCard("resolved", "", `<div class="row"><div class="col"><span class="code code--struck">${esc(warning.barcode)}</span></div><span class="tag-ok">已校正为 ${esc(warning.new_barcode || "")}</span></div>`);
+    return exCard("bc_len", `id="bc_${index}"`, `<div class="row"><div class="col"><span class="code">${esc(warning.barcode)}</span><span class="sub">长度 ${warning.length} 位，正常长度 ${warning.normal} 位</span></div><div class="actions"><button class="btn-s is-warn" onclick="showBc(${index})">校正</button><button class="btn-s is-danger" onclick="delBc('${jesc(warning.barcode)}',${index})">删除</button><button class="btn-s is-ghost" onclick="ignoreBc(${index})">忽略</button></div></div><div class="form" id="bcf_${index}"><input id="bci_${index}" placeholder="输入正确条码"><button class="btn-s is-warn-solid" onclick="submitBc('${jesc(warning.barcode)}',${index})">确认</button><button class="btn-s is-ghost-strong" onclick="hideBc(${index})">取消</button></div>`);
   }).join("");
 }
 
 function renderLocs(items) {
   if (!items.length) return '<div class="empty">暂无库位异常</div>';
   return items.map((warning, index) => {
-    if (warning.corrected) return `<div class="warn"><div class="row"><div class="col"><span class="code loc code--struck">${esc(warning.location)}</span></div><span class="tag-ok">已校正为 ${esc(warning.new_location || "")}</span></div></div>`;
-    return `<div class="warn"><div class="row"><div class="col"><span class="code loc">${esc(warning.location)}</span><span class="sub">库位格式不符合要求，请手工校正</span></div><div class="actions"><button class="btn-s is-warn" onclick="showLoc(${index})">校正库位</button></div></div><div class="form" id="lf_${index}"><input id="li_${index}" placeholder="输入正确库位，例如 A01"><button class="btn-s is-warn-solid" onclick="submitLoc('${jesc(warning.location)}',${index})">确认</button><button class="btn-s is-ghost-strong" onclick="hideLoc(${index})">取消</button></div></div>`;
+    if (warning.corrected) return exCard("resolved", "", `<div class="row"><div class="col"><span class="code loc code--struck">${esc(warning.location)}</span></div><span class="tag-ok">已校正为 ${esc(warning.new_location || "")}</span></div>`);
+    return exCard("loc_fmt", "", `<div class="row"><div class="col"><span class="code loc">${esc(warning.location)}</span><span class="sub">库位格式不符合要求，请手工校正</span></div><div class="actions"><button class="btn-s is-warn" onclick="showLoc(${index})">校正库位</button></div></div><div class="form" id="lf_${index}"><input id="li_${index}" placeholder="输入正确库位，例如 A01"><button class="btn-s is-warn-solid" onclick="submitLoc('${jesc(warning.location)}',${index})">确认</button><button class="btn-s is-ghost-strong" onclick="hideLoc(${index})">取消</button></div>`);
   }).join("");
 }
 
 function renderNew(items) {
   if (!items.length) return "";
-  const header = `<div class="warn"><div class="row"><div class="col"><span class="sub">以下条码未在 stockpile 中找到，可校正、删除或保留后继续：</span></div><div class="actions"><button class="btn-s is-warn" id="nbcopyall" onclick="copyAllNewBc()">一键复制</button></div></div></div>`;
+  const header = exCard("bc_new_header", "", `<div class="row"><div class="col"><span class="sub">以下条码未在 stockpile 中找到，可校正、删除或保留后继续：</span></div><div class="actions"><button class="btn-s is-warn" id="nbcopyall" onclick="copyAllNewBc()">一键复制</button></div></div>`);
   return header + items.map((barcode, index) =>
-    `<div class="warn" id="nb_${index}"><div class="row"><div class="col"><span class="code">${esc(barcode)}</span></div><div class="actions"><button class="btn-s is-warn" onclick="showNbEdit(${index})">校正</button><button class="btn-s is-danger" onclick="delNewBc('${jesc(barcode)}',${index})">删除</button></div></div><div class="form" id="nbf_${index}"><input id="nbi_${index}" placeholder="输入正确条码"><button class="btn-s is-warn-solid" onclick="submitNewBc('${jesc(barcode)}',${index})">确认</button><button class="btn-s is-ghost-strong" onclick="hideNbEdit(${index})">取消</button></div></div>`
+    exCard("bc_new", `id="nb_${index}"`, `<div class="row"><div class="col"><span class="code">${esc(barcode)}</span></div><div class="actions"><button class="btn-s is-warn" onclick="showNbEdit(${index})">校正</button><button class="btn-s is-danger" onclick="delNewBc('${jesc(barcode)}',${index})">删除</button></div></div><div class="form" id="nbf_${index}"><input id="nbi_${index}" placeholder="输入正确条码"><button class="btn-s is-warn-solid" onclick="submitNewBc('${jesc(barcode)}',${index})">确认</button><button class="btn-s is-ghost-strong" onclick="hideNbEdit(${index})">取消</button></div>`)
   ).join("");
 }
 
@@ -120,7 +144,7 @@ function renderUnknownPrefixCard(warning) {
   const key = barcode.replace(/\W/g, "_");
   const inputId = `exli_${key}`;
   const buttonId = `exlf_${key}`;
-  return `<div class="warn"><div class="row"><div class="col"><span class="code">${esc(barcode)}</span><span class="sub text-warn-amber">${esc(warning.reason)}</span></div></div><div class="actions u-mt-2"><input id="${inputId}" class="form-input-text" placeholder="填写正确库位" /><button id="${buttonId}" class="btn-s is-warn-solid" onclick="submitExLoc('${jesc(barcode)}','${inputId}','${buttonId}')">提交新库位</button><button class="btn-s is-danger" onclick="resolveEx('${jesc(barcode)}','ignore')">删除</button></div></div>`;
+  return exCard("loc_unknown", "", `<div class="row"><div class="col"><span class="code">${esc(barcode)}</span><span class="sub text-warn-amber">${esc(warning.reason)}</span></div></div><div class="actions u-mt-2"><input id="${inputId}" class="form-input-text" placeholder="填写正确库位" /><button id="${buttonId}" class="btn-s is-warn-solid" onclick="submitExLoc('${jesc(barcode)}','${inputId}','${buttonId}')">提交新库位</button><button class="btn-s is-danger" onclick="resolveEx('${jesc(barcode)}','ignore')">删除</button></div>`);
 }
 
 function renderNoStoreCard(warning) {
@@ -135,19 +159,19 @@ function renderNoStoreCard(warning) {
     scanWh ? `扫描仓库：${scanWh}` : "",
     stockWh ? `系统仓库：${stockWh}` : "",
   ].filter(Boolean).join(" / ");
-  return `<div class="warn"><div class="row"><div class="col"><span class="code">${esc(barcode)}</span><span class="sub text-warn-amber">缺少店面位置${whInfo ? "，当前 " + whInfo : ""}</span></div></div><div class="actions u-mt-2"><input id="${inputId}" class="form-input-text" placeholder="填写店面位置，如 A-01-01" /><button id="${buttonId}" class="btn-s is-warn-solid" onclick="submitNoStore('${jesc(barcode)}','${jesc(warehouseOnly)}','${inputId}','${buttonId}')">填充店面</button><button class="btn-s is-danger" onclick="resolveEx('${jesc(barcode)}','${jesc(warehouseOnly)}')">仅保留仓库</button></div></div>`;
+  return exCard("loc_no_store", "", `<div class="row"><div class="col"><span class="code">${esc(barcode)}</span><span class="sub text-warn-amber">缺少店面位置${whInfo ? "，当前 " + whInfo : ""}</span></div></div><div class="actions u-mt-2"><input id="${inputId}" class="form-input-text" placeholder="填写店面位置，如 A-01-01" /><button id="${buttonId}" class="btn-s is-warn-solid" onclick="submitNoStore('${jesc(barcode)}','${jesc(warehouseOnly)}','${inputId}','${buttonId}')">填充店面</button><button class="btn-s is-danger" onclick="resolveEx('${jesc(barcode)}','${jesc(warehouseOnly)}')">仅保留仓库</button></div>`);
 }
 
 function renderP2Warnings(items) {
   if (!items.length) return "";
-  return '<div class="warn"><div class="col"><span class="sub text-danger-light">以下条码存在数据异常，请选择处理方式后继续：</span></div></div>' +
-    items.map((warning) => {
-      if (warning.resolved) return `<div class="warn"><div class="row"><div class="col"><span class="code code--struck">${esc(warning.barcode)}</span><span class="sub">${esc(warning.reason)}</span></div><span class="${warning.resolution === "ignore" ? "tag-del" : "tag-ok"}">${warning.resolution === "ignore" ? "已忽略" : "已选 " + esc(warning.resolution)}</span></div></div>`;
-      if (warning.reason === "multi_location") return renderDupCard(warning);
-      if (warning.reason === "no_store_location") return renderNoStoreCard(warning);
-      if (isUnknownPrefixWarning(warning)) return renderUnknownPrefixCard(warning);
-      return `<div class="warn"><div class="row"><div class="col"><span class="code">${esc(warning.barcode)}</span><span class="sub">${esc(warning.reason)}</span></div><div class="actions">${(warning.locations || []).map((loc) => `<button class="btn-s is-warn" onclick="resolveEx('${jesc(warning.barcode)}','${jesc(loc)}')">选 ${esc(loc)}</button>`).join("")}<button class="btn-s is-danger" onclick="resolveEx('${jesc(warning.barcode)}','ignore')">忽略</button></div></div></div>`;
-    }).join("");
+  const header = exCard("generic", "", `<div class="col"><span class="sub text-danger-light">以下条码存在数据异常，请选择处理方式后继续：</span></div>`);
+  return header + items.map((warning) => {
+    if (warning.resolved) return exCard("resolved", "", `<div class="row"><div class="col"><span class="code code--struck">${esc(warning.barcode)}</span><span class="sub">${esc(warning.reason)}</span></div><span class="${warning.resolution === "ignore" ? "tag-del" : "tag-ok"}">${warning.resolution === "ignore" ? "已忽略" : "已选 " + esc(warning.resolution)}</span></div>`);
+    if (warning.reason === "multi_location") return renderDupCard(warning);
+    if (warning.reason === "no_store_location") return renderNoStoreCard(warning);
+    if (isUnknownPrefixWarning(warning)) return renderUnknownPrefixCard(warning);
+    return exCard("generic", "", `<div class="row"><div class="col"><span class="code">${esc(warning.barcode)}</span><span class="sub">${esc(warning.reason)}</span></div><div class="actions">${(warning.locations || []).map((loc) => `<button class="btn-s is-warn" onclick="resolveEx('${jesc(warning.barcode)}','${jesc(loc)}')">选 ${esc(loc)}</button>`).join("")}<button class="btn-s is-danger" onclick="resolveEx('${jesc(warning.barcode)}','ignore')">忽略</button></div></div>`);
+  }).join("");
 }
 
 export function renderReview(data) {
