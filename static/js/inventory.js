@@ -176,18 +176,44 @@ async function refreshStats() {
     const data = await resp.json();
     if (!data.ok) return;
     const byType = data.customers_by_type || {};
+    const total = (byType.chinese || 0) + (byType.foreign || 0) +
+                  (byType.mixed || 0) + (byType.unknown || 0);
+    const seg = (n, color) => total > 0
+      ? `<span class="inv-bar__seg" style="width:${(n / total) * 100}%;background:${color}"></span>`
+      : "";
     $("invStats").innerHTML = `
-      <div class="inv-stats">
-        <div><b>事件总数：</b>${data.events_total}（采购 ${data.events_purchase} / 销售 ${data.events_sale}）</div>
-        <div><b>客户：</b>${data.customers_total}</div>
-        <div><b>供应商：</b>${data.suppliers_total}</div>
-        <div><b>SKU：</b>${data.skus_total}</div>
+      <div class="inv-stat-grid">
+        <div class="inv-stat-box inv-stat-box--accent">
+          <div class="inv-stat-k">事件总数</div>
+          <div class="inv-stat-v">${data.events_total.toLocaleString()}</div>
+          <div class="inv-stat-sub">采购 ${data.events_purchase.toLocaleString()} / 销售 ${data.events_sale.toLocaleString()}</div>
+        </div>
+        <div class="inv-stat-box inv-stat-box--info">
+          <div class="inv-stat-k">客户</div>
+          <div class="inv-stat-v">${data.customers_total.toLocaleString()}</div>
+        </div>
+        <div class="inv-stat-box">
+          <div class="inv-stat-k">供应商</div>
+          <div class="inv-stat-v">${data.suppliers_total.toLocaleString()}</div>
+        </div>
+        <div class="inv-stat-box inv-stat-box--accent">
+          <div class="inv-stat-k">SKU</div>
+          <div class="inv-stat-v">${data.skus_total.toLocaleString()}</div>
+        </div>
       </div>
-      <div class="inv-stats-sub">
-        <span>客户类型分布：</span>
-        ${Object.entries(byType)
-          .map(([k, v]) => `<span class="inv-badge">${escapeHtml(k)} ${v}</span>`)
-          .join("")}
+      <div class="inv-cust-types">
+        <div class="inv-cust-types__legend">
+          <span class="inv-cust-pill inv-cust-pill--cn">chinese · ${byType.chinese || 0}</span>
+          <span class="inv-cust-pill inv-cust-pill--fo">foreign · ${byType.foreign || 0}</span>
+          <span class="inv-cust-pill inv-cust-pill--mx">mixed · ${byType.mixed || 0}</span>
+          <span class="inv-cust-pill inv-cust-pill--un">unknown · ${byType.unknown || 0}</span>
+        </div>
+        <div class="inv-bar">
+          ${seg(byType.chinese || 0, "var(--accent)")}
+          ${seg(byType.foreign || 0, "var(--info)")}
+          ${seg(byType.mixed || 0, "var(--warn)")}
+          ${seg(byType.unknown || 0, "var(--ink-3)")}
+        </div>
       </div>
     `;
   } catch (err) {

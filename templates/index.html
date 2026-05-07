@@ -436,7 +436,12 @@
           </div>
         </div>
         <div class="panel">
-          <div class="panel-hd">本月记录 <span class="fc-count" id="fcRecordCount"></span></div>
+          <div class="panel-hd">
+            本月记录 <span class="fc-count" id="fcRecordCount"></span>
+            <div class="fc-actions">
+              <input class="fc-search" id="fcSearch" type="text" placeholder="搜索 客户名 / 税号...">
+            </div>
+          </div>
           <div class="panel-bd">
             <table class="fc-table">
               <thead><tr>
@@ -445,11 +450,12 @@
                 <th>税号</th>
                 <th>付款日期</th>
                 <th>托运日期</th>
+                <th>状态</th>
                 <th>备注</th>
                 <th>操作</th>
               </tr></thead>
               <tbody id="fcRecordsBody">
-                <tr><td colspan="7" class="empty">加载中...</td></tr>
+                <tr><td colspan="8" class="empty">加载中...</td></tr>
               </tbody>
             </table>
           </div>
@@ -478,8 +484,8 @@
           <div class="panel-hd">进销存导入</div>
           <div class="panel-bd">
             <div class="inv-row">
-              <label><input type="radio" name="invType" value="purchase" checked> 采购单 (.xls)</label>
-              <label><input type="radio" name="invType" value="sales"> 销售单 (.xls)</label>
+              <label class="inv-radio"><input type="radio" name="invType" value="purchase" checked> 采购单 (.xls)</label>
+              <label class="inv-radio"><input type="radio" name="invType" value="sales"> 销售单 (.xls)</label>
               <input type="file" id="invFile" accept=".xls,.xlsx,.html">
               <button class="btn btn-primary" id="invPreview">预览</button>
               <button class="btn btn-primary" id="invImport">执行导入</button>
