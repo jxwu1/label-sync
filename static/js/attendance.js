@@ -4,6 +4,21 @@
   let currentMonth = '';
   let currentSummary = null;
 
+  // PR-FE-7a：日历视图常量
+  const WEEKDAY_HEADERS = ['一', '二', '三', '四', '五', '六', '日'];
+  const WEEKDAY_INDEX = { '一': 0, '二': 1, '三': 2, '四': 3, '五': 4, '六': 5, '日': 6 };
+  const STATUS_LABEL = {
+    sunday: '周日', holiday: '节假日', absent: '缺勤', normal: '正常',
+    special: '特殊日', special_absent: '特殊缺勤', leave: '请假',
+    pre_join: '未入职', todo: '待填',
+  };
+  // 视觉 dot 用的 key（special_absent 折叠成 absent；空 → todo）
+  const STATUS_VISUAL_KEY = {
+    sunday: 'sunday', holiday: 'holiday', absent: 'absent', normal: 'normal',
+    special: 'special', special_absent: 'absent', leave: 'leave',
+    pre_join: 'pre-join',
+  };
+
   function init() {
     const page = document.getElementById('pageAttendance');
     if (!page) return;
@@ -232,117 +247,117 @@
       const body = await res.json();
       if (!body.ok) { wrap.innerHTML = `<div class="attn-error-msg">${body.msg}</div>`; return; }
       currentSummary = body;
-      renderGrid(body.detail);
+      renderCalendar(body.detail);
       updateStats(body);
     } catch (e) { wrap.innerHTML = `<div class="attn-error-msg">加载失败：${e.message}</div>`; }
   }
 
-  function renderGrid(detail) {
-    const wrap = document.getElementById('attnGridWrap');
-    wrap.classList.add('attn-grid-wrap');
-    const statusMap = { sunday: '周日', holiday: '节假日', absent: '缺勤', normal: '正常', special: '特殊日', special_absent: '特殊日缺勤', leave: '请假', pre_join: '未入职' };
-    const statusClsMap = { sunday: 'attn-st-sunday', holiday: 'attn-st-holiday', absent: 'attn-st-absent', normal: 'attn-st-normal', special: 'attn-st-special', special_absent: 'attn-st-special', leave: 'attn-st-leave', pre_join: 'attn-st-pre-join' };
+  // ===== PR-FE-7a：日历视图渲染 =====
 
-    const rows = detail.map(r => {
-      const isPreJoin = r.status === 'pre_join';
-      // 月底新来员工：入职日之前的天，灰色不可编辑，不参与任何计数
-      if (isPreJoin) {
-        return `<tr class="attn-pre-join" data-date="${r.date}">
-          <td><span class="attn-day">${r.date.slice(5)}</span><span class="attn-wk">周${r.weekday}</span></td>
-          <td><span class="attn-time-auto">未入职</span></td>
-          <td class="attn-frac">—</td>
-          <td><span class="attn-st attn-st-pre-join">未入职</span></td>
-        </tr>`;
+  function isAutoStatus(status) {
+    return status === 'sunday' || status === 'holiday';
+  }
+
+  function deriveCellStatus(r) {
+    if (r.status === 'pre_join') return { key: 'pre-join', label: '未入职' };
+    const isLeave = r.status === 'leave';
+    const isEmpty = !isAutoStatus(r.status) && !isLeave && !r.start && !r.end;
+    if (isEmpty) return { key: 'todo', label: '待填' };
+    return {
+      key: STATUS_VISUAL_KEY[r.status] || 'normal',
+      label: STATUS_LABEL[r.status] || r.status,
+    };
+  }
+
+  function buildTimeText(r) {
+    if (r.status === 'pre_join') return '—';
+    if (r.status === 'sunday') return '自动 · 周日';
+    if (r.status === 'holiday') return '自动 · 节假日';
+    if (r.status === 'leave') {
+      if (r.leave_type === 'range' && r.leave_start && r.leave_end) {
+        return `请假 ${r.leave_start}–${r.leave_end}`;
       }
-      const autoRow = r.status === 'sunday' || r.status === 'holiday';
-      const isSpecial = r.status === 'special' || r.status === 'special_absent';
-      const isLeave = r.status === 'leave';
-      const isAbsent = r.status === 'absent' || r.status === 'special_absent';
-      const isEmpty = !autoRow && !r.start && !r.end && !isLeave;
-
-      const rowCls = [
-        isAbsent ? 'absent' : '',
-        isLeave ? 'attn-has-leave' : '',
-      ].filter(Boolean).join(' ');
-
-      // 时段单元
-      let timeCell;
-      if (autoRow) {
-        const label = r.status === 'sunday' ? '自动（周日）' : '自动（节假日）';
-        timeCell = `<td><span class="attn-time-auto">${label}</span></td>`;
-      } else {
-        const placeholderStart = isSpecial ? r.special_start : '09:30';
-        const placeholderEnd = isSpecial ? r.special_end : '20:00';
-        const hint = isSpecial ? `<span class="attn-time-hint">特殊日 · 标准 ${r.special_start}–${r.special_end}</span>` : '';
-        timeCell = `<td>
-          <span class="attn-time">
-            <input type="text" inputmode="numeric" maxlength="5" placeholder="${placeholderStart}" data-date="${r.date}" data-field="start" value="${r.start || ''}">
-            <span class="attn-arr">→</span>
-            <input type="text" inputmode="numeric" maxlength="5" placeholder="${placeholderEnd}" data-date="${r.date}" data-field="end" value="${r.end || ''}">
-          </span>
-          ${hint}
-        </td>`;
+      if (r.leave_type === 'left' && r.leave_start) {
+        return `请假 ${r.leave_start} 起`;
       }
+      return `请假 ${r.leave_hours || 0}h`;
+    }
+    if (r.start || r.end) return `${r.start || '—'} → ${r.end || '—'}`;
+    return '—';
+  }
 
-      // 天数
-      const fracText = autoRow ? '—' : (isEmpty ? '—' : r.day_fraction.toFixed(2));
+  function buildCellOps(r) {
+    if (r.status === 'pre_join' || isAutoStatus(r.status)) return '';
+    if (r.status === 'leave') {
+      return `<div class="attn-cell-ops">
+        <button class="attn-op attn-op-danger attn-leave-clear" data-date="${r.date}">取消</button>
+      </div>`;
+    }
+    const isSpecial = r.status === 'special' || r.status === 'special_absent';
+    const fillStart = isSpecial ? r.special_start : '09:30';
+    const fillEnd = isSpecial ? r.special_end : '20:00';
+    return `<div class="attn-cell-ops">
+      <button class="attn-op attn-fill" data-date="${r.date}" data-start="${fillStart}" data-end="${fillEnd}">按标准</button>
+      <button class="attn-op attn-leave-add" data-date="${r.date}">请假</button>
+    </div>`;
+  }
 
-      // 状态文字 + 已存在请假 tag
-      let stCls, stText;
-      if (isEmpty) {
-        stCls = 'attn-st-todo';
-        stText = '待填';
-      } else {
-        stCls = statusClsMap[r.status] || '';
-        stText = isLeave ? `请假 ${r.leave_hours || 0}h` : (statusMap[r.status] || r.status);
-      }
-      const leaveTag = (isLeave && r.leave_type === 'range' && r.leave_start && r.leave_end)
-        ? `<span class="attn-leave-tag">${r.leave_start}–${r.leave_end}</span>`
-        : (isLeave && r.leave_type === 'left' && r.leave_start
-            ? `<span class="attn-leave-tag">${r.leave_start} 起</span>`
-            : '');
+  function buildCellHtml(r) {
+    const dayNum = parseInt(r.date.slice(8, 10), 10);
+    const st = deriveCellStatus(r);
+    const time = buildTimeText(r);
+    const showFrac = !isAutoStatus(r.status) && r.status !== 'pre_join'
+      && (r.day_fraction || r.status === 'leave');
+    const fracText = showFrac ? `<div class="attn-cell-frac">${(r.day_fraction || 0).toFixed(2)}d</div>` : '';
+    return `<div class="attn-cell attn-cell--${st.key}" data-date="${r.date}">
+      <div class="attn-cell-hd">
+        <span class="attn-cell-day">${dayNum}</span>
+        <span class="attn-cell-dot"></span>
+      </div>
+      <div class="attn-cell-bd">
+        <div class="attn-cell-time">${escapeHtml(time)}</div>
+        ${fracText}
+        <div class="attn-cell-st">${st.label}</div>
+      </div>
+      ${buildCellOps(r)}
+    </div>`;
+  }
 
-      // 行尾操作（hover 浮现）
-      let ops = '';
-      if (!autoRow) {
-        if (isLeave) {
-          ops = `<span class="attn-ops"><button class="attn-op attn-op-danger attn-leave-clear" data-date="${r.date}">取消</button></span>`;
-        } else {
-          const fillStart = isSpecial ? r.special_start : '09:30';
-          const fillEnd = isSpecial ? r.special_end : '20:00';
-          ops = `<span class="attn-ops">
-            <button class="attn-op attn-fill" data-date="${r.date}" data-start="${fillStart}" data-end="${fillEnd}">按标准</button>
-            <button class="attn-op attn-leave-add" data-date="${r.date}">请假</button>
-          </span>`;
-        }
-      }
+  function buildEmptyCellHtml() {
+    return '<div class="attn-cell attn-cell--out"></div>';
+  }
 
-      return `<tr class="${rowCls}" data-date="${r.date}">
-        <td><span class="attn-day">${r.date.slice(5)}</span><span class="attn-wk">周${r.weekday}</span></td>
-        ${timeCell}
-        <td class="attn-frac">${fracText}</td>
-        <td><span class="attn-st ${stCls}">${stText}</span>${leaveTag}${ops}</td>
-      </tr>`;
-    }).join('');
+  function buildCalendarHtml(detail) {
+    if (!detail.length) return '<div class="attn-empty-msg">无数据</div>';
+    const leadingEmpty = WEEKDAY_INDEX[detail[0].weekday] || 0;
+    const cells = [];
+    for (let i = 0; i < leadingEmpty; i++) cells.push(buildEmptyCellHtml());
+    for (const r of detail) cells.push(buildCellHtml(r));
+    while (cells.length % 7 !== 0) cells.push(buildEmptyCellHtml());
+    const headers = WEEKDAY_HEADERS.map((w) => `<div class="attn-cal-hd">周${w}</div>`).join('');
+    return `<div class="attn-cal">
+      <div class="attn-cal-headers">${headers}</div>
+      <div class="attn-cal-grid">${cells.join('')}</div>
+    </div>`;
+  }
 
-    wrap.innerHTML = `
-      <table class="attn-grid">
-        <thead><tr><th style="width:130px">日期</th><th>时段</th><th style="width:80px">天数</th><th>状态</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>`;
-
-    wrap.querySelectorAll('input[data-field]').forEach(inp => {
-      inp.addEventListener('change', () => onCellChange(inp.dataset.date));
-    });
-    wrap.querySelectorAll('.attn-fill').forEach(btn => {
+  function bindCellOps(wrap) {
+    wrap.querySelectorAll('.attn-fill').forEach((btn) => {
       btn.addEventListener('click', () => fillNormal(btn.dataset.date, btn.dataset.start, btn.dataset.end));
     });
-    wrap.querySelectorAll('.attn-leave-add').forEach(btn => {
+    wrap.querySelectorAll('.attn-leave-add').forEach((btn) => {
       btn.addEventListener('click', () => addLeave(btn.dataset.date));
     });
-    wrap.querySelectorAll('.attn-leave-clear').forEach(btn => {
+    wrap.querySelectorAll('.attn-leave-clear').forEach((btn) => {
       btn.addEventListener('click', () => clearLeave(btn.dataset.date));
     });
+  }
+
+  function renderCalendar(detail) {
+    const wrap = document.getElementById('attnGridWrap');
+    wrap.classList.add('attn-grid-wrap');
+    wrap.innerHTML = buildCalendarHtml(detail);
+    bindCellOps(wrap);
   }
 
   let pendingLeaveDate = '';
