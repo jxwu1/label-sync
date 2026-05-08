@@ -514,12 +514,68 @@ def compute_summary(employee_id: str, month: str) -> dict:
             ]
         }
     """
-    month_data = load_month(month).get(employee_id, {})
+    employees_by_id = {emp.get("id"): emp for emp in list_employees()}
+    return _compute_one_summary(
+        employee_id,
+        month,
+        employees_by_id=employees_by_id,
+        month_data=load_month(month),
+        holidays=set(list_holidays()),
+        special_days=list_special_days(),
+        leaves_by_emp=list_leaves(month),
+    )
+
+
+def compute_summaries_batch(employee_ids: list[str], month: str) -> dict[str, dict]:
+    """批量算多员工月度总结，共享数据只读一次。
+
+    与循环调 compute_summary 行为完全一致；省的是 6 倍磁盘 JSON 读
+    （employees / month / holidays / special_days / leaves，外加 _employee_start_date /
+    list_inactive_periods 共用 employees）。fill_rates 跑 N=20 员工时实测从
+    6N=120 次 _read_json 降到 5 次。
+    """
+    employees_by_id = {emp.get("id"): emp for emp in list_employees()}
+    month_data = load_month(month)
     holidays = set(list_holidays())
     special_days = list_special_days()
-    leaves = list_leaves(month).get(employee_id, {})
-    emp_start = _employee_start_date(employee_id)
-    inactive_periods = list_inactive_periods(employee_id)
+    leaves_by_emp = list_leaves(month)
+    return {
+        eid: _compute_one_summary(
+            eid,
+            month,
+            employees_by_id=employees_by_id,
+            month_data=month_data,
+            holidays=holidays,
+            special_days=special_days,
+            leaves_by_emp=leaves_by_emp,
+        )
+        for eid in employee_ids
+    }
+
+
+def _compute_one_summary(
+    employee_id: str,
+    month: str,
+    *,
+    employees_by_id: dict[str, dict],
+    month_data: dict,
+    holidays: set[str],
+    special_days: dict,
+    leaves_by_emp: dict,
+) -> dict:
+    """compute_summary 的纯计算核心，所有共享数据由调用方预读后传入。"""
+    emp = employees_by_id.get(employee_id, {})
+    start_str = emp.get("start_date") if emp else None
+    if start_str:
+        try:
+            emp_start: date_cls | None = datetime.fromisoformat(start_str).date()
+        except (ValueError, TypeError):
+            emp_start = None
+    else:
+        emp_start = None
+    inactive_periods = emp.get("inactive_periods", []) if emp else []
+    month_data_emp = month_data.get(employee_id, {})
+    leaves = leaves_by_emp.get(employee_id, {})
     detail = []
     worked_days = 0.0
     absent_days = 0
@@ -552,7 +608,7 @@ def compute_summary(employee_id: str, month: str) -> dict:
         if date_str in special_days:
             sd = special_days[date_str]
             sd_hours = (_parse_hm(sd["end"]) - _parse_hm(sd["start"])) / 60
-            rec = month_data.get(date_str)
+            rec = month_data_emp.get(date_str)
             if rec:
                 frac = day_fraction(rec["start"], rec["end"], standard_hours=sd_hours)
                 detail.append(
@@ -577,7 +633,7 @@ def compute_summary(employee_id: str, month: str) -> dict:
                 if leave_h <= 0:
                     absent_days += 1
             continue
-        rec = month_data.get(date_str)
+        rec = month_data_emp.get(date_str)
         if leave_h > 0:
             frac = round(day_fraction(rec["start"], rec["end"]), 3) if rec else 0.0
             detail.append(

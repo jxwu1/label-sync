@@ -269,6 +269,29 @@ class AttendanceRoutesTests(unittest.TestCase):
         self.assertGreater(row["filled"], 0)
         self.assertGreater(row["rate"], 0.0)
 
+    def test_fill_rates_no_n_plus_one_io(self) -> None:
+        """R2 防退化：fill-rates 不应每员工独立读一遍共享 JSON。
+
+        旧实现循环调 compute_summary，每次内部读 6 个 JSON 文件
+        （employees ×2 / month / leaves / holidays / special_days）。
+        新 batch 路径共享数据只读一次，与员工数量无关。
+        """
+        for i in range(20):
+            self.client.post("/attendance/employees", json={"name": f"员工{i}"})
+
+        with mock.patch.object(
+            attendance_service, "_read_json", wraps=attendance_service._read_json
+        ) as spy:
+            rv = self.client.get("/attendance/fill-rates/2026-04")
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(len(rv.get_json()["employees"]), 20)
+        # batch 路径 fill_rates 路由 + service 各读一次 employees + 4 份共享数据
+        # = 5 reads（外加 list_employees() 在 routes_attendance 自己再调一次 → 6 上限）。
+        # 旧 N+1 路径 6×20+1 = 121 reads。设 12 防退化（够吃边界但远低于 121）。
+        self.assertLess(
+            spy.call_count, 12, f"_read_json called {spy.call_count} times, expected < 12"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -123,12 +123,15 @@ def fill_rates(month: str):
     - rate = filled / total（0-1，total 为 0 时给 0）
     """
     employees = attendance_service.list_employees()
+    try:
+        summaries = attendance_service.compute_summaries_batch(
+            [emp["id"] for emp in employees], month
+        )
+    except Exception:
+        summaries = {}
     out = []
     for emp in employees:
-        try:
-            summary = attendance_service.compute_summary(emp["id"], month)
-        except Exception:
-            summary = {"total_workdays": 0, "absent_days": 0}
+        summary = summaries.get(emp["id"], {"total_workdays": 0, "absent_days": 0, "detail": []})
         filled = summary.get("total_workdays", 0)
         absent = summary.get("absent_days", 0)
         # 把周日/节假日等"自动满"的天排出 — 但 total_workdays 已经含 sunday/holiday，
