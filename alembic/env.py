@@ -1,6 +1,7 @@
+import os
 from logging.config import fileConfig
 
-from sqlalchemy import pool
+from sqlalchemy import create_engine, pool
 
 from alembic import context
 from models import Base, get_engine
@@ -11,6 +12,23 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
+
+
+def _env_db_url() -> str | None:
+    """LABEL_SYNC_DB_PATH 显式覆盖优先于 alembic.ini / models.CONFIG。
+
+    痛点：默认 alembic.ini 写死 `sqlite:///stockpile.db`，online mode 也走
+    models.get_engine() 命中 CONFIG.stockpile_db（=prod）。本地调试 / 测试期
+    跑 alembic 命令会无意间改 prod schema。
+
+    用法：
+        LABEL_SYNC_DB_PATH=tmp/test.db alembic upgrade head
+    """
+    override = os.environ.get("LABEL_SYNC_DB_PATH")
+    if override:
+        return f"sqlite:///{override}"
+    return None
+
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -30,7 +48,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+    url = _env_db_url() or config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -49,7 +67,11 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = get_engine()
+    override = _env_db_url()
+    if override:
+        connectable = create_engine(override, future=True, poolclass=pool.NullPool)
+    else:
+        connectable = get_engine()
 
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)

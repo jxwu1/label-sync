@@ -45,6 +45,23 @@ python -m pytest -q
 
 ---
 
+## alembic：不要默认打 prod
+
+`alembic upgrade head` / `alembic revision --autogenerate` 默认连 `stockpile.db`（=prod）。
+本地调试 / 测试期改用 `LABEL_SYNC_DB_PATH` 重定向到 tmp DB：
+
+```bash
+# Windows PowerShell
+$env:LABEL_SYNC_DB_PATH=".test_tmp/dev.db"; alembic upgrade head
+
+# bash
+LABEL_SYNC_DB_PATH=.test_tmp/dev.db alembic upgrade head
+```
+
+未设环境变量时 fallback 到 `alembic.ini` 的默认 URL / `models.get_engine()`（即 prod）。
+
+---
+
 ## lint 配置位置
 
 - `pyproject.toml` → `[tool.ruff]` / `[tool.ruff.lint]` / `[tool.ruff.format]`
