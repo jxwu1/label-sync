@@ -236,8 +236,8 @@
 
 /* PR-FE-8b：ExceptionsPanel 视觉换皮 */
 .ex-bd {
-  display: block !important;
-  padding: 0 !important;
+  display: block;
+  padding: 0;
 }
 .ex-bd .empty {
   padding: 32px 14px;
@@ -295,8 +295,8 @@
 
 /* PR-FE-8c：FilesPanel 视觉换皮 */
 .files-bd {
-  display: block !important;
-  padding: 0 !important;
+  display: block;
+  padding: 0;
 }
 .files-bd .files {
   max-height: 200px;
@@ -399,8 +399,8 @@
   50% { opacity: .4; }
 }
 .sp-bd {
-  display: block !important;
-  padding: 0 !important;
+  display: block;
+  padding: 0;
 }
 .sp-tabs {
   display: flex;
@@ -459,8 +459,8 @@
 .al-clear:hover { color: var(--ink-1); border-color: var(--line); }
 
 .al-bd {
-  display: block !important;
-  padding: 8px 14px !important;
+  display: block;
+  padding: 8px 14px;
   max-height: 200px;
   overflow-y: auto;
   font-family: var(--mono);
