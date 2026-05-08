@@ -730,26 +730,28 @@
     if (_selectedDates.size === 0) return;
     const dates = [..._selectedDates];
     const detail = (currentSummary && currentSummary.detail) || [];
-    let ok = 0;
-    let fail = 0;
-    for (const date of dates) {
+    // R5：并行 fetch（backend 写入幂等，无关联），allSettled 容错收集每个结果
+    const results = await Promise.allSettled(dates.map(async (date) => {
       const r = detail.find((x) => x.date === date);
       const req = batchActionUrlAndBody(action, date, r);
-      if (!req) continue;
-      try {
-        const init = { method: req.method };
-        if (req.body) {
-          init.headers = { 'Content-Type': 'application/json' };
-          init.body = JSON.stringify(req.body);
-        }
-        const res = await fetch(req.url, init);
-        if (req.method !== 'DELETE') {
-          const body = await res.json();
-          if (body.ok) ok++; else fail++;
-        } else {
-          ok++;
-        }
-      } catch {
+      if (!req) return null; // skip 标记
+      const init = { method: req.method };
+      if (req.body) {
+        init.headers = { 'Content-Type': 'application/json' };
+        init.body = JSON.stringify(req.body);
+      }
+      const res = await fetch(req.url, init);
+      if (req.method === 'DELETE') return true;
+      const body = await res.json();
+      return !!body.ok;
+    }));
+    let ok = 0;
+    let fail = 0;
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        if (result.value === null) continue; // 跳过未生成请求的 cell
+        if (result.value) ok++; else fail++;
+      } else {
         fail++;
       }
     }
