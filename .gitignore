@@ -38,6 +38,7 @@ investigate_output.txt
 # Tooling artifacts
 .claude/
 .superpowers/
+.gitnexus/
 
 # Test temp dirs
 .test_tmp/
