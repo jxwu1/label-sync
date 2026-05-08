@@ -5,7 +5,7 @@ import os
 import time
 from calendar import monthrange
 from datetime import date as date_cls
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 _ATTENDANCE_DIR = Path(__file__).resolve().parent / "attendance"
@@ -113,54 +113,64 @@ def remove_holiday(date: str) -> None:
     _write_json(_holidays_path(), holidays)
 
 
-# 希腊法定节假日。固定日期 + Orthodox Easter 衍生的几个浮动日。
-# Easter 浮动衍生：Clean Monday = -48d，Good Friday = -2d，Easter Monday = +1d，Holy Spirit = +50d。
-# Easter 复活节周日本身已是周日（不需要单独标），所以这里不收录。
-# 每年新加之前请核对 Easter 日期（如 2027 = 5/2）。
-_GR_HOLIDAYS_BY_YEAR: dict[int, list[str]] = {
-    # Easter 2025 = 04/20
-    2025: [
-        "2025-01-01",  # Πρωτοχρονιά New Year
-        "2025-01-06",  # Θεοφάνεια Epiphany
-        "2025-03-03",  # Καθαρά Δευτέρα Clean Monday
-        "2025-03-25",  # Independence Day
-        "2025-04-18",  # Μεγάλη Παρασκευή Good Friday
-        "2025-04-21",  # Δευτέρα του Πάσχα Easter Monday
-        "2025-05-01",  # Πρωτομαγιά Labor Day
-        "2025-06-09",  # Αγίου Πνεύματος Holy Spirit (Whit Monday)
-        "2025-08-15",  # Κοίμηση της Θεοτόκου Assumption
-        "2025-10-28",  # Επέτειος του Όχι Ohi Day
-        "2025-12-25",  # Christmas
-        "2025-12-26",  # Σύναξη της Θεοτόκου Synaxis (Boxing Day)
-    ],
-    # Easter 2026 = 04/12
-    2026: [
-        "2026-01-01",
-        "2026-01-06",
-        "2026-02-23",  # Clean Monday
-        "2026-03-25",
-        "2026-04-10",  # Good Friday
-        "2026-04-13",  # Easter Monday
-        "2026-05-01",
-        "2026-06-01",  # Holy Spirit
-        "2026-08-15",
-        "2026-10-28",
-        "2026-12-25",
-        "2026-12-26",
-    ],
-}
+# 希腊法定节假日 = 8 个固定日 + 4 个 Orthodox Easter 衍生浮动日。
+# 浮动：Clean Monday = -48d，Good Friday = -2d，Easter Monday = +1d，Holy Spirit = +50d。
+# Easter 周日本身已是周日（不需要单独标），所以不收录。
+_GR_HOLIDAY_YEAR_MIN = 2000
+_GR_HOLIDAY_YEAR_MAX = 2099
+
+
+def _orthodox_easter(year: int) -> date_cls:
+    """用 Meeus 算法计算 Orthodox Easter 的 Gregorian 日期。
+
+    仅支持 2000-2099（Julian→Gregorian 偏移固定 +13 天）。2100 起偏移变 +14 天，
+    届时需要调整下面的 timedelta 常量。
+    """
+    if not _GR_HOLIDAY_YEAR_MIN <= year <= _GR_HOLIDAY_YEAR_MAX:
+        raise ValueError(
+            f"未收录 {year} 年节假日数据（仅支持 {_GR_HOLIDAY_YEAR_MIN}-{_GR_HOLIDAY_YEAR_MAX}）"
+        )
+    a = year % 4
+    b = year % 7
+    c = year % 19
+    d = (19 * c + 15) % 30
+    e = (2 * a + 4 * b - d + 34) % 7
+    month = (d + e + 114) // 31
+    day = ((d + e + 114) % 31) + 1
+    return date_cls(year, month, day) + timedelta(days=13)
+
+
+def _compute_gr_holidays(year: int) -> list[str]:
+    """生成指定年份希腊法定节假日列表（升序，ISO 日期）。"""
+    easter = _orthodox_easter(year)
+    fixed = [
+        f"{year}-01-01",  # Πρωτοχρονιά New Year
+        f"{year}-01-06",  # Θεοφάνεια Epiphany
+        f"{year}-03-25",  # Independence Day
+        f"{year}-05-01",  # Πρωτομαγιά Labor Day
+        f"{year}-08-15",  # Κοίμηση της Θεοτόκου Assumption
+        f"{year}-10-28",  # Επέτειος του Όχι Ohi Day
+        f"{year}-12-25",  # Christmas
+        f"{year}-12-26",  # Σύναξη της Θεοτόκου Synaxis (Boxing Day)
+    ]
+    floating = [
+        (easter + timedelta(days=-48)).isoformat(),  # Καθαρά Δευτέρα Clean Monday
+        (easter + timedelta(days=-2)).isoformat(),  # Μεγάλη Παρασκευή Good Friday
+        (easter + timedelta(days=1)).isoformat(),  # Δευτέρα του Πάσχα Easter Monday
+        (easter + timedelta(days=50)).isoformat(),  # Αγίου Πνεύματος Holy Spirit
+    ]
+    return sorted(fixed + floating)
 
 
 def import_holidays_for_year(year: int) -> dict:
     """批量导入指定年份的希腊法定节假日。
 
     返回 {added: int, holidays: list[str]}。已存在的日期不重复。
-    年份未收录 → ValueError。
+    年份超出 _orthodox_easter 支持范围 → ValueError。
     """
-    if year not in _GR_HOLIDAYS_BY_YEAR:
-        raise ValueError(f"未收录 {year} 年节假日数据，请手动添加或在 _GR_HOLIDAYS_BY_YEAR 补全")
+    target = _compute_gr_holidays(year)  # 超范围在这里抛 ValueError
     existing = set(list_holidays())
-    new_dates = [d for d in _GR_HOLIDAYS_BY_YEAR[year] if d not in existing]
+    new_dates = [d for d in target if d not in existing]
     if new_dates:
         merged = sorted(existing.union(new_dates))
         _write_json(_holidays_path(), merged)

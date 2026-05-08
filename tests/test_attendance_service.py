@@ -264,6 +264,82 @@ class TestHolidays(unittest.TestCase):
         svc.remove_holiday("2026-05-01")
         self.assertEqual(svc.list_holidays(), [])
 
+    # R3: 算法生成希腊节假日（替换硬编码 dict）
+    def test_compute_gr_holidays_2025_matches_legacy_dict(self):
+        # 原 _GR_HOLIDAYS_BY_YEAR[2025] 快照（Easter 2025 = 04/20）
+        expected = sorted(
+            [
+                "2025-01-01",
+                "2025-01-06",
+                "2025-03-03",
+                "2025-03-25",
+                "2025-04-18",
+                "2025-04-21",
+                "2025-05-01",
+                "2025-06-09",
+                "2025-08-15",
+                "2025-10-28",
+                "2025-12-25",
+                "2025-12-26",
+            ]
+        )
+        self.assertEqual(svc._compute_gr_holidays(2025), expected)
+
+    def test_compute_gr_holidays_2026_matches_legacy_dict(self):
+        # 原 _GR_HOLIDAYS_BY_YEAR[2026] 快照（Easter 2026 = 04/12）
+        expected = sorted(
+            [
+                "2026-01-01",
+                "2026-01-06",
+                "2026-02-23",
+                "2026-03-25",
+                "2026-04-10",
+                "2026-04-13",
+                "2026-05-01",
+                "2026-06-01",
+                "2026-08-15",
+                "2026-10-28",
+                "2026-12-25",
+                "2026-12-26",
+            ]
+        )
+        self.assertEqual(svc._compute_gr_holidays(2026), expected)
+
+    def test_compute_gr_holidays_2027_easter_may_2(self):
+        # 抽测 2027：Easter = 2027-05-02 →
+        # Clean Mon 03-15 / Good Fri 04-30 / Easter Mon 05-03 / Holy Spirit 06-21
+        expected = sorted(
+            [
+                "2027-01-01",
+                "2027-01-06",
+                "2027-03-15",
+                "2027-03-25",
+                "2027-04-30",
+                "2027-05-01",
+                "2027-05-03",
+                "2027-06-21",
+                "2027-08-15",
+                "2027-10-28",
+                "2027-12-25",
+                "2027-12-26",
+            ]
+        )
+        self.assertEqual(svc._compute_gr_holidays(2027), expected)
+
+    def test_compute_gr_holidays_out_of_range_raises(self):
+        with self.assertRaises(ValueError):
+            svc._compute_gr_holidays(1900)
+        with self.assertRaises(ValueError):
+            svc._compute_gr_holidays(2100)
+
+    def test_import_holidays_for_year_2027_writes_file(self):
+        result = svc.import_holidays_for_year(2027)
+        self.assertEqual(result["added"], 12)
+        # Easter Sunday 不收录（已是周日）；Easter Monday / Clean Monday 应在
+        self.assertNotIn("2027-05-02", result["holidays"])
+        self.assertIn("2027-05-03", result["holidays"])
+        self.assertIn("2027-03-15", result["holidays"])
+
     def test_holiday_counts_as_one_day_in_summary(self):
         svc.add_holiday("2026-04-01")  # 周三
         result = svc.compute_summary("e001", "2026-04")
