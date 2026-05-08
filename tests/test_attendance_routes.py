@@ -285,11 +285,11 @@ class AttendanceRoutesTests(unittest.TestCase):
             rv = self.client.get("/attendance/fill-rates/2026-04")
         self.assertEqual(rv.status_code, 200)
         self.assertEqual(len(rv.get_json()["employees"]), 20)
-        # batch 路径 fill_rates 路由 + service 各读一次 employees + 4 份共享数据
-        # = 5 reads（外加 list_employees() 在 routes_attendance 自己再调一次 → 6 上限）。
-        # 旧 N+1 路径 6×20+1 = 121 reads。设 12 防退化（够吃边界但远低于 121）。
+        # batch 路径：路由 list_employees + 4 份共享数据 = 5 reads。
+        # 旧 N+1 路径 6×20+1 = 121 reads。设 8 防退化（headroom 够吃 holidays/leaves
+        # 内部偶发重读，但远低于 121）。
         self.assertLess(
-            spy.call_count, 12, f"_read_json called {spy.call_count} times, expected < 12"
+            spy.call_count, 8, f"_read_json called {spy.call_count} times, expected < 8"
         )
 
 

@@ -124,9 +124,7 @@ def fill_rates(month: str):
     """
     employees = attendance_service.list_employees()
     try:
-        summaries = attendance_service.compute_summaries_batch(
-            [emp["id"] for emp in employees], month
-        )
+        summaries = attendance_service.compute_summaries_batch(employees, month)
     except Exception:
         summaries = {}
     out = []

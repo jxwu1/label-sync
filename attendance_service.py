@@ -526,15 +526,17 @@ def compute_summary(employee_id: str, month: str) -> dict:
     )
 
 
-def compute_summaries_batch(employee_ids: list[str], month: str) -> dict[str, dict]:
+def compute_summaries_batch(employees: list[dict], month: str) -> dict[str, dict]:
     """批量算多员工月度总结，共享数据只读一次。
 
     与循环调 compute_summary 行为完全一致；省的是 6 倍磁盘 JSON 读
     （employees / month / holidays / special_days / leaves，外加 _employee_start_date /
-    list_inactive_periods 共用 employees）。fill_rates 跑 N=20 员工时实测从
-    6N=120 次 _read_json 降到 5 次。
+    list_inactive_periods 共用 employees）。调用方传入已读的 employees 列表
+    复用，避免本函数再读一次。fill_rates 跑 N=20 员工时实测 _read_json 从
+    6N+1=121 次降到 5 次（month / leaves / holidays / special_days + 路由层
+    list_employees）。
     """
-    employees_by_id = {emp.get("id"): emp for emp in list_employees()}
+    employees_by_id = {emp.get("id"): emp for emp in employees}
     month_data = load_month(month)
     holidays = set(list_holidays())
     special_days = list_special_days()
@@ -549,7 +551,7 @@ def compute_summaries_batch(employee_ids: list[str], month: str) -> dict[str, di
             special_days=special_days,
             leaves_by_emp=leaves_by_emp,
         )
-        for eid in employee_ids
+        for eid in employees_by_id
     }
 
 
