@@ -52,3 +52,19 @@ pytest e2e/ -k nav --headed  # 只看 nav 那批
 - 烟雾测试网格出现明显空白（比如某个新加的顶级 page）
 
 不要把 e2e 当成 Playwright 单元测试库使。
+
+### 反例：什么不该加
+
+- ❌ store 状态变更（`Alpine.store('x').foo = 'bar'` → assert store 状态）—— 留给将来 Vitest，e2e 跑这个浪费 ~10s/case
+- ❌ 后端 API 单测（建员工 / 改记录 → assert response）—— 已有 pytest 单测覆盖
+- ❌ 业务逻辑分支（"如果 X 则 Y" 这类）—— 单测层
+
+### 正例：哪些抓回归值
+
+- ✅ Popover / drawer 的 **真 visibility**（不是 class includes，是 `wait_for(state="visible")`）
+- ✅ Popover / 浮层的 **bbox 在 viewport 内**（positionPopover 越界 class 检查抓不到）
+- ✅ 跨 CSS 文件的 **specificity 战争**（PR-FE-7b 那次：class 加了但被覆盖、视觉不更新）
+- ✅ Alpine **init 时序**（store 初始化与 module script 执行的先后）
+
+**断言形式**比"测什么"更重要——同一个 popover open，写成 class 检查会重蹈 PR-FE-7b 覆辙，
+写成 `wait_for(visible)` + bbox 比较才真抓住"位置算错 / 被遮挡"这类只有浏览器能算的事。
