@@ -79,13 +79,16 @@ def _next_employee_id() -> str:
     return f"e{next_num:03d}"
 
 
-def create_employee(name: str) -> dict:
+def create_employee(name: str, *, start_date: str | None = None) -> dict:
+    """新建员工。可选 start_date 决定入职日（之前的天 compute_summary 标 pre_join）。"""
     employees = list_employees()
     emp = {
         "id": _next_employee_id(),
         "name": name,
         "created_at": datetime.now().isoformat(timespec="seconds"),
     }
+    if start_date:
+        emp["start_date"] = start_date
     employees.append(emp)
     _write_json(_employees_path(), employees)
     return emp

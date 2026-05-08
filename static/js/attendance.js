@@ -342,11 +342,18 @@
   async function createEmployee() {
     const name = prompt('新员工姓名：');
     if (!name || !name.trim()) return;
+    // R8：可选入职日，留空 = 全月正常显示，无 pre_join 过滤
+    const startRaw = prompt('入职日 YYYY-MM-DD（可留空）：') || '';
+    const startDate = startRaw.trim();
+    if (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+      alert('入职日格式错误，需 YYYY-MM-DD');
+      return;
+    }
     try {
       const res = await fetch('/attendance/employees', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim() }),
+        body: JSON.stringify({ name: name.trim(), start_date: startDate }),
       });
       const body = await res.json();
       if (!body.ok) { alert(body.msg); return; }

@@ -1,10 +1,11 @@
 """考勤 HTTP 路由。"""
 
 import io
+from datetime import date as date_cls
 from typing import Literal
 
 from flask import Blueprint, jsonify, send_file
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 import attendance_report_service
 import attendance_service
@@ -15,6 +16,18 @@ bp = Blueprint("attendance", __name__, url_prefix="/attendance")
 
 class _EmployeeCreate(BaseModel):
     name: NonEmptyStr
+    start_date: OptionalStr = ""
+
+    @field_validator("start_date")
+    @classmethod
+    def _check_iso_date(cls, v: str) -> str:
+        if not v:
+            return v
+        try:
+            date_cls.fromisoformat(v)
+        except ValueError as exc:
+            raise ValueError("必须是 YYYY-MM-DD 格式") from exc
+        return v
 
 
 class _HolidayCreate(BaseModel):
@@ -73,7 +86,7 @@ def create_employee():
     body, err = parse_body(_EmployeeCreate)
     if err:
         return err
-    emp = attendance_service.create_employee(body.name)
+    emp = attendance_service.create_employee(body.name, start_date=body.start_date or None)
     return jsonify({"ok": True, "employee": emp})
 
 

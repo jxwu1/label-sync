@@ -63,6 +63,45 @@ class AttendanceRoutesTests(unittest.TestCase):
         rv = self.client.post("/attendance/employees")
         self.assertEqual(rv.status_code, 400)
 
+    def test_create_employee_with_start_date_persists(self) -> None:
+        """R8：可选入职日字段写入 employees.json，被 compute_summary 用作 pre_join 起点。"""
+        rv = self.client.post(
+            "/attendance/employees",
+            json={"name": "赵六", "start_date": "2026-04-15"},
+        )
+        self.assertEqual(rv.status_code, 200)
+        eid = rv.get_json()["employee"]["id"]
+        # 落到磁盘的 employees.json 含 start_date
+        emps = attendance_service.list_employees()
+        self.assertEqual(next(e for e in emps if e["id"] == eid)["start_date"], "2026-04-15")
+        # compute_summary 在该日之前的天应该是 pre_join
+        summary = attendance_service.compute_summary(eid, "2026-04")
+        before_start = next(r for r in summary["detail"] if r["date"] == "2026-04-01")
+        on_start = next(r for r in summary["detail"] if r["date"] == "2026-04-15")
+        self.assertEqual(before_start["status"], "pre_join")
+        self.assertNotEqual(on_start["status"], "pre_join")
+
+    def test_create_employee_no_start_date_backwards_compat(self) -> None:
+        """不传 start_date / 传空串 → 200，employees.json 不写该字段。"""
+        rv = self.client.post("/attendance/employees", json={"name": "钱七"})
+        self.assertEqual(rv.status_code, 200)
+        eid = rv.get_json()["employee"]["id"]
+        emp = next(e for e in attendance_service.list_employees() if e["id"] == eid)
+        self.assertNotIn("start_date", emp)
+
+        rv2 = self.client.post("/attendance/employees", json={"name": "孙八", "start_date": ""})
+        self.assertEqual(rv2.status_code, 200)
+        eid2 = rv2.get_json()["employee"]["id"]
+        emp2 = next(e for e in attendance_service.list_employees() if e["id"] == eid2)
+        self.assertNotIn("start_date", emp2)
+
+    def test_create_employee_bad_start_date_400(self) -> None:
+        rv = self.client.post(
+            "/attendance/employees", json={"name": "周九", "start_date": "2026/04/15"}
+        )
+        self.assertEqual(rv.status_code, 400)
+        self.assertIn("start_date", rv.get_json()["msg"])
+
     # ---------- /holidays ----------
 
     def test_add_holiday_ok(self) -> None:
