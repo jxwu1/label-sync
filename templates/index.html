@@ -461,20 +461,36 @@
       <div class="page" id="pagePurchase" x-data :class="$store.nav.current === 'purchase' ? 'active' : ''"></div>
       <div class="page" id="pageAttendance" x-data :class="$store.nav.current === 'attendance' ? 'active' : ''"></div>
       <div class="page" id="pageHistory" x-data :class="$store.nav.current === 'history' ? 'active' : ''">
-        <div class="tabs" id="historyTabs">
-          <button class="tabs__tab active" data-history-tab="search" type="button">🔎 货号查询</button>
-          <button class="tabs__tab" data-history-tab="recent" type="button">📊 最近改动</button>
-          <button class="tabs__tab" data-history-tab="scan" type="button">📂 扫描批次</button>
+        <div class="tabs hist-tabs" id="historyTabs">
+          <button class="tabs__tab active" data-history-tab="search" type="button">
+            <span class="hist-tab-glyph">⌕</span><span class="hist-tab-label">货号查询</span>
+          </button>
+          <button class="tabs__tab" data-history-tab="recent" type="button">
+            <span class="hist-tab-glyph">◷</span><span class="hist-tab-label">最近改动</span>
+          </button>
+          <button class="tabs__tab" data-history-tab="scan" type="button">
+            <span class="hist-tab-glyph">⊞</span><span class="hist-tab-label">扫描批次</span>
+          </button>
         </div>
 
         <div class="tabs__panel active" data-history-tab-panel="search">
           <div class="panel" id="historySearchPanel">
-            <div class="panel-hd">货号查询</div>
+            <div class="panel-hd">
+              <span class="hist-search-code">QUERY · 输入条码 / 货号 / 型号</span>
+            </div>
             <div class="panel-bd">
-              <div class="history-search-row">
-                <input type="text" id="historyInput" placeholder="输入条码或型号" autocomplete="off">
-                <button class="btn btn-primary" id="historySearch">查询</button>
-                <button class="btn btn-ghost" id="historyClear">清空</button>
+              <div class="hist-search-row">
+                <div class="hist-search-wrap">
+                  <span class="hist-search-prefix">⌕</span>
+                  <input type="text" id="historyInput" placeholder="例如 8299979002791 或型号" autocomplete="off">
+                  <span class="hist-search-kbd">↵</span>
+                </div>
+                <button class="hist-cta hist-cta--primary" id="historySearch">⌕ 查询</button>
+                <button class="hist-cta hist-cta--ghost" id="historyClear">↺ 重置</button>
+              </div>
+              <div class="hist-recent-row" id="historyRecentRow" hidden>
+                <span class="hist-recent-label">RECENT</span>
+                <div class="hist-recent-chips" id="historyRecentChips"></div>
               </div>
               <div class="history-hint" id="historyHint">输入条码或型号后查询历史</div>
             </div>
@@ -487,7 +503,7 @@
             <div class="panel-hd">
               当前状态
               <div class="hist-actions">
-                <button class="btn-mini" id="historyCopyBarcodeBtn" type="button" hidden>复制货号</button>
+                <button class="hist-cta hist-cta--ghost hist-cta--sm" id="historyCopyBarcodeBtn" type="button" hidden>⎘ 复制货号</button>
               </div>
             </div>
             <div class="panel-bd" id="historyCurrent"></div>

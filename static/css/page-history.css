@@ -1,56 +1,190 @@
-/* ========== Page: 货号历史（filing-cabinet 主题） ========== */
+/* ========== Page: 货号历史（PR 7 子 tab 头对齐 design handoff §pages-history.jsx:24-57） ========== */
 
 #pageHistory.active {
   display: block;
   overflow: auto;
   height: calc(100vh - 122px);
-  padding: var(--sp-5, 20px) var(--sp-6, 24px);
+  padding: 14px;
 }
 
 #pageHistory .panel + .panel {
-  margin-top: var(--sp-4, 16px);
+  margin-top: 14px;
+}
+
+/* ===== 子 tab 头（mono glyph + 2px accent 底边） ===== */
+#pageHistory .hist-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--line-soft);
+  padding: 0 8px;
+  gap: 0;
+  margin-bottom: 14px;
+}
+#pageHistory .hist-tabs .tabs__tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-2);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 11px 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: -1px;  /* 与容器底边重合 */
+  transition: color var(--t-fast, 120ms), border-color var(--t-fast, 120ms);
+}
+#pageHistory .hist-tabs .tabs__tab:hover {
+  color: var(--ink-1);
+}
+#pageHistory .hist-tabs .tabs__tab.active {
+  color: var(--ink-0);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+}
+#pageHistory .hist-tab-glyph {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink-3);
+  line-height: 1;
+}
+#pageHistory .hist-tabs .tabs__tab.active .hist-tab-glyph {
+  color: var(--accent);
 }
 
 /* ===== 搜索行 ===== */
-.history-search-row {
+.hist-search-code {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink-3);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.hist-search-row {
   display: flex;
-  gap: var(--sp-2, 8px);
+  gap: 8px;
   align-items: center;
 }
-
-.history-search-row input {
+.hist-search-wrap {
   flex: 1;
-  height: 36px;
-  padding: 0 var(--sp-3, 12px);
-  border: 1px solid var(--c-border, var(--ink-2));
-  border-radius: var(--r-sm, 6px);
-  font-size: var(--fs-base, 13px);
-  background: var(--c-bg, var(--bg-0));
-  color: var(--c-text, var(--ink-1));
-  font-family: inherit;
-  transition: border-color var(--t-fast);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 0 12px;
+  height: 34px;
+  transition: border-color var(--t-fast, 120ms);
 }
-
-.history-search-row input:focus {
+.hist-search-wrap:focus-within {
+  border-color: var(--accent-dim);
+}
+.hist-search-prefix {
+  font-family: var(--mono);
+  color: var(--accent);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.hist-search-wrap input {
+  flex: 1;
+  height: 100%;
+  background: transparent;
+  border: none;
   outline: none;
-  border-color: var(--c-info, var(--info));
-  box-shadow: 0 0 0 2px rgba(38, 139, 210, 0.1);
+  color: var(--ink-0);
+  font-size: 13px;
+  font-family: var(--mono);
+  letter-spacing: 0.02em;
+  min-width: 0;
+}
+.hist-search-kbd {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink-3);
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  flex-shrink: 0;
 }
 
-/* 全局 .btn 有 width:100% + margin-bottom:7px，会让搜索按钮被 flex 拉宽
-   并在垂直方向偏 7px，与 input 对不齐。这里 scoped 覆盖。*/
-.history-search-row .btn {
-  width: auto;
-  height: 36px;
-  padding: 0 var(--sp-3, 12px);
-  margin-bottom: 0;
+/* CTA（与 dedupe / purchase 同款，size lg） */
+.hist-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  height: 34px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  background: transparent;
+  color: var(--ink-2);
   white-space: nowrap;
+  transition: border-color var(--t-fast, 120ms), color var(--t-fast, 120ms), background var(--t-fast, 120ms);
 }
+.hist-cta--ghost:hover {
+  border-color: var(--accent-dim);
+  color: var(--ink-1);
+  background: var(--bg-2);
+}
+.hist-cta--primary {
+  background: rgba(0, 255, 149, .08);
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+.hist-cta--primary:hover {
+  background: rgba(0, 255, 149, .14);
+}
+/* 小尺寸（用于 panel-hd 内的 actions，如「复制货号」） */
+.hist-cta--sm {
+  height: auto;
+  padding: 4px 9px;
+  font-size: 10.5px;
+}
+
+/* ===== RECENT chip 行 ===== */
+.hist-recent-row {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.hist-recent-label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink-3);
+  letter-spacing: 0.1em;
+  margin-right: 4px;
+}
+.hist-recent-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.hist-recent-chip {
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  padding: 3px 8px;
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  cursor: pointer;
+  transition: color var(--t-fast, 120ms), border-color var(--t-fast, 120ms);
+}
+.hist-recent-chip:hover { color: var(--ink-0); border-color: var(--accent-dim); }
+.hist-recent-chip.is-active { color: var(--accent); border-color: var(--accent-dim); }
 
 .history-hint {
-  margin-top: var(--sp-3, 12px);
-  color: var(--c-text-muted, var(--ink-1));
-  font-size: var(--fs-md, 12px);
+  margin-top: 12px;
+  color: var(--ink-2);
+  font-size: 12px;
 }
 
 /* ===== 模糊匹配候选列表 ===== */
@@ -457,33 +591,23 @@ body[data-theme="light"] .rc-chip--active {
   border-radius: 2px;
 }
 .chart-dot--sale { background: rgba(67, 145, 96, 0.55); }
-.chart-dot--price { background: var(--warn); border-radius: 50
-.chart-legend {
-  margin-top: 8px;
-  font-size: var(--fs-sm);
-  color: var(--c-text-dim);
-  display: flex;
-  gap: 18px;
-  align-items: center;
-}
-.chart-dot {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  margin-right: 4px;
-  vertical-align: middle;
-  border-radius: 2px;
-}
-.chart-dot--sale { background: rgba(67, 145, 96, 0.55); }
 .chart-dot--price { background: var(--warn); border-radius: 50%; }
 #historyTimelineChart {
   display: block;
   max-width: 100%;
 }
 
-/* PR-FE-4a：panel-hd 内的操作按钮容器 */
+/* PR-FE-4a：panel-hd 内的操作按钮容器（hist-actions）
+   PR 7 调整：使用 absolute 定位将操作按钮锚定到 panel-hd 右上角，不依赖
+   父级 display:flex（更鲁棒：兼容浏览器缓存 / 全局 .panel-hd 默认 block）*/
+#pageHistory .panel-hd {
+  position: relative;
+}
 #pageHistory .hist-actions {
-  margin-left: auto;
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
   display: flex;
   gap: 6px;
 }
