@@ -50,15 +50,13 @@ document.addEventListener("alpine:init", () => {
   });
 
   // ===== 浮层 / 红点 =====
+  // 终端日志 store('term') 仍保留（其他模块还在 push logs），
+  // 但前端浮窗已删，所以 termDrawer / toggleTerm / closeTerm 一并去掉
   Alpine.store("ui", {
-    termDrawer: false,
     transferDrawer: false,
     quickMenu: false,
     transferDot: false,
     quickTransferDot: false,
-    toggleTerm() {
-      this.termDrawer = !this.termDrawer;
-    },
     toggleTransfer() {
       this.transferDrawer = !this.transferDrawer;
       this.transferDot = false;
@@ -69,9 +67,6 @@ document.addEventListener("alpine:init", () => {
     },
     closeQuick() {
       this.quickMenu = false;
-    },
-    closeTerm() {
-      this.termDrawer = false;
     },
     closeTransfer() {
       this.transferDrawer = false;

@@ -18,7 +18,6 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-inventory.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-foreign-customers.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-sales-analytics.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/terminal-log.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/transfer-drawer.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/quickmenu.css') }}">
 <script defer src="{{ url_for('static', filename='js/store.js') }}"></script>
@@ -766,26 +765,6 @@
   </div>
 </aside>
 
-<button class="term-fab" id="termFab" type="button" x-data @click="$store.ui.toggleTerm()">
-  <span>▸ 终端日志</span>
-  <span class="term-fab__count" id="termFabCount" x-text="$store.term.logs.length">0</span>
-</button>
-
-<div class="terminal-log" id="termDrawer" x-data :class="$store.ui.termDrawer ? '' : 'hide'">
-  <div class="terminal-log__head">
-    <span class="terminal-log__dot"></span>
-    <span class="terminal-log__title">终端日志</span>
-    <button class="terminal-log__clear" type="button" @click="$store.term.clear()">清空</button>
-    <button class="terminal-log__close" id="termClose" type="button" @click="$store.ui.closeTerm()">收起</button>
-  </div>
-  <div class="terminal-log__body" id="tbod">
-    <template x-for="(item, i) in $store.term.logs" :key="i">
-      <div :class="`${item.src === 'dc' ? 'log-dc' : 'log-lp'} ${item.cls}`" x-text="item.text"></div>
-    </template>
-    <span class="log-dim" x-show="$store.term.logs.length === 0">等待操作</span>
-  </div>
-</div>
-
 <div class="quickmenu" id="quickMenu" x-data
      :class="$store.ui.quickMenu ? 'is-open' : ''"
      @click.outside="$store.ui.closeQuick()">
@@ -797,12 +776,6 @@
       <span>📨</span>
       <span>文件互传</span>
       <span class="quickmenu__item-dot" id="quickTransferDot" :class="$store.ui.quickTransferDot ? 'is-on' : ''"></span>
-    </button>
-    <button class="quickmenu__item" id="quickTerm" type="button"
-            @click="$store.ui.toggleTerm(); $store.ui.closeQuick()">
-      <span>▸</span>
-      <span>终端日志</span>
-      <span class="quickmenu__item-count" id="quickTermCount" x-text="$store.term.logs.length">0</span>
     </button>
   </div>
 </div>

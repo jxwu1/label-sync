@@ -1,6 +1,6 @@
 /* ========== 右下角汉堡 FAB + 抽屉菜单 ========== */
-/* 隐藏原来分散的两个 FAB（保留 DOM 让现有 JS 计数/dot 仍能更新） */
-.transfer-fab, .term-fab { display: none !important; }
+/* 隐藏原 transfer-fab（保留 DOM 让现有 JS 计数/dot 仍能更新） */
+.transfer-fab { display: none !important; }
 
 .quickmenu {
   position: fixed;
