@@ -533,6 +533,7 @@ async function doSearch() {
     renderResult(data);
     loadAnalytics(data.current.barcode);
     loadTimelineChart(data.current.barcode);
+    pushRecentQuery(q);
   } catch (err) {
     renderEmpty(`网络错误：${err.message}`);
   }
@@ -582,6 +583,52 @@ async function copyCurrentBarcode(btn) {
   }, 1200);
 }
 
+// ===== RECENT 查询 chip（PR 7）=====
+const HISTORY_RECENT_KEY = "history.recentQueries";
+const HISTORY_RECENT_MAX = 6;
+
+function loadRecentQueries() {
+  try {
+    const raw = localStorage.getItem(HISTORY_RECENT_KEY);
+    return raw ? JSON.parse(raw).slice(0, HISTORY_RECENT_MAX) : [];
+  } catch (_) { return []; }
+}
+
+function pushRecentQuery(q) {
+  if (!q) return;
+  const list = loadRecentQueries().filter((x) => x !== q);
+  list.unshift(q);
+  const trimmed = list.slice(0, HISTORY_RECENT_MAX);
+  try { localStorage.setItem(HISTORY_RECENT_KEY, JSON.stringify(trimmed)); } catch (_) { /* ignore */ }
+  renderRecentChips(q);
+}
+
+function renderRecentChips(activeQ) {
+  const row = $("historyRecentRow");
+  const wrap = $("historyRecentChips");
+  if (!row || !wrap) return;
+  const list = loadRecentQueries();
+  if (list.length === 0) {
+    row.hidden = true;
+    wrap.innerHTML = "";
+    return;
+  }
+  row.hidden = false;
+  wrap.innerHTML = list
+    .map((q) => {
+      const cls = q === activeQ ? "hist-recent-chip is-active" : "hist-recent-chip";
+      const safe = q.replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+      return `<button class="${cls}" type="button" data-q="${safe}">${safe}</button>`;
+    })
+    .join("");
+  wrap.querySelectorAll(".hist-recent-chip").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      $("historyInput").value = btn.dataset.q;
+      doSearch();
+    });
+  });
+}
+
 function init() {
   const input = $("historyInput");
   if (!input) return; // 当前不在 history tab
@@ -603,6 +650,8 @@ function init() {
     $("historyInput").value = q;
     doSearch();
   };
+
+  renderRecentChips(null);
 }
 
 init();
