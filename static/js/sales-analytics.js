@@ -233,3 +233,6 @@ function init() {
 }
 
 init();
+
+// 首次切到销售分析页时自动 load 一次（省去用户点刷新一步）
+window.Alpine?.store?.("nav")?.onFirstActivate?.("sales_analytics", load);

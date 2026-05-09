@@ -132,3 +132,6 @@ if (dqRoot) {
 }
 
 $("dqRefresh")?.addEventListener("click", refresh);
+
+// 首次切到数据质量页时自动 refresh 一次（省去用户点刷新一步）
+window.Alpine?.store?.("nav")?.onFirstActivate?.("data_quality", refresh);
