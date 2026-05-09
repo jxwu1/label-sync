@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>A端 - 双端处理</title>
+<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
@@ -93,7 +94,10 @@
   <!-- 左侧栏：可折叠 200↔56 -->
   <aside class="app-sidebar" :class="$store.nav.collapsed && 'is-collapsed'">
     <div class="app-sidebar__head">
-      <div class="app-sidebar__logo">D</div>
+      <div class="app-sidebar__logo" aria-label="DataOps">
+        <span class="app-sidebar__logo-prompt">&gt;</span>
+        <span class="app-sidebar__logo-cursor" aria-hidden="true"></span>
+      </div>
       <div class="app-sidebar__title">
         <div class="app-sidebar__name">DataOps</div>
         <div class="app-sidebar__sub">v3.5 · ADMIN</div>
