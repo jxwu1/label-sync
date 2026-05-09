@@ -299,17 +299,33 @@ export function initStockpile() {
   });
 
   async function refreshSpStatus() {
+      const spStats = document.getElementById('spStats');
       try {
           const res = await fetch('/stockpile/status');
           const data = await res.json();
           if (data.initialized) {
-              spStatus.textContent = '状态：已初始化，共 ' + data.count + ' 条记录';
-              spStatus.classList.remove('is-error', 'text-muted-faint'); spStatus.classList.add('is-success');
+              // 4 数字 mini stats
+              const active = data.active_count || 0;
+              const inactive = data.inactive_count || 0;
+              document.getElementById('spStatTotal').textContent = (active + inactive).toLocaleString();
+              document.getElementById('spStatActive').textContent = active.toLocaleString();
+              document.getElementById('spStatInactive').textContent = inactive.toLocaleString();
+              const lastImport = data.last_import_at;
+              // "2026-05-08 14:30:22" → "2026-05-08 14:30"（去秒，user 选的格式）
+              document.getElementById('spStatLastImport').textContent = lastImport
+                  ? lastImport.slice(0, 16)
+                  : '—';
+              spStats.hidden = false;
+              spStatus.hidden = true;
           } else {
+              spStats.hidden = true;
+              spStatus.hidden = false;
               spStatus.textContent = '状态：未初始化，请先上传系统导出文件';
               spStatus.classList.remove('is-success', 'text-muted-faint'); spStatus.classList.add('is-error');
           }
       } catch (e) {
+          spStats.hidden = true;
+          spStatus.hidden = false;
           spStatus.textContent = '状态：检查失败';
           spStatus.classList.remove('is-success', 'is-error'); spStatus.classList.add('text-muted-faint');
       }

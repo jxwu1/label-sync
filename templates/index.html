@@ -298,6 +298,26 @@
         </div>
 
         <div class="tabs__panel active" data-tab-panel="status">
+          <!-- 4 数字 mini stats（initialized 时显示） -->
+          <div class="sp-stats" id="spStats" hidden>
+            <div class="sp-stat">
+              <div class="sp-stat-num" id="spStatTotal">—</div>
+              <div class="sp-stat-label">总条数</div>
+            </div>
+            <div class="sp-stat">
+              <div class="sp-stat-num" id="spStatLastImport">—</div>
+              <div class="sp-stat-label">上次 import</div>
+            </div>
+            <div class="sp-stat">
+              <div class="sp-stat-num" id="spStatActive">—</div>
+              <div class="sp-stat-label">活跃</div>
+            </div>
+            <div class="sp-stat">
+              <div class="sp-stat-num" id="spStatInactive">—</div>
+              <div class="sp-stat-label">失效</div>
+            </div>
+          </div>
+          <!-- uninitialized / 检查失败 提示（默认显示） -->
           <div class="stockpile-status" id="spStatus">检查中...</div>
         </div>
 

@@ -50,7 +50,17 @@ class StockpileRoutesTests(unittest.TestCase):
     def test_status_uninitialized(self):
         res = self.client.get("/stockpile/status")
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.get_json(), {"ok": True, "initialized": False, "count": 0})
+        self.assertEqual(
+            res.get_json(),
+            {
+                "ok": True,
+                "initialized": False,
+                "count": 0,
+                "active_count": 0,
+                "inactive_count": 0,
+                "last_import_at": None,
+            },
+        )
 
     def test_init_rejects_no_files(self):
         res = self.client.post("/stockpile/init")
@@ -96,6 +106,11 @@ class StockpileRoutesTests(unittest.TestCase):
         status = self.client.get("/stockpile/status").get_json()
         self.assertTrue(status["initialized"])
         self.assertEqual(status["count"], 2)
+        self.assertEqual(status["active_count"], 2)
+        self.assertEqual(status["inactive_count"], 0)
+        # init 完成 → snapshot 写入 → last_import_at 应该是 "YYYY-MM-DD HH:MM:SS" 格式
+        self.assertIsNotNone(status["last_import_at"])
+        self.assertRegex(status["last_import_at"], r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
 
     def test_compare_returns_diff(self):
         # 先初始化
