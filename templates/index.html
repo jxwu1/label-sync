@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-history.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-scan-history.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-data-quality.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/page-dedupe.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-inventory.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-foreign-customers.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-sales-analytics.css') }}">
@@ -371,50 +372,87 @@
   </div>
 </div>
       <div class="page" id="pageDup" x-data :class="$store.nav.current === 'dup' ? 'active' : ''">
-        <div class="panel">
-          <div class="panel-hd">
-            标签查重 · 数据库清洁
-            <div class="dq-actions">
-              <button class="pur-btn-dl" id="ddRefresh">刷新</button>
-            </div>
+        <!-- 4 列 mini stat 顶部概览 -->
+        <div class="dd-stats">
+          <div class="dd-stat" id="ddStatWhitespace" data-tone="error">
+            <div class="dd-stat-num">—</div>
+            <div class="dd-stat-label">空白字符</div>
           </div>
-          <div class="panel-bd" id="ddHint">
-            扫 stockpile 主档 4 类脏数据：空白字符 / 异常前缀 / 重复段 / 空库位。本页只展示，不修改 DB；问题在老 ERP 修了，下次 import 自动同步。
+          <div class="dd-stat" id="ddStatUnknown" data-tone="error">
+            <div class="dd-stat-num">—</div>
+            <div class="dd-stat-label">异常前缀</div>
+          </div>
+          <div class="dd-stat" id="ddStatDuplicate" data-tone="error">
+            <div class="dd-stat-num">—</div>
+            <div class="dd-stat-label">重复段</div>
+          </div>
+          <div class="dd-stat" id="ddStatEmptyLoc" data-tone="warn">
+            <div class="dd-stat-num">—</div>
+            <div class="dd-stat-label">空库位</div>
           </div>
         </div>
-        <div class="panel dq-section" id="ddWhitespacePanel" hidden>
-          <div class="panel-hd">空白字符异常 <span class="dq-count" id="ddWhitespaceCount"></span>
-            <div class="dq-actions">
-              <a class="pur-btn-dl" href="/data_quality/whitespace_fix_template" download>下载修复模板</a>
-              <button class="pur-btn-copy" data-copy-section="whitespace_anomalies">一键复制</button>
-            </div>
-          </div>
-          <div class="panel-bd" id="ddWhitespace"></div>
+
+        <!-- 工具条 -->
+        <div class="dd-toolbar">
+          <span class="dd-toolbar-code">QUERY · 数据库扫描</span>
+          <span class="dd-toolbar-stat">
+            共 <b class="dd-num--ok" id="ddTotalScanned">—</b> 条 ·
+            命中异常 <b class="dd-num--warn" id="ddTotalAnomaly">—</b> 条
+          </span>
+          <span class="dd-toolbar-spacer"></span>
+          <button class="dd-cta dd-cta--ghost" id="ddRefresh">↻ 重新扫描</button>
+          <button class="dd-cta dd-cta--primary" id="ddCopyAll">⎘ 复制全部异常</button>
         </div>
-        <div class="panel dq-section" id="ddUnknownPanel" hidden>
-          <div class="panel-hd">异常前缀（非 A/B/C/X/Z 开头）<span class="dq-count" id="ddUnknownCount"></span>
-            <div class="dq-actions">
-              <button class="pur-btn-copy" data-copy-section="unknown_prefix">一键复制</button>
-            </div>
-          </div>
-          <div class="panel-bd" id="ddUnknown"></div>
-        </div>
-        <div class="panel dq-section" id="ddDuplicatePanel" hidden>
-          <div class="panel-hd">重复段（raw 字符串里同 location 段重复）<span class="dq-count" id="ddDuplicateCount"></span>
-            <div class="dq-actions">
-              <button class="pur-btn-copy" data-copy-section="duplicate_segments">一键复制</button>
-            </div>
-          </div>
-          <div class="panel-bd" id="ddDuplicate"></div>
-        </div>
-        <div class="panel dq-section" id="ddEmptyLocPanel" hidden>
-          <div class="panel-hd">空库位（active 但无位置）<span class="dq-count" id="ddEmptyLocCount"></span>
-            <div class="dq-actions">
-              <button class="pur-btn-copy" data-copy-section="empty_locations">一键复制</button>
-            </div>
-          </div>
-          <div class="panel-bd" id="ddEmptyLoc"></div>
-        </div>
+
+        <!-- 4 group panel -->
+        <section class="dd-group" id="ddWhitespacePanel">
+          <header class="dd-group-hd">
+            <span class="dd-group-code">G·WHITESPACE</span>
+            <span class="dd-group-title">空白字符异常</span>
+            <span class="dd-group-sub">strip 后差异</span>
+            <span class="dd-toolbar-spacer"></span>
+            <span class="dd-pill" id="ddWhitespaceState">—</span>
+            <a class="dd-cta dd-cta--primary dd-tpl" href="/data_quality/whitespace_fix_template" download>↓ 下载修复模板</a>
+            <button class="dd-cta dd-cta--ghost dd-copy" data-copy-section="whitespace_anomalies">⎘ 一键复制</button>
+          </header>
+          <div class="dd-group-body" id="ddWhitespace"></div>
+        </section>
+
+        <section class="dd-group" id="ddUnknownPanel">
+          <header class="dd-group-hd">
+            <span class="dd-group-code">G·PREFIX</span>
+            <span class="dd-group-title">异常前缀</span>
+            <span class="dd-group-sub">非 A/B/C/X/Z 开头</span>
+            <span class="dd-toolbar-spacer"></span>
+            <span class="dd-pill" id="ddUnknownState">—</span>
+            <button class="dd-cta dd-cta--ghost dd-copy" data-copy-section="unknown_prefix">⎘ 一键复制</button>
+          </header>
+          <div class="dd-group-body" id="ddUnknown"></div>
+        </section>
+
+        <section class="dd-group" id="ddDuplicatePanel">
+          <header class="dd-group-hd">
+            <span class="dd-group-code">G·DUPLICATE</span>
+            <span class="dd-group-title">重复段</span>
+            <span class="dd-group-sub">raw 字符串里同 location 段重复</span>
+            <span class="dd-toolbar-spacer"></span>
+            <span class="dd-pill" id="ddDuplicateState">—</span>
+            <button class="dd-cta dd-cta--ghost dd-copy" data-copy-section="duplicate_segments">⎘ 一键复制</button>
+          </header>
+          <div class="dd-group-body" id="ddDuplicate"></div>
+        </section>
+
+        <section class="dd-group" id="ddEmptyLocPanel">
+          <header class="dd-group-hd">
+            <span class="dd-group-code">G·ORPHAN</span>
+            <span class="dd-group-title">空库位</span>
+            <span class="dd-group-sub">active 但无位置</span>
+            <span class="dd-toolbar-spacer"></span>
+            <span class="dd-pill" id="ddEmptyLocState">—</span>
+            <button class="dd-cta dd-cta--ghost dd-copy" data-copy-section="empty_locations">⎘ 一键复制</button>
+          </header>
+          <div class="dd-group-body" id="ddEmptyLoc"></div>
+        </section>
       </div>
       <div class="page" id="pagePurchase" x-data :class="$store.nav.current === 'purchase' ? 'active' : ''"></div>
       <div class="page" id="pageAttendance" x-data :class="$store.nav.current === 'attendance' ? 'active' : ''"></div>

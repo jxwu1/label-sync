@@ -1,5 +1,5 @@
-// 标签查重（PR-FE-2 起）：扫 stockpile 主档 4 类脏数据
-// 后端复用 /data_quality endpoint，只渲染 4 类（whitespace/unknown/duplicate/empty）。
+// 标签查重（PR-FE-2 起；视觉重设计 2026-05-09 · DataOps Terminal handoff §3.5）
+// 扫 stockpile 主档 4 类脏数据。后端复用 /data_quality endpoint，只渲染 4 类。
 // 维度健康（multi/flippers）留在「数据质量」页。
 import { copyToClip } from "./shared.js";
 
@@ -14,22 +14,65 @@ function escapeHtml(s) {
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-function showCount(elId, n) {
-  $(elId).textContent = n > 0 ? `· ${n}` : "· 0";
-  $(elId).classList.toggle("dq-count--zero", n === 0);
-}
-
 function visibleSpace(s) {
   return String(s)
-    .replace(/ /g, '<span class="dq-ws">·</span>')
-    .replace(/\t/g, '<span class="dq-ws">→</span>');
+    .replace(/ /g, '<span class="dd-ws">·</span>')
+    .replace(/\t/g, '<span class="dd-ws">→</span>');
+}
+
+// 4 group 配置 —— pill tone 顺设计：count==0 用 clean / orphan 用 warn / 其它 error
+const GROUPS = [
+  { key: "whitespace_anomalies", statId: "ddStatWhitespace", panelId: "ddWhitespacePanel",
+    stateId: "ddWhitespaceState", bodyId: "ddWhitespace", tone: "error" },
+  { key: "unknown_prefix",       statId: "ddStatUnknown",   panelId: "ddUnknownPanel",
+    stateId: "ddUnknownState",   bodyId: "ddUnknown",       tone: "error" },
+  { key: "duplicate_segments",   statId: "ddStatDuplicate", panelId: "ddDuplicatePanel",
+    stateId: "ddDuplicateState", bodyId: "ddDuplicate",     tone: "error" },
+  { key: "empty_locations",      statId: "ddStatEmptyLoc",  panelId: "ddEmptyLocPanel",
+    stateId: "ddEmptyLocState",  bodyId: "ddEmptyLoc",      tone: "warn" },
+];
+
+function setStat(statId, count, baseTone) {
+  const el = $(statId);
+  if (!el) return;
+  el.querySelector(".dd-stat-num").textContent = count.toLocaleString();
+  el.dataset.tone = count === 0 ? "accent" : baseTone;
+}
+
+function setPill(stateId, count, baseTone) {
+  const el = $(stateId);
+  if (!el) return;
+  if (count === 0) {
+    el.textContent = "CLEAN";
+    el.dataset.tone = "clean";
+  } else {
+    el.textContent = count.toLocaleString();
+    el.dataset.tone = baseTone;
+  }
+}
+
+function setGroupEmpty(panelId, empty, bodyId) {
+  const panel = $(panelId);
+  if (!panel) return;
+  panel.dataset.empty = empty ? "true" : "false";
+  if (empty) $(bodyId).innerHTML = '<div class="dd-empty">✓ 无异常</div>';
+}
+
+function renderTable(bodyId, headers, rows) {
+  if (rows.length === 0) {
+    return; // empty 已经被 setGroupEmpty 处理
+  }
+  const thead = headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("");
+  const tbody = rows.join("");
+  $(bodyId).innerHTML = `
+    <table class="dd-table">
+      <thead><tr>${thead}</tr></thead>
+      <tbody>${tbody}</tbody>
+    </table>
+  `;
 }
 
 function renderWhitespace(section) {
-  if (section.samples.length === 0) {
-    $("ddWhitespace").innerHTML = '<div class="dq-empty">无</div>';
-    return;
-  }
   const rows = section.samples.map((s) => `
     <tr>
       <td>${escapeHtml(s.barcode)}</td>
@@ -37,20 +80,11 @@ function renderWhitespace(section) {
       <td><code>${visibleSpace(escapeHtml(s.raw_location))}</code></td>
       <td><code>${escapeHtml(s.normalized)}</code></td>
     </tr>
-  `).join("");
-  $("ddWhitespace").innerHTML = `
-    <table class="dq-table">
-      <thead><tr><th>条码</th><th>型号</th><th>原 raw（· 表示空格）</th><th>strip 后</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
+  `);
+  renderTable("ddWhitespace", ["条码", "型号", "原 raw（· 表示空格）", "strip 后"], rows);
 }
 
 function renderUnknown(section) {
-  if (section.samples.length === 0) {
-    $("ddUnknown").innerHTML = '<div class="dq-empty">无</div>';
-    return;
-  }
   const rows = section.samples.map((s) => `
     <tr>
       <td>${escapeHtml(s.barcode)}</td>
@@ -58,20 +92,11 @@ function renderUnknown(section) {
       <td>${escapeHtml(s.raw_location || "")}</td>
       <td><code>${escapeHtml(s.anomalous_segment)}</code></td>
     </tr>
-  `).join("");
-  $("ddUnknown").innerHTML = `
-    <table class="dq-table">
-      <thead><tr><th>条码</th><th>型号</th><th>当前 location</th><th>异常段</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
+  `);
+  renderTable("ddUnknown", ["条码", "型号", "当前 location", "异常段"], rows);
 }
 
 function renderDuplicate(section) {
-  if (section.samples.length === 0) {
-    $("ddDuplicate").innerHTML = '<div class="dq-empty">无</div>';
-    return;
-  }
   const rows = section.samples.map((s) => `
     <tr>
       <td>${escapeHtml(s.barcode)}</td>
@@ -79,20 +104,11 @@ function renderDuplicate(section) {
       <td><code>${escapeHtml(s.raw_location)}</code></td>
       <td>${s.duplicates.map((d) => `<code>${escapeHtml(d)}</code>`).join(" ")}</td>
     </tr>
-  `).join("");
-  $("ddDuplicate").innerHTML = `
-    <table class="dq-table">
-      <thead><tr><th>条码</th><th>型号</th><th>原 raw</th><th>重复段</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
+  `);
+  renderTable("ddDuplicate", ["条码", "型号", "原 raw", "重复段"], rows);
 }
 
 function renderEmptyLocations(section) {
-  if (section.samples.length === 0) {
-    $("ddEmptyLoc").innerHTML = '<div class="dq-empty">无</div>';
-    return;
-  }
   const rows = section.samples.map((s) => `
     <tr>
       <td>${escapeHtml(s.barcode)}</td>
@@ -100,47 +116,61 @@ function renderEmptyLocations(section) {
       <td>${escapeHtml(s.product_name || "")}</td>
       <td>${escapeHtml(s.updated_at || "")}</td>
     </tr>
-  `).join("");
-  $("ddEmptyLoc").innerHTML = `
-    <table class="dq-table">
-      <thead><tr><th>条码</th><th>型号</th><th>品名</th><th>最近更新</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
+  `);
+  renderTable("ddEmptyLoc", ["条码", "型号", "品名", "最近更新"], rows);
 }
+
+const RENDERERS = {
+  whitespace_anomalies: renderWhitespace,
+  unknown_prefix: renderUnknown,
+  duplicate_segments: renderDuplicate,
+  empty_locations: renderEmptyLocations,
+};
 
 async function refresh() {
   const btn = $("ddRefresh");
   if (!btn) return;
   btn.disabled = true;
-  $("ddHint").textContent = "加载中…";
+  btn.textContent = "↻ 加载中…";
   try {
-    const res = await fetch("/data_quality");
-    const data = await res.json();
-    if (!data.ok) {
-      $("ddHint").textContent = "加载失败：" + (data.msg || "未知错误");
+    // 同时拉 /data_quality 与 /stockpile/status，工具条要显示扫描总数
+    const [dqRes, spRes] = await Promise.allSettled([
+      fetch("/data_quality").then((r) => r.json()),
+      fetch("/stockpile/status").then((r) => r.json()),
+    ]);
+    if (dqRes.status !== "fulfilled" || !dqRes.value.ok) {
+      const msg = dqRes.status === "fulfilled" ? (dqRes.value.msg || "未知错误") : dqRes.reason;
+      $("ddTotalAnomaly").textContent = "—";
+      $("ddTotalScanned").textContent = "—";
+      btn.textContent = "↻ 加载失败：" + msg;
       return;
     }
-    $("ddHint").textContent = "本页只展示，不修改数据。在老系统修复后，下次 import 自动同步。";
+    const data = dqRes.value;
     _lastReport = data;
 
-    showCount("ddWhitespaceCount", data.whitespace_anomalies.count);
-    renderWhitespace(data.whitespace_anomalies);
-    $("ddWhitespacePanel").hidden = false;
+    let totalAnomaly = 0;
+    GROUPS.forEach((g) => {
+      const section = data[g.key];
+      const count = section.count || 0;
+      totalAnomaly += count;
+      setStat(g.statId, count, g.tone);
+      setPill(g.stateId, count, g.tone);
+      setGroupEmpty(g.panelId, count === 0, g.bodyId);
+      if (count > 0) RENDERERS[g.key](section);
+    });
 
-    showCount("ddUnknownCount", data.unknown_prefix.count);
-    renderUnknown(data.unknown_prefix);
-    $("ddUnknownPanel").hidden = false;
+    $("ddTotalAnomaly").textContent = totalAnomaly.toLocaleString();
 
-    showCount("ddDuplicateCount", data.duplicate_segments.count);
-    renderDuplicate(data.duplicate_segments);
-    $("ddDuplicatePanel").hidden = false;
+    // 扫描总数：active + inactive (来自 /stockpile/status)
+    if (spRes.status === "fulfilled" && spRes.value.ok) {
+      const sp = spRes.value;
+      const total = (sp.active_count || 0) + (sp.inactive_count || 0);
+      $("ddTotalScanned").textContent = total ? total.toLocaleString() : "—";
+    }
 
-    showCount("ddEmptyLocCount", data.empty_locations.count);
-    renderEmptyLocations(data.empty_locations);
-    $("ddEmptyLocPanel").hidden = false;
+    btn.textContent = "↻ 重新扫描";
   } catch (e) {
-    $("ddHint").textContent = "加载异常：" + e.message;
+    btn.textContent = "↻ 加载异常：" + e.message;
   } finally {
     btn.disabled = false;
   }
@@ -148,7 +178,7 @@ async function refresh() {
 
 async function copyModels(sectionKey, btn) {
   if (!_lastReport) {
-    flashBtn(btn, "先点刷新");
+    flashBtn(btn, "先点扫描");
     return;
   }
   const section = _lastReport[sectionKey];
@@ -162,20 +192,42 @@ async function copyModels(sectionKey, btn) {
   try {
     await copyToClip(models.join("\n"));
     const suffix = truncated ? `（共 ${section.count}）` : "";
-    flashBtn(btn, `已复制 ${models.length}${suffix}`, "copied");
+    flashBtn(btn, `已复制 ${models.length}${suffix}`);
   } catch (e) {
     flashBtn(btn, "复制失败");
   }
 }
 
-function flashBtn(btn, text, extraClass) {
+async function copyAllAnomalies(btn) {
+  if (!_lastReport) {
+    flashBtn(btn, "先点扫描");
+    return;
+  }
+  const allModels = new Set();
+  GROUPS.forEach((g) => {
+    const section = _lastReport[g.key];
+    (section && section.samples || []).forEach((s) => {
+      if (s.model) allModels.add(s.model);
+    });
+  });
+  if (allModels.size === 0) {
+    flashBtn(btn, "无异常");
+    return;
+  }
+  try {
+    await copyToClip([...allModels].join("\n"));
+    flashBtn(btn, `已复制 ${allModels.size}`);
+  } catch (e) {
+    flashBtn(btn, "复制失败");
+  }
+}
+
+function flashBtn(btn, text) {
   const original = btn.dataset.originalText || btn.textContent;
   btn.dataset.originalText = original;
   btn.textContent = text;
-  if (extraClass) btn.classList.add(extraClass);
   setTimeout(() => {
     btn.textContent = original;
-    if (extraClass) btn.classList.remove(extraClass);
   }, 2000);
 }
 
@@ -188,3 +240,7 @@ if (dupRoot) {
 }
 
 $("ddRefresh")?.addEventListener("click", refresh);
+$("ddCopyAll")?.addEventListener("click", (e) => copyAllAnomalies(e.currentTarget));
+
+// 首次切到查重页时自动 refresh 一次（与 sa/dq 同款 lazy load）
+window.Alpine?.store?.("nav")?.onFirstActivate?.("dup", refresh);

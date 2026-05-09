@@ -1,0 +1,232 @@
+/* ========== Page: 标签查重（重设计 · DataOps Terminal handoff §3.5） ========== */
+
+#pageDup.active {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow: auto;
+  height: calc(100vh - 122px);
+  padding: 0 2px 24px 2px;
+}
+
+/* === 4 列 mini stat 顶部概览 === */
+.dd-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.dd-stat {
+  background: var(--bg-1);
+  border: 1px solid var(--line-soft, var(--c-border));
+  border-radius: var(--r-md, 6px);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.dd-stat-num {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink-0);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.dd-stat[data-tone="accent"] .dd-stat-num { color: var(--accent); }
+.dd-stat[data-tone="warn"]   .dd-stat-num { color: var(--warn); }
+.dd-stat[data-tone="error"]  .dd-stat-num { color: var(--error); }
+.dd-stat-label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink-3);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* === 工具条 === */
+.dd-toolbar {
+  background: var(--bg-1);
+  border: 1px solid var(--line-soft, var(--c-border));
+  border-radius: var(--r-md, 6px);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.dd-toolbar-code {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-3);
+  letter-spacing: 0.12em;
+}
+.dd-toolbar-stat {
+  color: var(--ink-2);
+  font-size: 11.5px;
+}
+.dd-toolbar-spacer { flex: 1; }
+.dd-num--ok   { color: var(--accent); font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.dd-num--warn { color: var(--warn);   font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* === CTA 按钮（设计 size sm，复用全站样式） === */
+.dd-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  text-decoration: none;
+  transition: border-color var(--t-fast, 120ms), color var(--t-fast, 120ms), background var(--t-fast, 120ms);
+}
+.dd-cta--ghost {
+  background: transparent;
+  color: var(--ink-2);
+}
+.dd-cta--ghost:hover {
+  border-color: var(--accent-dim);
+  color: var(--ink-1);
+  background: var(--bg-2);
+}
+.dd-cta--primary {
+  background: rgba(0, 255, 149, .08);
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+.dd-cta--primary:hover {
+  background: rgba(0, 255, 149, .14);
+}
+.dd-cta:disabled,
+.dd-cta[disabled] {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+/* === group panel === */
+.dd-group {
+  background: var(--bg-1);
+  border: 1px solid var(--line-soft, var(--c-border));
+  border-radius: var(--r-md, 6px);
+  display: flex;
+  flex-direction: column;
+}
+.dd-group-hd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line-soft);
+  flex-wrap: wrap;
+}
+.dd-group-code {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink-3);
+  letter-spacing: 0.16em;
+}
+.dd-group-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-0);
+}
+.dd-group-sub {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-3);
+}
+
+/* === pill (CLEAN 或 count) === */
+.dd-pill {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: var(--r-pill, 999px);
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--ink-3);
+}
+.dd-pill[data-tone="clean"] {
+  color: var(--accent);
+  border-color: rgba(0, 255, 149, .35);
+  background: rgba(0, 255, 149, .08);
+}
+.dd-pill[data-tone="warn"] {
+  color: var(--warn);
+  border-color: rgba(255, 182, 39, .40);
+  background: rgba(255, 182, 39, .10);
+}
+.dd-pill[data-tone="error"] {
+  color: var(--error);
+  border-color: rgba(255, 59, 107, .40);
+  background: rgba(255, 59, 107, .10);
+}
+
+/* === group body === */
+.dd-group-body {
+  padding: 0;
+  overflow-x: auto;
+}
+.dd-empty {
+  padding: 22px 14px;
+  text-align: center;
+  color: var(--ink-3);
+  font-size: 12px;
+  font-family: var(--mono);
+  letter-spacing: 0.1em;
+}
+
+/* === table（mono 风） === */
+.dd-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.dd-table thead th {
+  padding: 8px 14px;
+  background: var(--bg-2);
+  color: var(--ink-3);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+}
+.dd-table tbody td {
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--ink-1);
+  vertical-align: top;
+}
+.dd-table tbody tr:last-child td { border-bottom: none; }
+.dd-table tbody tr:hover { background: var(--bg-2); }
+.dd-table code {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-0);
+  background: var(--bg-2);
+  padding: 1px 4px;
+  border-radius: var(--r-sm);
+}
+.dd-table .dd-ws {
+  color: var(--warn);
+  font-weight: 700;
+  background: rgba(255, 182, 39, .12);
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+/* hide 工具按钮当 group 为 CLEAN（empty） */
+.dd-group[data-empty="true"] .dd-tpl,
+.dd-group[data-empty="true"] .dd-copy {
+  display: none;
+}
