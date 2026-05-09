@@ -1,7 +1,7 @@
 .transfer-fab {
   position: fixed;
   right: var(--sp-4);
-  bottom: 56px;          /* 堆在 term-fab 上方，避免与顶部 tab 行的 badge 冲突 */
+  bottom: 56px;          /* 顶部 tab 行的 badge 留位 */
   z-index: 27;
   background: var(--c-surface-elev);
   border: 1px solid var(--c-border);
