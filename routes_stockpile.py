@@ -69,8 +69,28 @@ def apply_export():
 @bp.get("/stockpile/status")
 def stockpile_status():
     initialized = stockpile_db.is_initialized()
-    count = stockpile_db.count_records() if initialized else 0
-    return jsonify({"ok": True, "initialized": initialized, "count": count})
+    if not initialized:
+        return jsonify(
+            {
+                "ok": True,
+                "initialized": False,
+                "count": 0,
+                "active_count": 0,
+                "inactive_count": 0,
+                "last_import_at": None,
+            }
+        )
+    active = stockpile_db.count_records()
+    return jsonify(
+        {
+            "ok": True,
+            "initialized": True,
+            "count": active,  # 向后兼容（substrip / 旧调用方）
+            "active_count": active,
+            "inactive_count": stockpile_db.count_inactive_records(),
+            "last_import_at": stockpile_db.last_import_at(),  # "YYYY-MM-DD HH:MM:SS" or None
+        }
+    )
 
 
 @bp.get("/stockpile/inactive")

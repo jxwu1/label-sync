@@ -459,6 +459,25 @@ def count_records() -> int:
     return result or 0
 
 
+def count_inactive_records() -> int:
+    with _session() as session:
+        result = session.execute(
+            select(func.count()).select_from(Stockpile).where(Stockpile.is_active == _INACTIVE)
+        ).scalar()
+    return result or 0
+
+
+def last_import_at() -> str | None:
+    """最近一次 import 的 taken_at（"YYYY-MM-DD HH:MM:SS" localtime）。无则 None。"""
+    with _session() as session:
+        result = session.execute(
+            select(func.max(StockpileSnapshot.taken_at)).where(
+                StockpileSnapshot.trigger == "import"
+            )
+        ).scalar()
+    return result
+
+
 def query_by_barcode(barcode: str) -> dict | None:
     with _session() as session:
         obj = session.execute(
