@@ -19,7 +19,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-inventory.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-foreign-customers.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-sales-analytics.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/transfer-drawer.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/page-transfer.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/quickmenu.css') }}">
 <script defer src="{{ url_for('static', filename='js/store.js') }}"></script>
 <script defer src="{{ url_for('static', filename='vendor/alpinejs/alpine.min.js') }}"></script>
@@ -87,6 +87,10 @@
       <path d="M3 20h18M5 16l4-6 4 4 6-9"/>
       <path d="M19 5h-3M19 5v3"/>
     </symbol>
+    <symbol id="icon-transfer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 7H3M21 7l-4-4M21 7l-4 4"/>
+      <path d="M3 17h18M3 17l4-4M3 17l4 4"/>
+    </symbol>
   </defs>
 </svg>
 
@@ -104,7 +108,7 @@
       </div>
     </div>
     <nav class="app-sidebar__nav">
-      <div class="app-sidebar__section-label">MODULES · 09</div>
+      <div class="app-sidebar__section-label">MODULES · 10</div>
       <template x-for="p in $store.nav.pages" :key="p.id">
         <button class="app-nav__item"
                 :class="$store.nav.current === p.id && 'active'"
@@ -748,60 +752,89 @@
         </div>
       </div>
     </div>
+      <div class="page" id="pageTransfer" x-data :class="$store.nav.current === 'transfer' ? 'active' : ''">
+        <!-- ConnectionBar -->
+        <div class="tr-connbar">
+          <div class="tr-connbar-icon">⇄</div>
+          <div class="tr-connbar-text">
+            <div class="tr-connbar-title">互传 · A 端 ⇄ B 端</div>
+            <div class="tr-connbar-sub">peer-to-peer · 同局域网文件 / 文字互传</div>
+          </div>
+          <span class="tr-connbar-spacer"></span>
+          <span class="tr-pill tr-pill--accent"><span class="tr-pulse"></span>ONLINE</span>
+        </div>
+
+        <!-- Main 2-col grid -->
+        <div class="tr-grid">
+          <!-- 文件互传 panel -->
+          <section class="tr-panel">
+            <header class="tr-panel-hd">
+              <span class="tr-panel-code">FILE</span>
+              <span class="tr-panel-title">文件互传</span>
+              <span class="tr-panel-sub">drop · queue · download</span>
+              <span class="tr-panel-spacer"></span>
+              <span class="tr-pill tr-pill--ghost" x-data x-text="$store.transfer.files.length + ' files'">0 files</span>
+            </header>
+            <div class="tr-drop" id="tDrop">
+              <input type="file" id="tInput" multiple>
+              <div class="tr-drop-icon">↑</div>
+              <div class="tr-drop-text">
+                <div class="tr-drop-title">拖入文件 · 发送给 B 端</div>
+                <div class="tr-drop-sub">支持多文件 · 全格式 · 走局域网</div>
+              </div>
+              <button class="tr-cta tr-cta--primary" type="button">↑ 选择文件</button>
+            </div>
+            <div class="tr-msg" id="tMsg"></div>
+            <div class="tr-section-label">B 端共享文件</div>
+            <div class="tr-files" id="tList" x-data>
+              <template x-for="i in $store.transfer.files" :key="i.name">
+                <div class="tr-file">
+                  <span class="tr-file-ext" x-text="(i.name.split('.').pop() || '').toUpperCase().slice(0,4)"></span>
+                  <span class="tr-file-name" :title="i.name" x-text="i.name"></span>
+                  <span class="tr-file-size" x-text="i.size + 'KB'"></span>
+                  <a class="tr-cta tr-cta--ghost tr-file-dl" :href="`/transfer_download/${encodeURIComponent(i.name)}`">↓ 下载</a>
+                </div>
+              </template>
+              <div class="tr-empty" x-show="$store.transfer.files.length === 0">暂无文件</div>
+            </div>
+          </section>
+
+          <!-- 文字互传 panel -->
+          <section class="tr-panel tr-chat-panel">
+            <header class="tr-panel-hd">
+              <span class="tr-panel-code">CHAT</span>
+              <span class="tr-panel-title">文字互传</span>
+              <span class="tr-panel-sub">实时消息 · 自动同步</span>
+              <span class="tr-panel-spacer"></span>
+              <span class="tr-pill tr-pill--ghost" x-data x-text="$store.messages.list.length + ' msg'">0 msg</span>
+            </header>
+            <div class="tr-msglist" id="msgList" x-data>
+              <template x-for="i in $store.messages.list" :key="i.id">
+                <div class="tr-bubble" :class="i.sender === 'A' ? 'is-self' : ''">
+                  <div class="tr-bubble-hd">
+                    <span class="tr-bubble-from" x-text="i.sender === 'A' ? '我（A）' : 'B 端'"></span>
+                    <span class="tr-bubble-meta">
+                      <span class="tr-bubble-time" x-text="i.time"></span>
+                      <button class="tr-bubble-del" @click="window.__delMsg(i.id)" title="删除">×</button>
+                    </span>
+                  </div>
+                  <div class="tr-bubble-body" x-text="i.text"></div>
+                </div>
+              </template>
+              <div class="tr-empty" x-show="$store.messages.list.length === 0">暂无消息</div>
+            </div>
+            <div class="tr-chat-foot">
+              <textarea class="tr-textarea" id="textInput" rows="3" placeholder="输入消息，发送给 B 端（Ctrl+Enter）"></textarea>
+              <div class="tr-chat-actions">
+                <button class="tr-cta tr-cta--ghost" id="copyText" type="button">⎘ 复制</button>
+                <button class="tr-cta tr-cta--primary" id="sendText" type="button">↪ 发送</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
   </div>
 </div>
-<button class="transfer-fab" id="transferFab" type="button" x-data @click="$store.ui.toggleTransfer()">
-  <span>📨 文件互传</span>
-  <span class="transfer-fab__dot" id="transferFabDot" :class="$store.ui.transferDot ? 'is-on' : ''"></span>
-</button>
-
-<aside class="transfer-drawer" id="transferDrawer" x-data :class="$store.ui.transferDrawer ? 'is-open' : ''">
-  <div class="transfer-drawer__head">
-    <span class="transfer-drawer__title">文件互传</span>
-    <button class="transfer-drawer__close" id="transferDrawerClose" type="button" @click="$store.ui.closeTransfer()">关闭</button>
-  </div>
-
-  <div class="section-label">发送文件给 B 端</div>
-  <div class="t-drop" id="tDrop">
-    <input type="file" id="tInput" multiple>
-    <div>拖入或点击，发送文件给 B 端</div>
-  </div>
-  <div class="msg" id="tMsg"></div>
-
-  <div class="section-label">B 端共享文件</div>
-  <div id="tList" x-data>
-    <template x-for="i in $store.transfer.files" :key="i.name">
-      <div class="transfer-file">
-        <span class="transfer-file__name" :title="i.name" x-text="i.name"></span>
-        <span class="transfer-file__size" x-text="i.size + 'KB'"></span>
-        <a class="transfer-file__dl" :href="`/transfer_download/${encodeURIComponent(i.name)}`">下载</a>
-      </div>
-    </template>
-    <div class="empty" x-show="$store.transfer.files.length === 0">暂无</div>
-  </div>
-
-  <div class="section-label">文字互传</div>
-  <textarea class="text-msg-input" id="textInput" rows="3" placeholder="输入消息，发送给 B 端（Ctrl+Enter）"></textarea>
-  <div class="text-msg-actions">
-    <button class="text-msg-btn" id="copyText" type="button">复制</button>
-    <button class="text-msg-send" id="sendText" type="button">发送</button>
-  </div>
-  <div class="message-list" id="msgList" x-data>
-    <template x-for="i in $store.messages.list" :key="i.id">
-      <div class="message" :class="i.sender === 'A' ? 'is-self' : ''">
-        <div class="message__head">
-          <span class="message__source" x-text="i.sender === 'A' ? '我（A）' : 'B 端'"></span>
-          <span>
-            <span class="message__time" x-text="i.time"></span>
-            <button class="message__del" @click="window.__delMsg(i.id)">×</button>
-          </span>
-        </div>
-        <div class="message__body" x-text="i.text"></div>
-      </div>
-    </template>
-    <div class="empty" x-show="$store.messages.list.length === 0">暂无消息</div>
-  </div>
-</aside>
 
 <div class="quickmenu" id="quickMenu" x-data
      :class="$store.ui.quickMenu ? 'is-open' : ''"
@@ -809,12 +842,9 @@
   <button class="quickmenu__toggle" id="quickToggle" type="button" title="工具菜单" aria-label="工具菜单"
           @click.stop="$store.ui.toggleQuick()">≡</button>
   <div class="quickmenu__panel">
-    <button class="quickmenu__item" id="quickTransfer" type="button"
-            @click="$store.ui.toggleTransfer(); $store.ui.closeQuick()">
-      <span>📨</span>
-      <span>文件互传</span>
-      <span class="quickmenu__item-dot" id="quickTransferDot" :class="$store.ui.quickTransferDot ? 'is-on' : ''"></span>
-    </button>
+    <!-- quickmenu 现已为空（transfer 搬到 nav module 10、终端日志已删）；
+         保留容器 + 切换按钮以备未来加入新工具 -->
+    <div class="quickmenu__empty">暂无快捷工具</div>
   </div>
 </div>
 
