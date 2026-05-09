@@ -12,27 +12,68 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     const page = document.getElementById('pagePurchase');
     if (!page) return;
     page.innerHTML = `
+      <!-- 上传 zone：水平 flex（设计 §3.6） -->
       <div class="pur-drop" id="purDrop">
         <input type="file" id="purInput" accept=".xlsx,.xls,.csv" multiple>
-        <div>拖入或点击选择供应商 Excel</div>
-        <div class="hint">供应商：第1列条码/型号 · 第3列价格 · 第6列数量</div>
-      </div>
-      <div class="pur-results" id="purResults"><div class="empty">上传文件后显示结果</div></div>
-      <div class="pur-footer pur-hidden" id="purFooter"></div>
-      <div class="pur-newbox pur-hidden" id="purNewBox">
-        <div class="pur-newbox-hd">新条码处理 <button class="pur-new-copy-all" id="purNewCopyAll">复制全部条码</button></div>
-        <div class="pur-supplier">
-          供应商 ID: <input class="pur-inp" id="purSupId" placeholder="必填">
-          供应商名称: <input class="pur-inp" id="purSupName" placeholder="必填">
+        <div class="pur-drop-icon">⊞</div>
+        <div class="pur-drop-text">
+          <div class="pur-drop-title">拖入或点击选择 · 供应商 Excel</div>
+          <div class="pur-drop-sub">COL[1] 条码/型号 · COL[3] 价格 · COL[6] 数量 · .xls / .xlsx / .csv</div>
         </div>
-        <div id="purNewList"></div>
+        <div class="pur-drop-schema">SCHEMA · v2</div>
+        <button class="pur-cta pur-cta--primary" type="button" id="purBrowseBtn">↑ 浏览文件</button>
       </div>
-      <div class="pur-actions">
-        <div class="pur-status" id="purStatus"></div>
-        <button class="pur-btn-copy" id="purCopy" disabled>一键复制</button>
-        <button class="pur-btn-dl" id="purImport" disabled>一键入库</button>
-        <button class="pur-btn-dl" id="purDl" disabled>下载全部</button>
+
+      <!-- 解析结果 panel -->
+      <section class="pur-panel" id="purResultsPanel">
+        <header class="pur-panel-hd">
+          <span class="pur-panel-code">RES-04</span>
+          <span class="pur-panel-title">解析结果</span>
+          <span class="pur-panel-sub" id="purPanelSub">等待文件</span>
+          <span class="pur-panel-spacer"></span>
+          <span class="pur-pill pur-pill--ghost" id="purStatePill">未解析</span>
+          <span class="pur-pill pur-pill--ghost pur-filename" id="purFilename" hidden></span>
+        </header>
+        <div class="pur-results-wrap" id="purResultsWrap">
+          <div class="pur-results" id="purResults"><div class="pur-empty">上传文件后显示结果</div></div>
+        </div>
+        <footer class="pur-panel-ft">
+          <span class="pur-foot-stat" id="purFooter">SUM · 0 ROWS · 0 UNITS</span>
+          <span class="pur-status" id="purStatus"></span>
+          <span class="pur-panel-spacer"></span>
+          <button class="pur-cta pur-cta--ghost" id="purCopy" disabled>⎘ 一键复制</button>
+          <button class="pur-cta pur-cta--ghost" id="purImport" disabled>↪ 一键入库</button>
+          <button class="pur-cta pur-cta--primary" id="purDl" disabled>↓ 下载全部</button>
+        </footer>
+      </section>
+
+      <!-- 新条码处理 panel -->
+      <section class="pur-panel pur-newbox pur-hidden" id="purNewBox">
+        <header class="pur-panel-hd">
+          <span class="pur-panel-code">NEW-04</span>
+          <span class="pur-panel-title">新条码处理</span>
+          <span class="pur-panel-spacer"></span>
+          <button class="pur-cta pur-cta--ghost" id="purNewCopyAll">⎘ 复制全部条码</button>
+        </header>
+        <div class="pur-supplier">
+          <label class="pur-field"><span>供应商 ID</span><input class="pur-inp" id="purSupId" placeholder="必填"></label>
+          <label class="pur-field"><span>供应商名称</span><input class="pur-inp" id="purSupName" placeholder="必填"></label>
+        </div>
+        <div id="purNewList" class="pur-newlist"></div>
+      </section>
+
+      <!-- HISTORY · 月度总结 strip -->
+      <div class="pur-history" id="purSummarySection">
+        <span class="pur-history-code">HISTORY · 月份</span>
+        <select class="pur-inp pur-inp--mono" id="purSumMonth"></select>
+        <span class="pur-history-stat" id="purSumCount">— 条记录</span>
+        <span class="pur-panel-spacer"></span>
+        <button class="pur-cta pur-cta--ghost" id="purSumAdd">+ 补录</button>
+        <button class="pur-cta pur-cta--ghost" id="purSumManage">⌗ 管理</button>
+        <button class="pur-cta pur-cta--primary" id="purSumDl">⌖ 下载 PDF</button>
       </div>
+
+      <!-- Modals （样式 token 化但 DOM 结构不变） -->
       <div class="pur-modal-overlay pur-hidden" id="purModalOverlay">
         <div class="pur-modal">
           <div class="pur-modal-title">记录到月度总结</div>
@@ -44,20 +85,10 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
           <label>开票日期<input class="pur-inp" id="purMsDate" type="date"></label>
           <label>目标月份<input class="pur-inp" id="purMsMonth" type="month"></label>
           <div class="pur-modal-actions">
-            <button class="pur-btn-dl" id="purMsConfirm">确认并导出</button>
-            <button class="pur-btn-copy" id="purMsSkip">跳过，直接导出</button>
-            <button class="pur-btn-copy" id="purMsCancel">取消</button>
+            <button class="pur-cta pur-cta--primary" id="purMsConfirm">确认并导出</button>
+            <button class="pur-cta pur-cta--ghost" id="purMsSkip">跳过，直接导出</button>
+            <button class="pur-cta pur-cta--ghost" id="purMsCancel">取消</button>
           </div>
-        </div>
-      </div>
-      <div class="pur-summary-section" id="purSummarySection">
-        <div class="pur-summary-hd">月度总结</div>
-        <div class="pur-summary-controls">
-          <select class="pur-inp" id="purSumMonth"></select>
-          <span id="purSumCount"></span>
-          <button class="pur-btn-copy" id="purSumAdd">补录</button>
-          <button class="pur-btn-copy" id="purSumManage">管理</button>
-          <button class="pur-btn-dl" id="purSumDl">下载 PDF</button>
         </div>
       </div>
       <div class="pur-modal-overlay pur-hidden" id="purMgrOverlay">
@@ -66,10 +97,14 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
           <input class="pur-inp" id="purMgrSearch" placeholder="搜索供应商/日期/金额">
           <div id="purMgrList" class="pur-mgr-list"></div>
           <div class="pur-modal-actions">
-            <button class="pur-btn-copy" id="purMgrClose">关闭</button>
+            <button class="pur-cta pur-cta--ghost" id="purMgrClose">关闭</button>
           </div>
         </div>
       </div>`;
+    // 浏览按钮 → 触发隐藏 input
+    document.getElementById('purBrowseBtn').addEventListener('click', () => {
+      document.getElementById('purInput').click();
+    });
     const drop = document.getElementById('purDrop');
     const input = document.getElementById('purInput');
     setupDropZone(drop, input, (files) => handleFiles(files));
@@ -112,6 +147,12 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
       systemBarcodes = new Set(body.system_barcodes);
       newEntries = body.new_barcodes.map(bc => ({ barcode: bc, name: '', invoice_name: '' }));
       savedNewEntries = [];
+      // 文件名 pill
+      const fileEl = document.getElementById('purFilename');
+      if (fileEl) {
+        fileEl.textContent = storedSupplierFile.name;
+        fileEl.hidden = false;
+      }
       renderResults();
       renderNewBox();
       setStatus(`解析完成`);
@@ -129,39 +170,78 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
   function renderResults() {
     const container = document.getElementById('purResults');
     if (!rows.length) {
-      container.innerHTML = '<div class="empty">未解析到数据</div>';
+      container.innerHTML = '<div class="pur-empty">未解析到数据</div>';
       updateButtons();
       renderFooter();
+      updatePanelMeta();
       return;
     }
-    container.innerHTML = rows.map((r, i) => {
+    const trs = rows.map((r, i) => {
       const st = rowStatus(r);
       const pill = `<span class="pur-pill pur-pill--${st.key}">${st.label}</span>`;
-      if (r.price_flagged) {
-        const parts = r.formatted.split(',');
-        return `<div class="pur-row flagged" data-i="${i}">
-          ${pill}
-          <span class="pur-text">${parts[0]},</span>
-          <input class="pur-price-input" data-i="${i}" value="${parts[1]}" title="价格小数超2位，请修改">
-          <span class="pur-text">,,${parts[3]}</span>
-        </div>`;
-      }
-      return `<div class="pur-row" data-i="${i}">${pill}<span class="pur-text">${r.formatted}</span></div>`;
+      const idx = String(i + 1).padStart(2, '0');
+      const priceCell = r.price_flagged
+        ? `<input class="pur-price-input" data-i="${i}" value="${r.price}" title="价格小数超2位，请修改">`
+        : Number(r.price).toFixed(2);
+      return `<tr class="pur-row${r.price_flagged ? ' flagged' : ''}" data-i="${i}">
+        <td class="pur-td-num pur-td-idx">${idx}</td>
+        <td class="pur-td-bc">${escapeHtml(r.barcode)}</td>
+        <td class="pur-td-num pur-td-price">${priceCell}</td>
+        <td class="pur-td-num">${r.quantity}</td>
+        <td class="pur-td-state">${pill}</td>
+      </tr>`;
     }).join('');
+    container.innerHTML = `
+      <table class="pur-table">
+        <thead><tr>
+          <th class="pur-th-num">#</th>
+          <th>条码</th>
+          <th class="pur-th-num">单价</th>
+          <th class="pur-th-num">数量</th>
+          <th>状态</th>
+        </tr></thead>
+        <tbody>${trs}</tbody>
+      </table>
+    `;
     container.querySelectorAll('.pur-price-input').forEach(el => {
       el.addEventListener('input', onPriceEdit);
       el.addEventListener('change', onPriceEdit);
     });
     updateButtons();
     renderFooter();
+    updatePanelMeta();
+  }
+
+  function updatePanelMeta() {
+    const sub = document.getElementById('purPanelSub');
+    const pill = document.getElementById('purStatePill');
+    if (!rows.length) {
+      if (sub) sub.textContent = '等待文件';
+      if (pill) {
+        pill.textContent = '未解析';
+        pill.className = 'pur-pill pur-pill--ghost';
+      }
+      return;
+    }
+    const units = rows.reduce((s, r) => s + (Number(r.quantity) || 0), 0);
+    if (sub) sub.textContent = `${rows.length} 行 · ${units} 件`;
+    if (pill) {
+      const flagN = rows.filter(r => r.price_flagged).length;
+      if (flagN) {
+        pill.textContent = `待校 ${flagN}`;
+        pill.className = 'pur-pill pur-pill--warn';
+      } else {
+        pill.textContent = '已解析';
+        pill.className = 'pur-pill pur-pill--accent';
+      }
+    }
   }
 
   function renderFooter() {
     const el = document.getElementById('purFooter');
     if (!el) return;
     if (!rows.length) {
-      el.classList.add('pur-hidden');
-      el.innerHTML = '';
+      el.textContent = 'SUM · 0 ROWS · 0 UNITS';
       return;
     }
     const units = rows.reduce((s, r) => s + (Number(r.quantity) || 0), 0);
@@ -171,16 +251,10 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     );
     const flagN = rows.filter(r => r.price_flagged).length;
     const newN = rows.filter(r => !systemBarcodes.has(r.barcode)).length;
-    const cell = (k, v, mod) =>
-      `<span class="pur-foot-cell${mod ? ' pur-foot-cell--' + mod : ''}"><span class="k">${k}</span><span class="v">${v}</span></span>`;
-    el.classList.remove('pur-hidden');
-    el.innerHTML = [
-      cell('SUM', '€' + sum.toFixed(2)),
-      cell('ROWS', rows.length),
-      cell('UNITS', units.toLocaleString()),
-      newN ? cell('NEW', newN, 'new') : '',
-      flagN ? cell('CHECK', flagN, 'check') : '',
-    ].join('');
+    let txt = `SUM · €${sum.toFixed(2)} · ${rows.length} ROWS · ${units.toLocaleString()} UNITS`;
+    if (newN) txt += ` · NEW ${newN}`;
+    if (flagN) txt += ` · CHECK ${flagN}`;
+    el.textContent = txt;
   }
 
   async function copyNewBarcodes() {
@@ -325,6 +399,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     rowEl?.classList.toggle('flagged', !valid);
     updateButtons();
     renderFooter();
+    updatePanelMeta();
   }
 
   function updateButtons() {
@@ -494,8 +569,12 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     try {
       const res = await fetch(`/monthly-summary/records/${month}`);
       const body = await res.json();
+      const recs = body.records || [];
+      const total = recs.reduce((s, r) => s + (Number(r.total_with_tax) || 0), 0);
       const el = document.getElementById('purSumCount');
-      if (el) el.textContent = `${body.count || 0} 条记录`;
+      if (!el) return;
+      const count = body.count || 0;
+      el.innerHTML = `<span class="pur-num--ok">${count}</span> 条记录 · 累计 <span class="pur-num--accent">€${total.toFixed(2)}</span>`;
     } catch (e) { /* silent */ }
   }
 
