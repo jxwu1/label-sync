@@ -37,6 +37,7 @@ _NAV_PAGES = [
     ("inventory", "pageInventory"),
     ("foreign_customers", "pageForeignCustomers"),
     ("sales_analytics", "pageSalesAnalytics"),
+    ("transfer", "pageTransfer"),
 ]
 
 

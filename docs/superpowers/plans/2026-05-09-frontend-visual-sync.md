@@ -2,7 +2,7 @@
 
 **起草日期**：2026-05-09
 **最后更新**：2026-05-09
-**当前状态**：5/13 PR 已 merge（4 done + 1 dropped）+ 8 个待开
+**当前状态**：6/13 PR 已 merge（5 done + 1 dropped）+ 7 个待开
 
 ## 起因
 
@@ -33,21 +33,26 @@
 | #8 | refactor: 删前端终端日志浮窗（保留 activityPanel + store API） | ab7564e |
 | #9 | feat(dedupe): 标签查重页按设计重做（4 stat + 工具条 + 4 group panel） | 8c954cf |
 | #10 | feat(purchase): 采购页按设计重做（upload zone + 真表格 + footer + history） | 8bcfec6 |
+| #12 | feat(transfer): 互传从 FAB 抽屉搬到 nav module 10（pageTransfer 2 列） | (待 push) |
 | **N/A** | ~~PR 13 主页右栏 ActivityLog 删除后 right-stack 收口~~ —— **取消**：用户明确要保留 #activityPanel，PR 3 改为只删浮窗，本项前提不存在 | — |
 
-## 推荐执行顺序（剩余 8 个）
+## 推荐执行顺序（剩余 7 个）
 
 | 批 | 包含 | 总估时 | 触发条件 |
 |---|---|---|---|
-| **批 C**（结构大件） | PR 4 | ~5h | 互传搬侧栏，独立做 |
+| ~~批 C~~ | ~~PR 4 互传搬侧栏~~ | — | **已完成** (PR #12) |
 | **批 D**（货号历史重头戏） | PR 7 + PR 8 | ~8h | 改动量大 |
 | **批 E**（收尾，相对独立） | PR 9 + PR 10 + PR 11 + PR 12 | ~10h | 各自独立可并行 |
 
-总剩余：~23h。
+总剩余：~18h。
 
 ---
 
-## PR 4 · 互传模块从 FAB 抽屉搬到左侧栏 module 10
+## PR 4 · 互传模块从 FAB 抽屉搬到左侧栏 module 10 ✅ 已 merge (PR #12)
+
+> 简化版实施：设计的 ConnectionBar 4 metric (配对码/延迟/带宽/在线)、send/recv queue 区分、传输历史 后端无数据 → 跳过这些；保留 ConnectionBar light + 2 列主区（文件互传 + 文字互传）。所有 element ID + store API 保留，后端 `routes_transfer.py` 0 改动。
+
+
 
 **目标**：设计 `transfer-module.md` 把它升级成顶级 nav 项（10 号），左侧 ⇄ 图标，主区是 3×3 grid 的完整 page；当前还是右下抽屉。
 

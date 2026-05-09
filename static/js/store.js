@@ -50,26 +50,15 @@ document.addEventListener("alpine:init", () => {
   });
 
   // ===== 浮层 / 红点 =====
-  // 终端日志 store('term') 仍保留（其他模块还在 push logs），
-  // 但前端浮窗已删，所以 termDrawer / toggleTerm / closeTerm 一并去掉
+  // 终端日志 store('term') 仍保留（其他模块还在 push logs）；浮窗已删。
+  // 互传也搬到 nav module 10，drawer/transferDot/quickTransferDot 一并去掉。
   Alpine.store("ui", {
-    transferDrawer: false,
     quickMenu: false,
-    transferDot: false,
-    quickTransferDot: false,
-    toggleTransfer() {
-      this.transferDrawer = !this.transferDrawer;
-      this.transferDot = false;
-      this.quickTransferDot = false;
-    },
     toggleQuick() {
       this.quickMenu = !this.quickMenu;
     },
     closeQuick() {
       this.quickMenu = false;
-    },
-    closeTransfer() {
-      this.transferDrawer = false;
     },
   });
 
@@ -153,6 +142,7 @@ document.addEventListener("alpine:init", () => {
       { id: "inventory",         label: "进销存导入", icon: "inout",      code: "07", shortcut: "7" },
       { id: "foreign_customers", label: "老外客人",   icon: "overseas",   code: "08", shortcut: "8" },
       { id: "sales_analytics",   label: "销售分析",   icon: "sales",      code: "09", shortcut: "9" },
+      { id: "transfer",          label: "互传",       icon: "transfer",   code: "10", shortcut: "0" },
     ],
     switch(id) {
       this.current = id;
@@ -201,8 +191,8 @@ document.addEventListener("alpine:init", () => {
 // ===== 全局键盘快捷键（PR-FE-1）=====
 // alpine:init 之外注册以确保即使 Alpine 异常仍可工作。
 document.addEventListener("keydown", (e) => {
-  // ⌘/Ctrl + 1-9 切 nav
-  if ((e.metaKey || e.ctrlKey) && /^[1-9]$/.test(e.key)) {
+  // ⌘/Ctrl + 0-9 切 nav（0 = 第 10 项 transfer）
+  if ((e.metaKey || e.ctrlKey) && /^[0-9]$/.test(e.key)) {
     const store = window.Alpine?.store?.("nav");
     if (!store) return;
     const target = store.bySortcut(e.key);
