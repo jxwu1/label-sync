@@ -141,9 +141,13 @@ document.addEventListener("alpine:init", () => {
   Alpine.store("substrip").loadStockpile();
 
   // ===== Nav (PR-FE-1：加 collapsed / 9 模块图标 / 数字快捷键) =====
+  // onFirstActivate(pageId, cb): 首次切到该 page 时触发一次 cb，后续切走再回不重复触发。
+  // 用于 sa/dq 等"进页才有数据"页省去用户点刷新一步。
   Alpine.store("nav", {
     current: "main",
     collapsed: false,
+    _initedPages: [],
+    _callbacks: {},
     pages: [
       { id: "main",              label: "标签处理",   icon: "tags",       code: "01", shortcut: "1" },
       { id: "dup",               label: "标签查重",   icon: "dedupe",     code: "02", shortcut: "2" },
@@ -157,6 +161,25 @@ document.addEventListener("alpine:init", () => {
     ],
     switch(id) {
       this.current = id;
+      this._fireFirstActivate(id);
+    },
+    onFirstActivate(pageId, cb) {
+      this._callbacks[pageId] = cb;
+      // 已经是 current 但还没 init 过 → 立即触发（处理"注册晚于切页"的边界）
+      if (this.current === pageId) {
+        this._fireFirstActivate(pageId);
+      }
+    },
+    _fireFirstActivate(pageId) {
+      if (this._initedPages.includes(pageId)) return;
+      const cb = this._callbacks[pageId];
+      if (!cb) return;
+      this._initedPages.push(pageId);
+      try {
+        cb();
+      } catch (e) {
+        console.error("nav lazy load callback error:", pageId, e);
+      }
     },
     toggleCollapse() {
       this.collapsed = !this.collapsed;
