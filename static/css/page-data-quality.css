@@ -1,132 +1,263 @@
+/* ========== Page: 数据质量（PR 10 重做 · DataOps Terminal handoff §pages-extra.jsx:694-788） ========== */
+
 #pageDataQuality.active {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
   overflow: auto;
   height: calc(100vh - 122px);
+  padding: 0 2px 24px 2px;
 }
 
-#pageDataQuality .dq-section {
-  margin-top: 12px;
-}
-
-/* panel-hd flex 布局：标题左、.dq-actions 推到右上角；多按钮在容器内并排 */
-#pageDataQuality .panel-hd {
+/* ===== 顶部 banner（只读视图） ===== */
+.dq-banner {
+  background: var(--bg-1);
+  border: 1px solid var(--line-soft, var(--c-border));
+  border-radius: var(--r-md, 6px);
+  padding: 14px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 14px;
+  flex-wrap: wrap;
 }
-#pageDataQuality .panel-hd > .dq-actions {
-  margin-left: auto;
+.dq-banner-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-md, 6px);
+  background: rgba(78, 163, 255, .08);
+  border: 1px solid rgba(78, 163, 255, .3);
   display: flex;
-  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 18px;
+  color: var(--info);
+  flex-shrink: 0;
 }
-#pageDataQuality .panel-hd > .dq-actions > * {
-  text-transform: none;  /* 抑制 panel-hd 的 uppercase 继承 */
-  text-decoration: none; /* a.pur-btn-dl 去下划线 */
+.dq-banner-text { flex: 1; min-width: 0; }
+.dq-banner-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-0);
+}
+.dq-banner-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-top: 2px;
+  letter-spacing: 0.04em;
+}
+
+/* ===== Pill ===== */
+.dq-pill {
   display: inline-flex;
   align-items: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: var(--r-pill, 999px);
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--ink-3);
+}
+.dq-pill--info {
+  color: var(--info);
+  border-color: rgba(78, 163, 255, .40);
+  background: rgba(78, 163, 255, .08);
+}
+.dq-pill--warn {
+  color: var(--warn);
+  border-color: rgba(255, 182, 39, .40);
+  background: rgba(255, 182, 39, .10);
+}
+.dq-pill--accent {
+  color: var(--accent);
+  border-color: rgba(0, 255, 149, .35);
+  background: rgba(0, 255, 149, .08);
 }
 
-.dq-count {
-  font-weight: normal;
-  font-size: 13px;
-  color: var(--color-text-muted, #888);
-  margin-left: 6px;
+/* ===== CTA ===== */
+.dq-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  background: transparent;
+  color: var(--ink-2);
+  transition: border-color var(--t-fast, 120ms), color var(--t-fast, 120ms), background var(--t-fast, 120ms);
+}
+.dq-cta--ghost:hover {
+  border-color: var(--accent-dim);
+  color: var(--ink-1);
+  background: var(--bg-2);
+}
+.dq-cta--primary {
+  background: rgba(0, 255, 149, .08);
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+.dq-cta--primary:hover {
+  background: rgba(0, 255, 149, .14);
+}
+.dq-cta:disabled,
+.dq-cta[disabled] { opacity: .45; cursor: not-allowed; }
+
+/* ===== 2 stat box grid ===== */
+.dq-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.dq-stat {
+  background: var(--bg-1);
+  border: 1px solid var(--line-soft);
+  border-left: 2px solid var(--line);
+  border-radius: var(--r-md, 6px);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.dq-stat[data-tone="warn"]   { border-left-color: var(--warn-dim, var(--warn)); }
+.dq-stat[data-tone="error"]  { border-left-color: var(--error-dim, var(--error)); }
+.dq-stat[data-tone="accent"] { border-left-color: var(--accent-dim); }
+.dq-stat[data-tone="info"]   { border-left-color: var(--info-dim, var(--info)); }
+.dq-stat[data-tone="warn"]   .dq-stat-num { color: var(--warn); }
+.dq-stat[data-tone="error"]  .dq-stat-num { color: var(--error); }
+.dq-stat[data-tone="accent"] .dq-stat-num { color: var(--accent); }
+.dq-stat[data-tone="info"]   .dq-stat-num { color: var(--info); }
+.dq-stat-num {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink-0);
+  font-variant-numeric: tabular-nums;
+}
+.dq-stat-label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.dq-stat-sub {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-2);
 }
 
-.dq-count--zero {
-  color: var(--color-success, #4a7c4f);
+/* ===== DQ-XX panel ===== */
+.dq-panel {
+  background: var(--bg-1);
+  border: 1px solid var(--line-soft, var(--c-border));
+  border-radius: var(--r-md, 6px);
+  display: flex;
+  flex-direction: column;
 }
-
-.dq-empty {
-  color: var(--color-text-muted, #888);
-  padding: 12px;
-  text-align: center;
+.dq-panel-hd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line-soft);
+  flex-wrap: wrap;
 }
+.dq-panel-code {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink-3);
+  letter-spacing: 0.16em;
+}
+.dq-panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-0);
+}
+.dq-panel-sub {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-3);
+}
+.dq-panel-spacer { flex: 1; }
+.dq-panel-bd { overflow-x: auto; }
 
+/* ===== 表格 mono ===== */
 .dq-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-family: var(--mono);
+  font-size: 11.5px;
 }
-
-.dq-table th,
-.dq-table td {
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--color-border-soft, #e5e0d6);
-  text-align: left;
-  vertical-align: top;
-}
-
-.dq-table th {
-  background: var(--color-surface-soft, var(--bg-2));
+.dq-table thead th {
+  padding: 8px 14px;
+  background: var(--bg-2);
+  color: var(--ink-2);
   font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
   position: sticky;
   top: 0;
+  z-index: 1;
+}
+.dq-table tbody td {
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--ink-1);
+  vertical-align: top;
+}
+.dq-table tbody tr:last-child td { border-bottom: none; }
+.dq-table tbody tr:nth-child(even) { background: rgba(255, 255, 255, .012); }
+.dq-table tbody tr:hover { background: rgba(0, 255, 149, .04); }
+
+/* 列样式 */
+.dq-td-idx { color: var(--ink-3); }
+.dq-td-bc  { color: var(--accent); }
+.dq-td-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* dq-empty */
+.dq-empty {
+  padding: 22px 14px;
+  text-align: center;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 11.5px;
 }
 
-.dq-table tbody tr:hover {
-  background: var(--color-surface-hover, var(--bg-3));
-}
+/* light theme */
+body[data-theme="light"] .dq-table tbody tr:nth-child(even) { background: rgba(0, 0, 0, .025); }
+body[data-theme="light"] .dq-table tbody tr:hover { background: rgba(26, 122, 76, .08); }
 
-.dq-table .dq-num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.dq-table code {
-  font-family: ui-monospace, "SF Mono", Consolas, monospace;
-  font-size: 12px;
-}
-
-.dq-ws {
-  color: var(--warn-dim);
-  font-weight: bold;
-  background: rgba(204, 102, 0, 0.1);
-  padding: 0 2px;
-  border-radius: 2px;
-}
-
-/* === Stockpile compare 双轴结果（PR4） === */
+/* === Stockpile compare 双轴结果（PR4 遗留，stockpile 页用） === */
 .sp-cmp-alert {
-  background: #ffe9e0;
-  color: #b00020;
-  border-left: 4px solid #b00020;
+  background: rgba(255, 59, 107, .08);
+  color: var(--error);
+  border-left: 4px solid var(--error);
   padding: 8px 12px;
   margin: 8px 0;
   font-weight: bold;
   border-radius: 3px;
 }
-
 .sp-cmp-section {
   margin: 10px 0;
-  border-left: 3px solid var(--color-border-soft, #e5e0d6);
+  border-left: 3px solid var(--line-soft);
   padding-left: 10px;
 }
-
-.sp-cmp-substantive {
-  border-left-color: #b00020;
-}
-
-.sp-cmp-cosmetic {
-  border-left-color: #cc8800;
-}
-
-.sp-cmp-section-hd {
-  font-weight: 600;
-  margin-bottom: 6px;
-}
-
-.sp-cmp-count {
-  color: var(--color-text-muted, #888);
-  font-weight: normal;
-}
-
-.sp-cmp-more {
-  color: var(--color-text-muted, #888);
-  font-size: 12px;
-  margin-top: 4px;
-}
-
-.sp-mismatch-row.substantive {
-  background: rgba(176, 0, 32, 0.04);
-}
+.sp-cmp-substantive { border-left-color: var(--error); }
+.sp-cmp-cosmetic    { border-left-color: var(--warn); }
+.sp-cmp-section-hd  { font-weight: 600; margin-bottom: 6px; }
+.sp-cmp-count       { color: var(--ink-3); font-weight: normal; }
+.sp-cmp-more        { color: var(--ink-3); font-size: 12px; margin-top: 4px; }
+.sp-mismatch-row.substantive { background: rgba(255, 59, 107, .04); }

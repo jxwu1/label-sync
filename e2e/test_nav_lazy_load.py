@@ -36,7 +36,7 @@ def test_sales_analytics_lazy_load_fires_on_first_switch(live_server, page_with_
 
 
 def test_data_quality_lazy_load_fires_on_first_switch(live_server, page_with_console) -> None:
-    """切到数据质量 → refresh() 自动跑 → #dqHint 显示「维度健康监测」前缀。"""
+    """切到数据质量 → refresh() 自动跑 → #dqStatMulti 数字从 "—" 变成 N。"""
     page = page_with_console
     page.goto(live_server + "/")
     _wait_alpine_ready(page)
@@ -44,9 +44,9 @@ def test_data_quality_lazy_load_fires_on_first_switch(live_server, page_with_con
     page.evaluate("Alpine.store('nav').switch('data_quality')")
     page.locator("#pageDataQuality.active").wait_for(state="attached", timeout=2000)
 
-    # refresh() 成功路径 → dqHint 文本以 "维度健康监测" 开头
+    # refresh() 成功路径 → dq stat 数字被填充（不是初始的 "—"）
     page.wait_for_function(
-        "document.getElementById('dqHint').textContent.startsWith('维度健康监测')",
+        "document.querySelector('#dqStatMulti .dq-stat-num').textContent.match(/^\\d/)",
         timeout=5000,
     )
 
