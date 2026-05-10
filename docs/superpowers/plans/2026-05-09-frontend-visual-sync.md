@@ -1,8 +1,8 @@
 # Frontend 视觉对齐 plan（DataOps Terminal handoff）
 
 **起草日期**：2026-05-09
-**最后更新**：2026-05-09
-**当前状态**：6/13 PR 已 merge（5 done + 1 dropped）+ 7 个待开
+**最后更新**：2026-05-11
+**当前状态**：✅ **全部完结** — 13/13 PR 已 ship（12 done + 1 dropped）
 
 ## 起因
 
@@ -25,26 +25,47 @@
 - `src/pages-sales.jsx` —— Sales Analysis
 - `tweaks-panel.jsx` —— prod 不要
 
-## 已完成（5/13）
+## 已完成（13/13 全 ship）
 
-| PR# (GitHub) | 标题 | merged commit |
-|---|---|---|
-| #7 | feat(branding): logo + favicon 换终端光标风（>_） | 312dd21 |
-| #8 | refactor: 删前端终端日志浮窗（保留 activityPanel + store API） | ab7564e |
-| #9 | feat(dedupe): 标签查重页按设计重做（4 stat + 工具条 + 4 group panel） | 8c954cf |
-| #10 | feat(purchase): 采购页按设计重做（upload zone + 真表格 + footer + history） | 8bcfec6 |
-| #12 | feat(transfer): 互传从 FAB 抽屉搬到 nav module 10（pageTransfer 2 列） | (待 push) |
-| **N/A** | ~~PR 13 主页右栏 ActivityLog 删除后 right-stack 收口~~ —— **取消**：用户明确要保留 #activityPanel，PR 3 改为只删浮窗，本项前提不存在 | — |
+| 批 | audit PR# | GitHub PR | merged commit | 标题 |
+|---|---|---|---|---|
+| A | 1+2 | #7  | `9ae0848` | feat(branding): logo + favicon 换终端光标风（>_） |
+| A | 3   | #8  | `314d570` | refactor: 删前端终端日志浮窗（保留 activityPanel + store API） |
+| A | ~~13~~ | N/A | — | ~~主页右栏 ActivityLog 删除后 right-stack 收口~~ — **取消**：用户保留 #activityPanel |
+| B | 5   | #9  | `9da8ab5` | feat(dedupe): 标签查重页按设计重做（4 stat + 工具条 + 4 group panel） |
+| B | 6   | #10 | `2487f95` | feat(purchase): 采购页按设计重做（upload zone + 真表格 + footer + history） |
+| C | 4   | #12 | `abda18d` | feat(transfer): 互传从 FAB 抽屉搬到 nav module 10（pageTransfer 2 列） |
+| D | 7   | #13 | `cb4d688` | feat(history): 货号历史 子 tab 头按设计重做 |
+| D | 8a  | #14 | `3240f3a` | feat(history): 货号查询 4 卡按设计重做（CUR/SLA/PUR/HIS） |
+| D | 8b  | #15 | `29b9937` | feat(history): TML 52 周 chart 从 canvas 重写为 SVG |
+| E | 9   | #16 | `5a030ff` | feat(history): 最近改动重做 + 持久 QUERY 大 panel + GradeBadge |
+| E | 10  | #17 | `2083442` | feat(data-quality): 数据质量页按设计重做（banner + 2 stat + 2 panel） |
+| E | 11  | #18 | `5cd21e3` | feat(foreign-customers): 老外客人页按设计重做（控制条 + 5 stat + REC panel） |
+| E | 12  | #19 | `86b3eff` | feat(inventory): 进销存导入页按设计重做（卡片 radio + DB-STATE + RECENT） |
 
-## 推荐执行顺序（剩余 7 个）
+> Plan 文档自身：`#11` (`26e9d42`) docs(plan): frontend 视觉对齐 plan 存档。
+> 本次终结收尾 PR 见 git log 末尾。
 
-| 批 | 包含 | 总估时 | 触发条件 |
-|---|---|---|---|
-| ~~批 C~~ | ~~PR 4 互传搬侧栏~~ | — | **已完成** (PR #12) |
-| **批 D**（货号历史重头戏） | PR 7 + PR 8 | ~8h | 改动量大 |
-| **批 E**（收尾，相对独立） | PR 9 + PR 10 + PR 11 + PR 12 | ~10h | 各自独立可并行 |
+## 完结小结
 
-总剩余：~18h。
+视觉对齐 13-PR 计划于 2026-05-11 全部 ship。所有 9 页（含互传新增）全部按 design handoff 重做：
+- 全站 token 化：`var(--bg-*)` / `var(--ink-*)` / `var(--accent)` / `var(--mono)` 等统一约定
+- 5 页都有 PanelHeader (code + title + sub + actions) 模式
+- 多页用 stat box grid + tone（accent/info/warn/error）
+- 全表格统一 mono 11.5 + sticky thead uppercase + zebra + accent hover
+- 状态/类型 pill 全套（accent/info/warn/error 色）
+- ghost / primary CTA 同款
+- 多页 lazy load on first nav switch（sa/dq/dup/inventory）
+
+后端 0 改动 — 所有 PR 都纯前端 + 复用现有 endpoint 协议。
+
+不在本 plan 范围（仍是 backlog）：
+- Frontend bundler (Vite/esbuild) — 等真要装 npm 包
+- alembic check 3 个 PK NOT NULL diff — 等真改 schema 时一并
+- R10 Pipeline 5 stage 真 SSE — 等 SSE 实现
+- Header 全局搜索 ⌘K — YAGNI
+- Accent presets / Background grid toggle — Tweaks 自删
+- 货号查询销售/采购 stat 缺项 + ExceptionsPanel inline actions — 功能差异，不在视觉对齐
 
 ---
 
