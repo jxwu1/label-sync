@@ -1,169 +1,65 @@
-/* 老外客人月度记录 page —— 与 pageHistory / pageAttendance 同款约定：
-   default .page.active 用 grid 不能正常滚，改 block + 显式 height + overflow:auto */
+/* ========== Page: 老外客人（PR 11 重做 · DataOps Terminal handoff §pages-extra.jsx:1135-1247） ========== */
+
 #pageForeignCustomers.active {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
   overflow: auto;
   height: calc(100vh - 122px);
+  padding: 0 2px 24px 2px;
 }
 
-#pageForeignCustomers .panel + .panel {
-  margin-top: var(--sp-4);
-}
-
-.fc-actions {
-  display: inline-flex;
-  gap: var(--sp-3);
-  align-items: center;
-  margin-left: auto;
-}
-
-.fc-actions label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--fs-md);
-  color: var(--c-text-muted);
-}
-
-.fc-actions .btn {
-  width: auto;
-  height: 32px;
-  padding: 0 var(--sp-3);
-  margin-bottom: 0;
-}
-
-.fc-inp {
-  height: 32px;
-  padding: 0 8px;
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-sm);
-  background: var(--c-bg);
-  color: var(--c-text);
-  font: inherit;
-  font-size: var(--fs-base);
-}
-
-textarea.fc-inp {
-  height: auto;
-  padding: 6px 8px;
-}
-
-select.fc-inp,
-input.fc-inp {
-  min-width: 140px;
-}
-
-/* === 月度汇总 === */
-.fc-summary {
-  font-size: var(--fs-base);
-}
-
-.fc-stat-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: var(--sp-3);
-}
-
-.fc-stat {
-  background: var(--c-surface-deep);
-  padding: 12px 16px;
-  border-radius: var(--r-md);
-}
-
-.fc-stat-k {
-  font-size: var(--fs-md);
-  color: var(--c-text-muted);
-  margin-bottom: 4px;
-}
-
-.fc-stat-v {
-  font-size: var(--fs-lg, 18px);
-  font-weight: 600;
-  color: var(--c-text);
-  font-variant-numeric: tabular-nums;
-}
-
-.fc-stat-v.fc-paid { color: var(--accent); }
-.fc-stat-v.fc-unpaid { color: var(--error); }
-
-/* === 列表表格 === */
-.fc-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--fs-base);
-}
-
-.fc-table th,
-.fc-table td {
-  padding: 8px 10px;
-  text-align: left;
-  border-bottom: 1px solid var(--c-border);
-  vertical-align: middle;
-}
-
-.fc-table thead th {
-  font-weight: 600;
-  color: var(--c-text-muted);
-  background: var(--c-surface-deep);
-  position: sticky;
-  top: 0;
-}
-
-.fc-table .fc-num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.fc-table .fc-notes {
-  max-width: 280px;
-  white-space: pre-wrap;
-  color: var(--c-text-dim);
-  font-size: var(--fs-md);
-}
-
-.fc-table tbody tr:hover td { background: var(--c-accent-soft); }
-.fc-table tr.fc-row-paid td { background: rgba(40,167,69,.04); }
-.fc-table tr.fc-row-unpaid td { background: rgba(220,53,69,.04); }
-
-.fc-table .fc-ops {
+/* ===== 顶部控制条（PanelTitleInline 风） ===== */
+.fc-control {
+  background: var(--bg-1);
+  border: 1px solid var(--line-soft, var(--c-border));
+  border-radius: var(--r-md, 6px);
+  padding: 10px 14px;
   display: flex;
-  gap: 4px;
-  white-space: nowrap;
-}
-
-.fc-table .empty {
-  text-align: center;
-  color: var(--c-text-muted);
-  padding: var(--sp-4);
-}
-
-.fc-count {
-  color: var(--c-text-muted);
-  font-weight: normal;
-  font-size: var(--fs-md);
-}
-
-/* === Modal === */
-.fc-modal {
-  min-width: 420px;
-  max-width: 560px;
-}
-
-.fc-stack {
-  display: grid;
-  gap: var(--sp-3);
-}
-
-.fc-stack label {
-  display: grid;
-  grid-template-columns: 100px 1fr;
   align-items: center;
-  gap: var(--sp-3);
-  color: var(--c-text-muted);
-  font-size: var(--fs-md);
+  gap: 12px;
+  flex-wrap: wrap;
 }
+.fc-control-code {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink-3);
+  letter-spacing: 0.16em;
+}
+.fc-control-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-0);
+}
+.fc-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--line-soft);
+  margin: 0 6px;
+}
+.fc-control-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-3);
+  letter-spacing: 0.12em;
+}
+.fc-control-spacer { flex: 1; }
 
-/* PR-FE-5：搜索框 + 状态 pill */
+/* ===== Input ===== */
+.fc-inp {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 5px 10px;
+  color: var(--ink-0);
+  font-family: var(--sans);
+  font-size: 12px;
+  outline: none;
+  transition: border-color var(--t-fast, 120ms);
+}
+.fc-inp:focus { border-color: var(--accent-dim); }
+.fc-inp--mono { font-family: var(--mono); height: 28px; }
+
 .fc-search {
   background: var(--bg-2);
   border: 1px solid var(--line);
@@ -171,29 +67,246 @@ input.fc-inp {
   padding: 4px 10px;
   height: 26px;
   color: var(--ink-0);
-  font-size: 11.5px;
   font-family: var(--sans);
+  font-size: 11.5px;
   outline: none;
   width: 200px;
+  transition: border-color var(--t-fast, 120ms);
 }
-.fc-search:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-glow);
-}
-.fc-search::placeholder { color: var(--ink-3); }
+.fc-search:focus { border-color: var(--accent-dim); }
 
-.fc-st {
-  display: inline-block;
-  padding: 1px 8px;
-  border-radius: var(--r-pill);
-  font-size: 10.5px;
+/* ===== CTA ===== */
+.fc-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  background: transparent;
+  color: var(--ink-2);
+  transition: border-color var(--t-fast, 120ms), color var(--t-fast, 120ms), background var(--t-fast, 120ms);
+}
+.fc-cta--ghost:hover {
+  border-color: var(--accent-dim);
+  color: var(--ink-1);
+  background: var(--bg-2);
+}
+.fc-cta--primary {
+  background: rgba(0, 255, 149, .08);
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+.fc-cta--primary:hover {
+  background: rgba(0, 255, 149, .14);
+}
+
+/* ===== 5 stat box grid ===== */
+.fc-stats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+.fc-stat {
+  background: var(--bg-1);
+  border: 1px solid var(--line-soft);
+  border-left: 2px solid var(--line);
+  border-radius: var(--r-md, 6px);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.fc-stat[data-tone="warn"]   { border-left-color: var(--warn-dim, var(--warn)); }
+.fc-stat[data-tone="error"]  { border-left-color: var(--error-dim, var(--error)); }
+.fc-stat[data-tone="accent"] { border-left-color: var(--accent-dim); }
+.fc-stat[data-tone="info"]   { border-left-color: var(--info-dim, var(--info)); }
+.fc-stat[data-tone="warn"]   .fc-stat-num { color: var(--warn); }
+.fc-stat[data-tone="error"]  .fc-stat-num { color: var(--error); }
+.fc-stat[data-tone="accent"] .fc-stat-num { color: var(--accent); }
+.fc-stat[data-tone="info"]   .fc-stat-num { color: var(--info); }
+.fc-stat-num {
+  font-family: var(--mono);
+  font-size: 22px;
   font-weight: 600;
+  line-height: 1;
+  color: var(--ink-0);
+  font-variant-numeric: tabular-nums;
+}
+.fc-stat-label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.fc-stat-sub {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-2);
+}
+
+/* ===== Records panel ===== */
+.fc-panel {
+  background: var(--bg-1);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md, 6px);
+  display: flex;
+  flex-direction: column;
+}
+.fc-panel-hd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line-soft);
+  flex-wrap: wrap;
+}
+.fc-panel-code {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink-3);
+  letter-spacing: 0.16em;
+}
+.fc-panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-0);
+}
+.fc-panel-sub {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-3);
+}
+.fc-panel-bd { overflow-x: auto; }
+
+/* ===== Table（mono 11.5） ===== */
+.fc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.fc-table thead th {
+  padding: 8px 14px;
+  background: var(--bg-2);
+  color: var(--ink-2);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  white-space: nowrap;
+}
+.fc-table thead th.fc-num { text-align: right; }
+.fc-table tbody td {
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--ink-1);
+  vertical-align: middle;
+}
+.fc-table tbody tr:last-child td { border-bottom: none; }
+.fc-table tbody tr:nth-child(even) { background: rgba(255, 255, 255, .012); }
+.fc-table tbody tr:hover { background: rgba(0, 255, 149, .04); }
+.fc-num { text-align: right; font-variant-numeric: tabular-nums; }
+.fc-td-name { color: var(--ink-0); font-family: var(--sans); font-weight: 500; }
+.fc-td-debt { color: var(--warn); font-variant-numeric: tabular-nums; }
+.fc-td-debt--zero { color: var(--ink-3); }
+.fc-td-date--empty { color: var(--ink-3); }
+.fc-td-notes { font-family: var(--sans); color: var(--ink-2); }
+
+/* ===== Status pill ===== */
+.fc-st {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: var(--r-pill, 999px);
   border: 1px solid;
 }
-.fc-st--paid    { color: var(--accent); border-color: rgba(0, 255, 149, .35); background: rgba(0, 255, 149, .08); }
-.fc-st--unpaid  { color: var(--error);  border-color: rgba(255, 59, 107, .35); background: rgba(255, 59, 107, .08); }
-.fc-st--overdue { color: var(--error);  border-color: var(--error); background: rgba(255, 59, 107, .14); font-weight: 700; }
-.fc-st--free    { color: var(--ink-3);  border-color: var(--line); background: var(--bg-2); }
-body[data-theme="light"] .fc-st--paid    { background: rgba(26, 122, 76, .08); border-color: rgba(26, 122, 76, .35); }
-body[data-theme="light"] .fc-st--unpaid  { background: rgba(176, 58, 46, .08); border-color: rgba(176, 58, 46, .35); }
-body[data-theme="light"] .fc-st--overdue { background: rgba(176, 58, 46, .14); }
+.fc-st--paid {
+  color: var(--accent);
+  border-color: rgba(0, 255, 149, .35);
+  background: rgba(0, 255, 149, .08);
+}
+.fc-st--unpaid {
+  color: var(--error);
+  border-color: rgba(255, 59, 107, .40);
+  background: rgba(255, 59, 107, .08);
+}
+.fc-st--overdue {
+  color: var(--error);
+  border-color: rgba(255, 59, 107, .40);
+  background: rgba(255, 59, 107, .12);
+}
+.fc-st--partial {
+  color: var(--warn);
+  border-color: rgba(255, 182, 39, .40);
+  background: rgba(255, 182, 39, .10);
+}
+.fc-st--free {
+  color: var(--ink-3);
+  border-color: var(--line);
+  background: var(--bg-2);
+}
+
+/* 编辑 / 删除 mini btn */
+.fc-ops { white-space: nowrap; }
+.fc-ops .fc-mini-btn {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 3px 8px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  margin-right: 4px;
+  transition: border-color var(--t-fast, 120ms), color var(--t-fast, 120ms);
+}
+.fc-ops .fc-mini-btn:hover { color: var(--accent); border-color: var(--accent-dim); }
+.fc-ops .fc-mini-btn--del:hover { color: var(--error); border-color: var(--error); }
+
+.fc-empty {
+  padding: 40px 14px;
+  text-align: center;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+
+/* ===== Modal（保留旧 .pur-modal* 兼容现有 fcModalOverlay 用法） ===== */
+.fc-modal { min-width: 360px; max-width: 480px; }
+.fc-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.fc-stack label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-3);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.fc-stack label .fc-inp { font-family: var(--sans); text-transform: none; letter-spacing: normal; }
+
+/* light theme */
+body[data-theme="light"] .fc-table tbody tr:nth-child(even) { background: rgba(0, 0, 0, .025); }
+body[data-theme="light"] .fc-table tbody tr:hover { background: rgba(26, 122, 76, .08); }
