@@ -14,77 +14,84 @@ function escapeHtml(s) {
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-function showCount(elId, n) {
-  $(elId).textContent = n > 0 ? `· ${n}` : "· 0";
-  $(elId).classList.toggle("dq-count--zero", n === 0);
+function setStat(statId, count, baseTone) {
+  const el = $(statId);
+  if (!el) return;
+  el.querySelector(".dq-stat-num").textContent = count.toLocaleString();
+  el.dataset.tone = count === 0 ? "accent" : baseTone;
 }
 
 function renderMultiKind(section) {
   if (section.samples.length === 0) {
-    $("dqMultiKind").innerHTML = '<div class="dq-empty">无</div>';
+    $("dqMultiKind").innerHTML = '<div class="dq-empty">✓ 无异常</div>';
     return;
   }
-  const rows = section.samples.map((s) => `
-    <tr>
-      <td>${escapeHtml(s.barcode)}</td>
-      <td>${escapeHtml(s.model || "")}</td>
-      <td>${escapeHtml(s.raw_location || "")}</td>
-      <td>${escapeHtml(s.duplicated_kind)} × ${s.count}</td>
-    </tr>
-  `).join("");
+  const rows = section.samples.map((s, i) => {
+    const isWarehouse = (s.duplicated_kind || "").toLowerCase().includes("warehouse");
+    const pillCls = isWarehouse ? "dq-pill dq-pill--warn" : "dq-pill dq-pill--info";
+    return `
+      <tr>
+        <td class="dq-td-idx">${String(i + 1).padStart(2, "0")}</td>
+        <td class="dq-td-bc">${escapeHtml(s.barcode)}</td>
+        <td>${escapeHtml(s.model || "")}</td>
+        <td>${escapeHtml(s.raw_location || "")}</td>
+        <td><span class="${pillCls}">${escapeHtml(s.duplicated_kind)} × ${s.count}</span></td>
+      </tr>`;
+  }).join("");
   $("dqMultiKind").innerHTML = `
     <table class="dq-table">
-      <thead><tr><th>条码</th><th>型号</th><th>当前 location</th><th>重复维度</th></tr></thead>
+      <thead><tr><th>#</th><th>条码</th><th>型号</th><th>当前 LOCATION</th><th>重复维度</th></tr></thead>
       <tbody>${rows}</tbody>
-    </table>
-  `;
+    </table>`;
 }
 
 function renderFlippers(section) {
   if (section.samples.length === 0) {
-    $("dqFlippers").innerHTML = '<div class="dq-empty">无</div>';
+    $("dqFlippers").innerHTML = '<div class="dq-empty">✓ 无异常</div>';
     return;
   }
-  const rows = section.samples.map((s) => `
+  const rows = section.samples.map((s, i) => `
     <tr>
-      <td>${escapeHtml(s.barcode)}</td>
+      <td class="dq-td-idx">${String(i + 1).padStart(2, "0")}</td>
+      <td class="dq-td-bc">${escapeHtml(s.barcode)}</td>
       <td>${escapeHtml(s.model || "")}</td>
-      <td class="dq-num">${s.change_count}</td>
+      <td class="dq-td-num">${s.change_count}</td>
       <td>${escapeHtml(s.current_location || "")}</td>
     </tr>
   `).join("");
   $("dqFlippers").innerHTML = `
     <table class="dq-table">
-      <thead><tr><th>条码</th><th>型号</th><th>变更次数</th><th>当前 location</th></tr></thead>
+      <thead><tr><th>#</th><th>条码</th><th>型号</th><th>变更次数</th><th>当前 LOCATION</th></tr></thead>
       <tbody>${rows}</tbody>
-    </table>
-  `;
+    </table>`;
 }
 
 async function refresh() {
   const btn = $("dqRefresh");
   if (!btn) return;
   btn.disabled = true;
-  $("dqHint").textContent = "加载中…";
+  btn.textContent = "↻ 加载中…";
   try {
     const res = await fetch("/data_quality");
     const data = await res.json();
     if (!data.ok) {
-      $("dqHint").textContent = "加载失败：" + (data.msg || "未知错误");
+      btn.textContent = "↻ 加载失败";
       return;
     }
-    $("dqHint").textContent = "维度健康监测：multi 维度 + 高频翻转。清洁工作流（4 类脏数据）请到「标签查重」页。";
     _lastReport = data;
 
-    showCount("dqMultiKindCount", data.multi_same_kind.count);
-    renderMultiKind(data.multi_same_kind);
-    $("dqMultiKindPanel").hidden = false;
+    const multiCount = data.multi_same_kind.count;
+    const flippersCount = data.flippers.count;
+    setStat("dqStatMulti", multiCount, "warn");
+    setStat("dqStatFlippers", flippersCount, "warn");
 
-    showCount("dqFlippersCount", data.flippers.count);
+    renderMultiKind(data.multi_same_kind);
     renderFlippers(data.flippers);
+    $("dqMultiKindPanel").hidden = false;
     $("dqFlippersPanel").hidden = false;
+    btn.textContent = "↻ 刷新";
   } catch (e) {
-    $("dqHint").textContent = "加载异常：" + e.message;
+    btn.textContent = "↻ 加载异常";
   } finally {
     btn.disabled = false;
   }
