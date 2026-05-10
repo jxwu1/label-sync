@@ -646,28 +646,32 @@
         </section>
       </div>
       <div class="page" id="pageForeignCustomers" x-data :class="$store.nav.current === 'foreign_customers' ? 'active' : ''">
-        <div class="panel">
-          <div class="panel-hd">
-            老外客人月度记录
-            <div class="fc-actions">
-              <label>月份 <input class="fc-inp" id="fcMonth" type="month"></label>
-              <button class="btn-mini" id="fcRefresh">刷新</button>
-              <button class="btn-mini" id="fcDownloadPdf">下载 PDF</button>
-              <button class="btn btn-primary" id="fcAddBtn">+ 新增记录</button>
-            </div>
-          </div>
-          <div class="panel-bd">
-            <div id="fcSummary" class="fc-summary">选择月份后显示汇总</div>
-          </div>
+        <!-- 顶部控制条 -->
+        <div class="fc-control">
+          <span class="fc-control-code">OVS-MO</span>
+          <span class="fc-control-title">老外客人月度记录</span>
+          <span class="fc-divider"></span>
+          <span class="fc-control-label">月份</span>
+          <input class="fc-inp fc-inp--mono" id="fcMonth" type="month">
+          <button class="fc-cta fc-cta--ghost" id="fcRefresh">↻ 刷新</button>
+          <button class="fc-cta fc-cta--ghost" id="fcDownloadPdf">↓ 下载 PDF</button>
+          <span class="fc-control-spacer"></span>
+          <button class="fc-cta fc-cta--primary" id="fcAddBtn">+ 新增记录</button>
         </div>
-        <div class="panel">
-          <div class="panel-hd">
-            本月记录 <span class="fc-count" id="fcRecordCount"></span>
-            <div class="fc-actions">
-              <input class="fc-search" id="fcSearch" type="text" placeholder="搜索 客户名 / 税号...">
-            </div>
-          </div>
-          <div class="panel-bd">
+
+        <!-- 5 stat box grid -->
+        <div class="fc-stats" id="fcSummary"></div>
+
+        <!-- Records panel -->
+        <section class="fc-panel">
+          <header class="fc-panel-hd">
+            <span class="fc-panel-code">REC</span>
+            <span class="fc-panel-title">本月记录</span>
+            <span class="fc-panel-sub" id="fcPanelSub">— 条</span>
+            <span class="fc-control-spacer"></span>
+            <input class="fc-search" id="fcSearch" type="text" placeholder="搜索 客户名 / 税号...">
+          </header>
+          <div class="fc-panel-bd">
             <table class="fc-table">
               <thead><tr>
                 <th>客户名</th>
@@ -680,11 +684,11 @@
                 <th>操作</th>
               </tr></thead>
               <tbody id="fcRecordsBody">
-                <tr><td colspan="8" class="empty">加载中...</td></tr>
+                <tr><td colspan="8" class="fc-empty">加载中...</td></tr>
               </tbody>
             </table>
           </div>
-        </div>
+        </section>
         <div class="pur-modal-overlay attn-hidden" id="fcModalOverlay">
           <div class="pur-modal fc-modal">
             <div class="pur-modal-hd" id="fcModalTitle">新增记录</div>

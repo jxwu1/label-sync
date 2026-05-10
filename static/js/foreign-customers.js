@@ -69,15 +69,24 @@ async function loadSummary() {
       return;
     }
     const s = body.summary;
-    $("fcSummary").innerHTML = `
-      <div class="fc-stat-row">
-        <div class="fc-stat"><div class="fc-stat-k">记录数</div><div class="fc-stat-v">${s.record_count}</div></div>
-        <div class="fc-stat"><div class="fc-stat-k">总欠款</div><div class="fc-stat-v">€${fmtMoney(s.total_amount_due)}</div></div>
-        <div class="fc-stat"><div class="fc-stat-k">已付</div><div class="fc-stat-v fc-paid">${s.paid_count}</div></div>
-        <div class="fc-stat"><div class="fc-stat-k">未付</div><div class="fc-stat-v fc-unpaid">${s.unpaid_count}</div></div>
-        <div class="fc-stat"><div class="fc-stat-k">已托运</div><div class="fc-stat-v">${s.shipped_count}</div></div>
-      </div>
-    `;
+    // PR 11 · 5 stat box（tone：总欠款>0 warn / 已付 accent / 未付 error / 已托运 info）
+    const stat = (label, value, tone, sub) => {
+      const subHtml = sub ? `<div class="fc-stat-sub">${sub}</div>` : "";
+      return `<div class="fc-stat" data-tone="${tone}">
+        <div class="fc-stat-num">${value}</div>
+        <div class="fc-stat-label">${label}</div>
+        ${subHtml}
+      </div>`;
+    };
+    const debtTone = s.total_amount_due > 0 ? "warn" : "default";
+    const unpaidTone = s.unpaid_count > 0 ? "error" : "default";
+    $("fcSummary").innerHTML = [
+      stat("记录数", s.record_count, "default"),
+      stat("总欠款", `€${fmtMoney(s.total_amount_due)}`, debtTone),
+      stat("已付", s.paid_count, "accent"),
+      stat("未付 / 逾期", s.unpaid_count, unpaidTone),
+      stat("已托运", s.shipped_count, "info"),
+    ].join("");
   } catch (e) {
     $("fcSummary").textContent = `加载失败：${e.message}`;
   }
@@ -129,26 +138,33 @@ function renderRecords(records) {
 }
 
 function doRender(records) {
-  $("fcRecordCount").textContent = records.length ? `(${records.length})` : "";
+  // PR 11 · sub label 在 panel-hd 显示 月份 · N 条
+  const sub = $("fcPanelSub");
+  if (sub) sub.textContent = `${currentMonth || ""} · ${records.length} 条`;
   if (!records.length) {
-    $("fcRecordsBody").innerHTML = `<tr><td colspan="8" class="empty">本月暂无记录</td></tr>`;
+    $("fcRecordsBody").innerHTML = `<tr><td colspan="8" class="fc-empty">本月暂无记录</td></tr>`;
     return;
   }
   $("fcRecordsBody").innerHTML = records
     .map((r) => {
-      const paidCls = r.payment_date ? "fc-row-paid" : "fc-row-unpaid";
       const st = deriveStatus(r);
-      return `<tr class="${paidCls}" data-id="${r.id}">
-        <td>${escapeHtml(r.customer_name)}</td>
-        <td class="fc-num">€${fmtMoney(r.amount_due)}</td>
+      const debtIsZero = !r.amount_due || r.amount_due <= 0;
+      const debtCls = `fc-num fc-td-debt${debtIsZero ? " fc-td-debt--zero" : ""}`;
+      const payDate = fmtDate(r.payment_date);
+      const shipDate = fmtDate(r.shipping_date);
+      const payCls = r.payment_date ? "" : " fc-td-date--empty";
+      const shipCls = r.shipping_date ? "" : " fc-td-date--empty";
+      return `<tr data-id="${r.id}">
+        <td class="fc-td-name">${escapeHtml(r.customer_name)}</td>
+        <td class="${debtCls}">€${fmtMoney(r.amount_due)}</td>
         <td>${escapeHtml(r.tax_number) || "—"}</td>
-        <td>${fmtDate(r.payment_date)}</td>
-        <td>${fmtDate(r.shipping_date)}</td>
+        <td class="${payCls.trim()}">${payDate}</td>
+        <td class="${shipCls.trim()}">${shipDate}</td>
         <td><span class="fc-st ${st.cls}">${st.label}</span></td>
-        <td class="fc-notes">${escapeHtml(r.notes) || "—"}</td>
+        <td class="fc-td-notes">${escapeHtml(r.notes) || "—"}</td>
         <td class="fc-ops">
-          <button class="btn-mini fc-edit-btn" data-id="${r.id}">编辑</button>
-          <button class="btn-mini fc-del-btn" data-id="${r.id}">删除</button>
+          <button class="fc-mini-btn fc-edit-btn" data-id="${r.id}">编辑</button>
+          <button class="fc-mini-btn fc-mini-btn--del fc-del-btn" data-id="${r.id}">删除</button>
         </td>
       </tr>`;
     })
