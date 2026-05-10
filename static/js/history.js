@@ -45,6 +45,7 @@ function renderEmpty(msg) {
   $("historyTimelinePanel").hidden = true;
   $("historyFuzzyPanel").hidden = true;
   $("historyAnalyticsPanel").hidden = true;
+  if ($("historyPurchasePanel")) $("historyPurchasePanel").hidden = true;
   $("historyTimelineChartPanel").hidden = true;
 }
 
@@ -55,6 +56,7 @@ function renderFuzzyMatches(matches, originalQuery) {
   $("historyTimelinePanel").hidden = true;
   $("historyFuzzyPanel").hidden = false;
   $("historyAnalyticsPanel").hidden = true;
+  if ($("historyPurchasePanel")) $("historyPurchasePanel").hidden = true;
   $("historyTimelineChartPanel").hidden = true;
 
   const rows = matches
@@ -275,73 +277,78 @@ function drawTimeline(canvas, timeline) {
 }
 
 async function loadAnalytics(barcode) {
-  const panel = $("historyAnalyticsPanel");
-  const body = $("historyAnalytics");
-  panel.hidden = false;
-  body.innerHTML = '<div class="empty">加载中…</div>';
+  const slaPanel = $("historyAnalyticsPanel");
+  const purPanel = $("historyPurchasePanel");
+  const slaBody = $("historyAnalytics");
+  const purBody = $("historyPurchase");
+  slaPanel.hidden = false;
+  if (purPanel) purPanel.hidden = false;
+  slaBody.innerHTML = '<div class="hist-tle-count">加载中…</div>';
+  if (purBody) purBody.innerHTML = '<div class="hist-tle-count">加载中…</div>';
   try {
     const resp = await fetch(`/analytics/sku/${encodeURIComponent(barcode)}`);
     const data = await resp.json();
     if (!data.ok) {
-      body.innerHTML = `<div class="empty">${escapeHtml(data.msg || "加载失败")}</div>`;
+      const msg = `<div class="hist-tle-count">${escapeHtml(data.msg || "加载失败")}</div>`;
+      slaBody.innerHTML = msg;
+      if (purBody) purBody.innerHTML = msg;
       return;
     }
     renderAnalytics(data);
   } catch (err) {
-    body.innerHTML = `<div class="empty">网络错误：${escapeHtml(err.message)}</div>`;
+    const msg = `<div class="hist-tle-count">网络错误：${escapeHtml(err.message)}</div>`;
+    slaBody.innerHTML = msg;
+    if (purBody) purBody.innerHTML = msg;
   }
 }
 
+// PR 8a · 拆为 SLA + PUR 两段，分别渲染到独立 panel
 function renderAnalytics(data) {
-  const s = data.sales;
-  const p = data.purchase;
+  renderSLA(data);
+  renderPUR(data.purchase || {});
+}
+
+function renderSLA(data) {
+  const s = data.sales || {};
   const cs = data.customer_split || { cn: {}, fo: {} };
   const autoCat = data.auto_category
     ? `<span class="cat-badge cat-${escapeHtml(data.auto_category)}">${escapeHtml(AUTO_CATEGORY_CN[data.auto_category] || data.auto_category)}</span>`
-    : '<span class="empty-val">未计算</span>';
+    : '<span class="hist-kv--empty">未计算</span>';
   const computedAt = data.auto_category_computed_at
-    ? `<span class="cat-time">（${escapeHtml(data.auto_category_computed_at)}）</span>`
+    ? `<span class="hist-sla-time">（${escapeHtml(data.auto_category_computed_at)}）</span>`
     : "";
-
-  // manual_category 下拉：current 选中态
   const dropdown = renderManualDropdown(data.barcode, data.manual_category);
-
-  // 等级 vs 销量百分位告警
   const gradeRow = renderGradeRow(data.manual_grade, data.qty_percentile);
 
+  const dailyAvg = ((s.total_qty || 0) / Math.max(1, s.lifespan_days || 1)).toFixed(2);
+
   $("historyAnalytics").innerHTML = `
-    <div class="ana-cat-row">
-      <span class="k">自动分类</span>
-      <span class="v">${autoCat}${computedAt}</span>
-    </div>
-    <div class="ana-cat-row">
-      <span class="k">人工标签</span>
-      <span class="v">${dropdown}</span>
-    </div>
-    ${gradeRow}
+    <div class="hist-sla-body">
+      <div class="hist-sla-row">
+        <span class="hist-sla-rowlabel">自动分类</span>
+        ${autoCat}${computedAt}
+      </div>
+      <div class="hist-sla-row">
+        <span class="hist-sla-rowlabel">人工标签</span>
+        ${dropdown}
+      </div>
+      ${gradeRow}
 
-    <div class="ana-section">销售面</div>
-    <div class="kv-grid">
-      <div><span class="k">总销量</span><span class="v">${fmtNum(s.total_qty)}</span></div>
-      <div><span class="k">总营收</span><span class="v">€${(s.total_revenue || 0).toFixed(2)}</span></div>
-      <div><span class="k">独立客户</span><span class="v">${fmtNum(s.unique_customers)}</span></div>
-      <div><span class="k">寿命</span><span class="v">${s.lifespan_days} 天</span></div>
-      <div><span class="k">日均件数</span><span class="v">${((s.total_qty || 0) / Math.max(1, s.lifespan_days || 1)).toFixed(2)}</span></div>
-      <div><span class="k">12 周趋势</span><span class="v">${fmtPct(s.trend_slope_pct_per_week)} / 周</span></div>
-    </div>
+      <div class="hist-section-label">SALES SIDE · 销售面</div>
+      <div class="hist-sla-grid">
+        ${_kv("总销量",   fmtNum(s.total_qty),                                  "hist-kv--num hist-kv--accent")}
+        ${_kv("总营收",   `€${(s.total_revenue || 0).toFixed(2)}`,              "hist-kv--num hist-kv--accent")}
+        ${_kv("独立客户", fmtNum(s.unique_customers),                           "hist-kv--num")}
+        ${_kv("寿命",     `${s.lifespan_days || 0} 天`,                         "hist-kv--num")}
+        ${_kv("日均件数", dailyAvg,                                             "hist-kv--num")}
+        ${_kv("12 周趋势", `${fmtPct(s.trend_slope_pct_per_week)} / 周`,         "hist-kv--num")}
+      </div>
 
-    <div class="ana-section">客户端拆分</div>
-    <div class="ana-cust-split">
-      ${renderCustomerEnd("🇨🇳 中国端", cs.cn || {})}
-      ${renderCustomerEnd("🇬🇷 老外端", cs.fo || {})}
-    </div>
-
-    <div class="ana-section">采购面</div>
-    <div class="kv-grid">
-      <div><span class="k">库存推算</span><span class="v">${fmtNum(p.stock_balance)}</span></div>
-      <div><span class="k">毛利率</span><span class="v">${fmtPct(p.avg_margin_pct)}</span></div>
-      <div><span class="k">365 天采购笔数</span><span class="v">${fmtNum(p.purchase_freq_365d)}</span></div>
-      <div><span class="k">上次采购</span><span class="v">${fmtDays(p.last_purchase_days_ago)}</span></div>
+      <div class="hist-section-label">CLIENT SPLIT · 客户端拆分</div>
+      <div class="hist-cust-split">
+        ${renderClientCard("CN", "中国端", cs.cn || {})}
+        ${renderClientCard("GR", "老外端", cs.fo || {})}
+      </div>
     </div>
   `;
 
@@ -364,7 +371,6 @@ function renderAnalytics(data) {
           alert(`保存失败：${r.msg}`);
           sel.value = data.manual_category || "";
         } else {
-          // 改 data 状态以便下次渲染一致
           data.manual_category = r.manual_category;
         }
       } catch (err) {
@@ -373,6 +379,29 @@ function renderAnalytics(data) {
       }
     });
   }
+}
+
+function renderPUR(p) {
+  const purBody = $("historyPurchase");
+  if (!purBody) return;
+  const stockBalance = p.stock_balance;
+  const stockNegative = typeof stockBalance === "number" && stockBalance < 0;
+  const warnBox = stockNegative
+    ? `<div class="hist-warn-box">
+         <span class="hist-warn-icon">⚠</span>
+         库存推算结果为负值 — 历史采购数据缺失或未导入。建议在
+         <span class="hist-warn-link">进销存导入</span> 模块补录。
+       </div>`
+    : "";
+  purBody.innerHTML = `
+    <div class="hist-pur-grid">
+      ${_kv("库存推算",      fmtNum(stockBalance),                "hist-kv--num")}
+      ${_kv("毛利率",        fmtPct(p.avg_margin_pct),            "hist-kv--num")}
+      ${_kv("365 天采购笔数", fmtNum(p.purchase_freq_365d),        "hist-kv--num")}
+      ${_kv("上次采购",      fmtDays(p.last_purchase_days_ago),    "hist-kv--num")}
+    </div>
+    ${warnBox}
+  `;
 }
 
 function renderManualDropdown(barcode, current) {
@@ -387,18 +416,23 @@ function renderManualDropdown(barcode, current) {
   return `<select id="manualCategorySelect" class="manual-cat-select">${opts}</select>`;
 }
 
-function renderCustomerEnd(label, m) {
-  const last = m.last_at ? escapeHtml(m.last_at) : '<span class="empty-val">—</span>';
+// PR 8a · ClientCard 风：CN/GR 两列，border-left 2px 标签色
+function renderClientCard(tag, name, m) {
+  const last = m.last_at ? escapeHtml(m.last_at) : "—";
+  const rows = [
+    ["销量", fmtNum(m.qty)],
+    ["客户数", fmtNum(m.unique_customers)],
+    ["单笔最大", fmtNum(m.max_single_qty)],
+    ["月均频次", fmtNum(m.avg_freq_per_month)],
+    ["上次购买", last],
+  ].map(([k, v]) => `<div class="hist-client-row"><span class="k">${k}</span><span class="v">${v}</span></div>`).join("");
   return `
-    <div class="cust-col">
-      <div class="cust-col-hd">${label}</div>
-      <div class="cust-col-bd">
-        <div><span class="k">销量</span><span class="v">${fmtNum(m.qty)}</span></div>
-        <div><span class="k">客户数</span><span class="v">${fmtNum(m.unique_customers)}</span></div>
-        <div><span class="k">单笔最大</span><span class="v">${fmtNum(m.max_single_qty)}</span></div>
-        <div><span class="k">月均频次</span><span class="v">${fmtNum(m.avg_freq_per_month)}</span></div>
-        <div><span class="k">上次购买</span><span class="v">${last}</span></div>
+    <div class="hist-client-card" data-tag="${tag}">
+      <div class="hist-client-hd">
+        <span class="hist-client-tag">${tag}</span>
+        <span class="hist-client-name">${escapeHtml(name)}</span>
       </div>
+      <div class="hist-client-grid">${rows}</div>
     </div>
   `;
 }
@@ -407,9 +441,8 @@ function renderGradeRow(grade, percentile) {
   if (grade === null || grade === undefined) return "";
   const pctText =
     percentile === null || percentile === undefined
-      ? '<span class="empty-val">无销售</span>'
+      ? '<span class="hist-kv--empty">无销售</span>'
       : `${percentile}% 分位`;
-  // 不一致告警：grade ≥ 8 但 pct < 30，或 grade ≤ 3 但 pct > 70
   let warn = "";
   if (percentile !== null && percentile !== undefined) {
     if (grade >= 8 && percentile < 30) {
@@ -419,11 +452,17 @@ function renderGradeRow(grade, percentile) {
     }
   }
   return `
-    <div class="ana-cat-row">
-      <span class="k">等级对照</span>
-      <span class="v">ERP 等级 ${grade} · 销量 ${pctText} ${warn}</span>
+    <div class="hist-sla-row">
+      <span class="hist-sla-rowlabel">等级对照</span>
+      <span style="font-size: 12.5px; color: var(--ink-1);">ERP 等级 <span style="font-family: var(--mono); color: var(--ink-0); font-weight: 700;">${grade}</span> · 销量 <span style="font-family: var(--mono); color: var(--accent); font-weight: 700;">${pctText}</span> ${warn}</span>
     </div>
   `;
+}
+
+// PR 8a · CUR 4-col mono grid 字段渲染
+function _kv(k, v, mods = "") {
+  const cls = `hist-kv ${mods}`.trim();
+  return `<div class="${cls}"><span class="hist-kv-k">${escapeHtml(k)}</span><span class="hist-kv-v">${v}</span></div>`;
 }
 
 function renderResult(data) {
@@ -435,43 +474,35 @@ function renderResult(data) {
   const c = data.current;
   _currentBarcode = c.barcode;
   $("historyCopyBarcodeBtn").hidden = false;
-  const stores = (c.store_locations || []).map(escapeHtml).join(", ") || '<span class="empty-val">—</span>';
-  const warehouses = (c.warehouse_locations || []).map(escapeHtml).join(", ") || '<span class="empty-val">—</span>';
-  const unknown = (c.unknown_locations || []).map(escapeHtml).join(", ");
-  const unknownRow = unknown
-    ? `<div><span class="k">其他位置</span><span class="v" style="color:#cc6600">${unknown}</span></div>`
-    : "";
+  const storesText = (c.store_locations || []).map(escapeHtml).join(", ");
+  const warehousesText = (c.warehouse_locations || []).map(escapeHtml).join(", ");
+  const unknownText = (c.unknown_locations || []).map(escapeHtml).join(", ");
   // 新加字段（来自 product.csv 主档）—— 有值才显示，避免老数据下空白行
   // 注意：分类不展示（roadmap 决策：源 ERP 分类只参考不照抄）
   // 进价不展示（源数据 CNY/EUR 混，无币种字段，会误导）
-  const nameZhRow = c.product_name_zh
-    ? `<div><span class="k">品名</span><span class="v">${escapeHtml(c.product_name_zh)}</span></div>`
-    : "";
-  const nameLocalRow = c.product_name_local
-    ? `<div><span class="k">本地品名</span><span class="v">${escapeHtml(c.product_name_local)}</span></div>`
-    : "";
-  const gradeRow = c.manual_grade !== null && c.manual_grade !== undefined
-    ? `<div><span class="k">等级</span><span class="v">${escapeHtml(String(c.manual_grade))}</span></div>`
-    : "";
-  const priceRow = c.sale_price !== null && c.sale_price !== undefined
-    ? `<div><span class="k">售价</span><span class="v">€${Number(c.sale_price).toFixed(2)}</span></div>`
-    : "";
-  $("historyCurrent").innerHTML = `
-    <div class="kv-grid">
-      <div><span class="k">型号</span><span class="v">${escapeHtml(c.model)}</span></div>
-      <div><span class="k">条码</span><span class="v">${escapeHtml(c.barcode)}</span></div>
-      ${nameZhRow}
-      ${nameLocalRow}
-      <div><span class="k">店面位置</span><span class="v">${stores}</span></div>
-      <div><span class="k">仓库位置</span><span class="v">${warehouses}</span></div>
-      ${unknownRow}
-      ${priceRow}
-      ${gradeRow}
-      <div><span class="k">状态</span><span class="v">${c.is_active ? "在架" : "下架"}</span></div>
-      <div><span class="k">来源</span><span class="v">${escapeHtml(SOURCE_CN[c.source] || c.source)}</span></div>
-      <div><span class="k">最后更新</span><span class="v">${escapeHtml(c.updated_at)}</span></div>
-    </div>
-  `;
+  const cells = [];
+  cells.push(_kv("型号", escapeHtml(c.model), "hist-kv--mono hist-kv--accent"));
+  cells.push(_kv("条码", escapeHtml(c.barcode), "hist-kv--mono"));
+  if (c.product_name_zh) cells.push(_kv("品名", escapeHtml(c.product_name_zh)));
+  if (c.product_name_local) cells.push(_kv("本地品名", escapeHtml(c.product_name_local), "hist-kv--mono hist-kv--muted"));
+  cells.push(_kv("店面位置", storesText || "—", storesText ? "hist-kv--mono" : "hist-kv--empty"));
+  cells.push(_kv("仓库位置", warehousesText || "—", warehousesText ? "hist-kv--mono" : "hist-kv--empty"));
+  if (unknownText) cells.push(_kv("其他位置", unknownText, "hist-kv--mono"));
+  if (c.sale_price !== null && c.sale_price !== undefined) {
+    cells.push(_kv("售价", `€${Number(c.sale_price).toFixed(2)}`, "hist-kv--mono"));
+  }
+  if (c.manual_grade !== null && c.manual_grade !== undefined) {
+    cells.push(_kv("等级", escapeHtml(String(c.manual_grade)), "hist-kv--mono"));
+  }
+  // 状态 用 pill（active accent / inactive muted）
+  const statusPill = c.is_active
+    ? '<span class="hist-status-pill hist-status-pill--active"><span class="hist-status-dot"></span>在架</span>'
+    : '<span class="hist-status-pill hist-status-pill--inactive"><span class="hist-status-dot"></span>下架</span>';
+  cells.push(_kv("状态", statusPill));
+  cells.push(_kv("来源", escapeHtml(SOURCE_CN[c.source] || c.source), "hist-kv--mono hist-kv--muted"));
+  cells.push(_kv("最后更新", escapeHtml(c.updated_at), "hist-kv--mono hist-kv--muted"));
+
+  $("historyCurrent").innerHTML = `<div class="hist-cur-grid">${cells.join("")}</div>`;
 
   const events = data.events || [];
   if (events.length === 0) {
@@ -479,33 +510,40 @@ function renderResult(data) {
     return;
   }
 
-  const items = events.map((ev) => {
-    // sale / purchase 等 inventory_events 事件用 summary，单行不带 old→new 箭头
-    const body = ev.summary
-      ? `<div class="event-summary">${escapeHtml(ev.summary)}</div>`
-      : ev.changes
-          .map((ch) => {
-            const fieldCn = FIELD_CN[ch.field] || ch.field;
-            const oldVal = ch.old || '<span class="empty-val">空</span>';
-            const newVal = ch.new || '<span class="empty-val">空</span>';
-            return `<div class="change-row"><span class="change-field">${escapeHtml(fieldCn)}</span><span class="change-arrow">${oldVal === '<span class="empty-val">空</span>' ? oldVal : escapeHtml(ch.old)} → ${newVal === '<span class="empty-val">空</span>' ? newVal : escapeHtml(ch.new)}</span></div>`;
-          })
-          .join("");
+  // PR 8a · TimelineEvent 风：左侧 dot + 1px 竖线，按事件类型上色
+  const items = events.map((ev, i) => {
+    const isLast = i === events.length - 1;
+    const detail = ev.summary
+      ? `<div class="hist-tle-detail">${escapeHtml(ev.summary)}</div>`
+      : (ev.changes && ev.changes.length
+          ? `<div class="hist-tle-changes">${ev.changes.map((ch) => {
+              const fieldCn = FIELD_CN[ch.field] || ch.field;
+              const oldDisp = ch.old ? escapeHtml(ch.old) : '<span class="hist-kv--empty">空</span>';
+              const newDisp = ch.new ? escapeHtml(ch.new) : '<span class="hist-kv--empty">空</span>';
+              return `<div><span style="color:var(--ink-3)">${escapeHtml(fieldCn)}</span> <span>${oldDisp}</span><span class="hist-tle-change-arrow">→</span><span>${newDisp}</span></div>`;
+            }).join("")}</div>`
+          : "");
     return `
-      <div class="event-item" data-type="${escapeHtml(ev.change_type)}">
-        <span class="event-dot"></span>
-        <div class="event-head">
-          <span class="event-time">${escapeHtml(ev.at)}</span>
-          <span class="event-source">${escapeHtml(SOURCE_CN[ev.source] || ev.source || "")}</span>
-          <span class="event-type">[${escapeHtml(CHANGE_TYPE_CN[ev.change_type] || ev.change_type)}]</span>
+      <div class="hist-tle" data-type="${escapeHtml(ev.change_type)}">
+        <div class="hist-tle-rail">
+          <div class="hist-tle-dot"></div>
+          ${isLast ? "" : '<div class="hist-tle-line"></div>'}
         </div>
-        <div class="event-body">${body}</div>
+        <div class="hist-tle-body">
+          <div class="hist-tle-head">
+            <span class="hist-tle-type">${escapeHtml(CHANGE_TYPE_CN[ev.change_type] || ev.change_type)}</span>
+            <span class="hist-tle-title">${escapeHtml(SOURCE_CN[ev.source] || ev.source || "")}</span>
+            <span class="hist-tle-spacer"></span>
+            <span class="hist-tle-time">${escapeHtml(ev.at)}</span>
+          </div>
+          ${detail}
+        </div>
       </div>
     `;
   });
   $("historyTimeline").innerHTML = `
-    <div class="event-count">共 ${events.length} 次操作</div>
-    <div class="event-timeline">${items.join("")}</div>
+    <div class="hist-tle-count">共 ${events.length} 次操作</div>
+    <div class="hist-timeline-list">${items.join("")}</div>
   `;
 }
 

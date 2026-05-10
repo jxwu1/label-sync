@@ -501,7 +501,9 @@
           </div>
           <div class="panel" id="historyCurrentPanel" hidden>
             <div class="panel-hd">
-              当前状态
+              <span class="hist-phd-code">CUR</span>
+              <span class="hist-phd-title">当前状态</span>
+              <span class="hist-phd-sub">snapshot · 实时同步</span>
               <div class="hist-actions">
                 <button class="hist-cta hist-cta--ghost hist-cta--sm" id="historyCopyBarcodeBtn" type="button" hidden>⎘ 复制货号</button>
               </div>
@@ -509,8 +511,20 @@
             <div class="panel-bd" id="historyCurrent"></div>
           </div>
           <div class="panel" id="historyAnalyticsPanel" hidden>
-            <div class="panel-hd">📈 销售分析</div>
+            <div class="panel-hd">
+              <span class="hist-phd-code">SLA</span>
+              <span class="hist-phd-title">销售分析</span>
+              <span class="hist-phd-sub">auto-class · ERP 等级对照</span>
+            </div>
             <div class="panel-bd" id="historyAnalytics"></div>
+          </div>
+          <div class="panel" id="historyPurchasePanel" hidden>
+            <div class="panel-hd">
+              <span class="hist-phd-code">PUR</span>
+              <span class="hist-phd-title">采购面</span>
+              <span class="hist-phd-sub">purchase · stock estimate</span>
+            </div>
+            <div class="panel-bd" id="historyPurchase"></div>
           </div>
           <div class="panel" id="historyTimelineChartPanel" hidden>
             <div class="panel-hd">销售 / 进价时间线（最近 52 周）</div>
@@ -523,7 +537,11 @@
             </div>
           </div>
           <div class="panel" id="historyTimelinePanel" hidden>
-            <div class="panel-hd">历史时间线</div>
+            <div class="panel-hd">
+              <span class="hist-phd-code">HIS</span>
+              <span class="hist-phd-title">历史时间线</span>
+              <span class="hist-phd-sub">events · 时间倒序</span>
+            </div>
             <div class="panel-bd" id="historyTimeline"></div>
           </div>
         </div>
