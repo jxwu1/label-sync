@@ -147,6 +147,361 @@
   font-size: 10.5px;
 }
 
+/* ========== PR 8a · 货号查询 5 卡 (CUR / SLA / PUR / HIS) ==========
+   设计 §pages-history.jsx:413-654 / 809-854
+   不动 TML (52 周 chart) → PR 8b 单独做
+*/
+
+/* PanelHeader 替代品：在 .panel-hd 内放 code + title + sub spans */
+#pageHistory .panel-hd {
+  /* 抑制 components.css 的 uppercase/font-weight 方便子 span 自己定义 */
+  text-transform: none;
+  font-weight: 500;
+  color: inherit;
+}
+.hist-phd-code {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink-3);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.hist-phd-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-0);
+  margin-left: 8px;
+}
+.hist-phd-sub {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-3);
+  margin-left: 8px;
+}
+
+/* ===== CUR · 当前状态 4-col mono KV grid ===== */
+.hist-cur-grid {
+  padding: 14px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px 24px;
+}
+.hist-kv {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.hist-kv-k {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink-3);
+  letter-spacing: 0.1em;
+}
+.hist-kv-v {
+  font-size: 13px;
+  color: var(--ink-0);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hist-kv--mono .hist-kv-v {
+  font-family: var(--mono);
+  font-weight: 600;
+}
+.hist-kv--accent .hist-kv-v { color: var(--accent); }
+.hist-kv--muted  .hist-kv-v { color: var(--ink-2); }
+.hist-kv--empty  .hist-kv-v { color: var(--ink-3); font-style: italic; }
+.hist-kv--num .hist-kv-v {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+}
+
+/* status pill in CUR 状态 cell */
+.hist-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--r-pill, 999px);
+}
+.hist-status-pill--active {
+  color: var(--accent);
+  border: 1px solid rgba(0, 255, 149, .35);
+  background: rgba(0, 255, 149, .08);
+}
+.hist-status-pill--inactive {
+  color: var(--ink-3);
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+}
+.hist-status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* ===== SLA · 销售分析 ===== */
+.hist-sla-body { padding: 14px; }
+.hist-sla-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px dotted var(--line-soft);
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.hist-sla-row:last-of-type { margin-bottom: 12px; }
+.hist-sla-rowlabel {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-3);
+  letter-spacing: 0.1em;
+  width: 80px;
+  flex-shrink: 0;
+}
+.hist-sla-time {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+.hist-section-label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink-3);
+  letter-spacing: 0.15em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+.hist-sla-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px 24px;
+  margin-bottom: 14px;
+}
+.hist-cust-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.hist-client-card {
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+  padding: 12px;
+}
+.hist-client-card[data-tag="CN"] { border-left: 2px solid var(--info); }
+.hist-client-card[data-tag="GR"] { border-left: 2px solid #b983ff; }
+.hist-client-hd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.hist-client-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  letter-spacing: 0.06em;
+}
+.hist-client-card[data-tag="CN"] .hist-client-tag { color: var(--info); }
+.hist-client-card[data-tag="GR"] .hist-client-tag { color: #b983ff; }
+.hist-client-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-0);
+}
+.hist-client-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 16px;
+}
+.hist-client-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  border-bottom: 1px dotted var(--line-soft);
+}
+.hist-client-row:last-child { border-bottom: none; }
+.hist-client-row .k {
+  color: var(--ink-2);
+  font-size: 11.5px;
+}
+.hist-client-row .v {
+  font-family: var(--mono);
+  color: var(--ink-0);
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* manual category dropdown 现代 token 化 */
+#pageHistory .manual-cat-select {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  color: var(--ink-1);
+  padding: 3px 10px;
+  border-radius: 3px;
+  font-family: var(--sans);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+#pageHistory .manual-cat-select option {
+  background: var(--bg-2);
+  color: var(--ink-0);
+}
+
+/* grade warn pill */
+#pageHistory .grade-warn {
+  margin-left: 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  color: var(--warn);
+  border: 1px solid rgba(255, 182, 39, .40);
+  background: rgba(255, 182, 39, .10);
+  border-radius: var(--r-pill);
+}
+
+/* ===== PUR · 采购面 ===== */
+.hist-pur-grid {
+  padding: 14px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px 24px;
+}
+.hist-warn-box {
+  margin: 0 14px 14px 14px;
+  background: rgba(255, 182, 39, .05);
+  border: 1px solid rgba(255, 182, 39, .25);
+  border-left: 2px solid var(--warn);
+  border-radius: 3px;
+  padding: 8px 12px;
+  font-size: 11.5px;
+  color: var(--ink-1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hist-warn-icon { color: var(--warn); }
+.hist-warn-link {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+/* ===== HIS · 历史时间线（新 TimelineEvent 风） ===== */
+.hist-timeline-list {
+  padding: 14px;
+}
+.hist-tle {
+  display: flex;
+  gap: 12px;
+  position: relative;
+}
+.hist-tle-rail {
+  flex-shrink: 0;
+  width: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+.hist-tle-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  background: var(--bg-1);
+  margin-top: 6px;
+  z-index: 1;
+}
+.hist-tle-line {
+  flex: 1;
+  width: 1px;
+  background: var(--line-soft);
+  margin-top: 2px;
+}
+.hist-tle-body {
+  flex: 1;
+  padding-bottom: 14px;
+  min-width: 0;
+}
+.hist-tle-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 2px;
+  flex-wrap: wrap;
+}
+.hist-tle-type {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.hist-tle-title {
+  font-size: 13px;
+  color: var(--ink-0);
+  font-weight: 500;
+}
+.hist-tle-spacer { flex: 1; }
+.hist-tle-time {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.hist-tle-detail {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+.hist-tle-changes {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.hist-tle-change-arrow { color: var(--ink-3); margin: 0 4px; }
+
+/* type-specific dot/text colors */
+.hist-tle[data-type="insert"]     .hist-tle-dot,
+.hist-tle[data-type="insert"]     .hist-tle-type     { color: var(--accent); }
+.hist-tle[data-type="update"]     .hist-tle-dot,
+.hist-tle[data-type="update"]     .hist-tle-type     { color: var(--info); }
+.hist-tle[data-type="deactivate"] .hist-tle-dot,
+.hist-tle[data-type="deactivate"] .hist-tle-type     { color: var(--warn); }
+.hist-tle[data-type="reactivate"] .hist-tle-dot,
+.hist-tle[data-type="reactivate"] .hist-tle-type     { color: var(--accent-dim); }
+.hist-tle[data-type="sale"]       .hist-tle-dot,
+.hist-tle[data-type="sale"]       .hist-tle-type     { color: var(--error); }
+.hist-tle[data-type="purchase"]   .hist-tle-dot,
+.hist-tle[data-type="purchase"]   .hist-tle-type     { color: #b983ff; }
+
+.hist-tle-count {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-3);
+  letter-spacing: 0.1em;
+  padding: 0 14px 8px;
+  text-transform: uppercase;
+}
+
 /* ===== RECENT chip 行 ===== */
 .hist-recent-row {
   margin-top: 12px;
