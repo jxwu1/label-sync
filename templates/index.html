@@ -527,13 +527,18 @@
             <div class="panel-bd" id="historyPurchase"></div>
           </div>
           <div class="panel" id="historyTimelineChartPanel" hidden>
-            <div class="panel-hd">销售 / 进价时间线（最近 52 周）</div>
-            <div class="panel-bd">
-              <canvas id="historyTimelineChart" height="280"></canvas>
-              <div class="chart-legend">
-                <span class="chart-dot chart-dot--sale"></span> 销量（点状，柱高 = 件数）
-                <span class="chart-dot chart-dot--price"></span> 进价（折线，€）
+            <div class="panel-hd">
+              <span class="hist-phd-code">TML</span>
+              <span class="hist-phd-title">销售 / 进价时间线</span>
+              <span class="hist-phd-sub">最近 52 周</span>
+              <div class="hist-actions hist-actions--inline">
+                <span class="hist-tml-pill hist-tml-pill--accent"><span class="hist-tml-swatch hist-tml-swatch--bar"></span>销量 (柱)</span>
+                <span class="hist-tml-pill hist-tml-pill--warn"><span class="hist-tml-swatch hist-tml-swatch--line"></span>进价 (折线 €)</span>
               </div>
+            </div>
+            <div class="panel-bd">
+              <div class="hist-tml-chart" id="historyTimelineChart"></div>
+              <div class="hist-tml-xaxis" id="historyTimelineXAxis"></div>
             </div>
           </div>
           <div class="panel" id="historyTimelinePanel" hidden>

@@ -122,158 +122,133 @@ function fmtDays(n) {
 
 async function loadTimelineChart(barcode) {
   const panel = $("historyTimelineChartPanel");
-  const canvas = $("historyTimelineChart");
   panel.hidden = false;
   try {
     const resp = await fetch(`/analytics/sku/${encodeURIComponent(barcode)}/timeline`);
     const data = await resp.json();
     if (!data.ok) {
-      drawChartEmpty(canvas, data.msg || "加载失败");
+      renderTmlEmpty(data.msg || "加载失败");
       return;
     }
-    drawTimeline(canvas, data.timeline);
+    renderTmlSvg(data.timeline || []);
   } catch (err) {
-    drawChartEmpty(canvas, `网络错误：${err.message}`);
+    renderTmlEmpty(`网络错误：${err.message}`);
   }
 }
 
-function drawChartEmpty(canvas, msg) {
-  const ctx = setupCanvas(canvas);
-  ctx.fillStyle = "#999";
-  ctx.font = "13px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(msg, canvas.clientWidth / 2, 140);
+function renderTmlEmpty(msg) {
+  $("historyTimelineChart").innerHTML = `<div class="hist-tml-empty">${escapeHtml(msg)}</div>`;
+  $("historyTimelineXAxis").innerHTML = "";
 }
 
-function setupCanvas(canvas) {
-  const dpr = window.devicePixelRatio || 1;
-  const w = canvas.parentElement.clientWidth - 24; // 减 panel-bd padding
-  const h = 280;
-  canvas.style.width = w + "px";
-  canvas.style.height = h + "px";
-  canvas.width = w * dpr;
-  canvas.height = h * dpr;
-  const ctx = canvas.getContext("2d");
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, w, h);
-  return ctx;
-}
-
-function drawTimeline(canvas, timeline) {
-  const ctx = setupCanvas(canvas);
-  const w = canvas.clientWidth;
-  const h = 280;
-  const padL = 44;
-  const padR = 44;
-  const padT = 16;
-  const padB = 28;
-  const plotW = w - padL - padR;
-  const plotH = h - padT - padB;
-
+// PR 8b · 52 周 chart 用 SVG 重写（原 canvas drawTimeline 废弃）
+// viewBox 1000×200 + preserveAspectRatio="none" 让 SVG 拉伸填满 width，
+// 柱/折线/网格/Y label 都是 vector 几何，跟着拉伸不变形（mono Y label
+// 数字短，水平拉伸轻微可接受）。X 轴月份 label 走 HTML overlay。
+function renderTmlSvg(timeline) {
+  const xAxis = $("historyTimelineXAxis");
   if (!timeline || timeline.length === 0) {
-    drawChartEmpty(canvas, "无数据");
+    renderTmlEmpty("无数据");
     return;
   }
 
   const n = timeline.length;
   const sales = timeline.map((t) => t.sale_qty || 0);
   const prices = timeline.map((t) => t.purchase_unit_price);
-  const maxSale = Math.max(1, ...sales);
+  const maxQ = Math.max(1, ...sales);
   const validPrices = prices.filter((p) => p !== null && p !== undefined);
   const hasPrices = validPrices.length > 0;
-  const minPrice = hasPrices ? Math.min(...validPrices) : 0;
-  const maxPrice = hasPrices ? Math.max(...validPrices) : 1;
-  const priceRange = Math.max(0.01, maxPrice - minPrice);
+  const maxP = hasPrices ? Math.max(...validPrices) : 1;
+  const minP = hasPrices ? Math.min(...validPrices) : 0;
+  const priceRange = Math.max(0.01, maxP - minP);
 
-  // 网格 + 轴
-  ctx.strokeStyle = "#e0d8c8";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  for (let i = 0; i <= 4; i++) {
-    const y = padT + (plotH * i) / 4;
-    ctx.moveTo(padL, y);
-    ctx.lineTo(padL + plotW, y);
-  }
-  ctx.stroke();
+  const W = 1000;
+  const H = 200;
+  const padL = 32;
+  const padR = 36;
+  const padT = 12;
+  const padB = 8;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+  const stepW = innerW / n;
+  const barW = Math.max(1, stepW - 2);
 
-  // 左 Y 轴标签（销量）
-  ctx.fillStyle = "#666";
-  ctx.font = "11px sans-serif";
-  ctx.textAlign = "right";
-  ctx.textBaseline = "middle";
-  for (let i = 0; i <= 4; i++) {
-    const v = Math.round((maxSale * (4 - i)) / 4);
-    ctx.fillText(v, padL - 4, padT + (plotH * i) / 4);
-  }
+  // 网格 + Y 轴左侧（销量）
+  const gridParts = [];
+  [0.25, 0.5, 0.75, 1].forEach((f) => {
+    const y = padT + innerH * (1 - f);
+    gridParts.push(
+      `<line x1="${padL}" x2="${W - padR}" y1="${y}" y2="${y}" stroke="var(--line-soft)" stroke-width="1" stroke-dasharray="2 4"/>`,
+    );
+    gridParts.push(
+      `<text x="${padL - 4}" y="${y + 3}" font-size="9" fill="var(--ink-3)" text-anchor="end" font-family="monospace">${Math.round(maxQ * f)}</text>`,
+    );
+  });
 
-  // 右 Y 轴标签（进价）
+  // Y 轴右侧（进价）
   if (hasPrices) {
-    ctx.fillStyle = "#586e75";
-    ctx.textAlign = "left";
-    for (let i = 0; i <= 4; i++) {
-      const v = (maxPrice - (priceRange * i) / 4).toFixed(2);
-      ctx.fillText(`€${v}`, padL + plotW + 4, padT + (plotH * i) / 4);
+    [0, 0.25, 0.5, 0.75, 1].forEach((f) => {
+      const y = padT + innerH * (1 - f);
+      const v = (minP + priceRange * f).toFixed(2);
+      gridParts.push(
+        `<text x="${W - padR + 4}" y="${y + 3}" font-size="9" fill="var(--warn)" text-anchor="start" font-family="monospace">€${v}</text>`,
+      );
+    });
+  }
+
+  // 销量柱
+  const barParts = sales.map((qty, i) => {
+    if (qty === 0) return "";
+    const x = padL + i * stepW + 1;
+    const barH = (qty / maxQ) * innerH * 0.85;
+    const y = padT + innerH - barH;
+    const fill = qty > maxQ * 0.6 ? "var(--accent)" : "var(--accent-dim)";
+    return `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${fill}" opacity="0.85" rx="0.5"/>`;
+  });
+
+  // 进价折线（断点处分段，null 不画）
+  let pathD = "";
+  const dotParts = [];
+  let started = false;
+  prices.forEach((p, i) => {
+    if (p === null || p === undefined) {
+      started = false;
+      return;
+    }
+    const x = padL + (i + 0.5) * stepW;
+    const y = padT + innerH - ((p - minP) / priceRange) * innerH * 0.85;
+    pathD += started ? ` L${x.toFixed(1)},${y.toFixed(1)}` : `M${x.toFixed(1)},${y.toFixed(1)}`;
+    started = true;
+    dotParts.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2" fill="var(--warn)"/>`);
+  });
+  const linePart = pathD
+    ? `<path d="${pathD}" stroke="var(--warn)" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke"/>`
+    : "";
+
+  // baseline
+  const baseline = `<line x1="${padL}" x2="${W - padR}" y1="${padT + innerH}" y2="${padT + innerH}" stroke="var(--line)" stroke-width="1"/>`;
+
+  $("historyTimelineChart").innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="hist-tml-svg">
+      ${gridParts.join("")}
+      ${barParts.join("")}
+      ${linePart}
+      ${dotParts.join("")}
+      ${baseline}
+    </svg>
+  `;
+
+  // X 轴月份 label：6 个均匀分布
+  const labelCount = Math.min(6, n);
+  const months = [];
+  for (let i = 0; i < labelCount; i++) {
+    const idx = Math.floor(((n - 1) * i) / Math.max(1, labelCount - 1));
+    const wk = timeline[idx];
+    if (wk && wk.week_start) {
+      months.push(`<span>${escapeHtml(wk.week_start.slice(0, 7))}</span>`);
     }
   }
-
-  // X 轴标签（每 ~13 周一个，标月份）
-  ctx.fillStyle = "#666";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "top";
-  const xStep = plotW / Math.max(n - 1, 1);
-  for (let i = 0; i < n; i += Math.max(1, Math.floor(n / 5))) {
-    const month = timeline[i].week_start.slice(0, 7);
-    ctx.fillText(month, padL + i * xStep, padT + plotH + 6);
-  }
-
-  // 销量：竖条（柱状）
-  ctx.fillStyle = "rgba(67, 145, 96, 0.55)";
-  const barW = Math.max(2, xStep * 0.6);
-  for (let i = 0; i < n; i++) {
-    const qty = sales[i];
-    if (qty === 0) continue;
-    const x = padL + i * xStep - barW / 2;
-    const barH = (qty / maxSale) * plotH;
-    const y = padT + plotH - barH;
-    ctx.fillRect(x, y, barW, barH);
-  }
-
-  // 进价：折线（仅连续非空段）
-  if (hasPrices) {
-    ctx.strokeStyle = "#b0683b";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    let started = false;
-    for (let i = 0; i < n; i++) {
-      const p = prices[i];
-      if (p === null || p === undefined) {
-        started = false;
-        continue;
-      }
-      const x = padL + i * xStep;
-      const y = padT + ((maxPrice - p) / priceRange) * plotH;
-      if (!started) {
-        ctx.moveTo(x, y);
-        started = true;
-      } else {
-        ctx.lineTo(x, y);
-      }
-    }
-    ctx.stroke();
-
-    // 进价点标记
-    ctx.fillStyle = "#b0683b";
-    for (let i = 0; i < n; i++) {
-      const p = prices[i];
-      if (p === null || p === undefined) continue;
-      const x = padL + i * xStep;
-      const y = padT + ((maxPrice - p) / priceRange) * plotH;
-      ctx.beginPath();
-      ctx.arc(x, y, 2.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
+  xAxis.innerHTML = months.join("");
 }
 
 async function loadAnalytics(barcode) {
