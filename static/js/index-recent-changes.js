@@ -101,23 +101,26 @@ async function loadSummary() {
 }
 
 function renderSummary(s) {
-  const card = (icon, label, n, filterKey, filterValue) => `
-    <button class="rc-summary-cell" data-filter-key="${filterKey || ""}" data-filter-value="${filterValue || ""}">
-      <div class="rc-summary-icon">${icon}</div>
-      <div class="rc-summary-num">${n}</div>
-      <div class="rc-summary-label">${label}</div>
-    </button>`;
+  // PR 9 · 5 stat box grid，tone 按 count 0/>0 切（默认/accent/info/warn/error）
+  const cell = (label, n, filterKey, filterValue, baseTone) => {
+    const tone = n > 0 ? baseTone : "default";
+    return `
+      <button class="rc-summary-cell" data-tone="${tone}"
+              data-filter-key="${filterKey || ""}" data-filter-value="${filterValue || ""}">
+        <div class="rc-summary-num">${n}</div>
+        <div class="rc-summary-label">${label}</div>
+      </button>`;
+  };
   $("rcSummary").innerHTML = `
     <div class="rc-summary-grid">
-      ${card("📦", "库位变更", s.location_changes, "field", "stockpile_location")}
-      ${card("🏷", "型号变更", s.model_changes, "field", "product_model")}
-      ${card("➕", "新增", s.inserts, "change_type", "insert")}
-      ${card("❌", "失效", s.deactivates, "change_type", "deactivate")}
-      ${card("♻️", "重新上架", s.reactivates, "change_type", "reactivate")}
+      ${cell("库位变更", s.location_changes, "field", "stockpile_location", "default")}
+      ${cell("型号变更", s.model_changes,    "field", "product_model",      "info")}
+      ${cell("新增",     s.inserts,          "change_type", "insert",       "accent")}
+      ${cell("失效",     s.deactivates,      "change_type", "deactivate",   "error")}
+      ${cell("重新上架", s.reactivates,      "change_type", "reactivate",   "warn")}
     </div>
-    <div class="rc-summary-foot">
-      🔁 来回波动 ${s.roundtrip_count} 组
-      <span class="rc-tip">（同 barcode+字段终态==起始态的折叠剔除噪音）</span>
+    <div class="rc-roundtrip-note">
+      来回波动 <b>${s.roundtrip_count}</b> 组 · 同 barcode + 字段终态==起始态的折叠剔除噪音
     </div>`;
   document.querySelectorAll(".rc-summary-cell").forEach((cell) => {
     cell.addEventListener("click", () => {
@@ -132,22 +135,29 @@ function renderSummary(s) {
 }
 
 function renderChips() {
+  // 用 _lastSummary 算每个 chip 的 count（无 summary 时省略 count 数字）
+  const s = _lastSummary || {};
+  const total = (s.location_changes || 0) + (s.model_changes || 0)
+              + (s.inserts || 0) + (s.deactivates || 0) + (s.reactivates || 0);
   const chips = [
-    { label: "全部", filter: { field: null, change_type: null } },
-    { label: "仅库位", filter: { field: "stockpile_location", change_type: null } },
-    { label: "仅型号", filter: { field: "product_model", change_type: null } },
-    { label: "仅新增", filter: { field: null, change_type: "insert" } },
-    { label: "仅失效", filter: { field: null, change_type: "deactivate" } },
+    { label: "全部",   n: total,                  filter: { field: null, change_type: null } },
+    { label: "仅库位", n: s.location_changes || 0, filter: { field: "stockpile_location", change_type: null } },
+    { label: "仅型号", n: s.model_changes || 0,    filter: { field: "product_model", change_type: null } },
+    { label: "仅新增", n: s.inserts || 0,          filter: { field: null, change_type: "insert" } },
+    { label: "仅失效", n: s.deactivates || 0,      filter: { field: null, change_type: "deactivate" } },
   ];
   if (_currentMode === "raw") {
-    chips.push({ label: "仅 update", filter: { field: null, change_type: "update" } });
-    chips.push({ label: "仅 reactivate", filter: { field: null, change_type: "reactivate" } });
+    chips.push({ label: "仅 update", n: 0, filter: { field: null, change_type: "update" } });
+    chips.push({ label: "仅 reactivate", n: s.reactivates || 0, filter: { field: null, change_type: "reactivate" } });
   }
   const html = chips.map((c) => {
     const active = c.filter.field === _currentFilter.field
                 && c.filter.change_type === _currentFilter.change_type;
+    const countSpan = _lastSummary
+      ? `<span class="rc-chip-count">${c.n}</span>`
+      : "";
     return `<button class="rc-chip${active ? " rc-chip--active" : ""}"
-              data-filter='${JSON.stringify(c.filter)}'>${escapeHtml(c.label)}</button>`;
+              data-filter='${JSON.stringify(c.filter)}'>${escapeHtml(c.label)}${countSpan}</button>`;
   }).join("");
   $("rcChips").innerHTML = html;
   document.querySelectorAll(".rc-chip").forEach((chip) => {
@@ -244,17 +254,26 @@ function renderRawList(rows) {
 }
 
 function renderChangeCell(r) {
-  const fieldCn = FIELD_CN[r.field] || r.field;
   if (r.change_type === "insert") {
-    return `<span class="rc-tag rc-tag--insert">➕ 新货号</span>`;
+    return `<span class="rc-tag rc-tag--insert"><span class="rc-tag-glyph">+</span>新货号 → ${escapeHtml(r.to_value || r.barcode)}</span>`;
   }
   if (r.change_type === "deactivate") {
-    return `<span class="rc-tag rc-tag--del">❌ 失效</span>`;
+    return `<span class="rc-tag rc-tag--del"><span class="rc-tag-glyph">✕</span>失效</span>`;
   }
   if (r.change_type === "reactivate") {
-    return `<span class="rc-tag rc-tag--ok">♻️ 重新上架</span>`;
+    return `<span class="rc-tag rc-tag--ok"><span class="rc-tag-glyph">↺</span>重新上架</span>`;
   }
-  return `${fieldCn} <code>${escapeHtml(r.from_value || "")}</code> → <code>${escapeHtml(r.to_value || "")}</code>`;
+  // 库位 / 型号 变更：from → to（带颜色 to）
+  const isLoc = r.field === "stockpile_location";
+  const isModel = r.field === "product_model";
+  const fieldLabel = isLoc ? "库位" : isModel ? "型号" : (FIELD_CN[r.field] || r.field);
+  const toCls = isLoc ? "rc-change-to rc-change-to--loc"
+              : isModel ? "rc-change-to rc-change-to--model"
+              : "rc-change-to";
+  const fromHtml = r.from_value
+    ? `<span class="rc-change-from">${escapeHtml(r.from_value)}</span><span class="rc-change-arrow">→</span>`
+    : "";
+  return `<span class="${isLoc ? "rc-change-loc" : isModel ? "rc-change-model" : ""}">${fieldLabel} ${fromHtml}<span class="${toCls}">${escapeHtml(r.to_value || "")}</span></span>`;
 }
 
 function drillToBarcode(barcode) {
