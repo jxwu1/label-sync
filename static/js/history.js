@@ -467,7 +467,9 @@ function renderResult(data) {
     cells.push(_kv("售价", `€${Number(c.sale_price).toFixed(2)}`, "hist-kv--mono"));
   }
   if (c.manual_grade !== null && c.manual_grade !== undefined) {
-    cells.push(_kv("等级", escapeHtml(String(c.manual_grade)), "hist-kv--mono"));
+    const g = Number(c.manual_grade);
+    const tone = g >= 8 ? "accent" : g >= 4 ? "warn" : g >= 2 ? "info" : "error";
+    cells.push(_kv("等级", `<span class="hist-grade-badge" data-tone="${tone}">${escapeHtml(String(c.manual_grade))}</span>`));
   }
   // 状态 用 pill（active accent / inactive muted）
   const statusPill = c.is_active
