@@ -300,10 +300,25 @@ async function doImportProductMaster() {
 }
 
 function setProductHint(msg, isError = false) {
-  const el = $("invProductHint");
-  if (!el) return;
-  el.innerHTML = msg;
-  el.style.color = isError ? "#dc3545" : "";
+  // PR 12 · #invProductHint 已删，改走 alert（error / 长成功消息）+ 按钮文字（短状态）
+  // 「正在导入」开头的视为进行中状态 → 改 button 文字
+  const btn = $("invProductImport");
+  if (msg.startsWith("正在导入")) {
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = msg;
+    }
+    return;
+  }
+  // 其它（成功 / 失败）→ alert + 恢复 button
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = "↪ 导入产品总档";
+  }
+  // 用 textContent 转纯文本（去 HTML 标签 / details 块），alert 不渲染 HTML
+  const tmp = document.createElement("div");
+  tmp.innerHTML = msg;
+  alert(tmp.textContent || tmp.innerText || msg);
 }
 
 function init() {
@@ -313,9 +328,26 @@ function init() {
   $("invImport").addEventListener("click", doImport);
   $("invStatsRefresh").addEventListener("click", refreshStats);
   $("invImportsRefresh").addEventListener("click", refreshImports);
+  // PR 12 · file input → 显示文件名
+  $("invFile").addEventListener("change", (e) => {
+    const f = e.target.files[0];
+    $("invFileName").textContent = f ? f.name : "未选择任何文件";
+  });
   if ($("invProductImport")) {
     $("invProductImport").addEventListener("click", doImportProductMaster);
   }
+  if ($("invProductFile")) {
+    $("invProductFile").addEventListener("change", (e) => {
+      const f = e.target.files[0];
+      $("invProductFileName").textContent = f ? f.name : "未选择任何文件";
+    });
+  }
 }
+
+// 首次切到进销存导入页时自动 load 一次（DB-STATE + RECENT 两段）
+window.Alpine?.store?.("nav")?.onFirstActivate?.("inventory", () => {
+  refreshStats();
+  refreshImports();
+});
 
 init();

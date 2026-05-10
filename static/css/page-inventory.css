@@ -1,142 +1,230 @@
-/* 进销存导入页 —— 与 pageHistory / pageAttendance 同款 override：
-   .page.active 默认 display:grid 在本 layout 里滚不动；改 block + 显式
-   高度 + overflow:auto 才行（其它顶级页都这么写，沿用约定）。*/
+/* ========== Page: 进销存导入（PR 12 重做 · DataOps Terminal handoff §pages-extra.jsx:791-959） ========== */
+
 #pageInventory.active {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
   overflow: auto;
   height: calc(100vh - 122px);
+  padding: 0 2px 24px 2px;
 }
 
-#pageInventory .panel + .panel {
-  margin-top: var(--sp-4);
-}
-
-.inv-row {
+/* ===== 通用 panel ===== */
+.inv-panel {
+  background: var(--bg-1);
+  border: 1px solid var(--line-soft, var(--c-border));
+  border-radius: var(--r-md, 6px);
   display: flex;
-  gap: var(--sp-3);
+  flex-direction: column;
+}
+.inv-panel-hd {
+  display: flex;
   align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line-soft);
   flex-wrap: wrap;
 }
+.inv-panel-bd { padding: 0; }
+.inv-panel-bd--padded { padding: 14px; }
 
-.inv-row label {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
+/* PanelHeader 元素 */
+.inv-phd-code {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink-3);
+  letter-spacing: 0.16em;
 }
-
-.inv-row input[type="file"] {
-  flex: 1;
-  min-width: 200px;
-}
-
-.inv-row .btn {
-  width: auto;
-  height: 36px;
-  padding: 0 var(--sp-3);
-  margin-bottom: 0;
-}
-
-.inv-hint {
-  margin-top: var(--sp-3);
-  color: var(--c-text-muted);
-  font-size: var(--fs-md);
-}
-
-.inv-actions {
-  display: inline-flex;
-  gap: var(--sp-2);
-  margin-left: var(--sp-3);
-}
-
-.inv-mapping-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--fs-base);
-}
-
-.inv-mapping-table th,
-.inv-mapping-table td {
-  padding: 6px 10px;
-  text-align: left;
-  border-bottom: 1px solid var(--c-border);
-}
-
-.inv-mapping-table thead th {
+.inv-phd-title {
+  font-size: 12px;
   font-weight: 600;
-  color: var(--c-text-muted);
-  background: var(--c-surface-deep);
+  color: var(--ink-0);
+}
+.inv-phd-sub {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-3);
 }
 
-.inv-mapping-select {
-  width: 100%;
-  padding: 4px 6px;
-  font-family: inherit;
-  font-size: var(--fs-md);
-  background: var(--c-bg);
-  color: var(--c-text);
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-sm);
-}
-
-.inv-mapping-sample {
-  color: var(--c-text-dim);
-  font-family: monospace;
-  font-size: var(--fs-md);
-  white-space: nowrap;
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: inline-block;
-}
-
-.inv-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--sp-3);
-  margin-bottom: var(--sp-3);
-}
-
-.inv-stats > div {
-  padding: var(--sp-2) var(--sp-3);
-  background: var(--c-surface-deep);
-  border-radius: var(--r-sm);
-}
-
-.inv-stats-sub {
+/* Inline title line in import zone */
+.inv-panel-titleline {
   display: flex;
-  gap: var(--sp-2);
   align-items: center;
+  gap: 14px;
+  padding: 14px 14px 0;
+}
+
+.inv-spacer { flex: 1; }
+
+/* ===== Pill ===== */
+.inv-pill {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: var(--r-pill, 999px);
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--ink-3);
+}
+.inv-pill--accent { color: var(--accent); border-color: rgba(0, 255, 149, .35); background: rgba(0, 255, 149, .08); }
+.inv-pill--info   { color: var(--info);   border-color: rgba(78, 163, 255, .40); background: rgba(78, 163, 255, .08); }
+.inv-pill--warn   { color: var(--warn);   border-color: rgba(255, 182, 39, .40); background: rgba(255, 182, 39, .10); }
+.inv-pill--ghost  { color: var(--ink-3); }
+
+/* ===== CTA ===== */
+.inv-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  background: transparent;
+  color: var(--ink-2);
+  text-decoration: none;
+  transition: border-color var(--t-fast, 120ms), color var(--t-fast, 120ms), background var(--t-fast, 120ms);
+}
+.inv-cta--ghost:hover {
+  border-color: var(--accent-dim);
+  color: var(--ink-1);
+  background: var(--bg-2);
+}
+.inv-cta--primary {
+  background: rgba(0, 255, 149, .08);
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+.inv-cta--primary:hover {
+  background: rgba(0, 255, 149, .14);
+}
+.inv-cta:disabled,
+.inv-cta[disabled] { opacity: .45; cursor: not-allowed; }
+
+.inv-hidden-file { display: none; }
+.inv-file-name {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+/* ===== Radio kind 卡片按钮 ===== */
+.inv-kind-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
   flex-wrap: wrap;
-  font-size: var(--fs-md);
-  color: var(--c-text-muted);
+}
+.inv-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--ink-1);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: all .12s;
+}
+.inv-kind:hover {
+  border-color: var(--accent-dim);
+}
+.inv-kind input[type="radio"] {
+  display: none;
+}
+.inv-kind-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid var(--ink-2);
+  background: transparent;
+  flex-shrink: 0;
+  transition: all .12s;
+}
+.inv-kind:has(input[type="radio"]:checked) {
+  border-color: var(--accent);
+  background: rgba(0, 255, 149, .06);
+  color: var(--accent);
+}
+.inv-kind:has(input[type="radio"]:checked) .inv-kind-dot {
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent-glow);
+}
+.inv-kind-label { font-weight: 600; }
+.inv-kind-sub {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-3);
+}
+.inv-kind:has(input[type="radio"]:checked) .inv-kind-sub { color: var(--accent-dim); }
+
+/* terminal-style hint */
+.inv-hint {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-3);
+  line-height: 1.6;
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--line-soft);
+}
+.inv-hint--product {
+  border-top: none;
+  padding: 0 14px 4px;
+}
+.inv-hint-prompt { color: var(--ink-2); margin-right: 4px; }
+
+/* ===== 产品总档 zone（独立 panel，水平 flex） ===== */
+.inv-product-zone {
+  background: var(--bg-1);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md, 6px);
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.inv-product-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-md, 6px);
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 16px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.inv-product-text { flex: 1; min-width: 280px; }
+.inv-product-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-0);
+}
+.inv-product-sub {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-3);
+  margin-top: 2px;
 }
 
-.inv-badge {
-  display: inline-block;
-  padding: 1px 8px;
-  border-radius: 10px;
-  background: var(--c-accent-soft);
-  color: var(--c-text);
-  font-size: var(--fs-md);
-}
-
-.btn-sm {
-  width: auto;
-  height: 24px;
-  padding: 0 8px;
-  font-size: var(--fs-md);
-  margin-bottom: 0;
-  margin-left: var(--sp-2);
-}
-
-.inv-count {
-  color: var(--c-text-muted);
-  font-weight: normal;
-  font-size: var(--fs-md);
-}
-
-/* PR-FE-5：DB 状态卡 + 客户类型分布条 */
+/* ===== DB-STATE 4 stat box grid ===== */
 .inv-stat-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -146,168 +234,176 @@
 .inv-stat-box {
   background: var(--bg-1);
   border: 1px solid var(--line-soft);
-  border-radius: var(--r-md);
+  border-left: 2px solid var(--line);
+  border-radius: var(--r-md, 6px);
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
 }
-.inv-stat-box--accent { border-left: 2px solid var(--accent); }
-.inv-stat-box--info   { border-left: 2px solid var(--info); }
-
+.inv-stat-box--accent { border-left-color: var(--accent-dim); }
+.inv-stat-box--info   { border-left-color: var(--info-dim, var(--info)); }
+.inv-stat-box--warn   { border-left-color: var(--warn-dim, var(--warn)); }
+.inv-stat-box--accent .inv-stat-v { color: var(--accent); }
+.inv-stat-box--info   .inv-stat-v { color: var(--info); }
+.inv-stat-box--warn   .inv-stat-v { color: var(--warn); }
+.inv-stat-v {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink-0);
+  font-variant-numeric: tabular-nums;
+}
 .inv-stat-k {
   font-family: var(--mono);
   font-size: 9.5px;
-  color: var(--ink-3);
   letter-spacing: 0.12em;
   text-transform: uppercase;
-}
-.inv-stat-v {
-  font-family: var(--display);
-  font-size: 22px;
-  font-weight: 600;
-  color: var(--ink-0);
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-.inv-stat-box--accent .inv-stat-v { color: var(--accent); }
-.inv-stat-box--info   .inv-stat-v { color: var(--info); }
-.inv-stat-sub {
-  font-family: var(--mono);
-  font-size: 10px;
   color: var(--ink-3);
 }
+.inv-stat-sub {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-2);
+}
 
+/* 客户类型分布 pill + bar */
 .inv-cust-types {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
-}
-.inv-cust-types__legend {
-  display: flex;
+  align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
+.inv-cust-types__legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
 .inv-cust-pill {
+  display: inline-flex;
+  align-items: center;
   font-family: var(--mono);
-  font-size: 10.5px;
-  padding: 2px 8px;
-  border-radius: 2px;
-  border: 1px solid;
+  font-size: 10px;
+  font-weight: 600;
   letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: var(--r-pill, 999px);
+  border: 1px solid;
 }
 .inv-cust-pill--cn { color: var(--accent); border-color: rgba(0, 255, 149, .35); background: rgba(0, 255, 149, .08); }
-.inv-cust-pill--fo { color: var(--info);   border-color: rgba(78, 163, 255, .35); background: rgba(78, 163, 255, .08); }
-.inv-cust-pill--mx { color: var(--warn);   border-color: rgba(255, 182, 39, .35); background: rgba(255, 182, 39, .08); }
-.inv-cust-pill--un { color: var(--ink-3);  border-color: var(--line); background: var(--bg-2); }
+.inv-cust-pill--fo { color: var(--info);   border-color: rgba(78, 163, 255, .40); background: rgba(78, 163, 255, .08); }
+.inv-cust-pill--mx { color: var(--warn);   border-color: rgba(255, 182, 39, .40); background: rgba(255, 182, 39, .10); }
+.inv-cust-pill--un { color: var(--ink-3); border-color: var(--line); background: var(--bg-2); }
 
 .inv-bar {
   display: flex;
   height: 6px;
+  width: 320px;
+  max-width: 100%;
   border-radius: 3px;
   overflow: hidden;
   background: var(--bg-3);
+  margin-left: auto;
 }
-.inv-bar__seg {
-  height: 100%;
-  transition: width var(--t-base);
+.inv-bar__seg { display: block; height: 100%; }
+
+/* ===== 列映射 table ===== */
+.inv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.inv-table thead th {
+  padding: 8px 14px;
+  background: var(--bg-2);
+  color: var(--ink-2);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+.inv-table tbody td {
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--ink-1);
+  vertical-align: middle;
+}
+.inv-table select {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 3px 8px;
+  color: var(--ink-0);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  outline: none;
 }
 
-/* PR-FE-5b：最近导入表格 */
-.inv-imports-empty {
-  padding: 20px;
-  text-align: center;
-  color: var(--ink-3);
-  font-size: var(--fs-md);
-}
+/* ===== 最近导入 table ===== */
 .inv-imports-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--fs-md);
-}
-.inv-imports-table th,
-.inv-imports-table td {
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--line-soft, var(--line));
-  text-align: left;
-}
-.inv-imports-table th {
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 11.5px;
+}
+.inv-imports-table thead th {
+  padding: 8px 14px;
+  background: var(--bg-2);
+  color: var(--ink-2);
+  font-weight: 600;
+  font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--ink-3);
-  background: var(--bg-2);
-}
-.inv-imports-table tr:hover td { background: var(--bg-2); }
-
-.inv-imp-time {
-  font-family: var(--mono);
-  color: var(--ink-2);
-  font-variant-numeric: tabular-nums;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
   white-space: nowrap;
 }
-.inv-imp-file {
-  font-family: var(--mono);
+.inv-imports-table thead th.inv-imp-num { text-align: right; }
+.inv-imports-table tbody td {
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--line-soft);
   color: var(--ink-1);
-  max-width: 280px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  vertical-align: middle;
 }
-.inv-imp-num {
-  font-family: var(--mono);
-  text-align: right !important;
-  font-variant-numeric: tabular-nums;
-}
-.inv-imp-ok  { color: var(--accent); }
-.inv-imp-dup { color: var(--info); }
-.inv-imp-err { color: var(--error); font-weight: 600; }
-
+.inv-imports-table tbody tr:last-child td { border-bottom: none; }
+.inv-imports-table tbody tr:nth-child(even) { background: rgba(255, 255, 255, .012); }
+.inv-imports-table tbody tr:hover { background: rgba(0, 255, 149, .04); }
+.inv-imp-num { text-align: right; font-variant-numeric: tabular-nums; }
+.inv-imp-time { color: var(--ink-2); }
+.inv-imp-file { font-family: var(--sans); color: var(--ink-0); }
+.inv-imp-ok { color: var(--accent); }
+.inv-imp-dup { color: var(--warn); }
+.inv-imp-err { color: var(--error); }
 .inv-imp-type {
-  display: inline-block;
-  padding: 1px 8px;
-  border-radius: var(--r-pill);
-  border: 1px solid;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-}
-.inv-imp-type--purchase { color: var(--warn); border-color: rgba(255,182,39,.40); background: rgba(255,182,39,.10); }
-.inv-imp-type--sale     { color: var(--info); border-color: rgba(78,163,255,.40); background: rgba(78,163,255,.10); }
-
-/* PR-FE-5：自定义 radio (dot 风格) */
-.inv-radio {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  font-size: var(--fs-md);
-  color: var(--ink-1);
-  user-select: none;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: var(--r-pill, 999px);
+  border: 1px solid;
+  text-transform: uppercase;
 }
-.inv-radio input[type="radio"] {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
-  margin: 0;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  background: var(--bg-3);
-  position: relative;
-  cursor: pointer;
-  transition: border-color var(--t-fast);
+.inv-imp-type--purchase { color: var(--accent); border-color: rgba(0, 255, 149, .35); background: rgba(0, 255, 149, .08); }
+.inv-imp-type--sale     { color: var(--info);   border-color: rgba(78, 163, 255, .40); background: rgba(78, 163, 255, .08); }
+.inv-imp-type--product  { color: var(--warn);   border-color: rgba(255, 182, 39, .40); background: rgba(255, 182, 39, .10); }
+
+.inv-imports-empty {
+  padding: 22px 14px;
+  text-align: center;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 11.5px;
 }
-.inv-radio:hover input[type="radio"] { border-color: var(--accent); }
-.inv-radio input[type="radio"]:checked { border-color: var(--accent); }
-.inv-radio input[type="radio"]:checked::after {
-  content: "";
-  position: absolute;
-  inset: 3px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 6px var(--accent-glow);
-}
+
+/* light theme */
+body[data-theme="light"] .inv-imports-table tbody tr:nth-child(even) { background: rgba(0, 0, 0, .025); }
+body[data-theme="light"] .inv-imports-table tbody tr:hover { background: rgba(26, 122, 76, .08); }
