@@ -30,8 +30,13 @@ def process():
         return jsonify({"ok": False, "msg": "请上传供应商 Excel 文件"}), 400
     try:
         rows = purchase_service.parse_purchase_excel(supplier.read())
-        system_set = stockpile_db.query_all_barcodes_set()
+        # 采购路径带 inactive：下架货在系统里有记录，不应被识别为"新条码"
+        system_set = stockpile_db.query_all_barcodes_set(include_inactive=True)
         new_bcs = purchase_service.find_new_barcodes(rows, system_set)
+        # 本次解析行里有哪些是「停用货号」（manual_grade=0），前端标 OFF
+        zero_grade_global = stockpile_db.query_zero_grade_barcodes_set()
+        parsed_inactive = sorted({r.barcode for r in rows} & zero_grade_global)
+        suggested_supplier = purchase_service.lookup_dominant_supplier([r.barcode for r in rows])
     except Exception as exc:
         return jsonify({"ok": False, "msg": f"解析失败：{exc}"}), 500
     return jsonify(
@@ -40,6 +45,8 @@ def process():
             "rows": [r.to_dict() for r in rows],
             "system_barcodes": list(system_set),
             "new_barcodes": new_bcs,
+            "inactive_barcodes": parsed_inactive,
+            "suggested_supplier": suggested_supplier,
         }
     )
 

@@ -8,10 +8,17 @@
   height: calc(100vh - 122px);
 }
 
+#pageSalesAnalytics .panel-hd {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .sa-actions {
   display: flex;
   gap: 12px;
   align-items: center;
+  margin-left: auto;
 }
 
 .sa-stat {
@@ -20,6 +27,38 @@
   color: var(--ink-3);
   letter-spacing: 0.04em;
 }
+
+/* ===== CTA（视觉与 dq-cta 对齐） ===== */
+.sa-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  background: transparent;
+  color: var(--ink-2);
+  transition: border-color var(--t-fast, 120ms), color var(--t-fast, 120ms), background var(--t-fast, 120ms);
+}
+.sa-cta--ghost:hover {
+  border-color: var(--accent-dim);
+  color: var(--ink-1);
+  background: var(--bg-2);
+}
+.sa-cta--primary {
+  background: rgba(0, 255, 149, .08);
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+.sa-cta--primary:hover {
+  background: rgba(0, 255, 149, .14);
+}
+.sa-cta:disabled,
+.sa-cta[disabled] { opacity: .45; cursor: not-allowed; }
 
 /* === 筛选区 === */
 .sa-filter-bar {

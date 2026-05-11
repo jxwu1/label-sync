@@ -132,6 +132,53 @@ def find_new_barcodes(rows: list[PurchaseRow], system_set: set[str]) -> list[str
     return out
 
 
+def lookup_dominant_supplier(barcodes: list[str]) -> dict | None:
+    """按「每个货号最近一次采购的供应商」统计，返回出现最多的那家。
+
+    业务前提：一份供应商 Excel 对应一家供应商，所以多数决足够；
+    全部货号都查不到供应商（如全新条码）时返回 None。
+
+    返回 {"supplier_id": str, "supplier_name": str, "matched": int, "total": int}。
+    """
+    from collections import Counter
+
+    from sqlalchemy import select
+
+    from models import InventoryEvent, Supplier
+
+    unique_bcs = sorted({bc for bc in barcodes if bc})
+    if not unique_bcs:
+        return None
+
+    counter: Counter[tuple[str, str]] = Counter()
+    with stockpile_db._session() as session:
+        for bc in unique_bcs:
+            row = session.execute(
+                select(InventoryEvent.supplier_id, Supplier.supplier_name)
+                .join(Supplier, Supplier.supplier_id == InventoryEvent.supplier_id)
+                .where(
+                    InventoryEvent.product_barcode == bc,
+                    InventoryEvent.event_type == "purchase",
+                    InventoryEvent.supplier_id.isnot(None),
+                )
+                .order_by(InventoryEvent.event_at.desc())
+                .limit(1)
+            ).first()
+            if row is None:
+                continue
+            counter[(row.supplier_id, row.supplier_name)] += 1
+
+    if not counter:
+        return None
+    (sid, sname), matched = counter.most_common(1)[0]
+    return {
+        "supplier_id": sid,
+        "supplier_name": sname,
+        "matched": matched,
+        "total": len(unique_bcs),
+    }
+
+
 def _read_template_header() -> list[str]:
     with _TEMPLATE_PATH.open("rb") as f:
         raw = f.read()

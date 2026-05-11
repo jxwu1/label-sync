@@ -129,6 +129,8 @@
 .pur-pill--match  { color: var(--accent); border-color: rgba(0, 255, 149, .35); background: rgba(0, 255, 149, .08); }
 .pur-pill--new    { color: var(--info);   border-color: rgba(78, 163, 255, .40); background: rgba(78, 163, 255, .08); }
 .pur-pill--check  { color: var(--warn);   border-color: rgba(255, 182, 39, .40); background: rgba(255, 182, 39, .10); }
+/* OFF：系统里有但 is_active=0，提示用户去判断要不要重新上架 */
+.pur-pill--off    { color: var(--error);  border-color: rgba(255,  87, 87, .40); background: rgba(255,  87, 87, .08); }
 .pur-filename {
   font-family: var(--mono);
   max-width: 360px;

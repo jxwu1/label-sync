@@ -513,11 +513,31 @@ def query_all_as_system_records(
     return barcode_model_map, system_records
 
 
-def query_all_barcodes_set() -> set[str]:
+def query_zero_grade_barcodes_set() -> set[str]:
+    """所有 manual_grade=0 的 barcode 集合 —— 业务语义"停用货号"。
+
+    注意：和 is_active=0（老 ERP 系统下架）是两回事。"停用"在用户的业务语义里
+    指的是 grade=0，意为"不再补货"。采购导入用这个集合在 UI 上标 OFF。
+    """
     with _session() as session:
         rows = session.execute(
-            select(Stockpile.product_barcode).where(Stockpile.is_active == _ACTIVE)
+            select(Stockpile.product_barcode).where(Stockpile.manual_grade == 0)
         ).all()
+    return {row[0] for row in rows}
+
+
+def query_all_barcodes_set(include_inactive: bool = False) -> set[str]:
+    """主档全部已知 barcode 集合。
+
+    `include_inactive=False`（默认）只数 is_active=1，是月度比对路径的语义。
+    `include_inactive=True` 把 is_active=0 的下架货也带上 —— 采购导入用：
+    下架货 ≠ 系统不知道这个货号，否则会被误判为"新条码"。
+    """
+    with _session() as session:
+        stmt = select(Stockpile.product_barcode)
+        if not include_inactive:
+            stmt = stmt.where(Stockpile.is_active == _ACTIVE)
+        rows = session.execute(stmt).all()
     return {row[0] for row in rows}
 
 

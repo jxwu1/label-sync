@@ -31,15 +31,25 @@ export async function copyToClip(text) {
 }
 
 export function setupDropZone(dropEl, inputEl, onFiles) {
+  const addActive = () => dropEl.classList.add("drag", "drag-over");
+  const removeActive = () => dropEl.classList.remove("drag", "drag-over");
   dropEl.addEventListener("click", () => inputEl.click());
+  dropEl.addEventListener("dragenter", (event) => {
+    event.preventDefault();
+    addActive();
+  });
   dropEl.addEventListener("dragover", (event) => {
     event.preventDefault();
-    dropEl.classList.add("drag");
+    addActive();
   });
-  dropEl.addEventListener("dragleave", () => dropEl.classList.remove("drag"));
+  dropEl.addEventListener("dragleave", (event) => {
+    // dragleave 进子元素时也会触发，只在真正离开 dropEl 时清状态
+    if (event.relatedTarget && dropEl.contains(event.relatedTarget)) return;
+    removeActive();
+  });
   dropEl.addEventListener("drop", (event) => {
     event.preventDefault();
-    dropEl.classList.remove("drag");
+    removeActive();
     if (onFiles) onFiles(event.dataTransfer.files);
   });
   inputEl.addEventListener("change", () => {

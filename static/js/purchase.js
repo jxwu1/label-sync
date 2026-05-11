@@ -4,6 +4,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
   let storedSupplierFile = null;
   let rows = [];
   let systemBarcodes = new Set();
+  let inactiveBarcodes = new Set();
   let newEntries = [];
   let savedNewEntries = [];
   const supplierInfo = { id: '', name: '' };
@@ -101,10 +102,8 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
           </div>
         </div>
       </div>`;
-    // 浏览按钮 → 触发隐藏 input
-    document.getElementById('purBrowseBtn').addEventListener('click', () => {
-      document.getElementById('purInput').click();
-    });
+    // 浏览按钮的点击靠 setupDropZone 的 parent click 冒泡触发 inputEl.click()，
+    // 这里不再单独绑 handler 以避免 inputEl.click() 被调两次（部分浏览器会忽略第二次或闪退 dialog）
     const drop = document.getElementById('purDrop');
     const input = document.getElementById('purInput');
     setupDropZone(drop, input, (files) => handleFiles(files));
@@ -145,8 +144,23 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
       if (!body.ok) { setStatus(body.msg, true); return; }
       rows = body.rows;
       systemBarcodes = new Set(body.system_barcodes);
+      inactiveBarcodes = new Set(body.inactive_barcodes || []);
       newEntries = body.new_barcodes.map(bc => ({ barcode: bc, name: '', invoice_name: '' }));
       savedNewEntries = [];
+      // 主导供应商预填（每张采购单只一家供应商，多数决即可；
+      // 既写入"新条码处理"的 purSupId/purSupName，也供下载模态框 purMsSupplier 用）
+      const sug = body.suggested_supplier;
+      if (sug && sug.supplier_id && sug.supplier_name) {
+        supplierInfo.id = sug.supplier_id;
+        supplierInfo.name = sug.supplier_name;
+        const idInp = document.getElementById('purSupId');
+        const nameInp = document.getElementById('purSupName');
+        if (idInp) idInp.value = sug.supplier_id;
+        if (nameInp) nameInp.value = sug.supplier_name;
+      } else {
+        supplierInfo.id = '';
+        supplierInfo.name = '';
+      }
       // 文件名 pill
       const fileEl = document.getElementById('purFilename');
       if (fileEl) {
@@ -164,6 +178,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
   function rowStatus(r) {
     if (r.price_flagged) return { key: 'check', label: 'CHECK' };
     if (!systemBarcodes.has(r.barcode)) return { key: 'new', label: 'NEW' };
+    if (inactiveBarcodes.has(r.barcode)) return { key: 'off', label: 'OFF' };
     return { key: 'match', label: 'MATCH' };
   }
 
@@ -251,8 +266,10 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     );
     const flagN = rows.filter(r => r.price_flagged).length;
     const newN = rows.filter(r => !systemBarcodes.has(r.barcode)).length;
+    const offN = rows.filter(r => systemBarcodes.has(r.barcode) && inactiveBarcodes.has(r.barcode)).length;
     let txt = `SUM · €${sum.toFixed(2)} · ${rows.length} ROWS · ${units.toLocaleString()} UNITS`;
     if (newN) txt += ` · NEW ${newN}`;
+    if (offN) txt += ` · OFF ${offN}`;
     if (flagN) txt += ` · CHECK ${flagN}`;
     el.textContent = txt;
   }
@@ -469,7 +486,8 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     document.getElementById('purMsTotalTax').value = '';
     document.getElementById('purMsDate').value = new Date().toISOString().slice(0, 10);
     document.getElementById('purMsMonth').value = new Date().toISOString().slice(0, 7);
-    document.getElementById('purMsSupplier').value = '';
+    // 自动填入数据库里推断出的供应商名（仍可编辑）
+    document.getElementById('purMsSupplier').value = supplierInfo.name || '';
     document.getElementById('purMsSkip').style.display = '';
     document.getElementById('purMsConfirm').onclick = () => confirmWithSummary();
     document.getElementById('purModalOverlay').style.display = 'flex';
@@ -542,7 +560,9 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `采购订单${new Date().toISOString().slice(0,10).replace(/-/g,'')}.zip`;
+      const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const supTag = cleanSupplierForFilename(supplierInfo.name);
+      a.download = supTag ? `${ymd}${supTag}.zip` : `采购订单${ymd}.zip`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) { setStatus('下载失败：' + e.message, true); }
@@ -735,6 +755,22 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     if (!el) return;
     el.textContent = msg;
     el.className = 'pur-status' + (isError ? ' error' : '');
+  }
+
+  // 把供应商名压成文件名 tag：
+  // 1) 去括号备注 (...) / （...）
+  // 2) 去是纯数字的 token（典型是电话号码）
+  // 3) 剩余 token 拼起来（去空格）
+  // 4) 移除文件系统非法字符
+  // 例：'HOMEPLAST 6972888853 (希腊本地供应商)' → 'HOMEPLAST'
+  //     'et plast' → 'etplast'
+  //     'NEW NORTON' → 'NEWNORTON'
+  function cleanSupplierForFilename(name) {
+    if (!name) return '';
+    let s = String(name).replace(/[(（][^)）]*[)）]/g, '');
+    s = s.split(/\s+/).filter(t => t && !/^\d+$/.test(t)).join('');
+    // eslint-disable-next-line no-control-regex
+    return s.replace(/[<>:"/\\|?*\x00-\x1f]/g, '').slice(0, 40).toUpperCase();
   }
 
   document.addEventListener('DOMContentLoaded', function () {
