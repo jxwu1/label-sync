@@ -256,20 +256,36 @@
 
   <div class="right-stack">
 
-    <!-- PR-FE-8c：FilesPanel 视觉换皮 -->
+    <!-- PR-FE-8c：FilesPanel 视觉换皮（按 panels2.jsx FilesPanel 设计稿重做） -->
     <section class="up-panel" id="filesPanel">
       <div class="up-panel-hd">
         <span class="up-panel-code">04</span>
         <span class="up-panel-title">文件队列</span>
         <span class="up-panel-sub" x-data x-text="`${$store.upload.selected.length} files`">0 files</span>
         <span class="up-panel-spacer"></span>
+        <button class="fq-add-btn" id="fqAddBtn" type="button">+ 添加</button>
       </div>
       <div class="up-panel-bd files-bd">
         <div class="files" id="files" x-data>
           <template x-for="(f, i) in $store.upload.selected" :key="i">
             <div class="file fl-row">
               <span class="fl-type" x-text="(f.name.split('.').pop() || '').toUpperCase().slice(0,4)"></span>
-              <span class="fl-name name" x-text="f.name"></span>
+              <div class="fl-info">
+                <div class="fl-name" :title="f.name" x-text="f.name"></div>
+                <div class="fl-meta" x-text="`${(f.size/1024).toFixed(1)} KB`"></div>
+              </div>
+              <span class="fq-pill" :class="`fq-pill--${
+                $store.app.badgeType === 'running' ? 'run' :
+                $store.app.badgeType === 'done' ? 'done' :
+                $store.app.badgeType === 'error' ? 'fail' : 'queue'
+              }`">
+                <span class="fq-pill-dot"></span>
+                <span x-text="
+                  $store.app.badgeType === 'running' ? 'RUN' :
+                  $store.app.badgeType === 'done' ? 'DONE' :
+                  $store.app.badgeType === 'error' ? 'FAIL' : 'QUEUE'
+                "></span>
+              </span>
               <span class="rm fl-rm" @click="$store.upload.remove(i)">×</span>
             </div>
           </template>

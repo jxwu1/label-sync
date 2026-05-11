@@ -100,6 +100,12 @@ function plFinish() {
   plRender(100);
 }
 
+// 占位按钮：配置规则 / 重放上次（PR-FE-8 后续 PR 实现）
+const _upRules = $("#upRules"); if (_upRules) _upRules.onclick = () => alert("配置规则：留作后续 PR 实现");
+const _upReplay = $("#upReplay"); if (_upReplay) _upReplay.onclick = () => alert("重放上次：留作后续 PR 实现");
+// 文件队列 panel header 的「+ 添加」按钮 → 触发隐藏 fileInput
+const _fqAdd = $("#fqAddBtn"); if (_fqAdd) _fqAdd.onclick = () => $("#fileInput").click();
+
 $("#run").onclick = async () => {
   const run = $("#run"); run.disabled = true; $("#cont").style.display = "none";
   Alpine.store('app').setStatus('<span class="spin"></span>正在启动处理流程...'); Alpine.store('app').setBadge("running", "处理中"); Alpine.store('term').push("开始处理");
@@ -110,10 +116,6 @@ $("#run").onclick = async () => {
     startPoll();
   } catch (e) { Alpine.store('app').setStatus("启动失败：" + e, "error"); Alpine.store('app').setBadge("error", "出错"); Alpine.store('term').push("启动失败：" + e, "log-err"); run.disabled = false; plReset(); }
 };
-
-// 占位按钮：配置规则 / 重放上次（PR-FE-8 后续 PR 实现）
-const _upRules = $("#upRules"); if (_upRules) _upRules.onclick = () => alert("配置规则：留作后续 PR 实现");
-const _upReplay = $("#upReplay"); if (_upReplay) _upReplay.onclick = () => alert("重放上次：留作后续 PR 实现");
 
 $("#cont").onclick = async () => {
   const cont = $("#cont"); cont.disabled = true; cont.textContent = "处理中...";
