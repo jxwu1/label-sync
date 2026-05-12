@@ -18,6 +18,8 @@
 | DB 销售 | 2025-01-03 → 2026-05-06，194,524 行 | 不够 STL 104 周硬门槛 |
 | DB 采购 | 2023-01-05 → 2026-05-06，32,937 行 | 但销售对不上 → 用不上 |
 | Parquet 样本 1 年 | 2025-05-12 → 2026-05-12，304,507 行 | **DB 比实际数据少 ~50%** |
+| **Parquet 销售 3 年（2026-05-12 晚到位）** | **2023-05-12 → 2026-05-12，951,135 行，156 周，月度无缺月** | **跨过 104 周硬门槛，季节项可启用** |
+| Parquet 采购 3 年 | ❌ 未抓 | 阶段 1/2 不依赖，先不阻塞 |
 | 客户三分类 | 4 类（foreign/chinese/mixed/unknown），无 cn_replenish/cn_bulk | 基础需求视图缺一层 |
 | SKU 级日库存快照 | ❌ 不存在 | 缺货修正缺基础 |
 | 采购双时间戳（下单 vs 到货）| ❌ 单时间戳 | LT 无法实测，本轮不依赖 LT |
@@ -171,7 +173,7 @@ DB 数据只有 70 周时 STL 跑不起来（需 104 周）。等 3 年数据导
 
 | 等级 | 风险 | 缓解 |
 |---|---|---|
-| 🔴 | 2023-2024 数据导入卡在 HTML 抓取速度 | parquet 回填路径已就绪；算法和导入并行 |
+| 🟢 | ~~2023-2024 数据导入卡在 HTML 抓取速度~~（销售已直供 3 年 parquet，2026-05-12 晚解除） | 仅采购仍待抓；阶段 1/2 不依赖采购 |
 | 🟡 | parquet 回填数据格式跟 2025+ 不一致（旧 ERP 编码不同） | 先抓 1 个月样本验证 schema，再全量 |
 | 🟡 | mixed 客户 26k 笔（13.5%）未归类 | 32 个 customer 手工归类 0.5 天，导入后做 |
 | 🟢 | statsmodels 引入影响打包大小 | +30MB 可接受 |
@@ -185,10 +187,35 @@ DB 数据只有 70 周时 STL 跑不起来（需 104 周）。等 3 年数据导
 - **2026-05-12 下午**：清洗层 `etl/parquet_cleaner.py` + CLI ship；15 单测过
 - **2026-05-12 下午**：parquet importer `etl/parquet_importer.py` + CLI ship；13 集成测试过
 - **2026-05-12 下午**：本 plan 落档
+- **2026-05-12 晚**：用户提供 3 年销售 parquet `C:\Users\64474\OneDrive\桌面\events_sale_2023-05-12_2026-05-12.parquet`（14.73 MB）；inspect 通过——951,135 行 / 2023-05-12 → 2026-05-12 / 全 event_type=sale / 月度无缺月 / schema 跟 2025 样本一致
+- **2026-05-12 晚**：明确明天动作（见第八节）
 
 ---
 
-## 八、下一步
+## 八、下一步（2026-05-13 接班）
 
-- **用户**：抓 2023-2024 历史数据（HTML → parquet）
-- **Claude（可并行）**：阶段 1（预测数据底座）或 阶段 2（回测框架）—— 等用户拍板
+**接班前确认（用户）**：
+- (a) 采购 parquet 啥时候到位？阶段 1/2 不依赖，可后补
+- (b) `wipe_events.py` 是否直接按？要不要保留当前 70 周 DB 做对比
+
+**接班动作（按顺序）**：
+
+1. **数据灌库**（预计 30 分钟）
+   - `python tools/wipe_events.py`（不可逆，有自动备份）
+   - `python tools/clean_parquet.py "C:\Users\64474\OneDrive\桌面\events_sale_2023-05-12_2026-05-12.parquet" --out-dir cleaned/ --archive-dir archive/`
+   - `python tools/import_parquet.py "cleaned/events_sale_*.parquet"`
+   - `python tools/inventory_admin.py stats && verify`
+   - verify：销售总行数 ≈ 95 万 ± 清洗剔除量（参考 1 年样本剔 4.9%），日期覆盖 2023-05-12 → 2026-05-12
+
+2. **可回测 SKU 摸底**（预计 1 小时，spike，不进正式文件）
+   - notebook 跑：`SELECT product_barcode, COUNT(DISTINCT week) FROM weekly_demand WHERE weeks >= 20`
+   - 输出三个数：可回测 SKU 数量、空周比例分布、Top 100 SKU 周均量
+   - 这三个数定阶段 2 的 `min_weeks` 和 `backtest_runs/results` 字段
+
+3. **回写 plan**：根据摸底结果补阶段 1/2 的 verify 阈值 + 表字段，然后开阶段 2 第一个 PR
+
+**仍未填的 plan 真空区**（明天 spike 之后一起补）：
+- 阶段 2.5 `backtest_runs` / `backtest_results` 字段列表
+- 阶段 1/2 之间并行/依赖图
+- 阶段 4 verify 条件
+- 阶段 5 MAPE 改善阈值
