@@ -262,6 +262,178 @@ class ComputeDocQtyStatsTests(unittest.TestCase):
         assert s["iqr"] > 0
 
 
+class _BaseDemandViewBase(_Base):
+    """base_demand_view 集成测试基类: 提供 customers 表辅助."""
+
+    def _add_customer(self, customer_id: str, customer_type: str = "foreign") -> None:
+        from models import Customer
+
+        with stockpile_db._session() as s:
+            s.execute(
+                insert(Customer).values(
+                    customer_id=customer_id,
+                    customer_name=f"C-{customer_id}",
+                    customer_type=customer_type,
+                )
+            )
+            s.commit()
+
+    def _add_sale(
+        self,
+        *,
+        barcode: str = "B1",
+        event_at: str,
+        qty: int,
+        document_no: str | None,
+        customer_id: str | None = None,
+    ) -> None:
+        with stockpile_db._session() as s:
+            s.execute(
+                insert(InventoryEvent).values(
+                    event_at=event_at,
+                    event_type="sale",
+                    product_barcode=barcode,
+                    qty=qty,
+                    document_no=document_no,
+                    customer_id=customer_id,
+                )
+            )
+            s.commit()
+
+
+class BaseDemandViewTests(_BaseDemandViewBase):
+    """plan §1.2: 按 SKU 类型分流过滤异常单 + 客户类型."""
+
+    def test_wholesale_only_returns_none_series(self) -> None:
+        from forecast_data import base_demand_view
+
+        for i in range(5):
+            self._add_sale(event_at="2026-05-01", qty=720, document_no=f"D{i}")
+        out = base_demand_view("B1", end_date=date(2026, 5, 11), weeks=4)
+        assert out["sku_type"] == "wholesale_only"
+        assert out["series"] is None
+        assert out["exclusion_count"] == 0
+        assert out["exclusion_qty"] == 0
+
+    def test_unclassified_when_no_data(self) -> None:
+        from forecast_data import base_demand_view
+
+        out = base_demand_view("NOPE", end_date=date(2026, 5, 11), weeks=4)
+        assert out["sku_type"] == "unclassified"
+        assert out["series"] is None or sum(out["series"].values()) == 0
+
+    def test_retail_dominant_no_bulk_no_exclusion(self) -> None:
+        from forecast_data import base_demand_view
+
+        for i in range(8):
+            self._add_sale(event_at="2026-05-06", qty=10, document_no=f"D{i}")
+        out = base_demand_view("B1", end_date=date(2026, 5, 11), weeks=4)
+        assert out["sku_type"] == "retail_dominant"
+        assert out["series"][_monday(date(2026, 5, 6))] == 80
+        assert out["exclusion_count"] == 0
+
+    def test_retail_dominant_excludes_bulk_doc(self) -> None:
+        from forecast_data import base_demand_view
+
+        for i in range(8):
+            self._add_sale(event_at="2026-05-06", qty=10, document_no=f"D{i}")
+        self._add_sale(event_at="2026-05-07", qty=1000, document_no="BULK")
+        out = base_demand_view("B1", end_date=date(2026, 5, 11), weeks=4)
+        assert out["sku_type"] == "retail_dominant"
+        assert out["series"][_monday(date(2026, 5, 6))] == 80
+        assert out["exclusion_count"] == 1
+        assert out["exclusion_qty"] == 1000
+
+    def test_retail_dominant_ignores_customer_type(self) -> None:
+        from forecast_data import base_demand_view
+
+        self._add_customer("C_UNK", "unknown")
+        for i in range(8):
+            self._add_sale(event_at="2026-05-06", qty=10, document_no=f"D{i}",
+                           customer_id="C_UNK")
+        out = base_demand_view("B1", end_date=date(2026, 5, 11), weeks=4)
+        assert out["sku_type"] == "retail_dominant"
+        assert out["series"][_monday(date(2026, 5, 6))] == 80
+        assert out["exclusion_count"] == 0
+
+    def test_mixed_filters_unknown_customer(self) -> None:
+        from forecast_data import base_demand_view
+
+        self._add_customer("CF", "foreign")
+        self._add_customer("CU", "unknown")
+        for i in range(10):
+            self._add_sale(event_at="2026-05-06", qty=10, document_no=f"R{i}",
+                           customer_id="CF")
+        for i in range(5):
+            self._add_sale(event_at="2026-05-06", qty=200, document_no=f"W{i}",
+                           customer_id="CU")
+        out = base_demand_view("B1", end_date=date(2026, 5, 11), weeks=4)
+        assert out["sku_type"] == "mixed"
+        assert out["exclusion_count"] == 5
+        assert out["series"][_monday(date(2026, 5, 6))] == 100
+
+    def test_mixed_keeps_chinese_customer(self) -> None:
+        """mixed: chinese 客户即使是中等大单, 只要不 bulk 也保留 (是零售路径之一)."""
+        from forecast_data import base_demand_view
+
+        self._add_customer("CF", "foreign")
+        self._add_customer("CC", "chinese")
+        # 7 foreign 零售 (qty=10) + 3 chinese 中单 (qty=100)
+        # ratio 7/10=70% → mixed; doc qtys: [10]*7 + [100]*3
+        # median=10, IQR~67.5, threshold~212.5 → 100 不算 bulk
+        # chinese ∈ (foreign, chinese) → 客户过滤通过 → 全保留
+        for i in range(7):
+            self._add_sale(event_at="2026-05-06", qty=10, document_no=f"R{i}",
+                           customer_id="CF")
+        for i in range(3):
+            self._add_sale(event_at="2026-05-06", qty=100, document_no=f"M{i}",
+                           customer_id="CC")
+        out = base_demand_view("B1", end_date=date(2026, 5, 11), weeks=4)
+        assert out["sku_type"] == "mixed"
+        assert out["exclusion_count"] == 0
+        assert out["series"][_monday(date(2026, 5, 6))] == 7 * 10 + 3 * 100
+
+    def test_exclusion_qty_accumulates(self) -> None:
+        from forecast_data import base_demand_view
+
+        for i in range(8):
+            self._add_sale(event_at="2026-05-06", qty=10, document_no=f"D{i}")
+        self._add_sale(event_at="2026-05-07", qty=500, document_no="B1_DOC")
+        self._add_sale(event_at="2026-05-07", qty=700, document_no="B2_DOC")
+        out = base_demand_view("B1", end_date=date(2026, 5, 11), weeks=4)
+        assert out["exclusion_count"] == 2
+        assert out["exclusion_qty"] == 1200
+
+    def test_window_boundary_excludes_outside(self) -> None:
+        from forecast_data import base_demand_view
+
+        for i in range(8):
+            self._add_sale(event_at="2026-05-06", qty=10, document_no=f"IN{i}")
+        self._add_sale(event_at="2026-04-01", qty=10, document_no="OUT")
+        out = base_demand_view("B1", end_date=date(2026, 5, 31), weeks=4)
+        assert sum(out["series"].values()) == 80
+
+    def test_returns_netted_within_doc(self) -> None:
+        from forecast_data import base_demand_view
+
+        for i in range(5):
+            self._add_sale(event_at="2026-05-06", qty=10, document_no=f"D{i}")
+        self._add_sale(event_at="2026-05-06", qty=10, document_no="NET")
+        self._add_sale(event_at="2026-05-07", qty=-3, document_no="NET")
+        out = base_demand_view("B1", end_date=date(2026, 5, 11), weeks=4)
+        assert out["series"][_monday(date(2026, 5, 6))] == 57
+
+    def test_orphan_return_not_in_series_and_not_excluded(self) -> None:
+        from forecast_data import base_demand_view
+
+        for i in range(5):
+            self._add_sale(event_at="2026-05-06", qty=10, document_no=f"D{i}")
+        self._add_sale(event_at="2026-05-06", qty=-3, document_no="ORPHAN")
+        out = base_demand_view("B1", end_date=date(2026, 5, 11), weeks=4)
+        assert out["series"][_monday(date(2026, 5, 6))] == 50
+        assert out["exclusion_count"] == 0
+
+
 class IsBulkOrderTests(unittest.TestCase):
     """plan §1.5: qty > median + k·IQR → True; 不再用均值."""
 

@@ -121,13 +121,15 @@ python tools/inventory_admin.py verify
 
 - [ ] `weekly_demand_series(barcode, end_date, weeks)` 周聚合销量，空周补 0；**应用 1.0.1 退货归并后再聚合**
 
-#### 1.2 base_demand_view（重写）
+#### 1.2 base_demand_view ✅ 2026-05-14
 
-- [ ] 按 SKU 类型分流：
-  - `retail_dominant`：剔除单笔 qty 异常（用 SKU 自身销售的 median + 3·IQR，**不用均值**——均值被大单污染）
-  - `mixed`：同上 + 客户类型过滤（保留 foreign + 非 wholesale 客户）
-  - `wholesale_only`：**不进 base_demand_view**，单独走 `wholesale_demand_view`（用经验分位数，不做时序预测）
-- [ ] 输出仍是 `(week, qty)` 序列，但带元数据：`sku_type`、`exclusion_count`、`exclusion_qty`
+- [x] `base_demand_view(barcode, end_date, weeks)` → `{sku_type, series, exclusion_count, exclusion_qty}`
+- 分流:
+  - `wholesale_only` / `unclassified`: `series=None` (不进时序预测; wholesale_demand_view 经验分位数路径留待阶段 2 与 backtest 一起做)
+  - `retail_dominant`: 仅 `is_bulk_order` 剔单笔异常
+  - `mixed`: 同上 + 客户类型过滤 (保留 `foreign` + `chinese`, 剔 `unknown` / `mixed`)
+- 实战数据验证: `5203692253593` 剔 19 doc / 2521 qty; `9000000000063` 剔 50 doc / 3019 qty
+- **客户过滤简化决策**: plan 原文"保留 foreign + 非 wholesale 客户"但 DB 无 wholesale 客户标签 (希腊大批发也是 customer_type=foreign), 简化为剔 unknown/mixed; 真正剔大单还是靠 is_bulk_order
 
 #### 1.3 winsorize ✅ 2026-05-14
 
@@ -295,13 +297,17 @@ DB 数据只有 70 周时 STL 跑不起来（需 104 周）。等 3 年数据导
 
 **下一步动作（按顺序，建议各开独立 PR）**：
 
-1. ✅ **阶段 1.0**（2026-05-14 完成，2 commit shipped）
-2. **阶段 1.1-1.5 重写**（在 1.0 后，2 天）—— 下一步入口
-   - 1.1 `weekly_demand_series` 已建 → 1.2 `base_demand_view` 用 sku_type 分流
-   - 1.3 `winsorize` 只对 retail_dominant/mixed
-   - 1.4 `stockout_adjust` fallback
-   - 1.5 `is_bulk_order` 用 median+IQR
-3. **阶段 2 回测框架**（先 baseline 单跑 + Croston，再加双视图，3-4 天）
+1. ✅ **阶段 1.0** (2026-05-14, PR1/PR2 shipped)
+2. ✅ **阶段 1.1-1.5** (2026-05-14, PR3/PR4 shipped; 1.4 defer 等库存快照表)
+3. **阶段 2 回测框架** —— 下一步入口
+   - 2.1 `ForecastModel` Protocol
+   - 2.2 四个 baseline (Naive 三件套 + Croston/SBA)
+   - 2.3 walk-forward backtest
+   - 2.4 评分 (MAPE/MASE/Bias/coverage)
+   - 2.5 alembic 迁移 `backtest_runs` / `backtest_results` **⚠️ 不可逆, 上线前问用户**
+   - 2.6 批量入口 `run_backtest_all_skus`
+   - 2.7 routes `POST /analytics/backtest/run`
+   - 2.8 双视图回测 (all vs base_demand)
 
 **仍待澄清**：
 - 阶段 4 verify 条件（等阶段 2 出第一份回测结果再定）
