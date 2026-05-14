@@ -422,3 +422,119 @@ def run_backtest_all_skus(
         )
         s.commit()
         return run_id
+
+
+# ---- §2.8 双视图对比 --------------------------------------------------------
+
+
+def compare_run_pair(run_id_a: int, run_id_b: int) -> dict:
+    """对比两次 run 的 per-SKU 分数差异 (plan §2.8 双视图诊断).
+
+    返回 {
+        "run_a": {id, model_name, view, n_scored},
+        "run_b": {id, model_name, view, n_scored},
+        "common_skus": int,
+        "items": [{
+            "product_barcode", "sku_type",
+            "mape_a", "mape_b", "mape_delta" (b - a),
+            "mase_a", "mase_b", "mase_delta",
+            "coverage_a", "coverage_b",
+        }],
+        "summary": {
+            "median_mase_delta": float | None,
+            "improved": int  (b 的 MASE < a),
+            "worsened": int,
+            "unchanged": int,
+        }
+    }
+    """
+    import stockpile_db
+    from sqlalchemy import select
+
+    from models import BacktestResult, BacktestRun
+
+    with stockpile_db._session() as s:
+        run_a = s.execute(
+            select(BacktestRun).where(BacktestRun.id == run_id_a)
+        ).scalar_one_or_none()
+        run_b = s.execute(
+            select(BacktestRun).where(BacktestRun.id == run_id_b)
+        ).scalar_one_or_none()
+        if run_a is None or run_b is None:
+            raise ValueError(f"run not found: a={run_id_a} b={run_id_b}")
+
+        rows_a = s.execute(
+            select(BacktestResult).where(BacktestResult.run_id == run_id_a)
+        ).scalars().all()
+        rows_b = s.execute(
+            select(BacktestResult).where(BacktestResult.run_id == run_id_b)
+        ).scalars().all()
+
+    map_a = {r.product_barcode: r for r in rows_a}
+    map_b = {r.product_barcode: r for r in rows_b}
+    common = sorted(set(map_a) & set(map_b))
+
+    items: list[dict] = []
+    deltas: list[float] = []
+    improved = worsened = unchanged = 0
+    for bc in common:
+        ra, rb = map_a[bc], map_b[bc]
+        mape_delta = (
+            (rb.mape - ra.mape) if (ra.mape is not None and rb.mape is not None) else None
+        )
+        mase_delta = (
+            (rb.mase - ra.mase) if (ra.mase is not None and rb.mase is not None) else None
+        )
+        items.append(
+            {
+                "product_barcode": bc,
+                "sku_type": rb.sku_type or ra.sku_type,
+                "mape_a": ra.mape,
+                "mape_b": rb.mape,
+                "mape_delta": mape_delta,
+                "mase_a": ra.mase,
+                "mase_b": rb.mase,
+                "mase_delta": mase_delta,
+                "coverage_a": ra.coverage_p98,
+                "coverage_b": rb.coverage_p98,
+            }
+        )
+        if mase_delta is not None:
+            deltas.append(mase_delta)
+            if mase_delta < -1e-9:
+                improved += 1
+            elif mase_delta > 1e-9:
+                worsened += 1
+            else:
+                unchanged += 1
+
+    median_delta: float | None = None
+    if deltas:
+        sd = sorted(deltas)
+        n = len(sd)
+        median_delta = (
+            sd[n // 2] if n % 2 else (sd[n // 2 - 1] + sd[n // 2]) / 2.0
+        )
+
+    return {
+        "run_a": {
+            "id": run_a.id,
+            "model_name": run_a.model_name,
+            "view": run_a.view,
+            "n_skus_scored": run_a.n_skus_scored,
+        },
+        "run_b": {
+            "id": run_b.id,
+            "model_name": run_b.model_name,
+            "view": run_b.view,
+            "n_skus_scored": run_b.n_skus_scored,
+        },
+        "common_skus": len(common),
+        "items": items,
+        "summary": {
+            "median_mase_delta": median_delta,
+            "improved": improved,
+            "worsened": worsened,
+            "unchanged": unchanged,
+        },
+    }

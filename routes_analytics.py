@@ -206,6 +206,30 @@ def backtest_list_runs():
         )
 
 
+@bp.get("/backtest/compare")
+def backtest_compare():
+    """对比两次 run 的 per-SKU 分数差异 (plan §2.8). query: run_a, run_b."""
+    from flask import request
+
+    import backtest_service
+
+    raw_a = request.args.get("run_a")
+    raw_b = request.args.get("run_b")
+    if not raw_a or not raw_b:
+        return jsonify({"ok": False, "msg": "缺少 run_a / run_b"}), 400
+    try:
+        run_a = int(raw_a)
+        run_b = int(raw_b)
+    except ValueError:
+        return jsonify({"ok": False, "msg": "run_a / run_b 必须是整数"}), 400
+
+    try:
+        result = backtest_service.compare_run_pair(run_a, run_b)
+    except ValueError as e:
+        return jsonify({"ok": False, "msg": str(e)}), 404
+    return jsonify({"ok": True, **result})
+
+
 @bp.get("/backtest/results")
 def backtest_results():
     """单个 run 的 per-SKU 分数 (query param run_id)."""

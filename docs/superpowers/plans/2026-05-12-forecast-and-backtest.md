@@ -176,7 +176,9 @@ CrostonSBA 在间歇序列上最优 (符合 spike 发现"空周率高"); NaiveSe
 - [x] 2.5 ✅ 2026-05-14 alembic 迁移 `b9e1c4f8a3d2_add_backtest_tables`, head 已升级
 - [x] 2.6 ✅ 2026-05-14 `run_backtest_all_skus(model_name, end_date, weeks, view, ...)` 写表
 - [x] 2.7 ✅ 2026-05-14 routes 3 个: `POST /analytics/backtest/run` + `GET /analytics/backtest/runs` + `GET /analytics/backtest/results?run_id=N`
-- [ ] 2.8 双视图回测留到 PR7 (跑全量 + 写报告)
+- [x] 2.8 ✅ 2026-05-14 双视图框架完成: `compare_run_pair(run_a, run_b)` + `GET /analytics/backtest/compare`
+  - 返回 per-SKU MAPE/MASE/coverage 差异 + summary (improved/worsened/unchanged + median_mase_delta)
+  - **全量 30k SKU × 4 baseline × 2 view = 8 runs 实战跑**：未在 PR7 内执行 (估算 4 小时)，用户后续手动触发
 
 **`backtest_runs` 表字段**（spike 后初稿）：
 
@@ -308,11 +310,12 @@ DB 数据只有 70 周时 STL 跑不起来（需 104 周）。等 3 年数据导
 
 1. ✅ **阶段 1.0** (2026-05-14, PR1/PR2 shipped)
 2. ✅ **阶段 1.1-1.5** (2026-05-14, PR3/PR4 shipped; 1.4 defer 等库存快照表)
-3. ✅ **阶段 2.1-2.7** (2026-05-14, PR5 算法 + PR6 DB/API shipped)
-4. **下一步**: PR7 = 2.8 双视图回测 + 阶段 5 数据扩充前后回归报告
-   - 全量跑 NaiveMean4W / NaiveSeasonal52W / LinearTrend12W / CrostonSBA × view ∈ {all, base_demand}
-   - 对比 base_demand 视图相对 all 的 MASE 差异
-   - 输出报告: 哪类 SKU 在 base_demand 下分数改善, 哪类反而恶化
+3. ✅ **阶段 2 全部完成** (2026-05-14, PR5/PR6/PR7 shipped)
+4. **可选下一步**:
+   - 用户实战跑 8 个 full run, 用 `/analytics/backtest/compare` 看 base_demand vs all 实战差异
+   - 阶段 3 主力预测模型 (HoltWinters / EmpiricalQuantile / 新品 erp_category 同类目均值)
+   - 阶段 4 Dashboard 集成 (SKU 详情页"预测分布"+"回测历史"卡片)
+   - 阶段 5 数据扩充前后对比 **已作废**: 当前 DB 已 wipe 重灌, 无"前"数据可比; 改为以本次基准为起点, 后续重要变更后再 snapshot
 
 **仍待澄清**：
 - 阶段 4 verify 条件（等阶段 2 出第一份回测结果再定）

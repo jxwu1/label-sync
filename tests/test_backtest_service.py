@@ -438,5 +438,94 @@ class RunBacktestAllSkusTests(_DBBase):
             )
 
 
+class CompareRunPairTests(_DBBase):
+    """plan §2.8 双视图回测对比."""
+
+    def test_returns_summary_with_common_skus(self) -> None:
+        from backtest_service import compare_run_pair, run_backtest_all_skus
+
+        self._seed_stockpile("B1")
+        self._seed_retail_weekly("B1", weeks=30)
+        run_a = run_backtest_all_skus(
+            model_name="NaiveMean4W",
+            end_date=date(2026, 5, 13), weeks=30,
+            view="all", barcodes=["B1"],
+        )
+        run_b = run_backtest_all_skus(
+            model_name="NaiveMean4W",
+            end_date=date(2026, 5, 13), weeks=30,
+            view="base_demand", barcodes=["B1"],
+        )
+        cmp = compare_run_pair(run_a, run_b)
+        assert cmp["run_a"]["id"] == run_a
+        assert cmp["run_b"]["id"] == run_b
+        assert cmp["run_a"]["view"] == "all"
+        assert cmp["run_b"]["view"] == "base_demand"
+        assert cmp["common_skus"] == 1
+        assert len(cmp["items"]) == 1
+        item = cmp["items"][0]
+        assert item["product_barcode"] == "B1"
+        assert "mase_delta" in item
+
+    def test_summary_counts_unchanged_when_identical(self) -> None:
+        """同一 SKU 同一视图 同一模型 → MASE 一致 → unchanged 计 1."""
+        from datetime import timedelta
+
+        from backtest_service import compare_run_pair, run_backtest_all_skus
+
+        # 波动序列, 让 lag-1 naive MAE != 0 → MASE 非 None
+        self._seed_stockpile("B1")
+        with stockpile_db._session() as s:
+            for w in range(30):
+                d = (date(2026, 5, 13) - timedelta(days=w * 7)).isoformat()
+                qty = 5 + (w % 3)  # 5, 6, 7, 5, 6, 7, ...
+                s.execute(
+                    insert(InventoryEvent).values(
+                        event_at=d, event_type="sale", product_barcode="B1",
+                        qty=qty, document_no=f"B1-D{w}",
+                    )
+                )
+            s.commit()
+        ra = run_backtest_all_skus(
+            model_name="NaiveMean4W", end_date=date(2026, 5, 13), weeks=30,
+            barcodes=["B1"],
+        )
+        rb = run_backtest_all_skus(
+            model_name="NaiveMean4W", end_date=date(2026, 5, 13), weeks=30,
+            barcodes=["B1"],
+        )
+        cmp = compare_run_pair(ra, rb)
+        assert cmp["common_skus"] == 1
+        assert cmp["summary"]["improved"] == 0
+        assert cmp["summary"]["worsened"] == 0
+        assert cmp["summary"]["unchanged"] == 1
+        assert cmp["summary"]["median_mase_delta"] == 0.0
+
+    def test_unknown_run_raises(self) -> None:
+        from backtest_service import compare_run_pair
+
+        with self.assertRaises(ValueError):
+            compare_run_pair(99999, 99998)
+
+    def test_no_common_skus_empty_items(self) -> None:
+        from backtest_service import compare_run_pair, run_backtest_all_skus
+
+        self._seed_stockpile("B1")
+        self._seed_stockpile("B2")
+        self._seed_retail_weekly("B1", weeks=30)
+        self._seed_retail_weekly("B2", weeks=30)
+        ra = run_backtest_all_skus(
+            model_name="NaiveMean4W", end_date=date(2026, 5, 13), weeks=30,
+            barcodes=["B1"],
+        )
+        rb = run_backtest_all_skus(
+            model_name="NaiveMean4W", end_date=date(2026, 5, 13), weeks=30,
+            barcodes=["B2"],
+        )
+        cmp = compare_run_pair(ra, rb)
+        assert cmp["common_skus"] == 0
+        assert cmp["items"] == []
+
+
 if __name__ == "__main__":
     unittest.main()
