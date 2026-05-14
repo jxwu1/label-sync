@@ -129,17 +129,21 @@ python tools/inventory_admin.py verify
   - `wholesale_only`：**不进 base_demand_view**，单独走 `wholesale_demand_view`（用经验分位数，不做时序预测）
 - [ ] 输出仍是 `(week, qty)` 序列，但带元数据：`sku_type`、`exclusion_count`、`exclusion_qty`
 
-#### 1.3 winsorize（保留，作用域缩小）
+#### 1.3 winsorize ✅ 2026-05-14
 
-- [ ] `winsorize(series, q=0.95)` 只对 `retail_dominant`/`mixed` 应用，不动 `wholesale_only`
+- [x] `winsorize(values, q=0.95)` 顶部 q 分位以上压到 q 分位本身
+- 应用范围: 由 §1.2 base_demand_view 决定 (只对 retail_dominant/mixed)
 
-#### 1.4 stockout_adjust（保留）
+#### 1.4 stockout_adjust 🟡 defer
 
-- [ ] `stockout_adjust(series, stock_history)` 库存=0 周替换为中位数（fallback：无快照时跳过）
+- **状态**: 阻塞中 — 需先建 SKU 级日库存快照表 (plan §四"明确不做")
+- 当前 DB 无 stock_history → 函数实现也只能走 fallback (pass-through), 不值得花 PR 时间
+- 等模块 3 补货决策开做时, snapshot 表必补, 那时一起做
 
-#### 1.5 is_bulk_order（重写）
+#### 1.5 is_bulk_order ✅ 2026-05-14
 
-- [ ] `is_bulk_order(qty, sku_stats, k=3.0)` 用 `median + k·IQR` 判定，**不再用均值**
+- [x] `compute_doc_qty_stats(net_qtys)` → `{median, q1, q3, iqr}` 或 None (<4 样本)
+- [x] `is_bulk_order(qty, stats, k=3.0)` → `qty > median + k·iqr`, 弃用均值
 
 **verify**：
 

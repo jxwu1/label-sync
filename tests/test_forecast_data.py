@@ -171,5 +171,147 @@ class WeeklyDemandSeriesTests(_Base):
         assert sum(s.values()) == 0
 
 
+class WinsorizeTests(unittest.TestCase):
+    """plan §1.3: 顶部 q 分位以上压到 q 分位本身."""
+
+    def test_empty(self) -> None:
+        from forecast_data import winsorize
+
+        assert winsorize([]) == []
+
+    def test_constant_series_unchanged(self) -> None:
+        from forecast_data import winsorize
+
+        assert winsorize([5, 5, 5, 5]) == [5.0, 5.0, 5.0, 5.0]
+
+    def test_q_1_0_unchanged(self) -> None:
+        from forecast_data import winsorize
+
+        assert winsorize([1, 2, 3, 100], q=1.0) == [1.0, 2.0, 3.0, 100.0]
+
+    def test_q_0_95_caps_top(self) -> None:
+        """[1..100] q=0.95 → 顶部 6 个值压到 q95 分位 (~95.05)."""
+        from forecast_data import winsorize
+
+        out = winsorize(list(range(1, 101)), q=0.95)
+        threshold = max(out)
+        # 大于 threshold 的应该没有
+        assert all(v <= threshold for v in out)
+        # 至少有几个值被压低 (大于 95)
+        n_capped = sum(1 for v in out if v == threshold)
+        assert n_capped >= 5
+
+    def test_q_0_5_caps_above_median(self) -> None:
+        from forecast_data import winsorize
+
+        out = winsorize([1, 2, 3, 4, 5], q=0.5)
+        # median=3, > 3 的 (4, 5) 都应压到 3
+        assert out == [1.0, 2.0, 3.0, 3.0, 3.0]
+
+    def test_zeros_preserved(self) -> None:
+        from forecast_data import winsorize
+
+        out = winsorize([0, 0, 0, 100], q=0.95)
+        assert out[0] == 0.0
+        assert out[3] < 100.0  # 顶部被压
+
+    def test_does_not_mutate_input(self) -> None:
+        from forecast_data import winsorize
+
+        src = [1, 2, 100]
+        winsorize(src, q=0.5)
+        assert src == [1, 2, 100]
+
+
+class ComputeDocQtyStatsTests(unittest.TestCase):
+    def test_empty_returns_none(self) -> None:
+        from forecast_data import compute_doc_qty_stats
+
+        assert compute_doc_qty_stats([]) is None
+
+    def test_too_few_samples_returns_none(self) -> None:
+        """< 4 个样本 → None (IQR 无意义)."""
+        from forecast_data import compute_doc_qty_stats
+
+        assert compute_doc_qty_stats([1]) is None
+        assert compute_doc_qty_stats([1, 2]) is None
+        assert compute_doc_qty_stats([1, 2, 3]) is None
+
+    def test_four_samples_returns_dict(self) -> None:
+        from forecast_data import compute_doc_qty_stats
+
+        s = compute_doc_qty_stats([1, 2, 3, 4])
+        assert s is not None
+        assert set(s.keys()) == {"median", "q1", "q3", "iqr"}
+        assert s["median"] == 2.5
+        assert s["iqr"] == s["q3"] - s["q1"]
+
+    def test_constant_iqr_zero(self) -> None:
+        from forecast_data import compute_doc_qty_stats
+
+        s = compute_doc_qty_stats([5, 5, 5, 5, 5])
+        assert s is not None
+        assert s["median"] == 5
+        assert s["iqr"] == 0
+
+    def test_wide_spread(self) -> None:
+        from forecast_data import compute_doc_qty_stats
+
+        s = compute_doc_qty_stats([1, 2, 3, 4, 100])
+        assert s is not None
+        assert s["iqr"] > 0
+
+
+class IsBulkOrderTests(unittest.TestCase):
+    """plan §1.5: qty > median + k·IQR → True; 不再用均值."""
+
+    def test_none_stats_returns_false(self) -> None:
+        from forecast_data import is_bulk_order
+
+        assert is_bulk_order(1000, None) is False
+
+    def test_below_threshold(self) -> None:
+        from forecast_data import is_bulk_order
+
+        stats = {"median": 10, "q1": 8, "q3": 12, "iqr": 4}
+        # threshold = 10 + 3*4 = 22; qty=20 < 22
+        assert is_bulk_order(20, stats) is False
+
+    def test_at_threshold_not_bulk(self) -> None:
+        from forecast_data import is_bulk_order
+
+        stats = {"median": 10, "q1": 8, "q3": 12, "iqr": 4}
+        # threshold = 22; qty=22 → not strict greater → False
+        assert is_bulk_order(22, stats) is False
+
+    def test_above_threshold(self) -> None:
+        from forecast_data import is_bulk_order
+
+        stats = {"median": 10, "q1": 8, "q3": 12, "iqr": 4}
+        assert is_bulk_order(23, stats) is True
+
+    def test_custom_k(self) -> None:
+        from forecast_data import is_bulk_order
+
+        stats = {"median": 10, "q1": 8, "q3": 12, "iqr": 4}
+        # k=1 → threshold = 14; qty=15 > 14 → True
+        assert is_bulk_order(15, stats, k=1.0) is True
+        # k=5 → threshold = 30; qty=15 < 30 → False
+        assert is_bulk_order(15, stats, k=5.0) is False
+
+    def test_iqr_zero_only_median_matters(self) -> None:
+        from forecast_data import is_bulk_order
+
+        stats = {"median": 10, "q1": 10, "q3": 10, "iqr": 0}
+        assert is_bulk_order(10, stats) is False
+        assert is_bulk_order(11, stats) is True
+
+    def test_negative_qty_never_bulk(self) -> None:
+        from forecast_data import is_bulk_order
+
+        stats = {"median": 10, "q1": 8, "q3": 12, "iqr": 4}
+        assert is_bulk_order(-5, stats) is False
+
+
 if __name__ == "__main__":
     unittest.main()

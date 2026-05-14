@@ -1,18 +1,27 @@
-"""阶段 1 预测数据底座 (plan 2026-05-12-forecast-and-backtest.md §1.0.1 + §1.1).
+"""阶段 1 预测数据底座 (plan 2026-05-12-forecast-and-backtest.md §1.0.1 + §1.1 + §1.3 + §1.5).
 
-仅实现 weekly_demand_series; §1.2-1.5 (base_demand_view / winsorize / stockout_adjust /
-is_bulk_order) 留待 PR2 (SKU 分类) 之后再加。
+已实现:
+- weekly_demand_series (§1.0.1 + §1.1)
+- winsorize (§1.3)
+- compute_doc_qty_stats / is_bulk_order (§1.5)
+
+待 §1.2 base_demand_view 整合层 (PR4) 把以上组合起来.
+§1.4 stockout_adjust 等 SKU 级日库存快照表建好再做.
 """
 from __future__ import annotations
 
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
+import numpy as np
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 import stockpile_db
 from models import InventoryEvent
+
+_BULK_K_DEFAULT = 3.0
+_MIN_STATS_SAMPLES = 4
 
 
 def _monday(d: date) -> date:
@@ -86,3 +95,50 @@ def weekly_demand_series(
             series[earliest_week] += net
 
     return series
+
+
+# ---- §1.3 winsorize ----------------------------------------------------------
+
+
+def winsorize(values: list[float] | list[int], q: float = 0.95) -> list[float]:
+    """把 > q 分位的值压到 q 分位本身. 空输入返回空, 不改输入.
+
+    plan §1.3: 只用于 retail_dominant / mixed; 不动 wholesale_only.
+    """
+    if not values:
+        return []
+    arr = np.asarray(values, dtype=float)
+    cap = float(np.quantile(arr, q))
+    return [float(min(v, cap)) for v in arr]
+
+
+# ---- §1.5 IQR 基础的异常订单判定 --------------------------------------------
+
+
+def compute_doc_qty_stats(net_qtys: list[int] | list[float]) -> dict | None:
+    """对单 SKU 的 doc 净量列表算 median + IQR. < 4 样本返回 None.
+
+    返回 {"median", "q1", "q3", "iqr"}.
+    """
+    if len(net_qtys) < _MIN_STATS_SAMPLES:
+        return None
+    arr = np.asarray(net_qtys, dtype=float)
+    q1 = float(np.quantile(arr, 0.25))
+    q3 = float(np.quantile(arr, 0.75))
+    return {
+        "median": float(np.median(arr)),
+        "q1": q1,
+        "q3": q3,
+        "iqr": q3 - q1,
+    }
+
+
+def is_bulk_order(qty: float, stats: dict | None, k: float = _BULK_K_DEFAULT) -> bool:
+    """qty > median + k·IQR → True. None / 不合法 stats → False.
+
+    plan §1.5: 弃用均值改 median + IQR, 避免 wholesale 大单污染阈值.
+    """
+    if stats is None:
+        return False
+    threshold = stats["median"] + k * stats["iqr"]
+    return qty > threshold
