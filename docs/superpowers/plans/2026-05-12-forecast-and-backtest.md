@@ -1,7 +1,8 @@
 # 预测算法 + 回测框架 plan
 
 **起草日期**：2026-05-12
-**状态**：进行中（数据回填 pipeline 已 ship；预测 + 回测 等数据导入后开干）
+**最近更新**：2026-05-14（数据已灌库 + 可回测 SKU spike + outlier 摸底，阶段 1 待办大改）
+**状态**：进行中（数据回填 pipeline + DB 灌库已 ship；阶段 1 摸底完成，下一步开 1.0 数据预清洗）
 **关联设计文档**：`C:\Users\jxwu2002\Desktop\销售分析与补货系统_设计文档.md`
 **关联 plan**：`2026-04-28-roadmap.md`（总 roadmap）
 
@@ -11,18 +12,26 @@
 
 按设计文档落地"模块 2 需求预测引擎 + 回测机制"。模块 3 补货决策本轮不做。
 
-**数据现状（2026-05-12 摸底）**：
+**数据现状（2026-05-14 更新，灌库后）**：
 
 | 项 | 实测 | 影响 |
 |---|---|---|
-| DB 销售 | 2025-01-03 → 2026-05-06，194,524 行 | 不够 STL 104 周硬门槛 |
-| DB 采购 | 2023-01-05 → 2026-05-06，32,937 行 | 但销售对不上 → 用不上 |
-| Parquet 样本 1 年 | 2025-05-12 → 2026-05-12，304,507 行 | **DB 比实际数据少 ~50%** |
-| **Parquet 销售 3 年（2026-05-12 晚到位）** | **2023-05-12 → 2026-05-12，951,135 行，156 周，月度无缺月** | **跨过 104 周硬门槛，季节项可启用** |
-| Parquet 采购 3 年 | ❌ 未抓 | 阶段 1/2 不依赖，先不阻塞 |
-| 客户三分类 | 4 类（foreign/chinese/mixed/unknown），无 cn_replenish/cn_bulk | 基础需求视图缺一层 |
+| ~~DB 销售（旧）~~ | ~~2025-01-03 → 2026-05-06，194,524 行~~ | 已 wipe 重灌 |
+| **DB 销售（新）** | **2023-01-03 → 2026-05-13，1,338,315 行，30,370 SKU** | 跨过 104 周硬门槛 |
+| **DB 采购（新）** | **2023→2026-05-13，22,750 行（parquet 直供）** | 阶段 3 LT 可探索（但仍单时间戳） |
+| 客户分类 | 4 类（foreign 3243 / chinese 373 / mixed 44 / unknown 6），无 cn_replenish/cn_bulk | 基础需求视图缺一层 |
 | SKU 级日库存快照 | ❌ 不存在 | 缺货修正缺基础 |
 | 采购双时间戳（下单 vs 到货）| ❌ 单时间戳 | LT 无法实测，本轮不依赖 LT |
+
+**可回测 SKU 现状（2026-05-14 spike）**：
+
+| min_weeks 阈值 | ALL customers | FOREIGN only |
+|---|---|---|
+| ≥ 20 周 | 17,745 SKU（58%） | 3,970 SKU（14%） |
+| ≥ 52 周 | 5,527（18%） | 291（1%） |
+| ≥ 104 周（季节项门槛） | **402（1.3%）** | 9 |
+
+空周率：ALL median **73%**，FOREIGN median **90%** → 极稀疏，间歇需求特征。
 
 **关键决策**：用户实际有 2023→现在 3 年完整 sale/purchase 数据，HTML 下载慢没传，
 正在通过 parquet 抓取脚本回填。HTML 仍是日常增量主路径，parquet 是一次性历史
@@ -30,9 +39,29 @@
 
 ---
 
-## 二、已完成（2026-05-12）
+## 二、已完成
 
-### ETL pipeline 全套（数据回填用）
+### 2026-05-13：数据全量灌库
+
+- `wipe_events.py` 清空旧 DB（保留 stockpile 主档 + manual_grade/category）
+- 销售 parquet `events_sale_2023-01-01_2026-05-13.parquet` 清洗 + 导入 → 1,338,315 行
+- 采购 parquet `events_purchase_2023-05-13_2026-05-13.parquet` 清洗 + 导入 → 22,750 行
+- 风险表里"采购未抓"和"销售 HTML 抓取慢"两条 🔴/🟡 全部解除
+
+### 2026-05-14：阶段 1 摸底 spike（不进正式文件）
+
+- `_scratch/spike_backtestable_skus.py`：可回测 SKU 数量 / 空周率 / Top100 周均量
+- `_scratch/spike_outlier_units.py`：Top10 SKU 原始 qty 分布
+
+**关键发现**：
+
+1. Top10 SKU 的 8640/4320/1440 **不是单位混乱**，是真大批发订单（希腊 wholesale 客户 `ANTONIOY NIKH` / `ΔΗΜΗΤΡΙΟΣ ΜΕΡΤΙΚΑΣ`），qty 是 12/24/144 倍数（一打/盒/箱）
+2. **SKU 分三类**：A 纯大批发（零零售样本，订单数 1-6，全 ≥720）/ B 批发主导混零售 / C 零售为主混偶发大单
+3. **负数 qty 出现**（退货/红冲，例如 `5203692253593` min=-48）—— plan §1.1 直接 `SUM(qty)` 会被退货抵消进周需求，**是 bug**
+4. 空周率 mean 70%，>50% SKU 空周 >75% → 间歇需求特征显著，原 plan baseline 三件套（Naive 系列）不够，需补 Croston 类
+5. 季节项基本用不上：只有 402 SKU 满足 104 周（1.3%），HW 带季节降级到"少数 SKU 跑"
+
+### 2026-05-12：ETL pipeline 全套（数据回填用）
 
 | 文件 | 用途 |
 |---|---|
@@ -74,31 +103,87 @@ python tools/inventory_admin.py verify
 - [ ] 0.3 采购导入流程加 `po_ordered_at` 字段（影响模块 3 LT，本轮不阻塞）
 - [ ] 0.4 stockpile / supplier 加 `source_country` 列（影响 LT 默认值，本轮不阻塞）
 
-### 阶段 1：预测数据底座（2-3 天）
+### 阶段 1：预测数据底座（3-4 天，原 2-3 天因 spike 发现的复杂度上调）
 
-新建 `forecast_data.py`：
+新建 `forecast_data.py` + 修 `categorizer.py`：
 
-- [ ] 1.1 `weekly_demand_series(barcode, end_date, weeks)` 周聚合销量，空周补 0
-- [ ] 1.2 `base_demand_view(barcode, ...)` 基础需求 = 老外 + 中补；订单级判 cn_bulk（本单 qty > 3 × SKU 平均）剔除
-- [ ] 1.3 `winsorize(series, q=0.95)` 95 分位压缩
-- [ ] 1.4 `stockout_adjust(series, stock_history)` 库存=0 周替换为中位数（fallback：无快照时跳过）
-- [ ] 1.5 `is_bulk_order(qty, sku_avg, threshold=3.0)` 异常订单识别
+#### 1.0 数据预清洗 + SKU 类型标注（新增，必须最先做）
 
-**verify**：`pytest tests/test_forecast_data.py` 全过；至少 100 个 SKU 能输出非空周序列
+- [ ] 1.0.1 退货归并：负数 qty 必须先和同一 document_no 的正向销售净抵，**不能落到不同周里**。如果原单已不在窗口内，归 0 不落负。
+- [ ] 1.0.2 `categorizer` 加 SKU-级标签：`retail_dominant` / `mixed` / `wholesale_only` 三类
+  - 判定规则：先按 SKU 算"零售订单占比"（qty ≤ 24 视为零售样本量定义先这么写，spike 1.0.3 调）
+  - `wholesale_only`：零售样本 < 5 笔 或 < 5%
+  - `retail_dominant`：零售样本 ≥ 80%
+  - 其余 `mixed`
+- [ ] 1.0.3 spike：扫全量 SKU 的 retail/wholesale 占比分布，调阈值（不进生产代码）
+
+**verify**：
+
+- 负数 qty 测试：建一个 SKU 同周 qty=10、qty=-3 → 周需求 = 7；跨周退货回归 0
+- SKU 类型测试：A 类 4 个 barcode（`6956457684352` 等）必须标 `wholesale_only`；`5203692253593`（1234 笔 median=2）标 `retail_dominant`
+
+#### 1.1 周聚合（订正）
+
+- [ ] `weekly_demand_series(barcode, end_date, weeks)` 周聚合销量，空周补 0；**应用 1.0.1 退货归并后再聚合**
+
+#### 1.2 base_demand_view（重写）
+
+- [ ] 按 SKU 类型分流：
+  - `retail_dominant`：剔除单笔 qty 异常（用 SKU 自身销售的 median + 3·IQR，**不用均值**——均值被大单污染）
+  - `mixed`：同上 + 客户类型过滤（保留 foreign + 非 wholesale 客户）
+  - `wholesale_only`：**不进 base_demand_view**，单独走 `wholesale_demand_view`（用经验分位数，不做时序预测）
+- [ ] 输出仍是 `(week, qty)` 序列，但带元数据：`sku_type`、`exclusion_count`、`exclusion_qty`
+
+#### 1.3 winsorize（保留，作用域缩小）
+
+- [ ] `winsorize(series, q=0.95)` 只对 `retail_dominant`/`mixed` 应用，不动 `wholesale_only`
+
+#### 1.4 stockout_adjust（保留）
+
+- [ ] `stockout_adjust(series, stock_history)` 库存=0 周替换为中位数（fallback：无快照时跳过）
+
+#### 1.5 is_bulk_order（重写）
+
+- [ ] `is_bulk_order(qty, sku_stats, k=3.0)` 用 `median + k·IQR` 判定，**不再用均值**
+
+**verify**：
+
+- `pytest tests/test_forecast_data.py` 全过
+- ALL 视图 ≥ 1000 个 SKU 能输出非空周序列
+- 抽检 5 个 `wholesale_only` SKU：base_demand_view 不返回它们
+- 抽检 5 个 `retail_dominant` SKU：剔除单数量 ≤ 0.5% 总销量
 
 ### 阶段 2：回测框架（3-4 天）⭐ 核心阶段
 
 新建 `backtest_service.py`：
 
 - [ ] 2.1 `ForecastModel` Protocol：`fit(history) → predict(steps) → ForecastDist(p50, p98, mu, sigma)`
-- [ ] 2.2 三个 baseline：`NaiveMean4W` / `NaiveSeasonal52W` / `LinearTrend12W`
+- [ ] 2.2 **四个 baseline**（spike 修正，加 Croston 类）：
+  - `NaiveMean4W` / `NaiveSeasonal52W`（只对 ≥104 周 SKU 启用） / `LinearTrend12W`
+  - **`CrostonSBA`**（间歇需求专用，针对空周率 >50% 的 SKU——绝大多数 SKU 都是）
 - [ ] 2.3 `walk_forward_backtest(barcode, model, window_train=13, window_test=4)` 滚动训练/预测/收集
-- [ ] 2.4 评分函数：MAPE / Bias / 命中率（actual ≤ p98 占比）
-- [ ] 2.5 alembic 迁移：`backtest_runs` + `backtest_results` 两表
-- [ ] 2.6 批量入口 `run_backtest_all_skus(model_name, min_weeks=20)` 写表
+- [ ] 2.4 评分函数：MAPE / Bias / 命中率（actual ≤ p98 占比）；间歇序列加 MASE（MAPE 在零真值上爆炸）
+- [ ] 2.5 alembic 迁移：`backtest_runs` + `backtest_results` 两表（字段见下）
+- [ ] 2.6 批量入口 `run_backtest_all_skus(model_name, min_weeks=20, view='all'|'foreign'|'base_demand')` 写表，**默认 min_weeks=20**（spike 确认）
 - [ ] 2.7 routes：`POST /analytics/backtest/run` + `GET /analytics/backtest/results`
+- [ ] 2.8 **双视图回测**：每个 SKU 跑两遍——`view='all'`（含批发，对照基线） + `view='base_demand'`（应用阶段 1.2 过滤）。分数差异本身是诊断信号
 
-**verify**：任一 SKU 在 3 个 baseline 上能拿到 MAPE / Bias / 命中率三个数
+**`backtest_runs` 表字段**（spike 后初稿）：
+
+- `id` PK / `created_at` / `model_name` / `view` / `window_train` / `window_test`
+- `min_weeks` / `n_skus_total` / `n_skus_scored` / `notes`
+
+**`backtest_results` 表字段**：
+
+- `id` PK / `run_id` FK / `product_barcode` / `sku_type` (`retail_dominant`/`mixed`/`wholesale_only`)
+- `n_weeks_train` / `n_weeks_test` / `mape` / `mase` / `bias` / `coverage_p98`
+- `mean_actual` / `mean_predicted`
+
+**verify**：
+
+- 任一 `retail_dominant` SKU 在 4 个 baseline 上能拿到 MAPE/MASE/Bias/命中率
+- `wholesale_only` SKU 不进 backtest（或单独打标走 `EmpiricalQuantile` baseline）
+- 双视图回测：能输出"全量 vs base_demand"分数差异表
 
 ### 阶段 3：主力预测模型（3-4 天）
 
@@ -173,9 +258,13 @@ DB 数据只有 70 周时 STL 跑不起来（需 104 周）。等 3 年数据导
 
 | 等级 | 风险 | 缓解 |
 |---|---|---|
-| 🟢 | ~~2023-2024 数据导入卡在 HTML 抓取速度~~（销售已直供 3 年 parquet，2026-05-12 晚解除） | 仅采购仍待抓；阶段 1/2 不依赖采购 |
-| 🟡 | parquet 回填数据格式跟 2025+ 不一致（旧 ERP 编码不同） | 先抓 1 个月样本验证 schema，再全量 |
-| 🟡 | mixed 客户 26k 笔（13.5%）未归类 | 32 个 customer 手工归类 0.5 天，导入后做 |
+| 🟢 | ~~2023-2024 数据导入卡在 HTML 抓取速度~~ | 销售 + 采购 parquet 已直供并灌库（2026-05-13） |
+| 🟢 | ~~parquet 回填数据格式跟 2025+ 不一致~~ | 1 年样本 schema 验证已过，全量灌库成功 |
+| 🟡 | mixed 客户 44 笔（< 1.5%）未归类 | 数据回填后做手工归类 |
+| 🟡 | **退货负数 qty 处理** | 阶段 1.0.1 强制 document_no 内净抵；测试覆盖 |
+| 🟡 | **A 类纯批发 SKU 污染回测** | 阶段 1.0.2 SKU 分流；wholesale 走经验分位数 |
+| 🟡 | **空周率 mean 70%，间歇需求** | 阶段 2.2 加 Croston/SBA，评分加 MASE |
+| 🟢 | 季节项可用 SKU 只 402 个（1.3%） | HW 带季节降级为"少数 SKU 跑"，不影响主流程 |
 | 🟢 | statsmodels 引入影响打包大小 | +30MB 可接受 |
 
 ---
@@ -189,33 +278,35 @@ DB 数据只有 70 周时 STL 跑不起来（需 104 周）。等 3 年数据导
 - **2026-05-12 下午**：本 plan 落档
 - **2026-05-12 晚**：用户提供 3 年销售 parquet `C:\Users\64474\OneDrive\桌面\events_sale_2023-05-12_2026-05-12.parquet`（14.73 MB）；inspect 通过——951,135 行 / 2023-05-12 → 2026-05-12 / 全 event_type=sale / 月度无缺月 / schema 跟 2025 样本一致
 - **2026-05-12 晚**：明确明天动作（见第八节）
+- **2026-05-13**：销售 3 年 + 采购 3 年 parquet 全部清洗 + 灌库；DB 总行数 1,361,065（销售 1,338,315 / 采购 22,750），日期 2023-01-03 → 2026-05-13，45,614 SKU
+- **2026-05-14 上午**：`_scratch/spike_backtestable_skus.py` 摸底——可回测 SKU 数量 / 空周率 / Top100 周均量
+- **2026-05-14 上午**：`_scratch/spike_outlier_units.py` 查 Top10 outlier——确认不是单位 bug 是真大批发，发现退货负数 qty + SKU 分三类
+- **2026-05-14**：本 plan 大改——阶段 1 重写（加 1.0 数据预清洗 + SKU 类型分流）；阶段 2 加 Croston baseline + 双视图回测 + 表字段
 
 ---
 
-## 八、下一步（2026-05-13 接班）
+## 八、下一步（2026-05-15 起）
 
-**接班前确认（用户）**：
-- (a) 采购 parquet 啥时候到位？阶段 1/2 不依赖，可后补
-- (b) `wipe_events.py` 是否直接按？要不要保留当前 70 周 DB 做对比
+**已完成**（2026-05-13 / 2026-05-14）：
 
-**接班动作（按顺序）**：
+- ✅ 数据灌库（销售 134 万 + 采购 2.3 万行）
+- ✅ 可回测 SKU 摸底 spike（→ `min_weeks=20` 确认 / 季节项降级 / 四 baseline / 双视图）
+- ✅ Top10 outlier 摸底 spike（→ 真大批发 / SKU 三分类 / 退货负数 qty）
+- ✅ Plan 大改（阶段 1.0 新增 + 阶段 2.2 加 Croston + 表字段定）
 
-1. **数据灌库**（预计 30 分钟）
-   - `python tools/wipe_events.py`（不可逆，有自动备份）
-   - `python tools/clean_parquet.py "C:\Users\64474\OneDrive\桌面\events_sale_2023-05-12_2026-05-12.parquet" --out-dir cleaned/ --archive-dir archive/`
-   - `python tools/import_parquet.py "cleaned/events_sale_*.parquet"`
-   - `python tools/inventory_admin.py stats && verify`
-   - verify：销售总行数 ≈ 95 万 ± 清洗剔除量（参考 1 年样本剔 4.9%），日期覆盖 2023-05-12 → 2026-05-12
+**下一步动作（按顺序，建议各开独立 PR）**：
 
-2. **可回测 SKU 摸底**（预计 1 小时，spike，不进正式文件）
-   - notebook 跑：`SELECT product_barcode, COUNT(DISTINCT week) FROM weekly_demand WHERE weeks >= 20`
-   - 输出三个数：可回测 SKU 数量、空周比例分布、Top 100 SKU 周均量
-   - 这三个数定阶段 2 的 `min_weeks` 和 `backtest_runs/results` 字段
+1. **阶段 1.0 数据预清洗 + SKU 类型标注**（首要，2-3 天）
+   - 1.0.1 退货归并（document_no 内净抵）
+   - 1.0.2 `categorizer` 加 `sku_type` 列（`retail_dominant` / `mixed` / `wholesale_only`）
+   - 1.0.3 spike 调阈值
+   - **退场标准**：4 个 A 类 barcode（`6956457684352` / `5203835112206` / `6956457684345` / `6956457684338`）标 `wholesale_only`；`5203692253593` 标 `retail_dominant`；负数 qty 单元测试过
 
-3. **回写 plan**：根据摸底结果补阶段 1/2 的 verify 阈值 + 表字段，然后开阶段 2 第一个 PR
+2. **阶段 1.1-1.5 重写**（在 1.0 后，2 天）
 
-**仍未填的 plan 真空区**（明天 spike 之后一起补）：
-- 阶段 2.5 `backtest_runs` / `backtest_results` 字段列表
-- 阶段 1/2 之间并行/依赖图
-- 阶段 4 verify 条件
-- 阶段 5 MAPE 改善阈值
+3. **阶段 2 回测框架**（先 baseline 单跑 + Croston，再加双视图，3-4 天）
+
+**仍待澄清**：
+- 阶段 4 verify 条件（等阶段 2 出第一份回测结果再定）
+- 阶段 5 MAPE 改善阈值（依赖阶段 2/3 的实际基准分）
+- mixed 客户 44 笔手工归类（小数量，可与阶段 1.0 并行做）
