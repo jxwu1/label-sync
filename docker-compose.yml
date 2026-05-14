@@ -1,0 +1,35 @@
+# 双端处理 / label-sync — 生产部署
+#
+# 用法 (服务器):
+#   1. git pull
+#   2. docker compose build
+#   3. docker compose up -d
+#   4. docker compose logs -f
+#
+# 数据卷 ./data 挂到 /data, 里面放 stockpile.db / input / output / 垃圾桶 / archive.
+# 反代 (nginx / traefik / caddy) 上游指向 host:5000 (或改 ports 映射).
+
+services:
+  label-sync:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: label-sync:latest
+    container_name: label-sync
+    restart: unless-stopped
+    environment:
+      LABEL_SYNC_DATA_DIR: /data
+      LABEL_SYNC_HOST: "0.0.0.0"
+      LABEL_SYNC_PORT: "5000"
+      LABEL_SYNC_THREADS: "4"
+      TZ: Europe/Athens
+    volumes:
+      - ./data:/data
+    ports:
+      - "5000:5000"  # 反代直接走容器网络的话, 删这一行 + 加 networks
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:5000/\", timeout=3)'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s

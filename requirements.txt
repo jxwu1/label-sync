@@ -7,3 +7,5 @@ sqlalchemy
 alembic
 reportlab
 pydantic
+waitress
+numpy

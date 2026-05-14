@@ -1,3 +1,4 @@
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,6 +13,16 @@ def _resource_dir() -> Path:
 
 
 def _data_dir() -> Path:
+    """运行时数据目录 (stockpile.db / input / output / 垃圾桶 / etc).
+
+    优先级:
+    1. env LABEL_SYNC_DATA_DIR (Docker / 生产部署用, 数据走挂载卷)
+    2. PyInstaller frozen exe 所在目录
+    3. 代码所在目录 (开发默认)
+    """
+    env_dir = os.environ.get("LABEL_SYNC_DATA_DIR")
+    if env_dir:
+        return Path(env_dir).resolve()
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parent

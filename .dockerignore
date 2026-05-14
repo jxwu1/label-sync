@@ -1,0 +1,45 @@
+.git
+.gitignore
+.gitattributes
+.venv
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+
+# 运行时数据 (走 volume, 不进 image)
+stockpile.db
+stockpile.db-shm
+stockpile.db-wal
+input/
+output/
+transfer/
+垃圾桶/
+archive/
+cleaned/
+raw/
+*.parquet
+*.xlsx
+*.xls
+*.csv
+
+# 本地开发文件
+_scratch/
+e2e/
+node_modules/
+.gitnexus/
+.test_tmp/
+
+# IDE / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# docs 太大且非运行需要
+docs/
+CHANGELOG.md
