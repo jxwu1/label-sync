@@ -26,6 +26,7 @@ services:
     volumes:
       - ./data:/data
       - ./data/attendance:/app/attendance  # attendance JSON 落持久卷, redeploy 不丢
+      - ./data/monthly_summary:/app/monthly_summary  # 月度汇总 JSON 同理
     expose:
       - "5000"  # Coolify Traefik 反代走容器网络; 如需直接暴露主机端口改回 ports: "5000:5000"
     healthcheck:
