@@ -25,8 +25,8 @@ services:
       TZ: Europe/Athens
     volumes:
       - ./data:/data
-    ports:
-      - "5000:5000"  # 反代直接走容器网络的话, 删这一行 + 加 networks
+    expose:
+      - "5000"  # Coolify Traefik 反代走容器网络; 如需直接暴露主机端口改回 ports: "5000:5000"
     healthcheck:
       test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:5000/\", timeout=3)'"]
       interval: 30s
