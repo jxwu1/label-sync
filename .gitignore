@@ -18,6 +18,13 @@ transfer/*
 *.xlsx
 *.xls
 *.csv
+*.parquet
+
+# 历史回填中间产物
+.venv/
+raw/
+cleaned/
+archive/
 
 # 测试 fixtures：含 ERP 导出样本（HTML 伪装 .xls），必须入库供测试用
 !tests/fixtures/**
