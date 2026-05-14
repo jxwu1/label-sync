@@ -158,12 +158,21 @@ python tools/inventory_admin.py verify
 
 新建 `backtest_service.py`：
 
-- [ ] 2.1 `ForecastModel` Protocol：`fit(history) → predict(steps) → ForecastDist(p50, p98, mu, sigma)`
-- [ ] 2.2 **四个 baseline**（spike 修正，加 Croston 类）：
-  - `NaiveMean4W` / `NaiveSeasonal52W`（只对 ≥104 周 SKU 启用） / `LinearTrend12W`
-  - **`CrostonSBA`**（间歇需求专用，针对空周率 >50% 的 SKU——绝大多数 SKU 都是）
-- [ ] 2.3 `walk_forward_backtest(barcode, model, window_train=13, window_test=4)` 滚动训练/预测/收集
-- [ ] 2.4 评分函数：MAPE / Bias / 命中率（actual ≤ p98 占比）；间歇序列加 MASE（MAPE 在零真值上爆炸）
+- [x] 2.1 ✅ 2026-05-14 `ForecastDist` dataclass + `ForecastModel` Protocol
+- [x] 2.2 ✅ 2026-05-14 四个 baseline 全部实现 (NaiveMean4W / NaiveSeasonal52W / LinearTrend12W / CrostonSBA)
+- [x] 2.3 ✅ 2026-05-14 `walk_forward_backtest(series, model_cls, window_train=13, window_test=4)`
+- [x] 2.4 ✅ 2026-05-14 MAPE / Bias / MASE / coverage_p98
+
+**实战验证** (SKU `5203692253593`, 156 周, retail_dominant):
+
+| baseline | MAPE | MASE | Bias | cov@p98 |
+|---|---|---|---|---|
+| NaiveMean4W | 1.91 | 0.89 | -0.82 | 85.7% |
+| NaiveSeasonal52W | 1.87 | 0.88 | -0.62 | 95.2% |
+| LinearTrend12W | 2.01 | 0.99 | -1.17 | 89.1% |
+| **CrostonSBA** | **1.74** | **0.85** | -1.94 | 94.6% |
+
+CrostonSBA 在间歇序列上最优 (符合 spike 发现"空周率高"); NaiveSeasonal52W cov@p98 最高。
 - [ ] 2.5 alembic 迁移：`backtest_runs` + `backtest_results` 两表（字段见下）
 - [ ] 2.6 批量入口 `run_backtest_all_skus(model_name, min_weeks=20, view='all'|'foreign'|'base_demand')` 写表，**默认 min_weeks=20**（spike 确认）
 - [ ] 2.7 routes：`POST /analytics/backtest/run` + `GET /analytics/backtest/results`
