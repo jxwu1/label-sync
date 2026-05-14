@@ -96,43 +96,90 @@ A 端首页出来 = 部署成功 (数据是空的, 正常)。
 
 ---
 
-## 明天回公司后接数据
+## 明天回公司后接数据 (Coolify 版)
 
-### 1. 确认 backtest 跑完 (在工作 PC)
-```
-读 Claude Code 输出文件:
-C:\Users\64474\AppData\Local\Temp\claude\C--Dev-label-sync\<id>\tasks\<task-id>.output
-看到 "ALL DONE  total Xh" 才算完
-```
+> **场景**: 工作 PC backtest 跑完后, 把真 DB 推到 Hetzner 替换今晚那份家用 PC 上传的版本。
+> **服务器路径**: `/data/coolify/applications/k11qu29j1y7wy1njh9eb5edj/data/stockpile.db`
+> **Hetzner IP**: `178.104.148.102`
 
-### 2. 服务器停容器 (避免 rsync 时写冲突)
-```bash
-ssh root@<hetzner_ip> "cd /opt/projects/label-sync && docker compose down"
-```
+### 1. 确认 backtest 完全跑完 (工作 PC)
+- Claude Code output 看到 `ALL DONE total Xh`
+- 任务管理器确认没残留 Python 进程在写 stockpile.db (`Get-Process python` 看 0 个)
+- backtest 留的 WAL/SHM 还在的话, 先做 checkpoint:
+  ```powershell
+  python -c "import sqlite3; c=sqlite3.connect('stockpile.db'); c.execute('PRAGMA wal_checkpoint(TRUNCATE)'); c.close()"
+  ```
 
-### 3. rsync DB (从工作 PC 推到 Hetzner)
-
-**WSL / Git Bash 推荐**:
-```bash
-rsync -avz --progress \
-  /c/Dev/label-sync/stockpile.db \
-  root@<hetzner_ip>:/opt/projects/label-sync/data/
-```
-
-**PowerShell 替代**:
+### 2. 本地完整性检查 (防止传坏库)
 ```powershell
-scp C:\Dev\label-sync\stockpile.db root@<hetzner_ip>:/opt/projects/label-sync/data/
+python -c "import sqlite3; print(sqlite3.connect('stockpile.db').execute('PRAGMA integrity_check').fetchone())"
+# 必须看到 ('ok',)
+```
+出 `('ok',)` 才传, 否则先 `.backup` 出 snapshot 用 snapshot。
+
+### 3. Coolify 停应用
+- UI: `http://178.104.148.102:8000` → erp project → label-sync → **Stop**
+- 弹窗里 **取消勾选** "Run Docker Cleanup" → Confirm
+- 第二个弹窗 (Warning: non-persistent data will be deleted) → Confirm
+  - `./data` 是 bind mount, 在 host 磁盘上, 不会被删
+
+### 4. 清服务器残留 WAL/SHM + scp 主库
+
+**关键**: 必须 `rm -f` 把旧的 -wal / -shm 一起清掉, 否则新主库配旧 WAL 会数据错乱。
+
+```powershell
+ssh root@178.104.148.102 "rm -f /data/coolify/applications/k11qu29j1y7wy1njh9eb5edj/data/stockpile.db /data/coolify/applications/k11qu29j1y7wy1njh9eb5edj/data/stockpile.db-shm /data/coolify/applications/k11qu29j1y7wy1njh9eb5edj/data/stockpile.db-wal"
+scp stockpile.db root@178.104.148.102:/data/coolify/applications/k11qu29j1y7wy1njh9eb5edj/data/
 ```
 
-stockpile.db 估算: 灌库后 ~100-300MB, Hetzner 带宽足够, 几分钟内完。
+灌库后 stockpile.db 估算 ~100-300MB, scp 几分钟内完 (Hetzner EU 带宽足)。
 
-### 4. 重启容器
-```bash
-ssh root@<hetzner_ip> "cd /opt/projects/label-sync && docker compose up -d"
+### 5. 服务器端校验
+```powershell
+ssh root@178.104.148.102 "python3 -c \"import sqlite3; c=sqlite3.connect('/data/coolify/applications/k11qu29j1y7wy1njh9eb5edj/data/stockpile.db'); print('alembic:', c.execute('SELECT * FROM alembic_version').fetchall()); print('stockpile rows:', c.execute('SELECT COUNT(*) FROM stockpile').fetchone()[0]); print('integrity:', c.execute('PRAGMA integrity_check').fetchone())\""
 ```
+三项都要对得上预期 (alembic 版本 = head 或本地版本; 行数 ≈ 工作 PC 上的数; integrity = ok)。
 
-### 5. 确认数据齐
-浏览器 → SKU 列表应有 27,340 行 (active SKUs)。
+### 6. Coolify 重新 Deploy
+- UI → 应用 → 右上 **Deploy**
+- 看 logs 等 `alembic upgrade head` 跑完 + `Serving on http://0.0.0.0:5000`
+- 没必要 force rebuild — image 没变, 直接重启容器即可
+
+### 7. 浏览器验数据
+打开 Coolify 给的临时域名 (`*.178.104.148.102.sslip.io`) → SKU 列表看 active SKU 数 ≈ 27,340。
+
+---
+
+## 排错速查 (明天版)
+
+| 症状 | 检查 |
+|---|---|
+| Deploy 后又是 `bash: -c: option requires an argument` | Build Pack 又被切回 Dockerfile 了, 改回 Docker Compose + Location `/docker-compose.yml` |
+| `alembic ... already exists` | DB 半成品状态, 重新走第 4 步 (彻底清 db + wal + shm 再传) |
+| `sqlite3.DatabaseError: database disk image is malformed` | 本地没做 wal_checkpoint 就直接 scp, 重新 checkpoint → integrity_check → 再传 |
+| Coolify 临时域名 502 | 容器还在起, 看 logs; 或 Traefik label 失效, redeploy |
+| 容器健康, 页面 500 | `ssh ... "docker logs <coolify-uuid容器名> --tail 100"` 看 traceback |
+
+---
+
+## 2026-05-14 部署踩坑记录
+
+**坑 1: Coolify 默认 Build Pack 不是 Docker Compose**
+- 选 Dockerfile / Nixpacks 时 Coolify 自己渲染一份 compose, **完全忽略** 仓库的 `docker-compose.yml`
+- 表现: 端口默认 3000 (我们要 5000)、env vars 丢失、volume 不挂、Entrypoint 改成 `["/bin/bash","-l","-c"]` Cmd 空 → 容器报 `bash: -c: option requires an argument` 循环重启
+- 修: General → Build Pack → Docker Compose; Compose Location 填 `/docker-compose.yml` (注意 `.yml` 不是默认的 `.yaml`)
+
+**坑 2: alembic baseline 是空 upgrade(), 不能在空 DB 上 bootstrap**
+- `cf04ed0496f7_baseline_reflect_existing_schema.py` 的 `upgrade()` 只 `pass`
+- 历史: 项目早期没用 alembic, baseline 是"反射"线上已存在的 schema, 不创建任何表
+- 后果: 新 DB 上 `alembic upgrade head` → cf04ed0496f7 不建表 → 2385c879eb58 第 86 行 `SELECT FROM stockpile` 炸 (no such table), 但前面 `CREATE TABLE stockpile_locations` 已成功 → SQLite DDL 不可回滚 → 版本停在 cf04ed0496f7 + 半成品表 → 下次启动 `already exists`
+- 修: 不在空 DB 上部署。今晚 scp 本地 prod stockpile.db (alembic_version=68b4bbea9edd, 45,610 行) 上去再起容器
+- 长期 fix 候选 (没做): 重写 cf04ed0496f7 用 raw SQL dump 完整 schema, 让空 DB 也能 self-bootstrap
+
+**坑 3: ports vs expose**
+- 原 compose `ports: "5000:5000"` 直接绑主机端口, 不走 Coolify Traefik
+- 选了 Coolify 临时域名方案后改成 `expose: ["5000"]`, 让 Traefik 通过容器网络反代
+- commit `afb0dfb`
 
 ---
 
