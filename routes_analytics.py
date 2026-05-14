@@ -122,3 +122,129 @@ def set_manual_category(barcode: str):
             return jsonify({"ok": False, "msg": "未找到该条码"}), 404
         session.commit()
     return jsonify({"ok": True, "manual_category": new_value})
+
+
+# ---- 阶段 2.7 回测 routes (plan §2.7) ---------------------------------------
+
+
+class _BacktestRunBody(BaseModel):
+    model_name: str
+    end_date: str  # 'YYYY-MM-DD'
+    weeks: int = 156
+    view: str = "base_demand"
+    window_train: int = 13
+    window_test: int = 4
+    min_weeks: int = 20
+    notes: OptionalStr = None
+    barcodes: list[str] | None = None
+
+
+@bp.post("/backtest/run")
+def backtest_run():
+    """启动一次回测 (同步; 全量大 batch 应改后台任务)."""
+    from datetime import datetime
+
+    import backtest_service
+
+    body, err = parse_body(_BacktestRunBody)
+    if err:
+        return err
+    try:
+        end_date = datetime.strptime(body.end_date, "%Y-%m-%d").date()
+    except ValueError:
+        return jsonify({"ok": False, "msg": "end_date 格式应为 YYYY-MM-DD"}), 400
+
+    try:
+        run_id = backtest_service.run_backtest_all_skus(
+            model_name=body.model_name,
+            end_date=end_date,
+            weeks=body.weeks,
+            view=body.view,
+            window_train=body.window_train,
+            window_test=body.window_test,
+            min_weeks=body.min_weeks,
+            notes=body.notes,
+            barcodes=body.barcodes,
+        )
+    except ValueError as e:
+        return jsonify({"ok": False, "msg": str(e)}), 400
+    return jsonify({"ok": True, "run_id": run_id})
+
+
+@bp.get("/backtest/runs")
+def backtest_list_runs():
+    """列出最近 N 次 run 元信息."""
+    from models import BacktestRun
+
+    with stockpile_db._session() as session:
+        rows = (
+            session.execute(
+                select(BacktestRun).order_by(BacktestRun.id.desc()).limit(50)
+            )
+            .scalars()
+            .all()
+        )
+        return jsonify(
+            {
+                "ok": True,
+                "runs": [
+                    {
+                        "id": r.id,
+                        "created_at": r.created_at,
+                        "model_name": r.model_name,
+                        "view": r.view,
+                        "window_train": r.window_train,
+                        "window_test": r.window_test,
+                        "min_weeks": r.min_weeks,
+                        "n_skus_total": r.n_skus_total,
+                        "n_skus_scored": r.n_skus_scored,
+                        "notes": r.notes,
+                    }
+                    for r in rows
+                ],
+            }
+        )
+
+
+@bp.get("/backtest/results")
+def backtest_results():
+    """单个 run 的 per-SKU 分数 (query param run_id)."""
+    from flask import request
+
+    from models import BacktestResult
+
+    raw = request.args.get("run_id")
+    if not raw:
+        return jsonify({"ok": False, "msg": "缺少 run_id"}), 400
+    try:
+        run_id = int(raw)
+    except ValueError:
+        return jsonify({"ok": False, "msg": "run_id 必须是整数"}), 400
+
+    with stockpile_db._session() as session:
+        rows = (
+            session.execute(
+                select(BacktestResult).where(BacktestResult.run_id == run_id)
+            )
+            .scalars()
+            .all()
+        )
+        return jsonify(
+            {
+                "ok": True,
+                "run_id": run_id,
+                "results": [
+                    {
+                        "product_barcode": r.product_barcode,
+                        "sku_type": r.sku_type,
+                        "mape": r.mape,
+                        "mase": r.mase,
+                        "bias": r.bias,
+                        "coverage_p98": r.coverage_p98,
+                        "mean_actual": r.mean_actual,
+                        "mean_predicted": r.mean_predicted,
+                    }
+                    for r in rows
+                ],
+            }
+        )

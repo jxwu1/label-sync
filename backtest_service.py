@@ -246,3 +246,179 @@ def coverage_p98(actual: list[float], p98: list[float]) -> float:
         return 0.0
     in_bound = sum(1 for a, hi in zip(actual, p98) if a <= hi)
     return float(in_bound / len(actual))
+
+
+# ---- §2.6 DB-aware 批量入口 -------------------------------------------------
+
+
+BASELINES: dict[str, Callable[[], ForecastModel]] = {
+    "NaiveMean4W": NaiveMean4W,
+    "NaiveSeasonal52W": NaiveSeasonal52W,
+    "LinearTrend12W": LinearTrend12W,
+    "CrostonSBA": CrostonSBA,
+}
+
+
+def _build_series(
+    barcode: str,
+    end_date,
+    weeks: int,
+    view: str,
+    session=None,
+) -> tuple[list[float], str] | None:
+    """从 DB 拉单 SKU 周序列 + sku_type. None = SKU 不可回测."""
+    from categorizer import classify_sku_type
+    from forecast_data import base_demand_view, weekly_demand_series
+
+    if view == "base_demand":
+        v = base_demand_view(barcode, end_date, weeks, session=session)
+        if v["series"] is None:
+            return None
+        return [v["series"][k] for k in sorted(v["series"])], v["sku_type"]
+    if view == "all":
+        sku_type = classify_sku_type(barcode, session=session)
+        if sku_type == "unclassified":
+            return None
+        d = weekly_demand_series(barcode, end_date, weeks, session=session)
+        return [d[k] for k in sorted(d)], sku_type
+    raise ValueError(f"unknown view: {view}")
+
+
+def run_backtest_for_sku(
+    barcode: str,
+    end_date,
+    weeks: int,
+    model_cls: Callable[[], ForecastModel],
+    view: str = "base_demand",
+    window_train: int = 13,
+    window_test: int = 4,
+    min_weeks: int = 20,
+    session=None,
+) -> dict | None:
+    """单 SKU 回测; 返回 metrics dict 或 None (不达可回测条件).
+
+    None 触发场景:
+    - SKU 类型 wholesale_only / unclassified (view=base_demand)
+    - 序列长度 < window_train + window_test
+    - 非零周数 < min_weeks
+    """
+    built = _build_series(barcode, end_date, weeks, view, session)
+    if built is None:
+        return None
+    series, sku_type = built
+
+    if len(series) < window_train + window_test:
+        return None
+    nonzero = sum(1 for v in series if v > 0)
+    if nonzero < min_weeks:
+        return None
+
+    records = walk_forward_backtest(series, model_cls, window_train, window_test)
+    if not records:
+        return None
+
+    actual = [r["actual"] for r in records]
+    pred = [r["predicted"] for r in records]
+    p98_list = [r["p98"] for r in records]
+    n = len(actual)
+    return {
+        "barcode": barcode,
+        "sku_type": sku_type,
+        "n_weeks_train": window_train,
+        "n_weeks_test": window_test,
+        "mape": mape(actual, pred),
+        "mase": mase(actual, pred),
+        "bias": bias(actual, pred),
+        "coverage_p98": coverage_p98(actual, p98_list),
+        "mean_actual": sum(actual) / n,
+        "mean_predicted": sum(pred) / n,
+    }
+
+
+def run_backtest_all_skus(
+    model_name: str,
+    end_date,
+    weeks: int = 156,
+    view: str = "base_demand",
+    window_train: int = 13,
+    window_test: int = 4,
+    min_weeks: int = 20,
+    notes: str | None = None,
+    barcodes: list[str] | None = None,
+) -> int:
+    """全量 SKU 回测, 写 backtest_runs + backtest_results. 返回 run_id.
+
+    model_name 必须在 BASELINES 字典内。
+    barcodes=None: 跑所有 stockpile 主档活跃 SKU。barcodes=[...] 跑指定子集 (测试 / 单跑用)。
+    """
+    import stockpile_db
+    from sqlalchemy import insert, select, update
+
+    from models import BacktestResult, BacktestRun, Stockpile
+
+    if model_name not in BASELINES:
+        raise ValueError(f"unknown model_name: {model_name}; got: {list(BASELINES)}")
+    if view not in ("base_demand", "all"):
+        raise ValueError(f"unknown view: {view}")
+    model_cls = BASELINES[model_name]
+
+    with stockpile_db._session() as s:
+        # 创建 run row
+        ins = s.execute(
+            insert(BacktestRun).values(
+                model_name=model_name,
+                view=view,
+                window_train=window_train,
+                window_test=window_test,
+                min_weeks=min_weeks,
+                notes=notes,
+            )
+        )
+        run_id = ins.inserted_primary_key[0]
+
+        if barcodes is None:
+            rows = s.execute(
+                select(Stockpile.product_barcode).where(Stockpile.is_active == 1)
+            ).all()
+            barcodes = [r[0] for r in rows]
+
+        n_total = len(barcodes)
+        n_scored = 0
+        for bc in barcodes:
+            r = run_backtest_for_sku(
+                bc,
+                end_date,
+                weeks,
+                model_cls,
+                view=view,
+                window_train=window_train,
+                window_test=window_test,
+                min_weeks=min_weeks,
+                session=s,
+            )
+            if r is None:
+                continue
+            s.execute(
+                insert(BacktestResult).values(
+                    run_id=run_id,
+                    product_barcode=bc,
+                    sku_type=r["sku_type"],
+                    n_weeks_train=r["n_weeks_train"],
+                    n_weeks_test=r["n_weeks_test"],
+                    mape=r["mape"],
+                    mase=r["mase"],
+                    bias=r["bias"],
+                    coverage_p98=r["coverage_p98"],
+                    mean_actual=r["mean_actual"],
+                    mean_predicted=r["mean_predicted"],
+                )
+            )
+            n_scored += 1
+
+        s.execute(
+            update(BacktestRun)
+            .where(BacktestRun.id == run_id)
+            .values(n_skus_total=n_total, n_skus_scored=n_scored)
+        )
+        s.commit()
+        return run_id

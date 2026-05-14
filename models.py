@@ -318,6 +318,50 @@ class ImportProfile(Base):
     last_used_at: Mapped[str | None] = mapped_column(Text)
 
 
+class BacktestRun(Base):
+    """阶段 2 回测一次跑的元信息 (plan §2.5)."""
+
+    __tablename__ = "backtest_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[str | None] = mapped_column(
+        Text, server_default=text("(datetime('now','localtime'))")
+    )
+    model_name: Mapped[str] = mapped_column(Text, nullable=False)
+    view: Mapped[str] = mapped_column(Text, nullable=False)  # 'all' / 'base_demand'
+    window_train: Mapped[int] = mapped_column(Integer, nullable=False)
+    window_test: Mapped[int] = mapped_column(Integer, nullable=False)
+    min_weeks: Mapped[int] = mapped_column(Integer, nullable=False)
+    n_skus_total: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    n_skus_scored: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    notes: Mapped[str | None] = mapped_column(Text)
+
+
+class BacktestResult(Base):
+    """单 SKU 在一次 run 内的回测分数 (plan §2.5)."""
+
+    __tablename__ = "backtest_results"
+    __table_args__ = (
+        Index("idx_backtest_results_run_id", "run_id"),
+        Index("idx_backtest_results_barcode", "product_barcode"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("backtest_runs.id"), nullable=False
+    )
+    product_barcode: Mapped[str] = mapped_column(Text, nullable=False)
+    sku_type: Mapped[str] = mapped_column(Text, nullable=False)
+    n_weeks_train: Mapped[int] = mapped_column(Integer, nullable=False)
+    n_weeks_test: Mapped[int] = mapped_column(Integer, nullable=False)
+    mape: Mapped[float | None] = mapped_column()
+    mase: Mapped[float | None] = mapped_column()
+    bias: Mapped[float] = mapped_column(nullable=False)
+    coverage_p98: Mapped[float] = mapped_column(nullable=False)
+    mean_actual: Mapped[float] = mapped_column(nullable=False)
+    mean_predicted: Mapped[float] = mapped_column(nullable=False)
+
+
 _SessionFactory = sessionmaker(bind=_engine, future=True, expire_on_commit=False)
 
 

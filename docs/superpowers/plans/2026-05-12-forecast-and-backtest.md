@@ -173,10 +173,10 @@ python tools/inventory_admin.py verify
 | **CrostonSBA** | **1.74** | **0.85** | -1.94 | 94.6% |
 
 CrostonSBA 在间歇序列上最优 (符合 spike 发现"空周率高"); NaiveSeasonal52W cov@p98 最高。
-- [ ] 2.5 alembic 迁移：`backtest_runs` + `backtest_results` 两表（字段见下）
-- [ ] 2.6 批量入口 `run_backtest_all_skus(model_name, min_weeks=20, view='all'|'foreign'|'base_demand')` 写表，**默认 min_weeks=20**（spike 确认）
-- [ ] 2.7 routes：`POST /analytics/backtest/run` + `GET /analytics/backtest/results`
-- [ ] 2.8 **双视图回测**：每个 SKU 跑两遍——`view='all'`（含批发，对照基线） + `view='base_demand'`（应用阶段 1.2 过滤）。分数差异本身是诊断信号
+- [x] 2.5 ✅ 2026-05-14 alembic 迁移 `b9e1c4f8a3d2_add_backtest_tables`, head 已升级
+- [x] 2.6 ✅ 2026-05-14 `run_backtest_all_skus(model_name, end_date, weeks, view, ...)` 写表
+- [x] 2.7 ✅ 2026-05-14 routes 3 个: `POST /analytics/backtest/run` + `GET /analytics/backtest/runs` + `GET /analytics/backtest/results?run_id=N`
+- [ ] 2.8 双视图回测留到 PR7 (跑全量 + 写报告)
 
 **`backtest_runs` 表字段**（spike 后初稿）：
 
@@ -308,15 +308,11 @@ DB 数据只有 70 周时 STL 跑不起来（需 104 周）。等 3 年数据导
 
 1. ✅ **阶段 1.0** (2026-05-14, PR1/PR2 shipped)
 2. ✅ **阶段 1.1-1.5** (2026-05-14, PR3/PR4 shipped; 1.4 defer 等库存快照表)
-3. **阶段 2 回测框架** —— 下一步入口
-   - 2.1 `ForecastModel` Protocol
-   - 2.2 四个 baseline (Naive 三件套 + Croston/SBA)
-   - 2.3 walk-forward backtest
-   - 2.4 评分 (MAPE/MASE/Bias/coverage)
-   - 2.5 alembic 迁移 `backtest_runs` / `backtest_results` **⚠️ 不可逆, 上线前问用户**
-   - 2.6 批量入口 `run_backtest_all_skus`
-   - 2.7 routes `POST /analytics/backtest/run`
-   - 2.8 双视图回测 (all vs base_demand)
+3. ✅ **阶段 2.1-2.7** (2026-05-14, PR5 算法 + PR6 DB/API shipped)
+4. **下一步**: PR7 = 2.8 双视图回测 + 阶段 5 数据扩充前后回归报告
+   - 全量跑 NaiveMean4W / NaiveSeasonal52W / LinearTrend12W / CrostonSBA × view ∈ {all, base_demand}
+   - 对比 base_demand 视图相对 all 的 MASE 差异
+   - 输出报告: 哪类 SKU 在 base_demand 下分数改善, 哪类反而恶化
 
 **仍待澄清**：
 - 阶段 4 verify 条件（等阶段 2 出第一份回测结果再定）

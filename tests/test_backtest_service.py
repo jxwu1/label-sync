@@ -1,7 +1,18 @@
-"""backtest_service 单测 (plan §2.1-2.4 纯算法层)."""
+"""backtest_service 单测 (plan §2.1-2.7)."""
 from __future__ import annotations
 
+import shutil
 import unittest
+from datetime import date
+from pathlib import Path
+from unittest import mock
+
+from sqlalchemy import insert, select
+
+import stockpile_db
+from models import BacktestResult, BacktestRun, Customer, InventoryEvent, Stockpile
+
+_TMP = Path(__file__).resolve().parent / "_test_backtest_service"
 
 
 class ForecastDistTests(unittest.TestCase):
@@ -227,6 +238,204 @@ class WalkForwardTests(unittest.TestCase):
 
         records = walk_forward_backtest([1, 2, 3], NaiveMean4W, window_train=4, window_test=2)
         assert records == []
+
+
+class _DBBase(unittest.TestCase):
+    """DB 集成测试基类: 在临时 SQLite 上 seed 一个高频零售 SKU."""
+
+    def setUp(self) -> None:
+        self.test_dir = _TMP / self._testMethodName
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+        self.test_dir.mkdir(parents=True, exist_ok=True)
+        self.test_db = self.test_dir / "test.db"
+        self.patch = mock.patch.object(stockpile_db, "DB_PATH", self.test_db)
+        self.patch.start()
+        self.addCleanup(self.patch.stop)
+        stockpile_db._engine_cache.clear()
+        stockpile_db.ensure_db()
+
+    def tearDown(self) -> None:
+        stockpile_db._engine_cache.clear()
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+
+    def _seed_stockpile(self, barcode: str) -> None:
+        with stockpile_db._session() as s:
+            s.execute(
+                insert(Stockpile).values(
+                    product_barcode=barcode,
+                    product_model=barcode,
+                    stockpile_location="",
+                    is_active=1,
+                )
+            )
+            s.commit()
+
+    def _seed_retail_weekly(self, barcode: str, weeks: int, qty: int = 5) -> None:
+        """构造 weeks 周, 每周 qty 单零售销售 (qty<=24 → retail_dominant)."""
+        from datetime import timedelta
+
+        with stockpile_db._session() as s:
+            for w in range(weeks):
+                event_at = (date(2026, 5, 13) - timedelta(days=w * 7)).isoformat()
+                s.execute(
+                    insert(InventoryEvent).values(
+                        event_at=event_at,
+                        event_type="sale",
+                        product_barcode=barcode,
+                        qty=qty,
+                        document_no=f"{barcode}-D{w}",
+                    )
+                )
+            s.commit()
+
+
+class RunBacktestForSkuTests(_DBBase):
+    def test_returns_metrics_dict(self) -> None:
+        from backtest_service import NaiveMean4W, run_backtest_for_sku
+
+        self._seed_retail_weekly("B1", weeks=30)
+        r = run_backtest_for_sku("B1", end_date=date(2026, 5, 13), weeks=30, model_cls=NaiveMean4W)
+        assert r is not None
+        assert r["barcode"] == "B1"
+        assert r["sku_type"] == "retail_dominant"
+        assert r["mape"] is not None
+        assert "bias" in r
+        assert "coverage_p98" in r
+
+    def test_returns_none_if_too_short(self) -> None:
+        from backtest_service import NaiveMean4W, run_backtest_for_sku
+
+        self._seed_retail_weekly("B1", weeks=5)
+        r = run_backtest_for_sku(
+            "B1", end_date=date(2026, 5, 13), weeks=4,
+            model_cls=NaiveMean4W, window_train=13, window_test=4,
+        )
+        assert r is None
+
+    def test_returns_none_if_min_weeks_not_met(self) -> None:
+        from backtest_service import NaiveMean4W, run_backtest_for_sku
+
+        self._seed_retail_weekly("B1", weeks=30)
+        r = run_backtest_for_sku(
+            "B1", end_date=date(2026, 5, 13), weeks=30,
+            model_cls=NaiveMean4W, min_weeks=100,
+        )
+        assert r is None
+
+    def test_wholesale_only_returns_none(self) -> None:
+        from backtest_service import NaiveMean4W, run_backtest_for_sku
+
+        # 5 个大单 doc → wholesale_only
+        with stockpile_db._session() as s:
+            for i in range(5):
+                s.execute(
+                    insert(InventoryEvent).values(
+                        event_at="2026-04-01",
+                        event_type="sale",
+                        product_barcode="WO",
+                        qty=720,
+                        document_no=f"D{i}",
+                    )
+                )
+            s.commit()
+        r = run_backtest_for_sku(
+            "WO", end_date=date(2026, 5, 13), weeks=30,
+            model_cls=NaiveMean4W, view="base_demand",
+        )
+        assert r is None
+
+    def test_view_all_includes_wholesale(self) -> None:
+        """view='all' 不过 base_demand → wholesale_only SKU 也跑."""
+        from backtest_service import NaiveMean4W, run_backtest_for_sku
+        from datetime import timedelta
+
+        with stockpile_db._session() as s:
+            for w in range(30):
+                event_at = (date(2026, 5, 13) - timedelta(days=w * 7)).isoformat()
+                s.execute(
+                    insert(InventoryEvent).values(
+                        event_at=event_at,
+                        event_type="sale",
+                        product_barcode="WO",
+                        qty=720,
+                        document_no=f"D{w}",
+                    )
+                )
+            s.commit()
+        r = run_backtest_for_sku(
+            "WO", end_date=date(2026, 5, 13), weeks=30,
+            model_cls=NaiveMean4W, view="all",
+        )
+        assert r is not None
+        assert r["sku_type"] == "wholesale_only"
+
+
+class RunBacktestAllSkusTests(_DBBase):
+    def test_writes_run_and_results(self) -> None:
+        from backtest_service import run_backtest_all_skus
+
+        self._seed_stockpile("B1")
+        self._seed_retail_weekly("B1", weeks=30)
+        run_id = run_backtest_all_skus(
+            model_name="NaiveMean4W",
+            end_date=date(2026, 5, 13),
+            weeks=30,
+            barcodes=["B1"],
+            notes="test",
+        )
+        with stockpile_db._session() as s:
+            run = s.execute(select(BacktestRun).where(BacktestRun.id == run_id)).scalar_one()
+            assert run.model_name == "NaiveMean4W"
+            assert run.notes == "test"
+            assert run.n_skus_total == 1
+            assert run.n_skus_scored == 1
+            results = s.execute(
+                select(BacktestResult).where(BacktestResult.run_id == run_id)
+            ).scalars().all()
+            assert len(results) == 1
+            assert results[0].product_barcode == "B1"
+            assert results[0].sku_type == "retail_dominant"
+
+    def test_skipped_sku_not_in_results(self) -> None:
+        from backtest_service import run_backtest_all_skus
+
+        self._seed_stockpile("B1")
+        self._seed_retail_weekly("B1", weeks=5)  # 太短
+        run_id = run_backtest_all_skus(
+            model_name="NaiveMean4W",
+            end_date=date(2026, 5, 13),
+            weeks=30,
+            barcodes=["B1"],
+        )
+        with stockpile_db._session() as s:
+            run = s.execute(select(BacktestRun).where(BacktestRun.id == run_id)).scalar_one()
+            assert run.n_skus_total == 1
+            assert run.n_skus_scored == 0
+            results = s.execute(
+                select(BacktestResult).where(BacktestResult.run_id == run_id)
+            ).scalars().all()
+            assert results == []
+
+    def test_unknown_model_raises(self) -> None:
+        from backtest_service import run_backtest_all_skus
+
+        with self.assertRaises(ValueError):
+            run_backtest_all_skus(
+                model_name="DoesNotExist",
+                end_date=date(2026, 5, 13),
+                barcodes=[],
+            )
+
+    def test_unknown_view_raises(self) -> None:
+        from backtest_service import run_backtest_all_skus
+
+        with self.assertRaises(ValueError):
+            run_backtest_all_skus(
+                model_name="NaiveMean4W",
+                end_date=date(2026, 5, 13),
+                view="not_a_view",
+                barcodes=[],
+            )
 
 
 if __name__ == "__main__":

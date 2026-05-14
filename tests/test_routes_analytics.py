@@ -235,5 +235,90 @@ class ListEndpointTests(AnalyticsRoutesTests):
         self.assertTrue(hi["is_grade_inconsistent"])
 
 
+class BacktestRoutesTests(AnalyticsRoutesTests):
+    """plan §2.7 回测 HTTP 层薄包装."""
+
+    def _seed_weekly(self, barcode: str = "B1", weeks: int = 30, qty: int = 5) -> None:
+        from datetime import date, timedelta
+
+        with stockpile_db._session() as s:
+            for w in range(weeks):
+                d = (date(2026, 5, 13) - timedelta(days=w * 7)).isoformat()
+                s.execute(
+                    insert(InventoryEvent).values(
+                        event_at=d,
+                        event_type="sale",
+                        product_barcode=barcode,
+                        qty=qty,
+                        document_no=f"{barcode}-D{w}",
+                    )
+                )
+            s.commit()
+
+    def test_post_run_writes_run_returns_id(self) -> None:
+        self._seed_sku("B1")
+        self._seed_weekly("B1", weeks=30)
+        resp = self.client.post(
+            "/analytics/backtest/run",
+            json={
+                "model_name": "NaiveMean4W",
+                "end_date": "2026-05-13",
+                "weeks": 30,
+                "barcodes": ["B1"],
+                "notes": "smoke",
+            },
+        )
+        body = resp.get_json()
+        self.assertTrue(body["ok"])
+        self.assertIsInstance(body["run_id"], int)
+
+    def test_post_run_bad_end_date(self) -> None:
+        resp = self.client.post(
+            "/analytics/backtest/run",
+            json={"model_name": "NaiveMean4W", "end_date": "not-a-date"},
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_post_run_unknown_model(self) -> None:
+        resp = self.client.post(
+            "/analytics/backtest/run",
+            json={"model_name": "Nope", "end_date": "2026-05-13", "barcodes": []},
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_get_runs_lists_recent(self) -> None:
+        self._seed_sku("B1")
+        self._seed_weekly("B1", weeks=30)
+        post = self.client.post(
+            "/analytics/backtest/run",
+            json={"model_name": "NaiveMean4W", "end_date": "2026-05-13", "barcodes": ["B1"]},
+        )
+        run_id = post.get_json()["run_id"]
+        resp = self.client.get("/analytics/backtest/runs")
+        body = resp.get_json()
+        self.assertTrue(body["ok"])
+        ids = [r["id"] for r in body["runs"]]
+        self.assertIn(run_id, ids)
+
+    def test_get_results_by_run_id(self) -> None:
+        self._seed_sku("B1")
+        self._seed_weekly("B1", weeks=30)
+        post = self.client.post(
+            "/analytics/backtest/run",
+            json={"model_name": "NaiveMean4W", "end_date": "2026-05-13", "barcodes": ["B1"]},
+        )
+        run_id = post.get_json()["run_id"]
+        resp = self.client.get(f"/analytics/backtest/results?run_id={run_id}")
+        body = resp.get_json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(len(body["results"]), 1)
+        self.assertEqual(body["results"][0]["product_barcode"], "B1")
+        self.assertEqual(body["results"][0]["sku_type"], "retail_dominant")
+
+    def test_get_results_missing_run_id(self) -> None:
+        resp = self.client.get("/analytics/backtest/results")
+        self.assertEqual(resp.status_code, 400)
+
+
 if __name__ == "__main__":
     unittest.main()
