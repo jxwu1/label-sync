@@ -166,5 +166,185 @@ class ACFInternalTests(unittest.TestCase):
         assert _acf_at_lag([5, 5, 5, 5, 5], 1) is None
 
 
+class ClassifySkuTypeFromDocsTests(unittest.TestCase):
+    """纯函数 classify_sku_type_from_docs 边界 — plan §1.0.2.
+
+    输入: 每 doc 净量列表 (> 0). 输出:
+      retail_dominant / mixed / wholesale_only / unclassified
+    阈值: retail = qty <= 24; wholesale_only = retail < 5 OR ratio < 5%;
+          retail_dominant = ratio >= 80%; 其余 mixed.
+    """
+
+    def test_empty_unclassified(self) -> None:
+        from categorizer import classify_sku_type_from_docs
+
+        assert classify_sku_type_from_docs([]) == "unclassified"
+
+    def test_all_retail(self) -> None:
+        from categorizer import classify_sku_type_from_docs
+
+        assert classify_sku_type_from_docs([1, 5, 10, 20, 24] * 2) == "retail_dominant"
+
+    def test_all_wholesale(self) -> None:
+        from categorizer import classify_sku_type_from_docs
+
+        assert classify_sku_type_from_docs([100, 200, 500, 1000, 720] * 2) == "wholesale_only"
+
+    def test_50_50_is_mixed(self) -> None:
+        from categorizer import classify_sku_type_from_docs
+
+        docs = [10] * 5 + [100] * 5
+        assert classify_sku_type_from_docs(docs) == "mixed"
+
+    def test_retail_rows_lt_5_forces_wholesale_only(self) -> None:
+        """4 笔零售 + 100 笔批发 → wholesale_only (retail < 5)."""
+        from categorizer import classify_sku_type_from_docs
+
+        docs = [10] * 4 + [500] * 100
+        assert classify_sku_type_from_docs(docs) == "wholesale_only"
+
+    def test_retail_rows_eq_5_pure_retail_dominant(self) -> None:
+        from categorizer import classify_sku_type_from_docs
+
+        assert classify_sku_type_from_docs([10] * 5) == "retail_dominant"
+
+    def test_retail_ratio_under_5pct_wholesale(self) -> None:
+        """5 笔零售 + 100 笔批发 → ratio 4.76% < 5% → wholesale_only."""
+        from categorizer import classify_sku_type_from_docs
+
+        docs = [10] * 5 + [500] * 100
+        assert classify_sku_type_from_docs(docs) == "wholesale_only"
+
+    def test_retail_ratio_eq_80pct_is_retail_dominant(self) -> None:
+        """8 retail + 2 wholesale → 80% (含边界) → retail_dominant."""
+        from categorizer import classify_sku_type_from_docs
+
+        docs = [10] * 8 + [500] * 2
+        assert classify_sku_type_from_docs(docs) == "retail_dominant"
+
+    def test_retail_ratio_79pct_is_mixed(self) -> None:
+        from categorizer import classify_sku_type_from_docs
+
+        docs = [10] * 79 + [500] * 21
+        assert classify_sku_type_from_docs(docs) == "mixed"
+
+    def test_qty_24_is_retail_25_is_wholesale(self) -> None:
+        from categorizer import classify_sku_type_from_docs
+
+        assert classify_sku_type_from_docs([24] * 10) == "retail_dominant"
+        assert classify_sku_type_from_docs([25] * 10) == "wholesale_only"
+
+
+class _SkuTypeBase(unittest.TestCase):
+    """DB 层入口 classify_sku_type 测试基类."""
+
+    def setUp(self) -> None:
+        self.test_dir = TEST_TMP_DIR / self._testMethodName
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+        self.test_dir.mkdir(parents=True, exist_ok=True)
+        self.test_db = self.test_dir / "test.db"
+        self.patch = mock.patch.object(stockpile_db, "DB_PATH", self.test_db)
+        self.patch.start()
+        self.addCleanup(self.patch.stop)
+        stockpile_db._engine_cache.clear()
+        stockpile_db.ensure_db()
+
+    def tearDown(self) -> None:
+        stockpile_db._engine_cache.clear()
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+
+    def _add_event(
+        self,
+        *,
+        barcode: str = "B1",
+        qty: int,
+        document_no: str | None = None,
+        event_at: str = "2026-05-01",
+        event_type: str = "sale",
+    ) -> None:
+        with stockpile_db._session() as s:
+            s.execute(
+                insert(InventoryEvent).values(
+                    event_at=event_at,
+                    event_type=event_type,
+                    product_barcode=barcode,
+                    qty=qty,
+                    document_no=document_no,
+                )
+            )
+            s.commit()
+
+
+class ClassifySkuTypeTests(_SkuTypeBase):
+    def test_no_data_unclassified(self) -> None:
+        from categorizer import classify_sku_type
+
+        assert classify_sku_type("NOPE") == "unclassified"
+
+    def test_pure_retail(self) -> None:
+        from categorizer import classify_sku_type
+
+        for i in range(10):
+            self._add_event(qty=10, document_no=f"D{i}")
+        assert classify_sku_type("B1") == "retail_dominant"
+
+    def test_pure_wholesale(self) -> None:
+        from categorizer import classify_sku_type
+
+        for i in range(10):
+            self._add_event(qty=720, document_no=f"D{i}")
+        assert classify_sku_type("B1") == "wholesale_only"
+
+    def test_doc_net_with_returns(self) -> None:
+        """qty=25 + 同 doc qty=-3 → 净 22 → 算 retail."""
+        from categorizer import classify_sku_type
+
+        self._add_event(qty=25, document_no="D1", event_at="2026-05-01")
+        self._add_event(qty=-3, document_no="D1", event_at="2026-05-02")
+        for i in range(4):
+            self._add_event(qty=10, document_no=f"D{i + 2}")
+        assert classify_sku_type("B1") == "retail_dominant"
+
+    def test_orphan_return_excluded(self) -> None:
+        from categorizer import classify_sku_type
+
+        for i in range(10):
+            self._add_event(qty=10, document_no=f"D{i}")
+        self._add_event(qty=-3, document_no="ORPHAN")
+        assert classify_sku_type("B1") == "retail_dominant"
+
+    def test_fully_cancelled_doc_excluded(self) -> None:
+        from categorizer import classify_sku_type
+
+        self._add_event(qty=5, document_no="X1")
+        self._add_event(qty=-5, document_no="X1")
+        for i in range(5):
+            self._add_event(qty=10, document_no=f"D{i}")
+        assert classify_sku_type("B1") == "retail_dominant"
+
+    def test_null_document_no_each_independent(self) -> None:
+        from categorizer import classify_sku_type
+
+        for _ in range(5):
+            self._add_event(qty=10, document_no=None)
+        assert classify_sku_type("B1") == "retail_dominant"
+
+    def test_purchase_events_excluded(self) -> None:
+        from categorizer import classify_sku_type
+
+        for i in range(10):
+            self._add_event(qty=10, document_no=f"P{i}", event_type="purchase")
+        assert classify_sku_type("B1") == "unclassified"
+
+    def test_other_barcodes_excluded(self) -> None:
+        from categorizer import classify_sku_type
+
+        for i in range(10):
+            self._add_event(barcode="B1", qty=500, document_no=f"D{i}")
+        for i in range(10):
+            self._add_event(barcode="B2", qty=10, document_no=f"E{i}")
+        assert classify_sku_type("B1") == "wholesale_only"
+
+
 if __name__ == "__main__":
     unittest.main()

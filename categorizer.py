@@ -44,6 +44,15 @@ _STABLE_TREND_WEEKS = 12
 
 CATEGORIES = ("new", "seasonal", "declining", "stable", "unclassified")
 
+# SKU 销售形态分类 (plan 2026-05-12-forecast-and-backtest.md §1.0.2, 与生命周期正交)
+SKU_TYPES = ("retail_dominant", "mixed", "wholesale_only", "unclassified")
+
+# 阈值 (spike _scratch/spike_sku_type_thresholds.py 验证, 5 个退场标准 barcode 全过)
+_RETAIL_QTY_THRESHOLD = 24
+_WHOLESALE_MIN_RETAIL_ROWS = 5
+_WHOLESALE_MIN_RETAIL_RATIO = 0.05
+_RETAIL_DOMINANT_RATIO = 0.80
+
 
 def _today() -> date:
     return datetime.now().date()
@@ -238,3 +247,61 @@ def _fetch_sale_rows(barcode: str, session) -> list[Any]:
         return list(session.execute(stmt).all())
     with stockpile_db._session() as s:
         return list(s.execute(stmt).all())
+
+
+# ---- SKU 销售形态分类 (plan §1.0.2) -------------------------------------------
+
+
+def classify_sku_type(barcode: str, session=None) -> str:
+    """单 SKU 销售形态: retail_dominant / mixed / wholesale_only / unclassified."""
+    net_qtys = _fetch_sku_doc_net_qty(barcode, session)
+    return classify_sku_type_from_docs(net_qtys)
+
+
+def classify_sku_type_from_docs(net_qtys: list[int]) -> str:
+    """纯函数: 输入每 doc 销售净量 (> 0) 列表, 返回 SKU_TYPES 之一.
+
+    判定 (plan §1.0.2):
+    - 零售样本 = 净量 <= _RETAIL_QTY_THRESHOLD
+    - wholesale_only: 零售样本 < _WHOLESALE_MIN_RETAIL_ROWS
+                      OR 零售占比 < _WHOLESALE_MIN_RETAIL_RATIO
+    - retail_dominant: 零售占比 >= _RETAIL_DOMINANT_RATIO
+    - 其余 mixed; 空输入 unclassified
+    """
+    total = len(net_qtys)
+    if total == 0:
+        return "unclassified"
+    retail = sum(1 for q in net_qtys if q <= _RETAIL_QTY_THRESHOLD)
+    ratio = retail / total
+    if retail < _WHOLESALE_MIN_RETAIL_ROWS or ratio < _WHOLESALE_MIN_RETAIL_RATIO:
+        return "wholesale_only"
+    if ratio >= _RETAIL_DOMINANT_RATIO:
+        return "retail_dominant"
+    return "mixed"
+
+
+def _fetch_sku_doc_net_qty(barcode: str, session) -> list[int]:
+    """单 SKU 全历史 sale doc-net qty 列表 (> 0).
+
+    同 document_no 内所有事件 qty 求和; None doc_no 按事件主键各自独立.
+    净量 <= 0 (孤儿退货 / 完全冲销) 丢弃, 不参与分母.
+    """
+    stmt = select(
+        InventoryEvent.document_no,
+        InventoryEvent.qty,
+        InventoryEvent.id,
+    ).where(
+        InventoryEvent.event_type == "sale",
+        InventoryEvent.product_barcode == barcode,
+    )
+    if session is not None:
+        rows = list(session.execute(stmt).all())
+    else:
+        with stockpile_db._session() as s:
+            rows = list(s.execute(stmt).all())
+
+    buckets: dict[str, int] = {}
+    for doc_no, qty, ev_id in rows:
+        key = doc_no if doc_no else f"__null__{ev_id}"
+        buckets[key] = buckets.get(key, 0) + qty
+    return [q for q in buckets.values() if q > 0]

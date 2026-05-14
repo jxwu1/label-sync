@@ -109,18 +109,13 @@ python tools/inventory_admin.py verify
 
 #### 1.0 数据预清洗 + SKU 类型标注（新增，必须最先做）
 
-- [ ] 1.0.1 退货归并：负数 qty 必须先和同一 document_no 的正向销售净抵，**不能落到不同周里**。如果原单已不在窗口内，归 0 不落负。
-- [ ] 1.0.2 `categorizer` 加 SKU-级标签：`retail_dominant` / `mixed` / `wholesale_only` 三类
-  - 判定规则：先按 SKU 算"零售订单占比"（qty ≤ 24 视为零售样本量定义先这么写，spike 1.0.3 调）
-  - `wholesale_only`：零售样本 < 5 笔 或 < 5%
-  - `retail_dominant`：零售样本 ≥ 80%
-  - 其余 `mixed`
-- [ ] 1.0.3 spike：扫全量 SKU 的 retail/wholesale 占比分布，调阈值（不进生产代码）
+- [x] 1.0.1 退货归并 ✅ 2026-05-14 ship（`forecast_data.weekly_demand_series`，12 单测过，commit `0bd96d2`）
+- [x] 1.0.2 `categorizer.classify_sku_type` ✅ 2026-05-14 ship（19 单测过 + 真 DB 5/5 退场 OK）
+  - 阈值经 spike 1.0.3 验证：qty≤24=零售；wholesale_only=零售<5 笔 或 <5%；retail_dominant=≥80%；其余 mixed
+  - 全量 DB 分布：85.8% retail_dominant / 13.2% wholesale_only / 1.0% mixed
+- [x] 1.0.3 spike ✅ 2026-05-14（`_scratch/spike_sku_type_thresholds.py`，无需调阈值）
 
-**verify**：
-
-- 负数 qty 测试：建一个 SKU 同周 qty=10、qty=-3 → 周需求 = 7；跨周退货回归 0
-- SKU 类型测试：A 类 4 个 barcode（`6956457684352` 等）必须标 `wholesale_only`；`5203692253593`（1234 笔 median=2）标 `retail_dominant`
+**verify**：✅ 全过
 
 #### 1.1 周聚合（订正）
 
@@ -296,14 +291,12 @@ DB 数据只有 70 周时 STL 跑不起来（需 104 周）。等 3 年数据导
 
 **下一步动作（按顺序，建议各开独立 PR）**：
 
-1. **阶段 1.0 数据预清洗 + SKU 类型标注**（首要，2-3 天）
-   - 1.0.1 退货归并（document_no 内净抵）
-   - 1.0.2 `categorizer` 加 `sku_type` 列（`retail_dominant` / `mixed` / `wholesale_only`）
-   - 1.0.3 spike 调阈值
-   - **退场标准**：4 个 A 类 barcode（`6956457684352` / `5203835112206` / `6956457684345` / `6956457684338`）标 `wholesale_only`；`5203692253593` 标 `retail_dominant`；负数 qty 单元测试过
-
-2. **阶段 1.1-1.5 重写**（在 1.0 后，2 天）
-
+1. ✅ **阶段 1.0**（2026-05-14 完成，2 commit shipped）
+2. **阶段 1.1-1.5 重写**（在 1.0 后，2 天）—— 下一步入口
+   - 1.1 `weekly_demand_series` 已建 → 1.2 `base_demand_view` 用 sku_type 分流
+   - 1.3 `winsorize` 只对 retail_dominant/mixed
+   - 1.4 `stockout_adjust` fallback
+   - 1.5 `is_bulk_order` 用 median+IQR
 3. **阶段 2 回测框架**（先 baseline 单跑 + Croston，再加双视图，3-4 天）
 
 **仍待澄清**：
