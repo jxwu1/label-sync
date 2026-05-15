@@ -5,6 +5,24 @@
 
 ---
 
+## ⚠️ 执行前置条件（2026-05-15 复审补充）
+
+**开干 Phase 0 之前必须满足**:
+
+1. ✅ **v2 backtest 跑完**（task `boli3ovn7`，4 个 baseline 全部 DONE）
+2. ✅ **更新 backtest CSV**（重跑 `_scratch/export_backtest_comparison.py` 拿到 v1+v2 完整数据）
+3. ✅ **scp 新 DB 到 Hetzner**（按 `docs/deploy-plan.md` 步骤替换线上 SQLite）
+4. ✅ **论文 §5.4.4 / §6.5.4 补 v2 实测数据**
+5. ✅ **matplotlib 画完 4 张论文图**（图 5-1 / 6-1 / 6-2 / 系统架构）
+
+**为什么必须先做**:
+
+- Phase 2 移动 40+ 文件会让飞行中的 backtest 进程的 import 失效（虽然已 import 的不受影响，但中途若崩溃重启会找不到模块）
+- 论文里的代码路径引用（`forecast_data.py::weekly_demand_series` 等）一旦 Phase 2 移完都失效，要在重构前用完
+- `_scratch/` 里的 spike 脚本用 `sys.path.insert` 加根目录，Phase 2 后会断（属于次要问题，但提前知道）
+
+---
+
 ## 现状概述
 
 label-sync 是一个基于 Flask 的 ERP 库存标签处理系统（"双端处理"），功能包括：条码扫描解析、库存匹配、标签生成、考勤报表、月度汇总、进销存导入、数据分析等。
@@ -173,6 +191,27 @@ AGENTS.md 采用同样的"前插"策略：项目上下文放前面，如果有 G
 **分支名**: `refactor/directory-structure`
 
 > ⚠️ 这是最大的改动。每一步都要跑 `pytest tests/` 确认不破坏功能。
+>
+> **工时修正（2026-05-15 复审）**: 原 plan 估「1-2 小时」**严重低估**。
+> 40+ 文件 × 30+ 测试文件需要更新 import × 8 批 × alembic / phase_scripts / _scratch
+> 多个潜在雷区 → **真实估计 1-2 天，留 buffer 3 天**。
+
+### 前置步骤：Import Audit（推荐 30 分钟）
+
+开始动手前先把现有 import 关系画清楚：
+
+```bash
+# 法 A: 简单 grep
+grep -rEhn "^(from|import) (\w+)" --include="*.py" \
+  | grep -v "^.venv\|^_scratch" \
+  | sort -u > /tmp/import_map.txt
+
+# 法 B (推荐): 直接用 GitNexus
+# gitnexus_query({query: "module dependencies"}) 或
+# gitnexus_tool_map / gitnexus_route_map 直接出图
+```
+
+输出物：`docs/refactor/import-audit-before.md`，列出每个根目录模块的入向 + 出向依赖。Phase 2 完成后再生成一份 `import-audit-after.md`，对比验证无新增循环依赖。
 
 ### 目标结构
 
@@ -270,7 +309,7 @@ label-sync/
 ### 执行步骤
 
 1. **创建 `app/` 包和子包**：先创建所有 `__init__.py`
-2. **逐批移动文件**（每批移完跑测试）：
+2. **逐批移动文件**（每批一个独立 commit，失败可单批 revert）：
    - 第 1 批：utils（file_io, path_safety, response_builder, route_helpers, categorizer, customer_classifier, forecast_data）
    - 第 2 批：parsers（xls_html_parser, erp_category_parser, location_parser）
    - 第 3 批：repositories（input_repository, output_repository, transfer_repository, stockpile_db）
@@ -283,8 +322,20 @@ label-sync/
    - 更新所有内部 import 语句
    - 运行 `pytest tests/` 确认通过
    - 如果 phase_scripts 中有 import 根目录模块的，需要同步改
+   - **commit 模板**（关键: 每批独立 commit, 失败时单批 revert）:
+     ```
+     refactor(p2-batch1): move utils/ to app/utils/
+
+     - file_io.py → app/utils/file_io.py
+     - path_safety.py → app/utils/path_safety.py
+     - ...
+     - update imports in tests/
+     - pytest: 708 passed ✓
+     ```
+   - **回退命令**: `git reset --hard HEAD~1` （仅当 commit 还没 push）
 4. **更新 alembic 配置**：`alembic/env.py` 中的 model import 路径
 5. **更新 Dockerfile**：如果 COPY 路径有变化
+6. **更新 `_scratch/*.py` spike 脚本**：用 `sys.path.insert(0, Path(__file__).parent.parent)` 的需要确认是否还能找到 `app/` 模块；推荐改为 `sys.path.insert(0, str(Path(__file__).resolve().parent.parent))` 即可（根目录加 sys.path 后 `from app.forecast_data import ...` 仍能 work）
 
 ### 验收标准
 - 根目录不再有 `*_service.py` 和 `routes_*.py` 文件
@@ -333,11 +384,17 @@ label-sync/
 
 **分支名**: `chore/cleanup-node-config`
 
+> ⚠️ **修正（2026-05-15 复审）**: 原 plan 说「Biome 不需要 Node」**事实错误**。
+> Biome 虽然用 Rust 写但通过 npm 分发，**仍需要 Node 环境**。
+> 真要去 Node 化只有两条正路:
+> A. 删 `eslint.config.js`，前端 JS lint 靠 IDE 自带（推荐，前端代码量小）
+> B. 用 ruff format（Phase 5 引入）覆盖 Python，前端 JS 不 lint
+
 ### 任务
 
 1. **评估 package.json 的实际用途**：
    - 查看 `package.json` 内容，确认是否只用于 eslint
-   - 如果是：考虑用 Biome 替代（`pip install biome` 或独立 binary，不需要 Node）
+   - 如果是：**直接删除**（不要换 Biome — 它也需要 Node）
    - 如果前端 JS 确实需要 npm 依赖：保留但整理
 
 2. **如果决定移除 Node 依赖**：
@@ -359,6 +416,29 @@ label-sync/
 ## Phase 5 — CI/CD 基础 Workflow
 
 **分支名**: `ci/github-actions`
+
+> ⚠️ **复审补充（2026-05-15）**: 现有代码没用 ruff，**直接加 `ruff check` 到 CI 会一开就红一片**。
+> 必须在加 CI workflow 之前先做 ruff baseline:
+
+### 前置：ruff baseline（30 分钟）
+
+```bash
+# 1. 装 ruff
+pip install ruff
+
+# 2. 自动 fix 能修的
+ruff check . --fix
+
+# 3. format 一遍
+ruff format .
+
+# 4. 看剩多少 warning, 评估是否要在 pyproject.toml 放宽规则
+ruff check .
+# 如果还有几十条无法自动 fix 的, 加 [tool.ruff.lint] ignore = [...] 让 baseline 干净
+
+# 5. commit baseline
+git add . && git commit -m "chore: ruff baseline (auto-fix + format)"
+```
 
 ### 任务
 
@@ -420,7 +500,7 @@ jobs:
 1. **在 GitHub 仓库设置中补充**：
    - Description: `ERP 库存标签处理系统 — 条码扫描、库存匹配、标签生成、考勤报表`
    - Topics: `flask`, `erp`, `inventory`, `barcode`, `python`
-   - （仓库改名需要手动操作，建议改为 `erp-label-tool`，但这会影响 Coolify 部署配置，所以可以暂时不改名，先补 description）
+   - **仓库改名说明（2026-05-15 复审修正）**: 原 plan 说「改名会影响 Coolify 部署」**不准确** —— GitHub 改名后旧 URL 会自动 redirect，Coolify 走 git URL 不受影响。但**仍建议不改名**：论文 / GitNexus 索引 / 部署 plan 都已引用 `https://github.com/jxwu1/label-sync`，改名后这些文档需要全量更新引用，工作量不值得。
 
 2. **更新 README.md**：
    - 保留当前使用说明的全部内容（写得很好）
@@ -500,3 +580,31 @@ Phase 7（PostgreSQL，可选） ← 看需求
 - `phase_scripts/` 里的脚本用 subprocess 调用，可能有硬编码的 import 路径，要特别检查
 - 前端模板（templates/）中如果有 `垃圾桶` 字样也要替换
 - alembic/env.py 中的 `target_metadata` import 路径在 Phase 2 后需要更新
+
+---
+
+## 📋 2026-05-15 复审补丁说明
+
+本 plan 经一轮复审，新增以下补充（已 inline patch 入对应 Phase）：
+
+| 补丁 | 位置 | 内容 |
+|---|---|---|
+| **执行前置条件** | 顶部新增 section | v2 backtest / 论文图 / DB scp 必须先完成 |
+| Phase 2 工时修正 | Phase 2 头部 | 1-2h → 1-2 天，留 buffer 3 天 |
+| Phase 2 Import Audit | Phase 2 前置步骤 | GitNexus `tool_map` / `route_map` 直接出依赖图 |
+| Phase 2 batch commit 模板 | 执行步骤 3 | 每批独立 commit，回退命令 |
+| Phase 2 _scratch/ 修改 | 执行步骤 6 | spike 脚本 sys.path 处理 |
+| **Phase 4 Biome 错误修正** | Phase 4 头部 | Biome 也需要 Node；正解是直接删 eslint 或用 ruff |
+| Phase 5 ruff baseline | Phase 5 前置步骤 | 加 CI 前先 ruff fix + format，避免 CI 一开就红 |
+| **Phase 6 改名澄清** | Phase 6 任务 1 | GitHub 改名 redirect 自动生效，Coolify 不受影响；但仍建议不改名 |
+
+**未补丁但建议关注**:
+
+- Phase 0 `git filter-repo` 改写历史**很危险**：如果发现敏感信息已 commit，建议先评估「真的有人 clone 过该 commit 吗」，没有的话直接 force-push 干净仓库；改写历史会让所有协作者重新 clone
+- Phase 5 CI 可考虑加 type check（mypy / pyright），但优先级低
+- Phase 5 之后可加 pre-commit hook 集成（本地 commit 时自动跑 ruff），但 Phase 5 跑通后再加
+
+**未来扩展（不在本 plan 范围）**:
+
+- 跟 `docs/thesis/迭代路线图.md` 协调：本 plan Phase 7（PG 接口）是迭代路线图 Phase 1（PG 数据迁移）的前置工作
+- 本 plan 完成后再开始迭代路线图的功能扩展（Holt-Winters / Prophet / 监控等），代码自然落在 `app/services/` 干净位置
