@@ -114,6 +114,11 @@ python tools/inventory_admin.py verify
   - 阈值经 spike 1.0.3 验证：qty≤24=零售；wholesale_only=零售<5 笔 或 <5%；retail_dominant=≥80%；其余 mixed
   - 全量 DB 分布：85.8% retail_dominant / 13.2% wholesale_only / 1.0% mixed
 - [x] 1.0.3 spike ✅ 2026-05-14（`_scratch/spike_sku_type_thresholds.py`，无需调阈值）
+- [x] 1.0.4 加 `dying` SKU 类 ✅ 2026-05-15（4 baseline 全量 backtest 后发现 CrostonSBA Bias=+0.89 系统性偏差）
+  - 判定：最后销售距 `as_of` >= 13 周（1 季度）→ `dying`，优先级高于 wholesale_only
+  - 阈值经 spike `_scratch/spike_dying_threshold.py` 选定，3 个 Top over-forecast SKU 全部标对
+  - `base_demand_view` / `_build_series` 都加 dying 早退路径，dying SKU 不进回测
+  - 全量分布：N=13 周阈值会标 46.3% SKU 为 dying（含原本 retail/wholesale 中已停售的）
 
 **verify**：✅ 全过
 

@@ -275,6 +275,66 @@ class _SkuTypeBase(unittest.TestCase):
             s.commit()
 
 
+class ClassifySkuTypeDyingTests(_SkuTypeBase):
+    """plan §1.0.2 加 dying: 最后销售距 as_of >= 13 周 (无 sale) → dying."""
+
+    def test_recent_sales_not_dying(self) -> None:
+        """最近 4 周内有销售 → retail_dominant 不是 dying."""
+        from categorizer import classify_sku_type
+
+        for w in range(4):
+            d = (date(2026, 5, 13) - timedelta(days=w * 7)).isoformat()
+            self._add_event(qty=10, document_no=f"D{w}", event_at=d)
+        for i in range(5):
+            self._add_event(qty=10, document_no=f"old{i}", event_at="2024-01-01")
+        assert classify_sku_type("B1", as_of=date(2026, 5, 13)) == "retail_dominant"
+
+    def test_no_sales_in_last_13_weeks_marks_dying(self) -> None:
+        """最后一笔在 14 周前 → dying."""
+        from categorizer import classify_sku_type
+
+        for i in range(10):
+            self._add_event(qty=10, document_no=f"D{i}", event_at="2025-01-01")
+        self._add_event(qty=10, document_no="last", event_at="2026-02-04")
+        assert classify_sku_type("B1", as_of=date(2026, 5, 13)) == "dying"
+
+    def test_boundary_13_weeks_exactly_is_dying(self) -> None:
+        """边界: 最后销售距 as_of 恰好 13 周 → dying."""
+        from categorizer import classify_sku_type
+
+        for i in range(10):
+            self._add_event(qty=10, document_no=f"D{i}", event_at="2025-01-01")
+        self._add_event(qty=10, document_no="last", event_at="2026-02-11")
+        assert classify_sku_type("B1", as_of=date(2026, 5, 13)) == "dying"
+
+    def test_12_weeks_ago_not_dying(self) -> None:
+        """边界: 12 周前 → 仍算活, 不是 dying."""
+        from categorizer import classify_sku_type
+
+        for i in range(10):
+            self._add_event(qty=10, document_no=f"D{i}", event_at="2025-01-01")
+        self._add_event(qty=10, document_no="last", event_at="2026-02-18")
+        out = classify_sku_type("B1", as_of=date(2026, 5, 13))
+        assert out != "dying"
+        assert out == "retail_dominant"
+
+    def test_dying_takes_precedence_over_wholesale(self) -> None:
+        """dying 优先于 wholesale_only (停售比批发更紧急)."""
+        from categorizer import classify_sku_type
+
+        for i in range(5):
+            self._add_event(qty=720, document_no=f"D{i}", event_at="2024-01-01")
+        assert classify_sku_type("B1", as_of=date(2026, 5, 13)) == "dying"
+
+    def test_as_of_none_uses_today(self) -> None:
+        """as_of=None 用 datetime.now().date()."""
+        from categorizer import classify_sku_type
+
+        for i in range(5):
+            self._add_event(qty=10, document_no=f"D{i}", event_at="2024-01-01")
+        assert classify_sku_type("B1") == "dying"
+
+
 class ClassifySkuTypeTests(_SkuTypeBase):
     def test_no_data_unclassified(self) -> None:
         from categorizer import classify_sku_type

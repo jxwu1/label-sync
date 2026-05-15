@@ -45,13 +45,17 @@ _STABLE_TREND_WEEKS = 12
 CATEGORIES = ("new", "seasonal", "declining", "stable", "unclassified")
 
 # SKU 销售形态分类 (plan 2026-05-12-forecast-and-backtest.md §1.0.2, 与生命周期正交)
-SKU_TYPES = ("retail_dominant", "mixed", "wholesale_only", "unclassified")
+SKU_TYPES = ("retail_dominant", "mixed", "wholesale_only", "dying", "unclassified")
 
 # 阈值 (spike _scratch/spike_sku_type_thresholds.py 验证, 5 个退场标准 barcode 全过)
 _RETAIL_QTY_THRESHOLD = 24
 _WHOLESALE_MIN_RETAIL_ROWS = 5
 _WHOLESALE_MIN_RETAIL_RATIO = 0.05
 _RETAIL_DOMINANT_RATIO = 0.80
+
+# dying 阈值: 最后销售距 as_of >= 13 周 (无 sale event) → dying
+# 阻止 CrostonSBA / NaiveSeasonal 在 dying SKU 上过预测 (4 baseline 回测发现 +0.89 系统性 bias)
+_DYING_WEEKS = 13
 
 
 def _today() -> date:
@@ -252,10 +256,39 @@ def _fetch_sale_rows(barcode: str, session) -> list[Any]:
 # ---- SKU 销售形态分类 (plan §1.0.2) -------------------------------------------
 
 
-def classify_sku_type(barcode: str, session=None) -> str:
-    """单 SKU 销售形态: retail_dominant / mixed / wholesale_only / unclassified."""
+def classify_sku_type(barcode: str, session=None, as_of: date | None = None) -> str:
+    """单 SKU 销售形态: retail_dominant / mixed / wholesale_only / dying / unclassified.
+
+    判定顺序 (优先级从高到低):
+    1. 无任何销售 → unclassified
+    2. 最后销售距 as_of >= _DYING_WEEKS 周 → dying (优先于 wholesale, 因为停售更紧急)
+    3. doc-net qty 算 retail_dominant / mixed / wholesale_only
+
+    as_of 默认 today; 跟回测窗口配套时应传 backtest 的 end_date.
+    """
+    as_of = as_of or _today()
+    last_at = _fetch_last_sale_at(barcode, session)
+    if last_at is None:
+        return "unclassified"
+    weeks_since = (as_of - _parse_date(last_at)).days // 7
+    if weeks_since >= _DYING_WEEKS:
+        return "dying"
     net_qtys = _fetch_sku_doc_net_qty(barcode, session)
     return classify_sku_type_from_docs(net_qtys)
+
+
+def _fetch_last_sale_at(barcode: str, session) -> str | None:
+    """返回该 SKU 最后一笔 sale 的 event_at (str), 无销售返回 None."""
+    from sqlalchemy import func as sa_func
+
+    stmt = select(sa_func.max(InventoryEvent.event_at)).where(
+        InventoryEvent.event_type == "sale",
+        InventoryEvent.product_barcode == barcode,
+    )
+    if session is not None:
+        return session.execute(stmt).scalar()
+    with stockpile_db._session() as s:
+        return s.execute(stmt).scalar()
 
 
 def classify_sku_type_from_docs(net_qtys: list[int]) -> str:

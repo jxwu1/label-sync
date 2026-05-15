@@ -276,8 +276,8 @@ def _build_series(
             return None
         return [v["series"][k] for k in sorted(v["series"])], v["sku_type"]
     if view == "all":
-        sku_type = classify_sku_type(barcode, session=session)
-        if sku_type == "unclassified":
+        sku_type = classify_sku_type(barcode, session=session, as_of=end_date)
+        if sku_type in ("unclassified", "dying"):
             return None
         d = weekly_demand_series(barcode, end_date, weeks, session=session)
         return [d[k] for k in sorted(d)], sku_type

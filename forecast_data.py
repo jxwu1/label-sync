@@ -173,8 +173,8 @@ def base_demand_view(
     """
     from categorizer import _fetch_sku_doc_net_qty, classify_sku_type
 
-    sku_type = classify_sku_type(barcode, session)
-    if sku_type in ("wholesale_only", "unclassified"):
+    sku_type = classify_sku_type(barcode, session, as_of=end_date)
+    if sku_type in ("wholesale_only", "dying", "unclassified"):
         return {
             "sku_type": sku_type,
             "series": None,
