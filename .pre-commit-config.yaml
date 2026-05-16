@@ -11,13 +11,6 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  # eslint: JS lint (本地 npm，因为 vendor 文件不参与)
-  - repo: local
-    hooks:
-      - id: eslint
-        name: eslint
-        entry: npx eslint
-        language: system
-        types: [javascript]
-        files: ^static/js/.*\.js$
-        # warnings 不阻塞 commit；只有 errors 阻塞
+  # 前端 JS lint: Phase 4 (2026-05-16) 移除, 依赖 IDE 自带 lint
+  # 删除原因: eslint 强依赖 Node + npm install, 跟纯 Python 项目耦合
+  # 如需重新加: 用 Biome / oxlint 这种 Rust 实现可减少 Node 依赖, 但仍需 npm

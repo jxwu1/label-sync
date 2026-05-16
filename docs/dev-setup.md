@@ -7,14 +7,13 @@
 pip install -r requirements.txt
 pip install ruff pre-commit
 
-# JS 依赖（仅 lint，没 build step）
-npm install
-
 # 安装 git pre-commit 钩子
 pre-commit install
 ```
 
-完事。以后 `git commit` 会自动跑 ruff + eslint + ruff format。
+完事。以后 `git commit` 会自动跑 ruff + ruff format。
+
+前端 JS lint 已移除（Phase 4，2026-05-16）；JS 代码靠 IDE 自带语法检查。
 
 ---
 
@@ -32,12 +31,6 @@ python -m ruff check . --fix
 
 # Python 格式化
 python -m ruff format .
-
-# JS lint
-npx eslint static/js
-
-# JS lint + 自动修
-npx eslint static/js --fix
 
 # 跑测试
 python -m pytest -q
@@ -67,10 +60,7 @@ LABEL_SYNC_DB_PATH=.test_tmp/dev.db alembic upgrade head
 - `pyproject.toml` → `[tool.ruff]` / `[tool.ruff.lint]` / `[tool.ruff.format]`
   - 启用规则：`E F I B UP`（pycodestyle / pyflakes / isort / bugbear / pyupgrade）
   - line-length: 100
-- `eslint.config.js` → flat config (ESLint v9)
-  - 仅核心规则：`no-undef` / `no-unused-vars` / `eqeqeq` / `no-console` / `no-var` / `prefer-const`
-  - `caughtErrors: "none"` — try/catch 里没用 `e` 不报警
-- `.pre-commit-config.yaml` → 钩子组合
+- `.pre-commit-config.yaml` → 钩子组合（仅 ruff，Phase 4 已移除 eslint）
 
 ## Lint 规则放行说明
 
@@ -91,7 +81,7 @@ git commit --no-verify -m "..."
 
 - **errors**：阻塞 commit。当前规则集设计成 0 error
 - **warnings**：commit 时显示但不阻塞，标志着"建议清理"
-- 当前已知 warnings：`static/js/index-stockpile.js` / `purchase.js` 里 3 处未用变量（dead code，留待以后清）
+- 当前已知 warnings：无（Phase 4 移除 eslint 后只剩 ruff，规则集已 clean）
 
 ## 故障排查
 
@@ -106,7 +96,5 @@ python -m ruff check . --fix
 python -m ruff format .
 python -m ruff check .  # 看剩余
 ```
-
-**eslint 报 `Cannot find module`**：先 `npm install`。
 
 **hook 在某个文件无限循环改格式**：删 `.git/hooks/pre-commit` 后排查；通常是 ruff 与编辑器自动格式化的双向冲突。
