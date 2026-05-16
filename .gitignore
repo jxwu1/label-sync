@@ -45,7 +45,11 @@ investigate_output.txt
 docs/.private/
 
 # Tooling artifacts
-.claude/
+.claude/*
+!.claude/hooks/
+!.claude/settings.json
+!.claude/CLAUDE.md.append
+.claude/settings.local.json
 .superpowers/
 .gitnexus/
 
