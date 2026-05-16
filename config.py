@@ -13,7 +13,7 @@ def _resource_dir() -> Path:
 
 
 def _data_dir() -> Path:
-    """运行时数据目录 (stockpile.db / input / output / 垃圾桶 / etc).
+    """运行时数据目录 (stockpile.db / input / output / archive / etc).
 
     优先级:
     1. env LABEL_SYNC_DATA_DIR (Docker / 生产部署用, 数据走挂载卷)
@@ -54,7 +54,7 @@ class AppConfig:
 
     @property
     def trash_dir(self) -> Path:
-        return self.base_dir / "垃圾桶"
+        return self.base_dir / "archive"
 
     @property
     def templates_dir(self) -> Path:

@@ -25,7 +25,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 拷代码 (.dockerignore 已剔除 .venv / .git / _scratch / *.db 等)
 COPY . .
 
-# 运行时数据走 volume (stockpile.db / input / output / 垃圾桶 / archive)
+# 运行时数据走 volume (stockpile.db / input / output / archive)
 ENV LABEL_SYNC_DATA_DIR=/data
 RUN mkdir -p /data
 

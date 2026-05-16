@@ -18,7 +18,6 @@ stockpile.db-wal
 input/
 output/
 transfer/
-垃圾桶/
 archive/
 cleaned/
 raw/

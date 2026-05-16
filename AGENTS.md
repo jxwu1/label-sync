@@ -41,7 +41,7 @@ label-sync/
 ├── e2e/                            # Playwright 浏览器烟雾测试
 ├── templates/ + static/            # 前端
 ├── docs/                           # 设计 plan / 部署 plan / 论文稿
-└── 运行时（gitignored）: input/ output/ transfer/ 垃圾桶/ stockpile.db
+└── 运行时（gitignored）: input/ output/ transfer/ archive/ stockpile.db
 ```
 
 ## 核心业务流程
@@ -105,10 +105,9 @@ docker compose up -d
 - `input/` — 待处理输入文件
 - `output/` — 处理结果（按员工+时间戳分目录）
 - `transfer/` — 双端互传
-- `垃圾桶/` — 已处理原始文件归档（Phase 3 重命名为 `archive/`）
+- `archive/` — 已处理原始文件归档（前身 `垃圾桶/`，Phase 3 重命名）+ ETL Parquet 历史归档
 - `attendance/` — 考勤 JSON（Phase 1.6 后迁入 DB）
 - `monthly_summary/` — 月度汇总 JSON
-- `archive/` — Parquet 历史归档
 
 ## 关键文档
 
@@ -126,7 +125,7 @@ docker compose up -d
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **label-sync** (5751 symbols, 13765 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **label-sync** (5762 symbols, 13789 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

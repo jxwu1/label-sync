@@ -34,7 +34,7 @@ pytest e2e/ -k nav --headed  # 只看 nav 那批
 ## 设计要点
 
 - **沙箱隔离**：session 级 fixture 在 tmp 目录建出 input/output/transfer/
-  attendance/monthly_summary/垃圾桶/DB，再 monkeypatch 全局常量。生产数据
+  attendance/monthly_summary/archive/DB，再 monkeypatch 全局常量。生产数据
   不会被读写。
 - **Flask 在 daemon 线程**：用 `werkzeug.serving.make_server`，端口 0 自动选；
   线程 daemon=True，进程退出自动收。

@@ -35,7 +35,7 @@
 ├─ docs/                                    ← 设计 spec / 阶段 plan / 决策日志
 │   └─ zh/                                   ← 中文产品文档与历史更新日志
 ├─ _scratch/                                ← 本地一次性脚本（gitignored）
-├─ input/ / output/ / transfer/ / 垃圾桶/   ← 运行时数据目录（gitignored）
+├─ input/ / output/ / transfer/ / archive/   ← 运行时数据目录（gitignored）
 └─ requirements.txt + requirements-dev.txt + pyproject.toml + alembic.ini
 ```
 
@@ -69,7 +69,7 @@
 - `input/`：待处理输入目录。
 - `output/`：处理结果目录。
 - `transfer/`：双端互传文件目录。
-- `垃圾桶/`：已处理原始文件归档目录。
+- `archive/`：已处理原始文件归档目录。
 
 ## 2.1 当前模块边界
 
@@ -172,8 +172,8 @@ ISLAM价格标20260408112637
 
 处理完成后：
 
-- 扫描文件会被移动到 `垃圾桶/`
-- 系统 `stockpile` 文件会被移动到 `垃圾桶/`
+- 扫描文件会被移动到 `archive/`
+- 系统 `stockpile` 文件会被移动到 `archive/`
 - 模板文件会保留在 `input/`
 
 这样便于重复使用模板，同时保留处理记录。

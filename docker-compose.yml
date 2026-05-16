@@ -6,7 +6,7 @@
 #   3. docker compose up -d
 #   4. docker compose logs -f
 #
-# 数据卷 ./data 挂到 /data, 里面放 stockpile.db / input / output / 垃圾桶 / archive.
+# 数据卷 ./data 挂到 /data, 里面放 stockpile.db / input / output / archive (旧 垃圾桶/).
 # 反代 (nginx / traefik / caddy) 上游指向 host:5000 (或改 ports 映射).
 
 services:

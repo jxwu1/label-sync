@@ -76,7 +76,7 @@ LABEL_SYNC_DB_PATH=.test_tmp/dev.db alembic upgrade head
 
 - `tests/*` 允许长行 (E501 off)
 - `alembic/env.py` 允许长行 + 未用 import (模板生成代码)
-- `垃圾桶/` / `.test_tmp/` / `alembic/versions/` 不参与 lint
+- `archive/` / `.test_tmp/` / `alembic/versions/` 不参与 lint
 - 以 `_` 开头的变量/参数不报"未用"
 
 ## 提交时绕过 lint（不推荐）

@@ -23,12 +23,12 @@ def _build_sandbox(root: Path) -> None:
     """在 root 下建出生产代码会用到的子目录，并把全局常量重定向过去。
 
     生产代码用两套定位方式：
-    1. CONFIG.base_dir 派生（input / output / transfer / 垃圾桶 / stockpile.db）
+    1. CONFIG.base_dir 派生（input / output / transfer / archive / stockpile.db）
        → 改 CONFIG.base_dir 即可一次性重定向
     2. Path(__file__).parent 派生（attendance/, monthly_summary/）
        → 必须直接 monkeypatch 服务模块里的常量
     """
-    for name in ("input", "output", "transfer", "垃圾桶", "attendance", "monthly_summary"):
+    for name in ("input", "output", "transfer", "archive", "attendance", "monthly_summary"):
         (root / name).mkdir(parents=True, exist_ok=True)
 
     # CONFIG 是 frozen dataclass，绕过 __setattr__ 改 base_dir

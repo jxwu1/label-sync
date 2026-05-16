@@ -44,7 +44,7 @@ cd label-sync
 
 ### 4. 准备数据卷
 ```bash
-mkdir -p ./data/input ./data/output ./data/transfer ./data/垃圾桶 ./data/archive
+mkdir -p ./data/input ./data/output ./data/transfer ./data/archive
 ```
 
 ### 5. Hetzner 防火墙 — 放行 5000

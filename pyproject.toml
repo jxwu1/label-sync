@@ -3,7 +3,7 @@ line-length = 100
 target-version = "py310"
 extend-exclude = [
     "alembic/versions",
-    "垃圾桶",
+    "archive",
     ".test_tmp",
     "stockpile_routes",
 ]
