@@ -26,7 +26,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 import stockpile_db
-from categorizer import classify_from_sales
+from app.utils.categorizer import classify_from_sales
 from models import Customer, InventoryEvent, Stockpile
 
 _TREND_WEEKS = 12  # 趋势斜率窗口（plan 锁定 12 周）

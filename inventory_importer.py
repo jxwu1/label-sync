@@ -20,7 +20,7 @@ import pandas as pd
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
-from customer_classifier import classify_customer
+from app.utils.customer_classifier import classify_customer
 from erp_category_parser import parse_erp_category
 from models import Customer, InventoryEvent, Stockpile, Supplier
 

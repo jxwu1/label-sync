@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 import foreign_customer_report_service
 import foreign_customer_service
-from route_helpers import NonEmptyStr, OptionalStr, parse_body
+from app.utils.route_helpers import NonEmptyStr, OptionalStr, parse_body
 
 bp = Blueprint("foreign_customers", __name__, url_prefix="/foreign-customers")
 

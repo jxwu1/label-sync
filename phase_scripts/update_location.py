@@ -8,7 +8,7 @@ import pandas as pd
 
 import stockpile_db
 from config import CONFIG
-from file_io import read_csv
+from app.utils.file_io import read_csv
 
 INPUT_DIR = CONFIG.input_dir
 OUTPUT_DIR = CONFIG.output_dir

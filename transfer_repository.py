@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from path_safety import safe_filename
+from app.utils.path_safety import safe_filename
 from state import TRANSFER_DIR
 
 

@@ -2,8 +2,8 @@ from flask import Blueprint, jsonify
 from pydantic import BaseModel
 
 import message_service
-from response_builder import json_result
-from route_helpers import NonEmptyStr, OptionalStr, parse_body
+from app.utils.response_builder import json_result
+from app.utils.route_helpers import NonEmptyStr, OptionalStr, parse_body
 
 bp = Blueprint("collab", __name__)
 

@@ -269,8 +269,8 @@ def _build_series(
     session=None,
 ) -> tuple[list[float], str] | None:
     """从 DB 拉单 SKU 周序列 + sku_type. None = SKU 不可回测."""
-    from categorizer import classify_sku_type
-    from forecast_data import base_demand_view, weekly_demand_series
+    from app.utils.categorizer import classify_sku_type
+    from app.utils.forecast_data import base_demand_view, weekly_demand_series
 
     if view == "base_demand":
         v = base_demand_view(barcode, end_date, weeks, session=session)

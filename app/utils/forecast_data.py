@@ -170,7 +170,7 @@ def base_demand_view(
     - IQR stats 用全历史 doc-net qty (窗口外也算, 阈值更稳)
     - 退货归并复用 §1.0.1: 同 doc 净抵, 净量 ≤ 0 丢弃 (不计入 exclusion)
     """
-    from categorizer import _fetch_sku_doc_net_qty, classify_sku_type
+    from app.utils.categorizer import _fetch_sku_doc_net_qty, classify_sku_type
 
     sku_type = classify_sku_type(barcode, session, as_of=end_date)
     if sku_type in ("wholesale_only", "dying", "unclassified"):

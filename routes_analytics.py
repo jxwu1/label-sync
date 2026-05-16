@@ -14,7 +14,7 @@ from sqlalchemy import select, update
 import analytics_service
 import stockpile_db
 from models import Stockpile
-from route_helpers import OptionalStr, parse_body
+from app.utils.route_helpers import OptionalStr, parse_body
 
 bp = Blueprint("analytics", __name__, url_prefix="/analytics")
 

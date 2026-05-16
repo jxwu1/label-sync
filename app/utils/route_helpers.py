@@ -3,7 +3,7 @@
 使用方法：
 
     from pydantic import BaseModel
-    from route_helpers import parse_body, NonEmptyStr
+    from app.utils.route_helpers import parse_body, NonEmptyStr
 
     class EmployeeCreate(BaseModel):
         name: NonEmptyStr
