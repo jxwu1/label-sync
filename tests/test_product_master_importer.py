@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from models import Base, Stockpile, Supplier
-from product_master_importer import (
+from app.importers.product_master import (
     DEFAULT_PRODUCT_MAPPING,
     _is_active_from_web_status,
     _row_to_extra,

@@ -21,7 +21,7 @@ from sqlalchemy import insert as sa_insert
 from sqlalchemy.orm import Session
 
 from app.repositories import stockpile_db
-from inventory_importer import (
+from app.importers.inventory import (
     _clean_barcode_or_model,
     _clean_float,
     _clean_int,

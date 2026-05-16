@@ -23,7 +23,7 @@ from sqlalchemy import func, select
 from werkzeug.utils import secure_filename
 
 from app.repositories import stockpile_db
-from inventory_importer import (
+from app.importers.inventory import (
     DEFAULT_MAPPING,
     INTERNAL_FIELDS,
     import_events,
@@ -37,7 +37,7 @@ from models import (
     Supplier,
 )
 from app.utils.path_safety import safe_filename
-from product_master_importer import (
+from app.importers.product_master import (
     DEFAULT_PRODUCT_MAPPING,
     import_product_master,
 )

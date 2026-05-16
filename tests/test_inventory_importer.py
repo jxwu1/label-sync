@@ -12,7 +12,7 @@ import pandas as pd
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
-from inventory_importer import (
+from app.importers.inventory import (
     DEFAULT_MAPPING,
     _clean_barcode_or_model,
     _clean_date,
