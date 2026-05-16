@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, send_file
 
-import query_service
+from app.services import query as query_service
 from app.repositories.output import output_zip_path
 
 bp = Blueprint("query", __name__)

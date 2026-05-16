@@ -1,5 +1,6 @@
 """考勤报表：PDF（详情 + 工资单总览）。"""
 
+from app.config import CONFIG
 import io
 from pathlib import Path
 
@@ -19,12 +20,11 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-import attendance_service
-
+from app.services import attendance as attendance_service
 _FONT_NAME = "AttnSC"
 _FONT_REGISTERED = False
 _FONT_CANDIDATES = [
-    Path(__file__).resolve().parent / "static" / "fonts" / "NotoSansSC-Regular.ttf",
+    CONFIG.resource_dir / "static" / "fonts" / "NotoSansSC-Regular.ttf",
     Path("C:/Windows/Fonts/msyh.ttc"),
     Path("C:/Windows/Fonts/simsun.ttc"),
 ]

@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify
 from pydantic import BaseModel
 
-import message_service
+from app.services import message as message_service
 from app.utils.response_builder import json_result
 from app.utils.route_helpers import NonEmptyStr, OptionalStr, parse_body
 

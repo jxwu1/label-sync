@@ -8,7 +8,9 @@ from datetime import date as date_cls
 from datetime import datetime, timedelta
 from pathlib import Path
 
-_ATTENDANCE_DIR = Path(__file__).resolve().parent / "attendance"
+from app.config import CONFIG
+
+_ATTENDANCE_DIR = CONFIG.base_dir / "attendance"
 _EMPLOYEES_FILE = "employees.json"
 _HOLIDAYS_FILE = "holidays.json"
 _SPECIAL_DAYS_FILE = "special_days.json"

@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import openpyxl
 
-from purchase_service import (
+from app.services.purchase import (
     PurchaseRow,
     build_output_excel,
     build_template_csv,
@@ -143,7 +143,7 @@ class TestImportNewBarcodes(unittest.TestCase):
     def _entry(self, barcode):
         return {"barcode": barcode}
 
-    @patch("purchase_service.stockpile_db.insert_or_update")
+    @patch("app.services.purchase.stockpile_db.insert_or_update")
     def test_inserts_each_entry(self, mock_insert):
         entries = [self._entry("BC1"), self._entry("BC2")]
         count = import_new_barcodes(entries)
@@ -156,13 +156,13 @@ class TestImportNewBarcodes(unittest.TestCase):
             barcode="BC2", model="BC2", location="", source="purchase_import"
         )
 
-    @patch("purchase_service.stockpile_db.insert_or_update")
+    @patch("app.services.purchase.stockpile_db.insert_or_update")
     def test_skips_empty_barcode(self, mock_insert):
         entries = [self._entry("BC1"), self._entry(""), self._entry("BC2")]
         count = import_new_barcodes(entries)
         self.assertEqual(count, 2)
 
-    @patch("purchase_service.stockpile_db.insert_or_update")
+    @patch("app.services.purchase.stockpile_db.insert_or_update")
     def test_skips_whitespace_only(self, mock_insert):
         entries = [self._entry("  ")]
         count = import_new_barcodes(entries)

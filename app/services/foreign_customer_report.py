@@ -13,9 +13,9 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table
 
-import attendance_report_service
-import foreign_customer_service
-from attendance_report_service import (
+from app.services import attendance_report as attendance_report_service
+from app.services import foreign_customer as foreign_customer_service
+from app.services.attendance_report import (
     _make_meta_paragraph,
     _make_title_paragraph,
     _minimal_table_style,

@@ -3,8 +3,7 @@ from datetime import datetime
 
 from flask import Blueprint, jsonify, send_file
 
-import data_quality_service
-
+from app.services import data_quality as data_quality_service
 bp = Blueprint("data_quality", __name__, url_prefix="/data_quality")
 
 

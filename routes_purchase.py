@@ -5,7 +5,7 @@ from datetime import date
 from flask import Blueprint, jsonify, request, send_file
 from pydantic import BaseModel, Field
 
-import purchase_service
+from app.services import purchase as purchase_service
 from app.repositories import stockpile_db
 from app.utils.route_helpers import parse_body
 

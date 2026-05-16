@@ -4,7 +4,7 @@ import io
 from flask import Blueprint, jsonify, send_file
 from pydantic import BaseModel
 
-import monthly_summary_service
+from app.services import monthly_summary as monthly_summary_service
 from app.utils.route_helpers import NonEmptyStr, parse_body
 
 bp = Blueprint("monthly_summary", __name__, url_prefix="/monthly-summary")

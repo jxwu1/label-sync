@@ -1,3 +1,4 @@
+from app.config import CONFIG
 import csv
 import io
 import math
@@ -11,7 +12,7 @@ import pandas as pd
 
 from app.repositories import stockpile_db
 
-_TEMPLATE_PATH = Path(__file__).resolve().parent / "static" / "templates" / "产品信息导入模板.csv"
+_TEMPLATE_PATH = CONFIG.resource_dir / "static" / "templates" / "产品信息导入模板.csv"
 
 # 供应商 Excel 列索引（0-based）
 _SUPPLIER_BARCODE_COL = 0

@@ -5,7 +5,7 @@ from unittest import mock
 
 from flask import Flask
 
-import message_service
+from app.services import message as message_service
 from routes_collab import bp
 
 

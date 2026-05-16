@@ -1,7 +1,6 @@
 from flask import Blueprint, jsonify, request
 
-import recent_changes_service
-
+from app.services import recent_changes as recent_changes_service
 bp = Blueprint("recent_changes", __name__, url_prefix="/recent_changes")
 
 

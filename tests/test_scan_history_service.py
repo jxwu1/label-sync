@@ -5,8 +5,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-import scan_history_service
-
+from app.services import scan_history as scan_history_service
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_scan_history"
 
 

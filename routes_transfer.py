@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request, send_file
 from pydantic import BaseModel
 
-import storage_service
+from app.services import storage as storage_service
 from app.utils.response_builder import json_result
 from app.utils.route_helpers import NonEmptyStr, parse_body
 from app.state import TRANSFER_DIR

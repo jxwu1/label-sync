@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest import mock
 
 from app.repositories import stockpile_db
-from foreign_customer_service import (
+from app.services.foreign_customer import (
     add_record,
     delete_record,
     get_record,

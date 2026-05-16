@@ -37,9 +37,8 @@ def _build_sandbox(root: Path) -> None:
     object.__setattr__(config.CONFIG, "base_dir", root)
 
     # 服务模块里 hardcoded 路径
-    import attendance_service
-    import monthly_summary_service
-
+    from app.services import attendance as attendance_service
+    from app.services import monthly_summary as monthly_summary_service
     attendance_service._ATTENDANCE_DIR = root / "attendance"
     monthly_summary_service._SUMMARY_DIR = root / "monthly_summary"
 

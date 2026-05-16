@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-import task_service
+from app.services import task as task_service
 from app.state import task_state
 
 
@@ -59,7 +59,7 @@ class TaskServiceTests(unittest.TestCase):
 
         handled_lines: list[str] = []
 
-        with patch("task_service.run_script", side_effect=fake_run_script):
+        with patch("app.services.task.run_script", side_effect=fake_run_script):
             auto_continue = task_service.execute_phase(
                 script_path=task_service.PHASE1_SCRIPT,
                 line_handler=handled_lines.append,
@@ -79,7 +79,7 @@ class TaskServiceTests(unittest.TestCase):
         self.assertEqual(snapshot.waiting_stage, "location_format")
 
     def test_handle_phase_three_return_code_packages_output(self) -> None:
-        with patch("task_service.package_latest_output") as package_output:
+        with patch("app.services.task.package_latest_output") as package_output:
             auto_continue = task_service.handle_phase_three_return_code(0)
 
         self.assertFalse(auto_continue)

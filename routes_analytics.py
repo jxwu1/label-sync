@@ -11,7 +11,7 @@ from flask import Blueprint, jsonify
 from pydantic import BaseModel
 from sqlalchemy import select, update
 
-import analytics_service
+from app.services import analytics as analytics_service
 from app.repositories import stockpile_db
 from app.models import Stockpile
 from app.utils.route_helpers import OptionalStr, parse_body
@@ -144,8 +144,7 @@ def backtest_run():
     """启动一次回测 (同步; 全量大 batch 应改后台任务)."""
     from datetime import datetime
 
-    import backtest_service
-
+    from app.services import backtest as backtest_service
     body, err = parse_body(_BacktestRunBody)
     if err:
         return err
@@ -209,8 +208,7 @@ def backtest_compare():
     """对比两次 run 的 per-SKU 分数差异 (plan §2.8). query: run_a, run_b."""
     from flask import request
 
-    import backtest_service
-
+    from app.services import backtest as backtest_service
     raw_a = request.args.get("run_a")
     raw_b = request.args.get("run_b")
     if not raw_a or not raw_b:

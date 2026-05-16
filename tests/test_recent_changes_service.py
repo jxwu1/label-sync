@@ -7,7 +7,7 @@ from unittest import mock
 
 from sqlalchemy import insert
 
-import recent_changes_service
+from app.services import recent_changes as recent_changes_service
 from app.repositories import stockpile_db
 from app.models import StockpileChange, StockpileSnapshot
 

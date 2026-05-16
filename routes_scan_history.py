@@ -2,8 +2,7 @@
 
 from flask import Blueprint, abort, jsonify, send_file
 
-import scan_history_service
-
+from app.services import scan_history as scan_history_service
 bp = Blueprint("scan_history", __name__, url_prefix="/scan_history")
 
 

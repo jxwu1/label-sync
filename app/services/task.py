@@ -19,7 +19,7 @@ from app.state import (
     PHASE_EXIT_REVIEW_REQUIRED,
     task_state,
 )
-from storage_service import package_latest_output
+from app.services.storage import package_latest_output
 
 LineHandler = Callable[[str], None]
 ReturnCodeHandler = Callable[[int], bool]

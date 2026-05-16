@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from analytics_service import recompute_categories  # noqa: E402
+from app.services.analytics import recompute_categories  # noqa: E402
 
 
 def _parse_as_of(s: str) -> date:

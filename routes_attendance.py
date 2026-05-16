@@ -7,8 +7,8 @@ from typing import Literal
 from flask import Blueprint, jsonify, send_file
 from pydantic import BaseModel, field_validator
 
-import attendance_report_service
-import attendance_service
+from app.services import attendance_report as attendance_report_service
+from app.services import attendance as attendance_service
 from app.utils.route_helpers import NonEmptyStr, OptionalStr, parse_body
 
 bp = Blueprint("attendance", __name__, url_prefix="/attendance")

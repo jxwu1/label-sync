@@ -1,3 +1,4 @@
+from app.config import CONFIG
 import io
 import json
 import os
@@ -13,7 +14,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-_SUMMARY_DIR = Path(__file__).resolve().parent / "monthly_summary"
+_SUMMARY_DIR = CONFIG.base_dir / "monthly_summary"
 
 _MONTHS_TO_KEEP = 6
 _IO_RETRY_COUNT = 5
@@ -153,7 +154,7 @@ _FONT_NAME = "NotoSansSC"
 _FONT_REGISTERED = False
 
 _FONT_CANDIDATES = [
-    Path(__file__).resolve().parent / "static" / "fonts" / "NotoSansSC-Regular.ttf",
+    CONFIG.resource_dir / "static" / "fonts" / "NotoSansSC-Regular.ttf",
     Path("C:/Windows/Fonts/msyh.ttc"),
     Path("C:/Windows/Fonts/simsun.ttc"),
 ]

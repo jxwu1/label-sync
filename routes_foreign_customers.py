@@ -14,8 +14,8 @@ import io
 from flask import Blueprint, jsonify, send_file
 from pydantic import BaseModel
 
-import foreign_customer_report_service
-import foreign_customer_service
+from app.services import foreign_customer_report as foreign_customer_report_service
+from app.services import foreign_customer as foreign_customer_service
 from app.utils.route_helpers import NonEmptyStr, OptionalStr, parse_body
 
 bp = Blueprint("foreign_customers", __name__, url_prefix="/foreign-customers")
