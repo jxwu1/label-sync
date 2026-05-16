@@ -6,7 +6,7 @@
 
 import pytest
 
-from erp_category_parser import parse_erp_category
+from app.parsers.erp_category import parse_erp_category
 
 
 @pytest.mark.parametrize(

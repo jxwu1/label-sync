@@ -21,7 +21,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from app.utils.customer_classifier import classify_customer
-from erp_category_parser import parse_erp_category
+from app.parsers.erp_category import parse_erp_category
 from models import Customer, InventoryEvent, Stockpile, Supplier
 
 # === 内部字段名常量 ===

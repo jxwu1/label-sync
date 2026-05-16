@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from xls_html_parser import XlsHtmlParseError, parse_xls_html
+from app.parsers.xls_html import XlsHtmlParseError, parse_xls_html
 
 _FIXTURES = Path(__file__).resolve().parent / "fixtures"
 

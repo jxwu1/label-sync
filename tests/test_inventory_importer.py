@@ -21,7 +21,7 @@ from inventory_importer import (
     import_events,
 )
 from models import Base, Customer, InventoryEvent, Stockpile, Supplier
-from xls_html_parser import parse_xls_html
+from app.parsers.xls_html import parse_xls_html
 
 _TEST_DIR = Path(__file__).resolve().parent / "_test_inventory_importer"
 _FIXTURES = Path(__file__).resolve().parent / "fixtures"

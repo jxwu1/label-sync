@@ -43,7 +43,7 @@ from product_master_importer import (
 )
 from app.utils.route_helpers import parse_body
 from state import INPUT_DIR
-from xls_html_parser import XlsHtmlParseError, parse_xls_html
+from app.parsers.xls_html import XlsHtmlParseError, parse_xls_html
 
 bp = Blueprint("inventory", __name__, url_prefix="/inventory")
 

@@ -52,7 +52,7 @@ def _load_stockpile_records(stockpile_path: str) -> dict[str, dict[str, str]]:
 
 
 def _correct_new_barcode(old_barcode: str, new_barcode: str) -> ServiceResult:
-    from location_parser import compose_location, parse_system_location
+    from app.parsers.location import compose_location, parse_system_location
 
     if not TEMP_RESULTS_FILE.exists():
         return ServiceResult(ok=False, payload={"msg": "找不到阶段二结果文件"}, status_code=404)
