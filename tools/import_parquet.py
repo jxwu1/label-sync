@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-import stockpile_db  # noqa: E402
+from app.repositories import stockpile_db  # noqa: E402
 from etl.parquet_importer import import_cleaned_parquet  # noqa: E402
 
 

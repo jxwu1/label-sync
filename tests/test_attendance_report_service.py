@@ -3,8 +3,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-import attendance_report_service as rpt
-import attendance_service as svc
+from app.services import attendance_report as rpt
+from app.services import attendance as svc
 
 _TEST_ROOT = Path(__file__).resolve().parent
 

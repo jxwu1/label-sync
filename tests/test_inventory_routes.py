@@ -9,8 +9,8 @@ from unittest import mock
 
 from flask import Flask
 
-import stockpile_db
-from routes_inventory import bp
+from app.repositories import stockpile_db
+from app.routes.inventory import bp
 
 _TEST_DIR = Path(__file__).resolve().parent / "_test_inventory_routes"
 _FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -26,7 +26,7 @@ class _BaseRouteTest(unittest.TestCase):
         self.input_dir.mkdir()
         self._patches = [
             mock.patch.object(stockpile_db, "DB_PATH", self.test_db),
-            mock.patch("routes_inventory.INPUT_DIR", self.input_dir),
+            mock.patch("app.routes.inventory.INPUT_DIR", self.input_dir),
         ]
         for p in self._patches:
             p.start()

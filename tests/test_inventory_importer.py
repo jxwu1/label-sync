@@ -12,7 +12,7 @@ import pandas as pd
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
-from inventory_importer import (
+from app.importers.inventory import (
     DEFAULT_MAPPING,
     _clean_barcode_or_model,
     _clean_date,
@@ -20,8 +20,8 @@ from inventory_importer import (
     _clean_str,
     import_events,
 )
-from models import Base, Customer, InventoryEvent, Stockpile, Supplier
-from xls_html_parser import parse_xls_html
+from app.models import Base, Customer, InventoryEvent, Stockpile, Supplier
+from app.parsers.xls_html import parse_xls_html
 
 _TEST_DIR = Path(__file__).resolve().parent / "_test_inventory_importer"
 _FIXTURES = Path(__file__).resolve().parent / "fixtures"

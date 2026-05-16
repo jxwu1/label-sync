@@ -3,7 +3,7 @@
 
 import pytest
 
-from customer_classifier import classify_customer
+from app.utils.customer_classifier import classify_customer
 
 
 @pytest.mark.parametrize(

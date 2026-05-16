@@ -7,9 +7,9 @@ from unittest import mock
 
 from sqlalchemy import insert
 
-import recent_changes_service
-import stockpile_db
-from models import StockpileChange, StockpileSnapshot
+from app.services import recent_changes as recent_changes_service
+from app.repositories import stockpile_db
+from app.models import StockpileChange, StockpileSnapshot
 
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_recent_changes"
 

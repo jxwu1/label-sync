@@ -7,7 +7,7 @@ from unittest import mock
 
 import pandas as pd
 
-from location_parser import categorize_locations, compose_location, parse_locations
+from app.parsers.location import categorize_locations, compose_location, parse_locations
 from phase_scripts import update_location, update_location_phase2
 from phase_scripts.update_location_phase1 import (
     analyze_phase_one,

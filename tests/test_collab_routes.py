@@ -5,8 +5,8 @@ from unittest import mock
 
 from flask import Flask
 
-import message_service
-from routes_collab import bp
+from app.services import message as message_service
+from app.routes.collab import bp
 
 
 class CollabRoutesTests(unittest.TestCase):
@@ -45,7 +45,7 @@ class CollabRoutesTests(unittest.TestCase):
     # ---------- /text_delete ----------
 
     def test_text_delete_ok(self) -> None:
-        from schemas import ServiceResult
+        from app.schemas import ServiceResult
 
         with mock.patch.object(
             message_service, "delete_text_message", return_value=ServiceResult(ok=True)
@@ -55,7 +55,7 @@ class CollabRoutesTests(unittest.TestCase):
         m.assert_called_once_with(5)
 
     def test_text_delete_string_id_coerced(self) -> None:
-        from schemas import ServiceResult
+        from app.schemas import ServiceResult
 
         with mock.patch.object(
             message_service, "delete_text_message", return_value=ServiceResult(ok=True)

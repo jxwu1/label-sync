@@ -7,9 +7,9 @@ from unittest import mock
 
 from flask import Flask
 
-import stockpile_db
-from models import Customer
-from routes_foreign_customers import bp
+from app.repositories import stockpile_db
+from app.models import Customer
+from app.routes.foreign_customers import bp
 
 _TEST_DIR = Path(__file__).resolve().parent / "_test_foreign_customer_routes"
 

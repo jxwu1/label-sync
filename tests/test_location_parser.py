@@ -6,7 +6,7 @@
 
 import unittest
 
-from location_parser import parse_to_locations
+from app.parsers.location import parse_to_locations
 
 
 class ParseToLocationsTests(unittest.TestCase):

@@ -19,7 +19,7 @@ from pathlib import Path
 import pandas as pd
 from sqlalchemy.orm import Session
 
-from inventory_importer import ImportResult, import_events
+from app.importers.inventory import ImportResult, import_events
 
 _COMMON_MAPPING = {
     "event_at": "event_at",

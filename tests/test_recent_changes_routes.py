@@ -8,9 +8,9 @@ from unittest import mock
 from flask import Flask
 from sqlalchemy import insert
 
-import stockpile_db
-from models import StockpileChange, StockpileSnapshot
-from routes_recent_changes import bp
+from app.repositories import stockpile_db
+from app.models import StockpileChange, StockpileSnapshot
+from app.routes.recent_changes import bp
 
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_recent_changes_routes"
 

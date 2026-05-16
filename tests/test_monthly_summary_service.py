@@ -5,7 +5,7 @@ import unittest
 from datetime import date
 from pathlib import Path
 
-import monthly_summary_service as svc
+from app.services import monthly_summary as svc
 
 _TEST_ROOT = Path(__file__).resolve().parent
 

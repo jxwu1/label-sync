@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-import stockpile_db
-from foreign_customer_service import (
+from app.repositories import stockpile_db
+from app.services.foreign_customer import (
     add_record,
     delete_record,
     get_record,
@@ -15,7 +15,7 @@ from foreign_customer_service import (
     month_summary,
     update_record,
 )
-from models import Customer
+from app.models import Customer
 
 _TEST_DIR = Path(__file__).resolve().parent / "_test_foreign_customer"
 

@@ -17,7 +17,7 @@ import pytest
 @pytest.fixture
 def memdb(tmp_path, monkeypatch):
     """提供一个内存级别的 stockpile.db，独立于真实数据库。"""
-    import config
+    from app import config
 
     db_path = tmp_path / "stockpile.db"
     # 由于 CONFIG 是 frozen dataclass，需要替换整个对象
@@ -26,7 +26,7 @@ def memdb(tmp_path, monkeypatch):
     new_cfg = replace(config.CONFIG, base_dir=tmp_path)
     monkeypatch.setattr(config, "CONFIG", new_cfg)
     # stockpile_db.DB_PATH 在模块加载时绑定，需要重新指向
-    import stockpile_db
+    from app.repositories import stockpile_db
 
     monkeypatch.setattr(stockpile_db, "DB_PATH", db_path)
     stockpile_db.ensure_db()
@@ -69,8 +69,7 @@ def _insert_inventory_event(
 
 
 def test_find_record_by_barcode(memdb):
-    import history_service
-
+    from app.services import history as history_service
     _insert_stockpile(
         memdb,
         product_barcode="5828079100248",
@@ -89,8 +88,7 @@ def test_find_record_by_barcode(memdb):
 
 
 def test_find_record_by_model(memdb):
-    import history_service
-
+    from app.services import history as history_service
     _insert_stockpile(
         memdb,
         product_barcode="5828079100248",
@@ -105,21 +103,18 @@ def test_find_record_by_model(memdb):
 
 
 def test_find_record_not_found(memdb):
-    import history_service
-
+    from app.services import history as history_service
     assert history_service.find_record("does_not_exist") is None
 
 
 def test_find_record_empty_input(memdb):
-    import history_service
-
+    from app.services import history as history_service
     assert history_service.find_record("") is None
     assert history_service.find_record("   ") is None
 
 
 def test_aggregate_same_second_into_one_event(memdb):
-    import history_service
-
+    from app.services import history as history_service
     bc = "5828079100248"
     # 同一秒 4 条变更（仿真实 batch import 行为）
     for field, old, new in [
@@ -138,8 +133,7 @@ def test_aggregate_same_second_into_one_event(memdb):
 
 
 def test_aggregate_4_second_gap_merges(memdb):
-    import history_service
-
+    from app.services import history as history_service
     bc = "B1"
     _insert_change(memdb, bc, "stockpile_location", "X", "Y", "update", "2026-04-27 10:00:00")
     _insert_change(memdb, bc, "stockpile_location", "Y", "Z", "update", "2026-04-27 10:00:04")
@@ -149,8 +143,7 @@ def test_aggregate_4_second_gap_merges(memdb):
 
 
 def test_aggregate_6_second_gap_splits(memdb):
-    import history_service
-
+    from app.services import history as history_service
     bc = "B2"
     _insert_change(memdb, bc, "stockpile_location", "X", "Y", "update", "2026-04-27 10:00:00")
     _insert_change(memdb, bc, "stockpile_location", "Y", "Z", "update", "2026-04-27 10:00:06")
@@ -159,14 +152,12 @@ def test_aggregate_6_second_gap_splits(memdb):
 
 
 def test_aggregate_returns_empty_when_no_changes(memdb):
-    import history_service
-
+    from app.services import history as history_service
     assert history_service.aggregate_events("never_exists") == []
 
 
 def test_aggregate_orders_events_desc_by_time(memdb):
-    import history_service
-
+    from app.services import history as history_service
     bc = "B3"
     _insert_change(memdb, bc, "stockpile_location", "X", "Y", "update", "2026-04-25 10:00:00")
     _insert_change(memdb, bc, "stockpile_location", "Y", "Z", "update", "2026-04-26 10:00:00")
@@ -177,8 +168,7 @@ def test_aggregate_orders_events_desc_by_time(memdb):
 
 
 def test_build_response_found(memdb):
-    import history_service
-
+    from app.services import history as history_service
     _insert_stockpile(
         memdb,
         product_barcode="5828079100248",
@@ -205,8 +195,7 @@ def test_build_response_found(memdb):
 
 
 def test_build_response_not_found(memdb):
-    import history_service
-
+    from app.services import history as history_service
     resp = history_service.build_response("nope")
     assert resp["found"] is False
     assert "current" not in resp
@@ -217,8 +206,7 @@ def test_build_response_not_found(memdb):
 
 
 def test_fuzzy_returns_substring_matches_including_inactive(memdb):
-    import history_service
-
+    from app.services import history as history_service
     _insert_stockpile(
         memdb, product_barcode="ABC123", product_model="M1", stockpile_location="L1", is_active=1
     )
@@ -239,8 +227,7 @@ def test_fuzzy_returns_substring_matches_including_inactive(memdb):
 
 
 def test_fuzzy_short_query_returns_empty(memdb):
-    import history_service
-
+    from app.services import history as history_service
     _insert_stockpile(
         memdb, product_barcode="A1", product_model="X", stockpile_location="L", is_active=1
     )
@@ -249,8 +236,7 @@ def test_fuzzy_short_query_returns_empty(memdb):
 
 
 def test_build_response_falls_back_to_fuzzy_on_exact_miss(memdb):
-    import history_service
-
+    from app.services import history as history_service
     _insert_stockpile(
         memdb, product_barcode="ABC123", product_model="M1", stockpile_location="L1", is_active=1
     )
@@ -263,8 +249,7 @@ def test_build_response_falls_back_to_fuzzy_on_exact_miss(memdb):
 
 
 def test_build_response_no_fuzzy_when_exact_hit(memdb):
-    import history_service
-
+    from app.services import history as history_service
     _insert_stockpile(
         memdb, product_barcode="ABC123", product_model="M1", stockpile_location="L1", is_active=1
     )
@@ -319,15 +304,13 @@ def test_route_history_not_found(memdb):
 
 
 def test_full_timeline_empty_for_unknown_barcode(memdb):
-    import history_service
-
+    from app.services import history as history_service
     assert history_service.aggregate_full_timeline("never_exists") == []
 
 
 def test_full_timeline_returns_inventory_sale_event(memdb):
     """单独一条销售事件应该返回带 summary、change_type='sale' 的 event。"""
-    import history_service
-
+    from app.services import history as history_service
     bc = "5828079100248"
     _insert_inventory_event(
         memdb, bc, "sale", qty=5, at="2026-04-25", unit_price=12.5, customer_id="C001"
@@ -342,8 +325,7 @@ def test_full_timeline_returns_inventory_sale_event(memdb):
 
 
 def test_full_timeline_purchase_event_mentions_supplier(memdb):
-    import history_service
-
+    from app.services import history as history_service
     bc = "B5"
     _insert_inventory_event(
         memdb, bc, "purchase", qty=10, at="2026-04-26", unit_price=8.0, supplier_id="S99"
@@ -357,8 +339,7 @@ def test_full_timeline_purchase_event_mentions_supplier(memdb):
 
 def test_full_timeline_merges_changes_and_inventory_desc(memdb):
     """stockpile_changes + inventory_events 混合，按时间倒序。"""
-    import history_service
-
+    from app.services import history as history_service
     bc = "B6"
     # 较早的 stockpile_change
     _insert_change(memdb, bc, "stockpile_location", "X", "Y", "update", "2026-04-25 10:00:00")
@@ -380,8 +361,7 @@ def test_full_timeline_merges_changes_and_inventory_desc(memdb):
 
 def test_full_timeline_no_inventory_falls_back_to_changes_only(memdb):
     """没有 inventory_events 时退化为 aggregate_events 行为。"""
-    import history_service
-
+    from app.services import history as history_service
     bc = "B7"
     _insert_change(memdb, bc, "stockpile_location", "X", "Y", "update", "2026-04-27 10:00:00")
     events = history_service.aggregate_full_timeline(bc)
@@ -395,15 +375,13 @@ _EMPTY_SPLIT = {"stores": [], "warehouses": [], "unknown": []}
 
 
 def test_split_location_empty():
-    import history_service
-
+    from app.services import history as history_service
     assert history_service.split_location("") == _EMPTY_SPLIT
     assert history_service.split_location(None) == _EMPTY_SPLIT
 
 
 def test_split_location_store_only():
-    import history_service
-
+    from app.services import history as history_service
     assert history_service.split_location("A22-04-04") == {
         "stores": ["A22-04-04"],
         "warehouses": [],
@@ -412,8 +390,7 @@ def test_split_location_store_only():
 
 
 def test_split_location_warehouse_only():
-    import history_service
-
+    from app.services import history as history_service
     assert history_service.split_location("X11-02") == {
         "stores": [],
         "warehouses": ["X11-02"],
@@ -422,8 +399,7 @@ def test_split_location_warehouse_only():
 
 
 def test_split_location_store_plus_warehouse():
-    import history_service
-
+    from app.services import history as history_service
     assert history_service.split_location("A22-04-04/X11-02") == {
         "stores": ["A22-04-04"],
         "warehouses": ["X11-02"],
@@ -433,8 +409,7 @@ def test_split_location_store_plus_warehouse():
 
 def test_split_location_multi_store_future_compat():
     """阶段 1.5 schema 改造后可能出现的多段——展示层提前兼容。"""
-    import history_service
-
+    from app.services import history as history_service
     assert history_service.split_location("A22/B13/X11") == {
         "stores": ["A22", "B13"],
         "warehouses": ["X11"],
@@ -444,8 +419,7 @@ def test_split_location_multi_store_future_compat():
 
 def test_split_location_unknown_prefix_goes_to_unknown_column():
     """阶段 1.5 PR2：异常前缀进 unknown 列单独展示，不再静默丢弃。"""
-    import history_service
-
+    from app.services import history as history_service
     assert history_service.split_location("A22/Q99/X11") == {
         "stores": ["A22"],
         "warehouses": ["X11"],
@@ -461,8 +435,8 @@ def test_build_response_injects_split_into_current(memdb):
     用 stockpile_db.import_from_dataframe 走正常 dual-write 路径填子表。"""
     import pandas as pd
 
-    import history_service
-    import stockpile_db
+    from app.services import history as history_service
+    from app.repositories import stockpile_db
 
     stockpile_db.import_from_dataframe(
         pd.DataFrame(
@@ -486,8 +460,8 @@ def test_build_response_current_with_unknown_prefix(memdb):
     """子表中的 unknown kind 出现在 current.unknown_locations。"""
     import pandas as pd
 
-    import history_service
-    import stockpile_db
+    from app.services import history as history_service
+    from app.repositories import stockpile_db
 
     stockpile_db.import_from_dataframe(
         pd.DataFrame(
@@ -507,8 +481,7 @@ def test_build_response_current_with_unknown_prefix(memdb):
 
 
 def test_build_response_injects_split_into_location_changes(memdb):
-    import history_service
-
+    from app.services import history as history_service
     _insert_stockpile(
         memdb,
         product_barcode="BC2",

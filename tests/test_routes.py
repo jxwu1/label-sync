@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from flask import Flask
 
-from routes import register_routes
+from app.routes import register_routes
 
 
 class RouteTests(unittest.TestCase):
@@ -15,13 +15,13 @@ class RouteTests(unittest.TestCase):
 
     def test_run_rejects_when_stockpile_is_not_today(self):
         with (
-            patch("routes_pages_tasks.task_state.is_running", return_value=False),
+            patch("app.routes.pages_tasks.task_state.is_running", return_value=False),
             patch(
-                "routes_pages_tasks.task_state.is_waiting",
+                "app.routes.pages_tasks.task_state.is_waiting",
                 return_value=False,
             ),
             patch(
-                "routes_pages_tasks.storage_service.validate_stockpile_is_ready",
+                "app.routes.pages_tasks.storage_service.validate_stockpile_is_ready",
                 return_value=(False, "系统导出文件不是当天的"),
             ),
         ):
@@ -32,16 +32,16 @@ class RouteTests(unittest.TestCase):
 
     def test_run_starts_background_task_when_validation_passes(self):
         with (
-            patch("routes_pages_tasks.task_state.is_running", return_value=False),
+            patch("app.routes.pages_tasks.task_state.is_running", return_value=False),
             patch(
-                "routes_pages_tasks.task_state.is_waiting",
+                "app.routes.pages_tasks.task_state.is_waiting",
                 return_value=False,
             ),
             patch(
-                "routes_pages_tasks.storage_service.validate_stockpile_is_ready",
+                "app.routes.pages_tasks.storage_service.validate_stockpile_is_ready",
                 return_value=(True, None),
             ),
-            patch("routes_pages_tasks.task_service.start_background_task") as start_task,
+            patch("app.routes.pages_tasks.task_service.start_background_task") as start_task,
         ):
             response = self.client.post("/run")
 

@@ -6,8 +6,7 @@ from unittest import mock
 
 import pandas as pd
 
-import barcode_service
-
+from app.services import barcode as barcode_service
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_tmp_barcode"
 
 

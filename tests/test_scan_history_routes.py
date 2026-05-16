@@ -7,8 +7,8 @@ from unittest import mock
 
 from flask import Flask
 
-import scan_history_service
-from routes_scan_history import bp
+from app.services import scan_history as scan_history_service
+from app.routes.scan_history import bp
 
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_scan_history_routes"
 

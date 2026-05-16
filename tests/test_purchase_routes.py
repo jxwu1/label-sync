@@ -6,7 +6,7 @@ from unittest.mock import patch
 import openpyxl
 from flask import Flask
 
-from routes_purchase import bp
+from app.routes.purchase import bp
 
 
 def make_app():
@@ -46,7 +46,7 @@ class TestProcessSingleFile(unittest.TestCase):
     def setUp(self):
         self.client = make_app().test_client()
 
-    @patch("routes_purchase.stockpile_db.query_all_barcodes_set")
+    @patch("app.routes.purchase.stockpile_db.query_all_barcodes_set")
     def test_single_file_succeeds(self, mock_query):
         mock_query.return_value = {"EXIST-IN-SYSTEM"}
         response = self.client.post(
@@ -61,7 +61,7 @@ class TestProcessSingleFile(unittest.TestCase):
         self.assertEqual(body["new_barcodes"], ["1234567890123"])
         self.assertIn("EXIST-IN-SYSTEM", body["system_barcodes"])
 
-    @patch("routes_purchase.stockpile_db.query_all_barcodes_set")
+    @patch("app.routes.purchase.stockpile_db.query_all_barcodes_set")
     def test_all_existing_returns_no_new(self, mock_query):
         mock_query.return_value = {"1234567890123"}
         response = self.client.post(
@@ -87,7 +87,7 @@ class TestImportToStockpile(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
-    @patch("routes_purchase.purchase_service.import_new_barcodes")
+    @patch("app.routes.purchase.purchase_service.import_new_barcodes")
     def test_returns_count_on_success(self, mock_import):
         mock_import.return_value = 3
         response = self.client.post(

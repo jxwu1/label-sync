@@ -13,6 +13,22 @@ pre-commit install
 
 完事。以后 `git commit` 会自动跑 ruff + ruff format。
 
+## Claude Code 项目级 hook（可选，跨机器复现）
+
+仓库内含一个项目级 post-commit hook（`.claude/hooks/gitnexus-post-commit.cjs`），
+作用：每次 `.py` 改动 commit 后后台触发 `npx gitnexus analyze` 增量重索引。
+配置已在 `.claude/settings.json` 入仓，**Claude Code 启动新 session 时会自动加载**。
+
+CLAUDE.md 的「GitNexus 使用范围」覆盖段因为 skip-worktree 标志不入仓，需要手动追加：
+
+```bash
+# 新机器追加 CLAUDE.md 覆盖段（覆盖默认 "always do" 为 5 个具体场景）
+cat .claude/CLAUDE.md.append >> CLAUDE.md
+```
+
+附加后，CLAUDE.md 末尾会多出「GitNexus 使用范围（本项目覆盖默认）」段，
+narrowing 对 GitNexus 工具的强制使用范围。不做也行——只是更严格地遵守默认规则。
+
 前端 JS lint 已移除（Phase 4，2026-05-16）；JS 代码靠 IDE 自带语法检查。
 
 ---

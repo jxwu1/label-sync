@@ -7,8 +7,8 @@ from unittest import mock
 
 import pandas as pd
 
-import data_quality_service
-import stockpile_db
+from app.services import data_quality as data_quality_service
+from app.repositories import stockpile_db
 
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_data_quality"
 

@@ -10,15 +10,15 @@ from unittest import mock
 
 from sqlalchemy import insert, select
 
-import stockpile_db
-from models import BacktestResult, BacktestRun, InventoryEvent, Stockpile
+from app.repositories import stockpile_db
+from app.models import BacktestResult, BacktestRun, InventoryEvent, Stockpile
 
 _TMP = Path(__file__).resolve().parent / "_test_backtest_service"
 
 
 class ForecastDistTests(unittest.TestCase):
     def test_dataclass_fields(self) -> None:
-        from backtest_service import ForecastDist
+        from app.services.backtest import ForecastDist
 
         d = ForecastDist(mu=1.5, sigma=0.3, p50=1.5, p98=2.1)
         assert d.mu == 1.5
@@ -27,54 +27,54 @@ class ForecastDistTests(unittest.TestCase):
 
 class MetricsTests(unittest.TestCase):
     def test_mape_simple(self) -> None:
-        from backtest_service import mape
+        from app.services.backtest import mape
 
         assert abs(mape([10, 20], [12, 18]) - 0.15) < 1e-9
 
     def test_mape_zero_actuals_excluded(self) -> None:
-        from backtest_service import mape
+        from app.services.backtest import mape
 
         assert abs(mape([0, 10], [5, 11]) - 0.1) < 1e-9
 
     def test_mape_all_zero_actuals_returns_none(self) -> None:
-        from backtest_service import mape
+        from app.services.backtest import mape
 
         assert mape([0, 0, 0], [1, 2, 3]) is None
 
     def test_mape_empty_returns_none(self) -> None:
-        from backtest_service import mape
+        from app.services.backtest import mape
 
         assert mape([], []) is None
 
     def test_bias_signed(self) -> None:
-        from backtest_service import bias
+        from app.services.backtest import bias
 
         assert abs(bias([10, 20], [12, 17]) - (-0.5)) < 1e-9
 
     def test_mase(self) -> None:
-        from backtest_service import mase
+        from app.services.backtest import mase
 
         assert abs(mase([10, 20, 30, 40], [15, 25, 35, 45]) - 0.5) < 1e-9
 
     def test_mase_constant_actuals_none(self) -> None:
-        from backtest_service import mase
+        from app.services.backtest import mase
 
         assert mase([5, 5, 5], [4, 6, 5]) is None
 
     def test_coverage_p98_in_bound(self) -> None:
-        from backtest_service import coverage_p98
+        from app.services.backtest import coverage_p98
 
         assert abs(coverage_p98([5, 15, 25], [10, 20, 20]) - 2 / 3) < 1e-9
 
     def test_coverage_p98_all_in(self) -> None:
-        from backtest_service import coverage_p98
+        from app.services.backtest import coverage_p98
 
         assert coverage_p98([1, 2, 3], [10, 10, 10]) == 1.0
 
 
 class NaiveMean4WTests(unittest.TestCase):
     def test_predicts_mean_of_last_4(self) -> None:
-        from backtest_service import NaiveMean4W
+        from app.services.backtest import NaiveMean4W
 
         m = NaiveMean4W()
         m.fit([1, 2, 3, 4, 5, 6, 7, 8])
@@ -83,14 +83,14 @@ class NaiveMean4WTests(unittest.TestCase):
         assert p.p50 == 6.5
 
     def test_short_history_uses_all(self) -> None:
-        from backtest_service import NaiveMean4W
+        from app.services.backtest import NaiveMean4W
 
         m = NaiveMean4W()
         m.fit([10, 20])
         assert m.predict().mu == 15.0
 
     def test_empty_history(self) -> None:
-        from backtest_service import NaiveMean4W
+        from app.services.backtest import NaiveMean4W
 
         m = NaiveMean4W()
         m.fit([])
@@ -100,7 +100,7 @@ class NaiveMean4WTests(unittest.TestCase):
         assert p.p98 == 0.0
 
     def test_p98_never_negative(self) -> None:
-        from backtest_service import NaiveMean4W
+        from app.services.backtest import NaiveMean4W
 
         m = NaiveMean4W()
         m.fit([0, 0, 0, 0])
@@ -109,7 +109,7 @@ class NaiveMean4WTests(unittest.TestCase):
 
 class NaiveSeasonal52WTests(unittest.TestCase):
     def test_predicts_lag_52(self) -> None:
-        from backtest_service import NaiveSeasonal52W
+        from app.services.backtest import NaiveSeasonal52W
 
         history = [0] + [42] + [0] * 51
         m = NaiveSeasonal52W()
@@ -117,7 +117,7 @@ class NaiveSeasonal52WTests(unittest.TestCase):
         assert m.predict().mu == 42.0
 
     def test_short_history_falls_back_to_mean(self) -> None:
-        from backtest_service import NaiveSeasonal52W
+        from app.services.backtest import NaiveSeasonal52W
 
         m = NaiveSeasonal52W()
         m.fit([1, 2, 3])
@@ -126,28 +126,28 @@ class NaiveSeasonal52WTests(unittest.TestCase):
 
 class LinearTrend12WTests(unittest.TestCase):
     def test_increasing_trend(self) -> None:
-        from backtest_service import LinearTrend12W
+        from app.services.backtest import LinearTrend12W
 
         m = LinearTrend12W()
         m.fit([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
         assert abs(m.predict().mu - 13.0) < 1e-6
 
     def test_constant_trend_predicts_constant(self) -> None:
-        from backtest_service import LinearTrend12W
+        from app.services.backtest import LinearTrend12W
 
         m = LinearTrend12W()
         m.fit([5] * 12)
         assert abs(m.predict().mu - 5.0) < 1e-6
 
     def test_short_history_falls_back_to_mean(self) -> None:
-        from backtest_service import LinearTrend12W
+        from app.services.backtest import LinearTrend12W
 
         m = LinearTrend12W()
         m.fit([5, 10])
         assert m.predict().mu == 7.5
 
     def test_p98_never_negative(self) -> None:
-        from backtest_service import LinearTrend12W
+        from app.services.backtest import LinearTrend12W
 
         m = LinearTrend12W()
         m.fit([10, 8, 6, 4, 2, 1, 0, 0, 0, 0, 0, 0])
@@ -158,7 +158,7 @@ class CrostonSBATests(unittest.TestCase):
     """plan §2.2 间歇需求 baseline."""
 
     def test_basic_intermittent(self) -> None:
-        from backtest_service import CrostonSBA
+        from app.services.backtest import CrostonSBA
 
         history = [0, 0, 6, 0, 0, 6, 0, 0, 6]
         m = CrostonSBA()
@@ -167,14 +167,14 @@ class CrostonSBATests(unittest.TestCase):
         assert 1.5 < p.mu < 2.0
 
     def test_no_demand(self) -> None:
-        from backtest_service import CrostonSBA
+        from app.services.backtest import CrostonSBA
 
         m = CrostonSBA()
         m.fit([0, 0, 0, 0, 0])
         assert m.predict().mu == 0.0
 
     def test_single_demand_at_start(self) -> None:
-        from backtest_service import CrostonSBA
+        from app.services.backtest import CrostonSBA
 
         m = CrostonSBA()
         m.fit([10, 0, 0, 0, 0])
@@ -182,7 +182,7 @@ class CrostonSBATests(unittest.TestCase):
         assert 9.0 <= p.mu <= 10.0
 
     def test_empty_history(self) -> None:
-        from backtest_service import CrostonSBA
+        from app.services.backtest import CrostonSBA
 
         m = CrostonSBA()
         m.fit([])
@@ -191,14 +191,14 @@ class CrostonSBATests(unittest.TestCase):
 
 class WalkForwardTests(unittest.TestCase):
     def test_record_count(self) -> None:
-        from backtest_service import NaiveMean4W, walk_forward_backtest
+        from app.services.backtest import NaiveMean4W, walk_forward_backtest
 
         series = list(range(1, 21))
         records = walk_forward_backtest(series, NaiveMean4W, window_train=4, window_test=2)
         assert len(records) == 30
 
     def test_record_keys(self) -> None:
-        from backtest_service import NaiveMean4W, walk_forward_backtest
+        from app.services.backtest import NaiveMean4W, walk_forward_backtest
 
         series = list(range(1, 21))
         records = walk_forward_backtest(series, NaiveMean4W, window_train=4, window_test=2)
@@ -212,14 +212,14 @@ class WalkForwardTests(unittest.TestCase):
         }
 
     def test_horizon_cycles(self) -> None:
-        from backtest_service import NaiveMean4W, walk_forward_backtest
+        from app.services.backtest import NaiveMean4W, walk_forward_backtest
 
         series = list(range(1, 21))
         records = walk_forward_backtest(series, NaiveMean4W, window_train=4, window_test=2)
         assert [r["horizon"] for r in records[:4]] == [1, 2, 1, 2]
 
     def test_actual_matches_test_window(self) -> None:
-        from backtest_service import NaiveMean4W, walk_forward_backtest
+        from app.services.backtest import NaiveMean4W, walk_forward_backtest
 
         series = list(range(1, 21))
         records = walk_forward_backtest(series, NaiveMean4W, window_train=4, window_test=2)
@@ -227,7 +227,7 @@ class WalkForwardTests(unittest.TestCase):
         assert records[1]["actual"] == 6
 
     def test_step_idx_global_position(self) -> None:
-        from backtest_service import NaiveMean4W, walk_forward_backtest
+        from app.services.backtest import NaiveMean4W, walk_forward_backtest
 
         series = list(range(1, 21))
         records = walk_forward_backtest(series, NaiveMean4W, window_train=4, window_test=2)
@@ -235,7 +235,7 @@ class WalkForwardTests(unittest.TestCase):
         assert records[1]["step_idx"] == 5
 
     def test_too_short_returns_empty(self) -> None:
-        from backtest_service import NaiveMean4W, walk_forward_backtest
+        from app.services.backtest import NaiveMean4W, walk_forward_backtest
 
         records = walk_forward_backtest([1, 2, 3], NaiveMean4W, window_train=4, window_test=2)
         assert records == []
@@ -292,7 +292,7 @@ class _DBBase(unittest.TestCase):
 
 class RunBacktestForSkuTests(_DBBase):
     def test_returns_metrics_dict(self) -> None:
-        from backtest_service import NaiveMean4W, run_backtest_for_sku
+        from app.services.backtest import NaiveMean4W, run_backtest_for_sku
 
         self._seed_retail_weekly("B1", weeks=30)
         r = run_backtest_for_sku("B1", end_date=date(2026, 5, 13), weeks=30, model_cls=NaiveMean4W)
@@ -304,7 +304,7 @@ class RunBacktestForSkuTests(_DBBase):
         assert "coverage_p98" in r
 
     def test_returns_none_if_too_short(self) -> None:
-        from backtest_service import NaiveMean4W, run_backtest_for_sku
+        from app.services.backtest import NaiveMean4W, run_backtest_for_sku
 
         self._seed_retail_weekly("B1", weeks=5)
         r = run_backtest_for_sku(
@@ -318,7 +318,7 @@ class RunBacktestForSkuTests(_DBBase):
         assert r is None
 
     def test_returns_none_if_min_weeks_not_met(self) -> None:
-        from backtest_service import NaiveMean4W, run_backtest_for_sku
+        from app.services.backtest import NaiveMean4W, run_backtest_for_sku
 
         self._seed_retail_weekly("B1", weeks=30)
         r = run_backtest_for_sku(
@@ -331,7 +331,7 @@ class RunBacktestForSkuTests(_DBBase):
         assert r is None
 
     def test_wholesale_only_returns_none(self) -> None:
-        from backtest_service import NaiveMean4W, run_backtest_for_sku
+        from app.services.backtest import NaiveMean4W, run_backtest_for_sku
 
         # 5 个大单 doc → wholesale_only
         with stockpile_db._session() as s:
@@ -359,7 +359,7 @@ class RunBacktestForSkuTests(_DBBase):
         """view='all' 不过 base_demand → wholesale_only SKU 也跑."""
         from datetime import timedelta
 
-        from backtest_service import NaiveMean4W, run_backtest_for_sku
+        from app.services.backtest import NaiveMean4W, run_backtest_for_sku
 
         with stockpile_db._session() as s:
             for w in range(30):
@@ -387,7 +387,7 @@ class RunBacktestForSkuTests(_DBBase):
 
 class RunBacktestAllSkusTests(_DBBase):
     def test_writes_run_and_results(self) -> None:
-        from backtest_service import run_backtest_all_skus
+        from app.services.backtest import run_backtest_all_skus
 
         self._seed_stockpile("B1")
         self._seed_retail_weekly("B1", weeks=30)
@@ -414,7 +414,7 @@ class RunBacktestAllSkusTests(_DBBase):
             assert results[0].sku_type == "retail_dominant"
 
     def test_skipped_sku_not_in_results(self) -> None:
-        from backtest_service import run_backtest_all_skus
+        from app.services.backtest import run_backtest_all_skus
 
         self._seed_stockpile("B1")
         self._seed_retail_weekly("B1", weeks=5)  # 太短
@@ -436,7 +436,7 @@ class RunBacktestAllSkusTests(_DBBase):
             assert results == []
 
     def test_unknown_model_raises(self) -> None:
-        from backtest_service import run_backtest_all_skus
+        from app.services.backtest import run_backtest_all_skus
 
         with self.assertRaises(ValueError):
             run_backtest_all_skus(
@@ -446,7 +446,7 @@ class RunBacktestAllSkusTests(_DBBase):
             )
 
     def test_unknown_view_raises(self) -> None:
-        from backtest_service import run_backtest_all_skus
+        from app.services.backtest import run_backtest_all_skus
 
         with self.assertRaises(ValueError):
             run_backtest_all_skus(
@@ -461,7 +461,7 @@ class CompareRunPairTests(_DBBase):
     """plan §2.8 双视图回测对比."""
 
     def test_returns_summary_with_common_skus(self) -> None:
-        from backtest_service import compare_run_pair, run_backtest_all_skus
+        from app.services.backtest import compare_run_pair, run_backtest_all_skus
 
         self._seed_stockpile("B1")
         self._seed_retail_weekly("B1", weeks=30)
@@ -494,7 +494,7 @@ class CompareRunPairTests(_DBBase):
         """同一 SKU 同一视图 同一模型 → MASE 一致 → unchanged 计 1."""
         from datetime import timedelta
 
-        from backtest_service import compare_run_pair, run_backtest_all_skus
+        from app.services.backtest import compare_run_pair, run_backtest_all_skus
 
         # 波动序列, 让 lag-1 naive MAE != 0 → MASE 非 None
         self._seed_stockpile("B1")
@@ -532,13 +532,13 @@ class CompareRunPairTests(_DBBase):
         assert cmp["summary"]["median_mase_delta"] == 0.0
 
     def test_unknown_run_raises(self) -> None:
-        from backtest_service import compare_run_pair
+        from app.services.backtest import compare_run_pair
 
         with self.assertRaises(ValueError):
             compare_run_pair(99999, 99998)
 
     def test_no_common_skus_empty_items(self) -> None:
-        from backtest_service import compare_run_pair, run_backtest_all_skus
+        from app.services.backtest import compare_run_pair, run_backtest_all_skus
 
         self._seed_stockpile("B1")
         self._seed_stockpile("B2")

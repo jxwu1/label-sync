@@ -20,8 +20,8 @@ from unittest import mock
 
 from sqlalchemy import insert
 
-import stockpile_db
-from models import InventoryEvent
+from app.repositories import stockpile_db
+from app.models import InventoryEvent
 
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_forecast_data"
 
@@ -70,14 +70,14 @@ class _Base(unittest.TestCase):
 
 class WeeklyDemandSeriesTests(_Base):
     def test_no_sales_returns_all_zero_weeks(self) -> None:
-        from forecast_data import weekly_demand_series
+        from app.utils.forecast_data import weekly_demand_series
 
         s = weekly_demand_series("NOPE", end_date=date(2026, 5, 11), weeks=4)
         assert list(s.values()) == [0, 0, 0, 0]
         assert all(isinstance(k, date) for k in s.keys())
 
     def test_single_sale_lands_in_its_week(self) -> None:
-        from forecast_data import weekly_demand_series
+        from app.utils.forecast_data import weekly_demand_series
 
         self._add_event(event_at="2026-05-06", qty=10, document_no="D1")
         s = weekly_demand_series("B1", end_date=date(2026, 5, 11), weeks=4)
@@ -86,7 +86,7 @@ class WeeklyDemandSeriesTests(_Base):
 
     def test_returns_within_same_doc_same_week_net(self) -> None:
         """plan §1.0.1: 同 doc 同周原单 + 退货 → 净量."""
-        from forecast_data import weekly_demand_series
+        from app.utils.forecast_data import weekly_demand_series
 
         self._add_event(event_at="2026-05-06", qty=10, document_no="D1")
         self._add_event(event_at="2026-05-08", qty=-3, document_no="D1")
@@ -95,7 +95,7 @@ class WeeklyDemandSeriesTests(_Base):
 
     def test_returns_within_same_doc_cross_week_lands_on_earliest(self) -> None:
         """plan §1.0.1: 同 doc 跨周, 净量挂到原单 (最早事件) 那一周, 退货周不落负."""
-        from forecast_data import weekly_demand_series
+        from app.utils.forecast_data import weekly_demand_series
 
         self._add_event(event_at="2026-05-06", qty=10, document_no="D1")
         self._add_event(event_at="2026-05-13", qty=-3, document_no="D1")
@@ -105,14 +105,14 @@ class WeeklyDemandSeriesTests(_Base):
 
     def test_orphan_return_in_window_is_dropped(self) -> None:
         """plan §1.0.1: 原单在窗口外, 仅退货负数 → 丢弃, 周需求 = 0."""
-        from forecast_data import weekly_demand_series
+        from app.utils.forecast_data import weekly_demand_series
 
         self._add_event(event_at="2026-05-13", qty=-3, document_no="D_ORPHAN")
         s = weekly_demand_series("B1", end_date=date(2026, 5, 31), weeks=4)
         assert sum(s.values()) == 0
 
     def test_multiple_docs_same_week_sum(self) -> None:
-        from forecast_data import weekly_demand_series
+        from app.utils.forecast_data import weekly_demand_series
 
         self._add_event(event_at="2026-05-06", qty=5, document_no="D1")
         self._add_event(event_at="2026-05-07", qty=2, document_no="D2")
@@ -120,7 +120,7 @@ class WeeklyDemandSeriesTests(_Base):
         assert s[_monday(date(2026, 5, 6))] == 7
 
     def test_empty_weeks_filled_with_zero(self) -> None:
-        from forecast_data import weekly_demand_series
+        from app.utils.forecast_data import weekly_demand_series
 
         self._add_event(event_at="2026-05-06", qty=5, document_no="D1")
         s = weekly_demand_series("B1", end_date=date(2026, 5, 25), weeks=4)
@@ -132,7 +132,7 @@ class WeeklyDemandSeriesTests(_Base):
 
     def test_null_document_no_each_event_is_own_unit(self) -> None:
         """无 document_no 的多条事件不能错误合并 (各自当独立 1 doc)."""
-        from forecast_data import weekly_demand_series
+        from app.utils.forecast_data import weekly_demand_series
 
         self._add_event(event_at="2026-05-06", qty=5, document_no=None)
         self._add_event(event_at="2026-05-07", qty=3, document_no=None)
@@ -141,21 +141,21 @@ class WeeklyDemandSeriesTests(_Base):
 
     def test_null_document_no_negative_event_dropped(self) -> None:
         """无 doc_no 的负数事件没法 net (没原单可挂) → 单独丢弃."""
-        from forecast_data import weekly_demand_series
+        from app.utils.forecast_data import weekly_demand_series
 
         self._add_event(event_at="2026-05-06", qty=-3, document_no=None)
         s = weekly_demand_series("B1", end_date=date(2026, 5, 11), weeks=4)
         assert sum(s.values()) == 0
 
     def test_purchase_events_excluded(self) -> None:
-        from forecast_data import weekly_demand_series
+        from app.utils.forecast_data import weekly_demand_series
 
         self._add_event(event_at="2026-05-06", qty=100, event_type="purchase")
         s = weekly_demand_series("B1", end_date=date(2026, 5, 11), weeks=4)
         assert sum(s.values()) == 0
 
     def test_other_barcodes_excluded(self) -> None:
-        from forecast_data import weekly_demand_series
+        from app.utils.forecast_data import weekly_demand_series
 
         self._add_event(barcode="B1", event_at="2026-05-06", qty=5, document_no="D1")
         self._add_event(barcode="B2", event_at="2026-05-06", qty=99, document_no="D2")
@@ -164,7 +164,7 @@ class WeeklyDemandSeriesTests(_Base):
 
     def test_doc_fully_cancelled_drops(self) -> None:
         """同 doc 完全冲销 (sum=0) → 周为 0."""
-        from forecast_data import weekly_demand_series
+        from app.utils.forecast_data import weekly_demand_series
 
         self._add_event(event_at="2026-05-06", qty=5, document_no="D1")
         self._add_event(event_at="2026-05-07", qty=-5, document_no="D1")
@@ -176,23 +176,23 @@ class WinsorizeTests(unittest.TestCase):
     """plan §1.3: 顶部 q 分位以上压到 q 分位本身."""
 
     def test_empty(self) -> None:
-        from forecast_data import winsorize
+        from app.utils.forecast_data import winsorize
 
         assert winsorize([]) == []
 
     def test_constant_series_unchanged(self) -> None:
-        from forecast_data import winsorize
+        from app.utils.forecast_data import winsorize
 
         assert winsorize([5, 5, 5, 5]) == [5.0, 5.0, 5.0, 5.0]
 
     def test_q_1_0_unchanged(self) -> None:
-        from forecast_data import winsorize
+        from app.utils.forecast_data import winsorize
 
         assert winsorize([1, 2, 3, 100], q=1.0) == [1.0, 2.0, 3.0, 100.0]
 
     def test_q_0_95_caps_top(self) -> None:
         """[1..100] q=0.95 → 顶部 6 个值压到 q95 分位 (~95.05)."""
-        from forecast_data import winsorize
+        from app.utils.forecast_data import winsorize
 
         out = winsorize(list(range(1, 101)), q=0.95)
         threshold = max(out)
@@ -203,21 +203,21 @@ class WinsorizeTests(unittest.TestCase):
         assert n_capped >= 5
 
     def test_q_0_5_caps_above_median(self) -> None:
-        from forecast_data import winsorize
+        from app.utils.forecast_data import winsorize
 
         out = winsorize([1, 2, 3, 4, 5], q=0.5)
         # median=3, > 3 的 (4, 5) 都应压到 3
         assert out == [1.0, 2.0, 3.0, 3.0, 3.0]
 
     def test_zeros_preserved(self) -> None:
-        from forecast_data import winsorize
+        from app.utils.forecast_data import winsorize
 
         out = winsorize([0, 0, 0, 100], q=0.95)
         assert out[0] == 0.0
         assert out[3] < 100.0  # 顶部被压
 
     def test_does_not_mutate_input(self) -> None:
-        from forecast_data import winsorize
+        from app.utils.forecast_data import winsorize
 
         src = [1, 2, 100]
         winsorize(src, q=0.5)
@@ -226,20 +226,20 @@ class WinsorizeTests(unittest.TestCase):
 
 class ComputeDocQtyStatsTests(unittest.TestCase):
     def test_empty_returns_none(self) -> None:
-        from forecast_data import compute_doc_qty_stats
+        from app.utils.forecast_data import compute_doc_qty_stats
 
         assert compute_doc_qty_stats([]) is None
 
     def test_too_few_samples_returns_none(self) -> None:
         """< 4 个样本 → None (IQR 无意义)."""
-        from forecast_data import compute_doc_qty_stats
+        from app.utils.forecast_data import compute_doc_qty_stats
 
         assert compute_doc_qty_stats([1]) is None
         assert compute_doc_qty_stats([1, 2]) is None
         assert compute_doc_qty_stats([1, 2, 3]) is None
 
     def test_four_samples_returns_dict(self) -> None:
-        from forecast_data import compute_doc_qty_stats
+        from app.utils.forecast_data import compute_doc_qty_stats
 
         s = compute_doc_qty_stats([1, 2, 3, 4])
         assert s is not None
@@ -248,7 +248,7 @@ class ComputeDocQtyStatsTests(unittest.TestCase):
         assert s["iqr"] == s["q3"] - s["q1"]
 
     def test_constant_iqr_zero(self) -> None:
-        from forecast_data import compute_doc_qty_stats
+        from app.utils.forecast_data import compute_doc_qty_stats
 
         s = compute_doc_qty_stats([5, 5, 5, 5, 5])
         assert s is not None
@@ -256,7 +256,7 @@ class ComputeDocQtyStatsTests(unittest.TestCase):
         assert s["iqr"] == 0
 
     def test_wide_spread(self) -> None:
-        from forecast_data import compute_doc_qty_stats
+        from app.utils.forecast_data import compute_doc_qty_stats
 
         s = compute_doc_qty_stats([1, 2, 3, 4, 100])
         assert s is not None
@@ -267,7 +267,7 @@ class _BaseDemandViewBase(_Base):
     """base_demand_view 集成测试基类: 提供 customers 表辅助."""
 
     def _add_customer(self, customer_id: str, customer_type: str = "foreign") -> None:
-        from models import Customer
+        from app.models import Customer
 
         with stockpile_db._session() as s:
             s.execute(
@@ -306,7 +306,7 @@ class BaseDemandViewTests(_BaseDemandViewBase):
     """plan §1.2: 按 SKU 类型分流过滤异常单 + 客户类型."""
 
     def test_wholesale_only_returns_none_series(self) -> None:
-        from forecast_data import base_demand_view
+        from app.utils.forecast_data import base_demand_view
 
         for i in range(5):
             self._add_sale(event_at="2026-05-01", qty=720, document_no=f"D{i}")
@@ -317,14 +317,14 @@ class BaseDemandViewTests(_BaseDemandViewBase):
         assert out["exclusion_qty"] == 0
 
     def test_unclassified_when_no_data(self) -> None:
-        from forecast_data import base_demand_view
+        from app.utils.forecast_data import base_demand_view
 
         out = base_demand_view("NOPE", end_date=date(2026, 5, 11), weeks=4)
         assert out["sku_type"] == "unclassified"
         assert out["series"] is None or sum(out["series"].values()) == 0
 
     def test_retail_dominant_no_bulk_no_exclusion(self) -> None:
-        from forecast_data import base_demand_view
+        from app.utils.forecast_data import base_demand_view
 
         for i in range(8):
             self._add_sale(event_at="2026-05-06", qty=10, document_no=f"D{i}")
@@ -334,7 +334,7 @@ class BaseDemandViewTests(_BaseDemandViewBase):
         assert out["exclusion_count"] == 0
 
     def test_retail_dominant_excludes_bulk_doc(self) -> None:
-        from forecast_data import base_demand_view
+        from app.utils.forecast_data import base_demand_view
 
         for i in range(8):
             self._add_sale(event_at="2026-05-06", qty=10, document_no=f"D{i}")
@@ -346,7 +346,7 @@ class BaseDemandViewTests(_BaseDemandViewBase):
         assert out["exclusion_qty"] == 1000
 
     def test_retail_dominant_ignores_customer_type(self) -> None:
-        from forecast_data import base_demand_view
+        from app.utils.forecast_data import base_demand_view
 
         self._add_customer("C_UNK", "unknown")
         for i in range(8):
@@ -357,7 +357,7 @@ class BaseDemandViewTests(_BaseDemandViewBase):
         assert out["exclusion_count"] == 0
 
     def test_mixed_filters_unknown_customer(self) -> None:
-        from forecast_data import base_demand_view
+        from app.utils.forecast_data import base_demand_view
 
         self._add_customer("CF", "foreign")
         self._add_customer("CU", "unknown")
@@ -372,7 +372,7 @@ class BaseDemandViewTests(_BaseDemandViewBase):
 
     def test_mixed_keeps_chinese_customer(self) -> None:
         """mixed: chinese 客户即使是中等大单, 只要不 bulk 也保留 (是零售路径之一)."""
-        from forecast_data import base_demand_view
+        from app.utils.forecast_data import base_demand_view
 
         self._add_customer("CF", "foreign")
         self._add_customer("CC", "chinese")
@@ -390,7 +390,7 @@ class BaseDemandViewTests(_BaseDemandViewBase):
         assert out["series"][_monday(date(2026, 5, 6))] == 7 * 10 + 3 * 100
 
     def test_exclusion_qty_accumulates(self) -> None:
-        from forecast_data import base_demand_view
+        from app.utils.forecast_data import base_demand_view
 
         for i in range(8):
             self._add_sale(event_at="2026-05-06", qty=10, document_no=f"D{i}")
@@ -401,7 +401,7 @@ class BaseDemandViewTests(_BaseDemandViewBase):
         assert out["exclusion_qty"] == 1200
 
     def test_window_boundary_excludes_outside(self) -> None:
-        from forecast_data import base_demand_view
+        from app.utils.forecast_data import base_demand_view
 
         for i in range(8):
             self._add_sale(event_at="2026-05-06", qty=10, document_no=f"IN{i}")
@@ -410,7 +410,7 @@ class BaseDemandViewTests(_BaseDemandViewBase):
         assert sum(out["series"].values()) == 80
 
     def test_returns_netted_within_doc(self) -> None:
-        from forecast_data import base_demand_view
+        from app.utils.forecast_data import base_demand_view
 
         for i in range(5):
             self._add_sale(event_at="2026-05-06", qty=10, document_no=f"D{i}")
@@ -420,7 +420,7 @@ class BaseDemandViewTests(_BaseDemandViewBase):
         assert out["series"][_monday(date(2026, 5, 6))] == 57
 
     def test_orphan_return_not_in_series_and_not_excluded(self) -> None:
-        from forecast_data import base_demand_view
+        from app.utils.forecast_data import base_demand_view
 
         for i in range(5):
             self._add_sale(event_at="2026-05-06", qty=10, document_no=f"D{i}")
@@ -434,32 +434,32 @@ class IsBulkOrderTests(unittest.TestCase):
     """plan §1.5: qty > median + k·IQR → True; 不再用均值."""
 
     def test_none_stats_returns_false(self) -> None:
-        from forecast_data import is_bulk_order
+        from app.utils.forecast_data import is_bulk_order
 
         assert is_bulk_order(1000, None) is False
 
     def test_below_threshold(self) -> None:
-        from forecast_data import is_bulk_order
+        from app.utils.forecast_data import is_bulk_order
 
         stats = {"median": 10, "q1": 8, "q3": 12, "iqr": 4}
         # threshold = 10 + 3*4 = 22; qty=20 < 22
         assert is_bulk_order(20, stats) is False
 
     def test_at_threshold_not_bulk(self) -> None:
-        from forecast_data import is_bulk_order
+        from app.utils.forecast_data import is_bulk_order
 
         stats = {"median": 10, "q1": 8, "q3": 12, "iqr": 4}
         # threshold = 22; qty=22 → not strict greater → False
         assert is_bulk_order(22, stats) is False
 
     def test_above_threshold(self) -> None:
-        from forecast_data import is_bulk_order
+        from app.utils.forecast_data import is_bulk_order
 
         stats = {"median": 10, "q1": 8, "q3": 12, "iqr": 4}
         assert is_bulk_order(23, stats) is True
 
     def test_custom_k(self) -> None:
-        from forecast_data import is_bulk_order
+        from app.utils.forecast_data import is_bulk_order
 
         stats = {"median": 10, "q1": 8, "q3": 12, "iqr": 4}
         # k=1 → threshold = 14; qty=15 > 14 → True
@@ -468,14 +468,14 @@ class IsBulkOrderTests(unittest.TestCase):
         assert is_bulk_order(15, stats, k=5.0) is False
 
     def test_iqr_zero_only_median_matters(self) -> None:
-        from forecast_data import is_bulk_order
+        from app.utils.forecast_data import is_bulk_order
 
         stats = {"median": 10, "q1": 10, "q3": 10, "iqr": 0}
         assert is_bulk_order(10, stats) is False
         assert is_bulk_order(11, stats) is True
 
     def test_negative_qty_never_bulk(self) -> None:
-        from forecast_data import is_bulk_order
+        from app.utils.forecast_data import is_bulk_order
 
         stats = {"median": 10, "q1": 8, "q3": 12, "iqr": 4}
         assert is_bulk_order(-5, stats) is False

@@ -33,8 +33,8 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from sqlalchemy import text  # noqa: E402
 
-from config import CONFIG  # noqa: E402
-from models import get_engine  # noqa: E402
+from app.config import CONFIG  # noqa: E402
+from app.models import get_engine  # noqa: E402
 
 _TABLES_TO_WIPE = [
     "inventory_events",

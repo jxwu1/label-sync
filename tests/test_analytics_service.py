@@ -16,8 +16,8 @@ from unittest import mock
 
 from sqlalchemy import insert
 
-import stockpile_db
-from models import Customer, InventoryEvent
+from app.repositories import stockpile_db
+from app.models import Customer, InventoryEvent
 
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_analytics"
 
@@ -81,7 +81,7 @@ class _Base(unittest.TestCase):
 
 class SalesMetricsTests(_Base):
     def test_no_sales_returns_zeros(self) -> None:
-        from analytics_service import compute_sales_metrics
+        from app.services.analytics import compute_sales_metrics
 
         m = compute_sales_metrics("NOPE", as_of=date(2026, 5, 1))
         assert m["total_qty"] == 0
@@ -91,7 +91,7 @@ class SalesMetricsTests(_Base):
         assert m["trend_slope_pct_per_week"] is None
 
     def test_single_sale(self) -> None:
-        from analytics_service import compute_sales_metrics
+        from app.services.analytics import compute_sales_metrics
 
         self._add_event(event_at="2026-04-15", qty=10, unit_price=2.5, customer_id="C1")
         m = compute_sales_metrics("B1", as_of=date(2026, 5, 1))
@@ -101,7 +101,7 @@ class SalesMetricsTests(_Base):
         assert m["lifespan_days"] == 0
 
     def test_revenue_applies_discount(self) -> None:
-        from analytics_service import compute_sales_metrics
+        from app.services.analytics import compute_sales_metrics
 
         # 10 × 2.5 × (1 - 20%) = 20.0
         self._add_event(event_at="2026-04-15", qty=10, unit_price=2.5, discount_pct=20.0)
@@ -109,7 +109,7 @@ class SalesMetricsTests(_Base):
         assert m["total_revenue"] == 20.0
 
     def test_lifespan_days(self) -> None:
-        from analytics_service import compute_sales_metrics
+        from app.services.analytics import compute_sales_metrics
 
         self._add_event(event_at="2026-01-01", qty=1)
         self._add_event(event_at="2026-04-15", qty=2, document_no="D2")
@@ -117,7 +117,7 @@ class SalesMetricsTests(_Base):
         assert m["lifespan_days"] == 104  # 2026-01-01 → 2026-04-15
 
     def test_unique_customers_counts_distinct(self) -> None:
-        from analytics_service import compute_sales_metrics
+        from app.services.analytics import compute_sales_metrics
 
         self._add_event(event_at="2026-04-01", qty=1, customer_id="C1", document_no="D1")
         self._add_event(event_at="2026-04-02", qty=1, customer_id="C1", document_no="D2")
@@ -129,7 +129,7 @@ class SalesMetricsTests(_Base):
 
     def test_trend_slope_increasing(self) -> None:
         """每周销量递增 → 斜率 > 0。"""
-        from analytics_service import compute_sales_metrics
+        from app.services.analytics import compute_sales_metrics
 
         as_of = date(2026, 5, 1)
         # 12 周，每周一笔，销量 1, 2, ..., 12
@@ -146,7 +146,7 @@ class SalesMetricsTests(_Base):
 
     def test_trend_slope_none_when_all_outside_window(self) -> None:
         """所有销售都在 12 周外 → 趋势 None。"""
-        from analytics_service import compute_sales_metrics
+        from app.services.analytics import compute_sales_metrics
 
         # 1 年前的销售
         self._add_event(event_at="2025-04-01", qty=100)
@@ -157,7 +157,7 @@ class SalesMetricsTests(_Base):
 
 class PurchaseMetricsTests(_Base):
     def test_no_events(self) -> None:
-        from analytics_service import compute_purchase_metrics
+        from app.services.analytics import compute_purchase_metrics
 
         m = compute_purchase_metrics("NOPE", as_of=date(2026, 5, 1))
         assert m["stock_balance"] == 0
@@ -166,7 +166,7 @@ class PurchaseMetricsTests(_Base):
         assert m["last_purchase_days_ago"] is None
 
     def test_stock_balance_positive(self) -> None:
-        from analytics_service import compute_purchase_metrics
+        from app.services.analytics import compute_purchase_metrics
 
         self._add_event(event_type="purchase", event_at="2026-01-01", qty=100)
         self._add_event(event_type="sale", event_at="2026-02-01", qty=30, document_no="S1")
@@ -175,7 +175,7 @@ class PurchaseMetricsTests(_Base):
 
     def test_stock_balance_negative(self) -> None:
         """卖得比进得多（早期没数据补全） → 负数。"""
-        from analytics_service import compute_purchase_metrics
+        from app.services.analytics import compute_purchase_metrics
 
         self._add_event(event_type="sale", event_at="2026-02-01", qty=50)
         m = compute_purchase_metrics("B1", as_of=date(2026, 5, 1))
@@ -183,7 +183,7 @@ class PurchaseMetricsTests(_Base):
 
     def test_avg_margin_pct(self) -> None:
         """进 6 / 售 10 不打折 → margin (10-6)/10 = 40%."""
-        from analytics_service import compute_purchase_metrics
+        from app.services.analytics import compute_purchase_metrics
 
         self._add_event(event_type="purchase", event_at="2026-01-01", qty=10, unit_price=6.0)
         self._add_event(event_type="sale", event_at="2026-02-01", qty=5, unit_price=10.0)
@@ -191,14 +191,14 @@ class PurchaseMetricsTests(_Base):
         assert m["avg_margin_pct"] == 40.0
 
     def test_avg_margin_none_when_no_purchases_with_price(self) -> None:
-        from analytics_service import compute_purchase_metrics
+        from app.services.analytics import compute_purchase_metrics
 
         self._add_event(event_type="sale", event_at="2026-02-01", qty=5, unit_price=10.0)
         m = compute_purchase_metrics("B1", as_of=date(2026, 5, 1))
         assert m["avg_margin_pct"] is None
 
     def test_purchase_freq_365d_window(self) -> None:
-        from analytics_service import compute_purchase_metrics
+        from app.services.analytics import compute_purchase_metrics
 
         as_of = date(2026, 5, 1)
         # 在窗口内
@@ -210,7 +210,7 @@ class PurchaseMetricsTests(_Base):
         assert m["purchase_freq_365d"] == 2
 
     def test_last_purchase_days_ago(self) -> None:
-        from analytics_service import compute_purchase_metrics
+        from app.services.analytics import compute_purchase_metrics
 
         self._add_event(event_type="purchase", event_at="2026-04-21", qty=10)
         m = compute_purchase_metrics("B1", as_of=date(2026, 5, 1))
@@ -219,7 +219,7 @@ class PurchaseMetricsTests(_Base):
 
 class CustomerSplitTests(_Base):
     def test_split_separates_cn_fo(self) -> None:
-        from analytics_service import compute_customer_split
+        from app.services.analytics import compute_customer_split
 
         self._add_customer("CN1", "chinese", "张三")
         self._add_customer("FO1", "foreign", "GIANNIS")
@@ -236,7 +236,7 @@ class CustomerSplitTests(_Base):
         assert split["fo"]["unique_customers"] == 1
 
     def test_split_max_single_qty(self) -> None:
-        from analytics_service import compute_customer_split
+        from app.services.analytics import compute_customer_split
 
         self._add_customer("FO1", "foreign", "GIANNIS")
         self._add_event(event_at="2026-04-01", qty=3, customer_id="FO1", document_no="D1")
@@ -248,7 +248,7 @@ class CustomerSplitTests(_Base):
         assert split["fo"]["last_at"] == "2026-04-03"
 
     def test_split_empty_when_no_sales(self) -> None:
-        from analytics_service import compute_customer_split
+        from app.services.analytics import compute_customer_split
 
         split = compute_customer_split("NOPE", as_of=date(2026, 5, 1))
         assert split["cn"]["qty"] == 0
@@ -259,7 +259,7 @@ class CustomerSplitTests(_Base):
 
 class RecomputeCategoriesTests(_Base):
     def _add_stockpile(self, barcode: str, is_active: int = 1) -> None:
-        from models import Stockpile
+        from app.models import Stockpile
 
         with stockpile_db._session() as s:
             s.execute(
@@ -273,8 +273,8 @@ class RecomputeCategoriesTests(_Base):
             s.commit()
 
     def test_recompute_writes_auto_category(self) -> None:
-        from analytics_service import recompute_categories
-        from models import Stockpile
+        from app.services.analytics import recompute_categories
+        from app.models import Stockpile
 
         # SKU 1: 新品（最近一笔）
         self._add_stockpile("NEW1")

@@ -20,7 +20,7 @@ from etl.parquet_importer import (
     import_cleaned_parquet,
     import_dataframe,
 )
-from models import Base, Customer, InventoryEvent, Stockpile, Supplier
+from app.models import Base, Customer, InventoryEvent, Stockpile, Supplier
 
 _TEST_DIR = Path(__file__).resolve().parent / "_test_parquet_importer"
 

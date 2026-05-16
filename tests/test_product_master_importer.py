@@ -9,8 +9,8 @@ import pandas as pd
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
-from models import Base, Stockpile, Supplier
-from product_master_importer import (
+from app.models import Base, Stockpile, Supplier
+from app.importers.product_master import (
     DEFAULT_PRODUCT_MAPPING,
     _is_active_from_web_status,
     _row_to_extra,
@@ -212,7 +212,7 @@ class ImportProductMasterTests(_Base):
 
     def test_import_writes_stockpile_changes_log(self) -> None:
         """新建 SKU 写 insert change；已有 SKU 字段变化写 update change。"""
-        from models import StockpileChange
+        from app.models import StockpileChange
 
         # 第一次 import — 新建
         df1 = pd.DataFrame([self._row(stock_price=8.5)])
@@ -247,7 +247,7 @@ class ImportProductMasterTests(_Base):
 
     def test_import_syncs_locations_subtable(self) -> None:
         """新建 / 更新都要同步 stockpile_locations 子表。"""
-        from models import StockpileLocation
+        from app.models import StockpileLocation
 
         df = pd.DataFrame([self._row(stockpile_location="A14-12-01/X11-02")])
         with Session(self.engine) as session:
@@ -261,7 +261,7 @@ class ImportProductMasterTests(_Base):
     def test_import_writes_snapshot(self) -> None:
         """每次 import_product_master 末尾打一个 trigger='import' 的 snapshot，
         让最近改动 tab 把这次产品总档导入当作批次显示。"""
-        from models import StockpileSnapshot
+        from app.models import StockpileSnapshot
 
         df = pd.DataFrame([self._row()])
         with Session(self.engine) as session:
