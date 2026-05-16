@@ -178,9 +178,7 @@ def backtest_list_runs():
 
     with stockpile_db._session() as session:
         rows = (
-            session.execute(
-                select(BacktestRun).order_by(BacktestRun.id.desc()).limit(50)
-            )
+            session.execute(select(BacktestRun).order_by(BacktestRun.id.desc()).limit(50))
             .scalars()
             .all()
         )
@@ -247,9 +245,7 @@ def backtest_results():
 
     with stockpile_db._session() as session:
         rows = (
-            session.execute(
-                select(BacktestResult).where(BacktestResult.run_id == run_id)
-            )
+            session.execute(select(BacktestResult).where(BacktestResult.run_id == run_id))
             .scalars()
             .all()
         )

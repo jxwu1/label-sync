@@ -8,6 +8,7 @@
 待 §1.2 base_demand_view 整合层 (PR4) 把以上组合起来.
 §1.4 stockout_adjust 等 SKU 级日库存快照表建好再做.
 """
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -53,9 +54,7 @@ def weekly_demand_series(
         raise ValueError("weeks must be >= 1")
 
     end_monday = _monday(end_date)
-    week_starts = [
-        end_monday - timedelta(days=7 * (weeks - 1 - i)) for i in range(weeks)
-    ]
+    week_starts = [end_monday - timedelta(days=7 * (weeks - 1 - i)) for i in range(weeks)]
     window_start = week_starts[0]
     window_end_exclusive = end_monday + timedelta(days=7)
     series: dict[date, int] = {w: 0 for w in week_starts}
@@ -188,9 +187,7 @@ def base_demand_view(
     if weeks < 1:
         raise ValueError("weeks must be >= 1")
     end_monday = _monday(end_date)
-    week_starts = [
-        end_monday - timedelta(days=7 * (weeks - 1 - i)) for i in range(weeks)
-    ]
+    week_starts = [end_monday - timedelta(days=7 * (weeks - 1 - i)) for i in range(weeks)]
     window_start = week_starts[0]
     window_end_exclusive = end_monday + timedelta(days=7)
     series: dict[date, int] = {w: 0 for w in week_starts}

@@ -15,10 +15,12 @@
 - MAPE 对 actual=0 周剔除, 全零返回 None
 - MASE 用 lag-1 naive MAE 做分母; 分母为 0 返回 None
 """
+
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Protocol
+from typing import Protocol
 
 import numpy as np
 
@@ -216,7 +218,7 @@ def walk_forward_backtest(
 def mape(actual: list[float], predicted: list[float]) -> float | None:
     if not actual:
         return None
-    errs = [abs(a - p) / a for a, p in zip(actual, predicted) if a != 0]
+    errs = [abs(a - p) / a for a, p in zip(actual, predicted, strict=False) if a != 0]
     if not errs:
         return None
     return float(sum(errs) / len(errs))
@@ -225,17 +227,17 @@ def mape(actual: list[float], predicted: list[float]) -> float | None:
 def bias(actual: list[float], predicted: list[float]) -> float:
     if not actual:
         return 0.0
-    diffs = [p - a for a, p in zip(actual, predicted)]
+    diffs = [p - a for a, p in zip(actual, predicted, strict=False)]
     return float(sum(diffs) / len(diffs))
 
 
 def mase(actual: list[float], predicted: list[float]) -> float | None:
     if len(actual) < 2:
         return None
-    model_mae = sum(abs(a - p) for a, p in zip(actual, predicted)) / len(actual)
-    naive_mae = sum(
-        abs(actual[i] - actual[i - 1]) for i in range(1, len(actual))
-    ) / (len(actual) - 1)
+    model_mae = sum(abs(a - p) for a, p in zip(actual, predicted, strict=False)) / len(actual)
+    naive_mae = sum(abs(actual[i] - actual[i - 1]) for i in range(1, len(actual))) / (
+        len(actual) - 1
+    )
     if naive_mae == 0:
         return None
     return float(model_mae / naive_mae)
@@ -244,7 +246,7 @@ def mase(actual: list[float], predicted: list[float]) -> float | None:
 def coverage_p98(actual: list[float], p98: list[float]) -> float:
     if not actual:
         return 0.0
-    in_bound = sum(1 for a, hi in zip(actual, p98) if a <= hi)
+    in_bound = sum(1 for a, hi in zip(actual, p98, strict=False) if a <= hi)
     return float(in_bound / len(actual))
 
 
@@ -351,9 +353,9 @@ def run_backtest_all_skus(
     model_name 必须在 BASELINES 字典内。
     barcodes=None: 跑所有 stockpile 主档活跃 SKU。barcodes=[...] 跑指定子集 (测试 / 单跑用)。
     """
-    import stockpile_db
     from sqlalchemy import insert, select, update
 
+    import stockpile_db
     from models import BacktestResult, BacktestRun, Stockpile
 
     if model_name not in BASELINES:
@@ -448,9 +450,9 @@ def compare_run_pair(run_id_a: int, run_id_b: int) -> dict:
         }
     }
     """
-    import stockpile_db
     from sqlalchemy import select
 
+    import stockpile_db
     from models import BacktestResult, BacktestRun
 
     with stockpile_db._session() as s:
@@ -463,12 +465,16 @@ def compare_run_pair(run_id_a: int, run_id_b: int) -> dict:
         if run_a is None or run_b is None:
             raise ValueError(f"run not found: a={run_id_a} b={run_id_b}")
 
-        rows_a = s.execute(
-            select(BacktestResult).where(BacktestResult.run_id == run_id_a)
-        ).scalars().all()
-        rows_b = s.execute(
-            select(BacktestResult).where(BacktestResult.run_id == run_id_b)
-        ).scalars().all()
+        rows_a = (
+            s.execute(select(BacktestResult).where(BacktestResult.run_id == run_id_a))
+            .scalars()
+            .all()
+        )
+        rows_b = (
+            s.execute(select(BacktestResult).where(BacktestResult.run_id == run_id_b))
+            .scalars()
+            .all()
+        )
 
     map_a = {r.product_barcode: r for r in rows_a}
     map_b = {r.product_barcode: r for r in rows_b}
@@ -479,12 +485,8 @@ def compare_run_pair(run_id_a: int, run_id_b: int) -> dict:
     improved = worsened = unchanged = 0
     for bc in common:
         ra, rb = map_a[bc], map_b[bc]
-        mape_delta = (
-            (rb.mape - ra.mape) if (ra.mape is not None and rb.mape is not None) else None
-        )
-        mase_delta = (
-            (rb.mase - ra.mase) if (ra.mase is not None and rb.mase is not None) else None
-        )
+        mape_delta = (rb.mape - ra.mape) if (ra.mape is not None and rb.mape is not None) else None
+        mase_delta = (rb.mase - ra.mase) if (ra.mase is not None and rb.mase is not None) else None
         items.append(
             {
                 "product_barcode": bc,
@@ -512,9 +514,7 @@ def compare_run_pair(run_id_a: int, run_id_b: int) -> dict:
     if deltas:
         sd = sorted(deltas)
         n = len(sd)
-        median_delta = (
-            sd[n // 2] if n % 2 else (sd[n // 2 - 1] + sd[n // 2]) / 2.0
-        )
+        median_delta = sd[n // 2] if n % 2 else (sd[n // 2 - 1] + sd[n // 2]) / 2.0
 
     return {
         "run_a": {

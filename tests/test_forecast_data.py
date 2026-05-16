@@ -9,6 +9,7 @@
 - 空周补 0
 - 无 document_no 的事件按单条处理 (fallback 不能让多条独立事件被错误合并)
 """
+
 from __future__ import annotations
 
 import shutil
@@ -349,8 +350,7 @@ class BaseDemandViewTests(_BaseDemandViewBase):
 
         self._add_customer("C_UNK", "unknown")
         for i in range(8):
-            self._add_sale(event_at="2026-05-06", qty=10, document_no=f"D{i}",
-                           customer_id="C_UNK")
+            self._add_sale(event_at="2026-05-06", qty=10, document_no=f"D{i}", customer_id="C_UNK")
         out = base_demand_view("B1", end_date=date(2026, 5, 11), weeks=4)
         assert out["sku_type"] == "retail_dominant"
         assert out["series"][_monday(date(2026, 5, 6))] == 80
@@ -362,11 +362,9 @@ class BaseDemandViewTests(_BaseDemandViewBase):
         self._add_customer("CF", "foreign")
         self._add_customer("CU", "unknown")
         for i in range(10):
-            self._add_sale(event_at="2026-05-06", qty=10, document_no=f"R{i}",
-                           customer_id="CF")
+            self._add_sale(event_at="2026-05-06", qty=10, document_no=f"R{i}", customer_id="CF")
         for i in range(5):
-            self._add_sale(event_at="2026-05-06", qty=200, document_no=f"W{i}",
-                           customer_id="CU")
+            self._add_sale(event_at="2026-05-06", qty=200, document_no=f"W{i}", customer_id="CU")
         out = base_demand_view("B1", end_date=date(2026, 5, 11), weeks=4)
         assert out["sku_type"] == "mixed"
         assert out["exclusion_count"] == 5
@@ -383,11 +381,9 @@ class BaseDemandViewTests(_BaseDemandViewBase):
         # median=10, IQR~67.5, threshold~212.5 → 100 不算 bulk
         # chinese ∈ (foreign, chinese) → 客户过滤通过 → 全保留
         for i in range(7):
-            self._add_sale(event_at="2026-05-06", qty=10, document_no=f"R{i}",
-                           customer_id="CF")
+            self._add_sale(event_at="2026-05-06", qty=10, document_no=f"R{i}", customer_id="CF")
         for i in range(3):
-            self._add_sale(event_at="2026-05-06", qty=100, document_no=f"M{i}",
-                           customer_id="CC")
+            self._add_sale(event_at="2026-05-06", qty=100, document_no=f"M{i}", customer_id="CC")
         out = base_demand_view("B1", end_date=date(2026, 5, 11), weeks=4)
         assert out["sku_type"] == "mixed"
         assert out["exclusion_count"] == 0

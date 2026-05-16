@@ -3,6 +3,7 @@
 Docker / waitress / gunicorn 都通过这里加载 Flask app.
 开发仍可以直接 `python server.py`.
 """
+
 from server import app  # noqa: F401
 
 if __name__ == "__main__":

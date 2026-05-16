@@ -347,9 +347,7 @@ class BacktestResult(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    run_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("backtest_runs.id"), nullable=False
-    )
+    run_id: Mapped[int] = mapped_column(Integer, ForeignKey("backtest_runs.id"), nullable=False)
     product_barcode: Mapped[str] = mapped_column(Text, nullable=False)
     sku_type: Mapped[str] = mapped_column(Text, nullable=False)
     n_weeks_train: Mapped[int] = mapped_column(Integer, nullable=False)

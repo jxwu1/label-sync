@@ -324,13 +324,21 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
         self._seed_weekly("B1", weeks=30)
         post_a = self.client.post(
             "/analytics/backtest/run",
-            json={"model_name": "NaiveMean4W", "end_date": "2026-05-13",
-                  "view": "all", "barcodes": ["B1"]},
+            json={
+                "model_name": "NaiveMean4W",
+                "end_date": "2026-05-13",
+                "view": "all",
+                "barcodes": ["B1"],
+            },
         )
         post_b = self.client.post(
             "/analytics/backtest/run",
-            json={"model_name": "NaiveMean4W", "end_date": "2026-05-13",
-                  "view": "base_demand", "barcodes": ["B1"]},
+            json={
+                "model_name": "NaiveMean4W",
+                "end_date": "2026-05-13",
+                "view": "base_demand",
+                "barcodes": ["B1"],
+            },
         )
         a = post_a.get_json()["run_id"]
         b = post_b.get_json()["run_id"]

@@ -1,4 +1,5 @@
 """backtest_service 单测 (plan §2.1-2.7)."""
+
 from __future__ import annotations
 
 import shutil
@@ -10,7 +11,7 @@ from unittest import mock
 from sqlalchemy import insert, select
 
 import stockpile_db
-from models import BacktestResult, BacktestRun, Customer, InventoryEvent, Stockpile
+from models import BacktestResult, BacktestRun, InventoryEvent, Stockpile
 
 _TMP = Path(__file__).resolve().parent / "_test_backtest_service"
 
@@ -307,8 +308,12 @@ class RunBacktestForSkuTests(_DBBase):
 
         self._seed_retail_weekly("B1", weeks=5)
         r = run_backtest_for_sku(
-            "B1", end_date=date(2026, 5, 13), weeks=4,
-            model_cls=NaiveMean4W, window_train=13, window_test=4,
+            "B1",
+            end_date=date(2026, 5, 13),
+            weeks=4,
+            model_cls=NaiveMean4W,
+            window_train=13,
+            window_test=4,
         )
         assert r is None
 
@@ -317,8 +322,11 @@ class RunBacktestForSkuTests(_DBBase):
 
         self._seed_retail_weekly("B1", weeks=30)
         r = run_backtest_for_sku(
-            "B1", end_date=date(2026, 5, 13), weeks=30,
-            model_cls=NaiveMean4W, min_weeks=100,
+            "B1",
+            end_date=date(2026, 5, 13),
+            weeks=30,
+            model_cls=NaiveMean4W,
+            min_weeks=100,
         )
         assert r is None
 
@@ -339,15 +347,19 @@ class RunBacktestForSkuTests(_DBBase):
                 )
             s.commit()
         r = run_backtest_for_sku(
-            "WO", end_date=date(2026, 5, 13), weeks=30,
-            model_cls=NaiveMean4W, view="base_demand",
+            "WO",
+            end_date=date(2026, 5, 13),
+            weeks=30,
+            model_cls=NaiveMean4W,
+            view="base_demand",
         )
         assert r is None
 
     def test_view_all_includes_wholesale(self) -> None:
         """view='all' 不过 base_demand → wholesale_only SKU 也跑."""
-        from backtest_service import NaiveMean4W, run_backtest_for_sku
         from datetime import timedelta
+
+        from backtest_service import NaiveMean4W, run_backtest_for_sku
 
         with stockpile_db._session() as s:
             for w in range(30):
@@ -363,8 +375,11 @@ class RunBacktestForSkuTests(_DBBase):
                 )
             s.commit()
         r = run_backtest_for_sku(
-            "WO", end_date=date(2026, 5, 13), weeks=30,
-            model_cls=NaiveMean4W, view="all",
+            "WO",
+            end_date=date(2026, 5, 13),
+            weeks=30,
+            model_cls=NaiveMean4W,
+            view="all",
         )
         assert r is not None
         assert r["sku_type"] == "wholesale_only"
@@ -389,9 +404,11 @@ class RunBacktestAllSkusTests(_DBBase):
             assert run.notes == "test"
             assert run.n_skus_total == 1
             assert run.n_skus_scored == 1
-            results = s.execute(
-                select(BacktestResult).where(BacktestResult.run_id == run_id)
-            ).scalars().all()
+            results = (
+                s.execute(select(BacktestResult).where(BacktestResult.run_id == run_id))
+                .scalars()
+                .all()
+            )
             assert len(results) == 1
             assert results[0].product_barcode == "B1"
             assert results[0].sku_type == "retail_dominant"
@@ -411,9 +428,11 @@ class RunBacktestAllSkusTests(_DBBase):
             run = s.execute(select(BacktestRun).where(BacktestRun.id == run_id)).scalar_one()
             assert run.n_skus_total == 1
             assert run.n_skus_scored == 0
-            results = s.execute(
-                select(BacktestResult).where(BacktestResult.run_id == run_id)
-            ).scalars().all()
+            results = (
+                s.execute(select(BacktestResult).where(BacktestResult.run_id == run_id))
+                .scalars()
+                .all()
+            )
             assert results == []
 
     def test_unknown_model_raises(self) -> None:
@@ -448,13 +467,17 @@ class CompareRunPairTests(_DBBase):
         self._seed_retail_weekly("B1", weeks=30)
         run_a = run_backtest_all_skus(
             model_name="NaiveMean4W",
-            end_date=date(2026, 5, 13), weeks=30,
-            view="all", barcodes=["B1"],
+            end_date=date(2026, 5, 13),
+            weeks=30,
+            view="all",
+            barcodes=["B1"],
         )
         run_b = run_backtest_all_skus(
             model_name="NaiveMean4W",
-            end_date=date(2026, 5, 13), weeks=30,
-            view="base_demand", barcodes=["B1"],
+            end_date=date(2026, 5, 13),
+            weeks=30,
+            view="base_demand",
+            barcodes=["B1"],
         )
         cmp = compare_run_pair(run_a, run_b)
         assert cmp["run_a"]["id"] == run_a
@@ -481,17 +504,24 @@ class CompareRunPairTests(_DBBase):
                 qty = 5 + (w % 3)  # 5, 6, 7, 5, 6, 7, ...
                 s.execute(
                     insert(InventoryEvent).values(
-                        event_at=d, event_type="sale", product_barcode="B1",
-                        qty=qty, document_no=f"B1-D{w}",
+                        event_at=d,
+                        event_type="sale",
+                        product_barcode="B1",
+                        qty=qty,
+                        document_no=f"B1-D{w}",
                     )
                 )
             s.commit()
         ra = run_backtest_all_skus(
-            model_name="NaiveMean4W", end_date=date(2026, 5, 13), weeks=30,
+            model_name="NaiveMean4W",
+            end_date=date(2026, 5, 13),
+            weeks=30,
             barcodes=["B1"],
         )
         rb = run_backtest_all_skus(
-            model_name="NaiveMean4W", end_date=date(2026, 5, 13), weeks=30,
+            model_name="NaiveMean4W",
+            end_date=date(2026, 5, 13),
+            weeks=30,
             barcodes=["B1"],
         )
         cmp = compare_run_pair(ra, rb)
@@ -515,11 +545,15 @@ class CompareRunPairTests(_DBBase):
         self._seed_retail_weekly("B1", weeks=30)
         self._seed_retail_weekly("B2", weeks=30)
         ra = run_backtest_all_skus(
-            model_name="NaiveMean4W", end_date=date(2026, 5, 13), weeks=30,
+            model_name="NaiveMean4W",
+            end_date=date(2026, 5, 13),
+            weeks=30,
             barcodes=["B1"],
         )
         rb = run_backtest_all_skus(
-            model_name="NaiveMean4W", end_date=date(2026, 5, 13), weeks=30,
+            model_name="NaiveMean4W",
+            end_date=date(2026, 5, 13),
+            weeks=30,
             barcodes=["B2"],
         )
         cmp = compare_run_pair(ra, rb)
