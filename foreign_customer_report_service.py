@@ -31,6 +31,8 @@ def _font_name() -> str:
     本地副本会陈旧 (CI Linux 无中文字体时 ReportLab 找不到注册的 'AttnSC').
     """
     return attendance_report_service._FONT_NAME
+
+
 _TABLE_HEADER = ["客户名", "欠款 (€)", "税号", "付款日期", "托运日期", "备注"]
 
 
