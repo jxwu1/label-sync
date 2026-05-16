@@ -1,4 +1,6 @@
-# 双端处理使用说明
+# 双端处理（label-sync）使用说明
+
+> Internal ERP tool for barcode label processing, inventory matching, sales analytics, and demand forecasting. Built with Flask + SQLAlchemy + pandas. Deployed on Hetzner via Coolify/Docker.
 
 ## 1. 项目简介
 
