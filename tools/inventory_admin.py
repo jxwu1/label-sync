@@ -30,7 +30,7 @@ from sqlalchemy import func, select  # noqa: E402
 
 from app.repositories import stockpile_db  # noqa: E402
 from app.importers.inventory import DEFAULT_MAPPING, import_events  # noqa: E402
-from models import Customer, InventoryEvent, Stockpile, Supplier  # noqa: E402
+from app.models import Customer, InventoryEvent, Stockpile, Supplier  # noqa: E402
 from app.parsers.xls_html import XlsHtmlParseError, parse_xls_html  # noqa: E402
 
 _PURCHASE_KEYWORDS = ("purchase", "采购", "buy", "进货")

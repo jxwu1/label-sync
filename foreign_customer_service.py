@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.repositories import stockpile_db
-from models import Customer, ForeignCustomerRecord
+from app.models import Customer, ForeignCustomerRecord
 
 
 def _record_to_dict(rec: ForeignCustomerRecord) -> dict:

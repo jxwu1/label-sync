@@ -11,7 +11,7 @@ from unittest import mock
 from sqlalchemy import insert, select
 
 from app.repositories import stockpile_db
-from models import BacktestResult, BacktestRun, InventoryEvent, Stockpile
+from app.models import BacktestResult, BacktestRun, InventoryEvent, Stockpile
 
 _TMP = Path(__file__).resolve().parent / "_test_backtest_service"
 

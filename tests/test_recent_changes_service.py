@@ -9,7 +9,7 @@ from sqlalchemy import insert
 
 import recent_changes_service
 from app.repositories import stockpile_db
-from models import StockpileChange, StockpileSnapshot
+from app.models import StockpileChange, StockpileSnapshot
 
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_recent_changes"
 

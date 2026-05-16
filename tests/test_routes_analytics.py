@@ -9,7 +9,7 @@ from flask import Flask
 from sqlalchemy import insert
 
 from app.repositories import stockpile_db
-from models import InventoryEvent, Stockpile
+from app.models import InventoryEvent, Stockpile
 from routes_analytics import bp
 
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_routes_analytics"
@@ -167,7 +167,7 @@ class TimelineTests(AnalyticsRoutesTests):
     def test_timeline_aggregates_purchase_price_average(self) -> None:
         from sqlalchemy import insert as sa_insert
 
-        from models import InventoryEvent
+        from app.models import InventoryEvent
 
         self._seed_sku("B1")
         # 同一周内两条采购，均价 = (5 + 7) / 2 = 6

@@ -15,9 +15,9 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
-from config import CONFIG
+from app.config import CONFIG
 from app.parsers.location import parse_to_locations
-from models import (
+from app.models import (
     Base,
     SchemaMeta,
     Stockpile,

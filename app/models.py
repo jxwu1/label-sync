@@ -6,7 +6,7 @@
 - 新增字段直接改 ORM 类 + alembic revision --autogenerate
 
 使用方式：
-    from models import Stockpile, StockpileChange, get_session
+    from app.models import Stockpile, StockpileChange, get_session
     with get_session() as session:
         rows = session.query(Stockpile).limit(10).all()
 """
@@ -36,7 +36,7 @@ from sqlalchemy.orm import (
     sessionmaker,
 )
 
-from config import CONFIG
+from app.config import CONFIG
 
 DB_URL = f"sqlite:///{CONFIG.stockpile_db}"
 

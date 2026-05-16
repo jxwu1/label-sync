@@ -6,8 +6,8 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 
-from config import CONFIG
-from state import (
+from app.config import CONFIG
+from app.state import (
     BARCODE_WARNING_PATTERN,
     LOCATION_WARNING_PATTERN,
     PHASE1_SCRIPT,

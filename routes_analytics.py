@@ -13,7 +13,7 @@ from sqlalchemy import select, update
 
 import analytics_service
 from app.repositories import stockpile_db
-from models import Stockpile
+from app.models import Stockpile
 from app.utils.route_helpers import OptionalStr, parse_body
 
 bp = Blueprint("analytics", __name__, url_prefix="/analytics")
@@ -174,7 +174,7 @@ def backtest_run():
 @bp.get("/backtest/runs")
 def backtest_list_runs():
     """列出最近 N 次 run 元信息."""
-    from models import BacktestRun
+    from app.models import BacktestRun
 
     with stockpile_db._session() as session:
         rows = (
@@ -233,7 +233,7 @@ def backtest_results():
     """单个 run 的 per-SKU 分数 (query param run_id)."""
     from flask import request
 
-    from models import BacktestResult
+    from app.models import BacktestResult
 
     raw = request.args.get("run_id")
     if not raw:

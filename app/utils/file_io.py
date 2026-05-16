@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from config import CONFIG
+from app.config import CONFIG
 
 _IO_RETRY_COUNT = 5
 _IO_RETRY_DELAY_SEC = 0.02

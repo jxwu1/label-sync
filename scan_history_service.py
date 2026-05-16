@@ -6,7 +6,7 @@
 import re
 from pathlib import Path
 
-from config import CONFIG
+from app.config import CONFIG
 
 OUTPUT_DIR = CONFIG.output_dir
 

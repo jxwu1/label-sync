@@ -45,7 +45,7 @@ class CollabRoutesTests(unittest.TestCase):
     # ---------- /text_delete ----------
 
     def test_text_delete_ok(self) -> None:
-        from schemas import ServiceResult
+        from app.schemas import ServiceResult
 
         with mock.patch.object(
             message_service, "delete_text_message", return_value=ServiceResult(ok=True)
@@ -55,7 +55,7 @@ class CollabRoutesTests(unittest.TestCase):
         m.assert_called_once_with(5)
 
     def test_text_delete_string_id_coerced(self) -> None:
-        from schemas import ServiceResult
+        from app.schemas import ServiceResult
 
         with mock.patch.object(
             message_service, "delete_text_message", return_value=ServiceResult(ok=True)

@@ -12,7 +12,7 @@ from flask import Flask
 
 import barcode_service
 from routes_pages_tasks import bp
-from schemas import ServiceResult
+from app.schemas import ServiceResult
 
 
 def _ok() -> ServiceResult:

@@ -8,7 +8,7 @@ import storage_service
 import task_service
 from app.utils.response_builder import json_result
 from app.utils.route_helpers import NonEmptyStr, parse_body
-from state import INPUT_DIR, task_state
+from app.state import INPUT_DIR, task_state
 
 bp = Blueprint("pages_tasks", __name__)
 

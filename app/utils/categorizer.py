@@ -25,7 +25,7 @@ import numpy as np
 from sqlalchemy import select
 
 from app.repositories import stockpile_db
-from models import InventoryEvent
+from app.models import InventoryEvent
 
 # 阈值常量（spec 锁定）
 _NEW_MIN_DAYS = 28  # < 4 周

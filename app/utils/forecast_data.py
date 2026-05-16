@@ -19,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.repositories import stockpile_db
-from models import InventoryEvent
+from app.models import InventoryEvent
 
 _BULK_K_DEFAULT = 3.0
 _MIN_STATS_SAMPLES = 4
@@ -257,7 +257,7 @@ def base_demand_view(
 def _fetch_customer_types(cust_ids: set[str], session: Session) -> dict[str, str]:
     if not cust_ids:
         return {}
-    from models import Customer
+    from app.models import Customer
 
     rows = session.execute(
         select(Customer.customer_id, Customer.customer_type).where(

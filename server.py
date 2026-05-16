@@ -5,9 +5,9 @@ from flask import Flask
 import monthly_summary_service
 from app.repositories import stockpile_db
 import storage_service
-from config import CONFIG
+from app.config import CONFIG
 from routes import register_routes
-from state import INPUT_DIR, OUTPUT_DIR, TRANSFER_DIR
+from app.state import INPUT_DIR, OUTPUT_DIR, TRANSFER_DIR
 
 
 def create_app() -> Flask:

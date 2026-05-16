@@ -144,7 +144,7 @@ def lookup_dominant_supplier(barcodes: list[str]) -> dict | None:
 
     from sqlalchemy import select
 
-    from models import InventoryEvent, Supplier
+    from app.models import InventoryEvent, Supplier
 
     unique_bcs = sorted({bc for bc in barcodes if bc})
     if not unique_bcs:

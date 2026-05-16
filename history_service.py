@@ -13,7 +13,7 @@ from sqlalchemy import or_, select
 
 from app.repositories import stockpile_db
 from app.parsers.location import parse_to_locations
-from models import InventoryEvent, Stockpile, StockpileChange, StockpileLocation
+from app.models import InventoryEvent, Stockpile, StockpileChange, StockpileLocation
 
 _AGGREGATE_WINDOW_SECONDS = 5
 

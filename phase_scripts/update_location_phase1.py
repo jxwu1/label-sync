@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from config import CONFIG
-from state import (
+from app.config import CONFIG
+from app.state import (
     PHASE_EXIT_LOCATION_FORMAT_ERROR,
     PHASE_EXIT_OK,
     PHASE_EXIT_REVIEW_REQUIRED,

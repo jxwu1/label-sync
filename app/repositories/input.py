@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from config import CONFIG
+from app.config import CONFIG
 
 
 def list_input_files() -> list[Path]:

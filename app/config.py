@@ -9,7 +9,9 @@ def _resource_dir() -> Path:
         meipass = getattr(sys, "_MEIPASS", None)
         if meipass:
             return Path(meipass)
-    return Path(__file__).resolve().parent
+    # Phase 2 后 config.py 位于 app/ 包内，资源 (static / templates / phase_scripts)
+    # 仍在仓库根，所以向上跳一级到项目根目录。
+    return Path(__file__).resolve().parent.parent
 
 
 def _data_dir() -> Path:
@@ -18,14 +20,14 @@ def _data_dir() -> Path:
     优先级:
     1. env LABEL_SYNC_DATA_DIR (Docker / 生产部署用, 数据走挂载卷)
     2. PyInstaller frozen exe 所在目录
-    3. 代码所在目录 (开发默认)
+    3. 代码所在目录 (开发默认; Phase 2 后 config.py 在 app/，向上一级到项目根)
     """
     env_dir = os.environ.get("LABEL_SYNC_DATA_DIR")
     if env_dir:
         return Path(env_dir).resolve()
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
-    return Path(__file__).resolve().parent
+    return Path(__file__).resolve().parent.parent
 
 
 @dataclass(frozen=True)

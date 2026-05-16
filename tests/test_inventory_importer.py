@@ -20,7 +20,7 @@ from app.importers.inventory import (
     _clean_str,
     import_events,
 )
-from models import Base, Customer, InventoryEvent, Stockpile, Supplier
+from app.models import Base, Customer, InventoryEvent, Stockpile, Supplier
 from app.parsers.xls_html import parse_xls_html
 
 _TEST_DIR = Path(__file__).resolve().parent / "_test_inventory_importer"

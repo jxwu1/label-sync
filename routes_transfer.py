@@ -4,7 +4,7 @@ from pydantic import BaseModel
 import storage_service
 from app.utils.response_builder import json_result
 from app.utils.route_helpers import NonEmptyStr, parse_body
-from state import TRANSFER_DIR
+from app.state import TRANSFER_DIR
 from app.repositories.transfer import transfer_file_path
 
 bp = Blueprint("transfer", __name__)

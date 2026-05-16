@@ -17,7 +17,7 @@ from unittest import mock
 from sqlalchemy import insert
 
 from app.repositories import stockpile_db
-from models import Customer, InventoryEvent
+from app.models import Customer, InventoryEvent
 
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_analytics"
 
@@ -259,7 +259,7 @@ class CustomerSplitTests(_Base):
 
 class RecomputeCategoriesTests(_Base):
     def _add_stockpile(self, barcode: str, is_active: int = 1) -> None:
-        from models import Stockpile
+        from app.models import Stockpile
 
         with stockpile_db._session() as s:
             s.execute(
@@ -274,7 +274,7 @@ class RecomputeCategoriesTests(_Base):
 
     def test_recompute_writes_auto_category(self) -> None:
         from analytics_service import recompute_categories
-        from models import Stockpile
+        from app.models import Stockpile
 
         # SKU 1: 新品（最近一笔）
         self._add_stockpile("NEW1")

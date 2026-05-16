@@ -1,4 +1,4 @@
-from config import CONFIG
+from app.config import CONFIG
 from routes_analytics import bp as analytics_bp
 from routes_attendance import bp as attendance_bp
 from routes_data_quality import bp as data_quality_bp

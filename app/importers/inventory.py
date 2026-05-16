@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.utils.customer_classifier import classify_customer
 from app.parsers.erp_category import parse_erp_category
-from models import Customer, InventoryEvent, Stockpile, Supplier
+from app.models import Customer, InventoryEvent, Stockpile, Supplier
 
 # === 内部字段名常量 ===
 # 映射目标只能是这些值之一（或 'ignore'）。多了 / 少了由列映射向导校验。

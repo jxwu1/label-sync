@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from schemas import ServiceResult
-from state import message_store
+from app.schemas import ServiceResult
+from app.state import message_store
 
 
 def send_text_message(text: str, sender: str) -> dict:

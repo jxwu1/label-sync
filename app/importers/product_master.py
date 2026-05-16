@@ -27,7 +27,7 @@ from app.importers.inventory import (
     _clean_int,
     _clean_str,
 )
-from models import Stockpile, StockpileSnapshot, Supplier
+from app.models import Stockpile, StockpileSnapshot, Supplier
 
 # 默认列映射：product.csv 的列名 → 内部字段。
 # 整列吃掉，复杂字段（包装尺寸 / 价格折扣等）进 stockpile.extra json。

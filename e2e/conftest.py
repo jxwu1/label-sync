@@ -32,7 +32,7 @@ def _build_sandbox(root: Path) -> None:
         (root / name).mkdir(parents=True, exist_ok=True)
 
     # CONFIG 是 frozen dataclass，绕过 __setattr__ 改 base_dir
-    import config
+    from app import config
 
     object.__setattr__(config.CONFIG, "base_dir", root)
 

@@ -15,7 +15,7 @@ import numpy as np
 from sqlalchemy import insert
 
 from app.repositories import stockpile_db
-from models import InventoryEvent
+from app.models import InventoryEvent
 
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_categorizer"
 

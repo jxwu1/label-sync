@@ -1,8 +1,8 @@
 import threading
 from copy import deepcopy
 
-from config import CONFIG
-from schemas import BarcodeWarning, LocationWarning, Phase2Warning, TaskSnapshot, TextMessage
+from app.config import CONFIG
+from app.schemas import BarcodeWarning, LocationWarning, Phase2Warning, TaskSnapshot, TextMessage
 
 BASE_DIR = CONFIG.base_dir
 INPUT_DIR = CONFIG.input_dir

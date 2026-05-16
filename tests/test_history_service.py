@@ -17,7 +17,7 @@ import pytest
 @pytest.fixture
 def memdb(tmp_path, monkeypatch):
     """提供一个内存级别的 stockpile.db，独立于真实数据库。"""
-    import config
+    from app import config
 
     db_path = tmp_path / "stockpile.db"
     # 由于 CONFIG 是 frozen dataclass，需要替换整个对象

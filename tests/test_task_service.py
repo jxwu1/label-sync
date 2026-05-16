@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch
 
 import task_service
-from state import task_state
+from app.state import task_state
 
 
 class TaskServiceTests(unittest.TestCase):

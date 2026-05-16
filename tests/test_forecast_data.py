@@ -21,7 +21,7 @@ from unittest import mock
 from sqlalchemy import insert
 
 from app.repositories import stockpile_db
-from models import InventoryEvent
+from app.models import InventoryEvent
 
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_forecast_data"
 
@@ -267,7 +267,7 @@ class _BaseDemandViewBase(_Base):
     """base_demand_view 集成测试基类: 提供 customers 表辅助."""
 
     def _add_customer(self, customer_id: str, customer_type: str = "foreign") -> None:
-        from models import Customer
+        from app.models import Customer
 
         with stockpile_db._session() as s:
             s.execute(

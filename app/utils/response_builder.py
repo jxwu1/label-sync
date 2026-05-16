@@ -1,6 +1,6 @@
 from flask import jsonify
 
-from schemas import ServiceResult
+from app.schemas import ServiceResult
 
 
 def json_result(result: ServiceResult):

@@ -17,7 +17,7 @@ import pandas as pd
 from sqlalchemy import func, select
 
 from app.repositories import stockpile_db
-from models import Stockpile, StockpileChange, StockpileLocation
+from app.models import Stockpile, StockpileChange, StockpileLocation
 
 _FLIPPER_THRESHOLD = 4  # location 变更次数 ≥ 该值才算 flipper
 _FLIPPER_TOP_N = 50  # 最多返回 Top N
