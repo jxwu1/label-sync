@@ -13,6 +13,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table
 
+import attendance_report_service
 import foreign_customer_service
 from attendance_report_service import (
     _make_meta_paragraph,
@@ -21,7 +22,15 @@ from attendance_report_service import (
     _register_font,
 )
 
-_FONT_NAME = "AttnSC"  # 与 attendance 共用
+
+def _font_name() -> str:
+    """读取当前注册的字体名 (attendance 模块的 mutable global).
+
+    必须每次调用时读 attendance_report_service._FONT_NAME, 而非 import 时
+    绑定本地副本 — fallback 到 'Helvetica' 时 attendance 模块自己更新该 global,
+    本地副本会陈旧 (CI Linux 无中文字体时 ReportLab 找不到注册的 'AttnSC').
+    """
+    return attendance_report_service._FONT_NAME
 _TABLE_HEADER = ["客户名", "欠款 (€)", "税号", "付款日期", "托运日期", "备注"]
 
 
@@ -35,7 +44,7 @@ def _name_cell(name: str, ctype: str) -> Paragraph:
     }.get(ctype, "")
     styles = getSampleStyleSheet()
     s = styles["Normal"].clone("fc_name_cell")
-    s.fontName = _FONT_NAME
+    s.fontName = _font_name()
     s.fontSize = 10
     s.alignment = TA_LEFT
     text = f"{name}<br/><font size=8 color='#9ca3af'>[{type_label}]</font>"
@@ -46,7 +55,7 @@ def _wrap_paragraph(text: str, font_size: int = 9) -> Paragraph:
     """把长文本（备注）包成 Paragraph 让它能换行。"""
     styles = getSampleStyleSheet()
     s = styles["Normal"].clone(f"fc_para_{font_size}")
-    s.fontName = _FONT_NAME
+    s.fontName = _font_name()
     s.fontSize = font_size
     s.leading = font_size + 2
     s.alignment = TA_LEFT
@@ -88,13 +97,13 @@ def build_pdf(month: str) -> bytes:
         f"共 {cnt} 条记录 · 总欠款 €{money} · 已付 {paid} · 未付 {unpaid} · 已托运 {shipped}"
     )
     elements = [
-        _make_title_paragraph(f"{month} 老外客人月度记录", _FONT_NAME),
-        _make_meta_paragraph(meta_text, _FONT_NAME),
+        _make_title_paragraph(f"{month} 老外客人月度记录", _font_name()),
+        _make_meta_paragraph(meta_text, _font_name()),
     ]
 
     if not records:
         empty = getSampleStyleSheet()["Normal"].clone("fc_empty")
-        empty.fontName = _FONT_NAME
+        empty.fontName = _font_name()
         elements.append(Paragraph("本月暂无记录", empty))
         doc.build(elements)
         return buf.getvalue()
@@ -114,7 +123,7 @@ def build_pdf(month: str) -> bytes:
 
     col_widths = [40 * mm, 22 * mm, 28 * mm, 24 * mm, 24 * mm, 44 * mm]
     table = Table(rows, colWidths=col_widths, repeatRows=1)
-    style = _minimal_table_style(_FONT_NAME, header_row=0, font_size=9)
+    style = _minimal_table_style(_font_name(), header_row=0, font_size=9)
     # 数字列右对齐
     style.add("ALIGN", (1, 1), (1, -1), "RIGHT")
     # 日期居中
