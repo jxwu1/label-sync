@@ -12,7 +12,7 @@ from unittest import mock
 from flask import Flask
 
 from app.services import attendance as attendance_service
-from routes_attendance import bp
+from app.routes.attendance import bp
 
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_attendance_routes"
 

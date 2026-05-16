@@ -10,7 +10,7 @@ import pandas as pd
 from flask import Flask
 
 from app.repositories import stockpile_db
-from routes_stockpile import bp as stockpile_bp
+from app.routes.stockpile import bp as stockpile_bp
 
 _TEST_DIR = Path(__file__).resolve().parent / "_test_stockpile_routes"
 
@@ -28,7 +28,7 @@ class StockpileRoutesTests(unittest.TestCase):
         self.test_db = self.test_dir / "test.db"
         self._patches = [
             mock.patch.object(stockpile_db, "DB_PATH", self.test_db),
-            mock.patch("routes_stockpile.INPUT_DIR", self.test_dir),
+            mock.patch("app.routes.stockpile.INPUT_DIR", self.test_dir),
         ]
         for p in self._patches:
             p.start()

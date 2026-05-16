@@ -11,7 +11,7 @@ from unittest import mock
 from flask import Flask
 
 from app.services import barcode as barcode_service
-from routes_pages_tasks import bp
+from app.routes.pages_tasks import bp
 from app.schemas import ServiceResult
 
 

@@ -10,7 +10,7 @@ from sqlalchemy import insert
 
 from app.repositories import stockpile_db
 from app.models import InventoryEvent, Stockpile
-from routes_analytics import bp
+from app.routes.analytics import bp
 
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_routes_analytics"
 
