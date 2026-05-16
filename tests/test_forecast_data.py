@@ -20,7 +20,7 @@ from unittest import mock
 
 from sqlalchemy import insert
 
-import stockpile_db
+from app.repositories import stockpile_db
 from models import InventoryEvent
 
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_forecast_data"

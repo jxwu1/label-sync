@@ -6,7 +6,7 @@ from config import CONFIG
 from app.utils.file_io import write_phase2_results
 from app.parsers.location import categorize_locations, categorize_stockpile, compose_if_single
 from state import PHASE_EXIT_OK, PHASE_EXIT_REVIEW_REQUIRED
-from stockpile_db import query_all_as_system_records
+from app.repositories.stockpile_db import query_all_as_system_records
 
 INPUT_DIR = CONFIG.input_dir
 TEMP_MAPPING_FILE = CONFIG.temp_mapping_file

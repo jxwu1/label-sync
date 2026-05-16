@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from werkzeug.utils import secure_filename
 
-import stockpile_db
+from app.repositories import stockpile_db
 from inventory_importer import (
     DEFAULT_MAPPING,
     INTERNAL_FIELDS,

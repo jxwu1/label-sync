@@ -20,7 +20,7 @@ from sqlalchemy import func, select
 from sqlalchemy import insert as sa_insert
 from sqlalchemy.orm import Session
 
-import stockpile_db
+from app.repositories import stockpile_db
 from inventory_importer import (
     _clean_barcode_or_model,
     _clean_float,

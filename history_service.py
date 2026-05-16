@@ -11,7 +11,7 @@ from datetime import datetime
 
 from sqlalchemy import or_, select
 
-import stockpile_db
+from app.repositories import stockpile_db
 from app.parsers.location import parse_to_locations
 from models import InventoryEvent, Stockpile, StockpileChange, StockpileLocation
 

@@ -8,7 +8,7 @@ from unittest import mock
 from flask import Flask
 from sqlalchemy import insert
 
-import stockpile_db
+from app.repositories import stockpile_db
 from models import InventoryEvent, Stockpile
 from routes_analytics import bp
 

@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, update
 
 import analytics_service
-import stockpile_db
+from app.repositories import stockpile_db
 from models import Stockpile
 from app.utils.route_helpers import OptionalStr, parse_body
 

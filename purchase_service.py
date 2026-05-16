@@ -9,7 +9,7 @@ from pathlib import Path
 import openpyxl
 import pandas as pd
 
-import stockpile_db
+from app.repositories import stockpile_db
 
 _TEMPLATE_PATH = Path(__file__).resolve().parent / "static" / "templates" / "产品信息导入模板.csv"
 

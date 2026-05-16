@@ -1,8 +1,8 @@
 import csv
 
-import stockpile_db
+from app.repositories import stockpile_db
 from app.utils.file_io import update_json_file
-from output_repository import latest_output_csv
+from app.repositories.output import latest_output_csv
 from schemas import ServiceResult
 from state import TEMP_MAPPING_FILE, TEMP_RESULTS_FILE, task_state
 

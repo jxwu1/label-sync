@@ -9,7 +9,7 @@ from unittest import mock
 import pandas as pd
 from flask import Flask
 
-import stockpile_db
+from app.repositories import stockpile_db
 from routes_stockpile import bp as stockpile_bp
 
 _TEST_DIR = Path(__file__).resolve().parent / "_test_stockpile_routes"
@@ -222,7 +222,7 @@ class StockpileRoutesTests(unittest.TestCase):
                 {"product_barcode": "X1", "product_model": "M", "stockpile_location": "L"},
             ]
         )
-        with mock.patch("stockpile_db.import_from_dataframe", side_effect=RuntimeError("boom")):
+        with mock.patch("app.repositories.stockpile_db.import_from_dataframe", side_effect=RuntimeError("boom")):
             with self.assertRaises(RuntimeError):
                 self.client.post(
                     "/stockpile/init",

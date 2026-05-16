@@ -25,7 +25,7 @@ import numpy as np
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-import stockpile_db
+from app.repositories import stockpile_db
 from app.utils.categorizer import classify_from_sales
 from models import Customer, InventoryEvent, Stockpile
 

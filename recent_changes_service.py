@@ -9,7 +9,7 @@ from typing import Literal
 
 from sqlalchemy import and_, func, select
 
-import stockpile_db
+from app.repositories import stockpile_db
 from models import Stockpile, StockpileChange, StockpileSnapshot
 
 _RECENT_IMPORTS_LIMIT = 10

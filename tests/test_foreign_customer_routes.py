@@ -7,7 +7,7 @@ from unittest import mock
 
 from flask import Flask
 
-import stockpile_db
+from app.repositories import stockpile_db
 from models import Customer
 from routes_foreign_customers import bp
 

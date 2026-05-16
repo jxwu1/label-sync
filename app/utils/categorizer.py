@@ -24,7 +24,7 @@ from typing import Any
 import numpy as np
 from sqlalchemy import select
 
-import stockpile_db
+from app.repositories import stockpile_db
 from models import InventoryEvent
 
 # 阈值常量（spec 锁定）

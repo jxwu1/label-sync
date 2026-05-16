@@ -16,7 +16,7 @@
 import pandas as pd
 from sqlalchemy import func, select
 
-import stockpile_db
+from app.repositories import stockpile_db
 from models import Stockpile, StockpileChange, StockpileLocation
 
 _FLIPPER_THRESHOLD = 4  # location 变更次数 ≥ 该值才算 flipper

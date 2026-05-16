@@ -26,7 +26,7 @@ def memdb(tmp_path, monkeypatch):
     new_cfg = replace(config.CONFIG, base_dir=tmp_path)
     monkeypatch.setattr(config, "CONFIG", new_cfg)
     # stockpile_db.DB_PATH 在模块加载时绑定，需要重新指向
-    import stockpile_db
+    from app.repositories import stockpile_db
 
     monkeypatch.setattr(stockpile_db, "DB_PATH", db_path)
     stockpile_db.ensure_db()
@@ -462,7 +462,7 @@ def test_build_response_injects_split_into_current(memdb):
     import pandas as pd
 
     import history_service
-    import stockpile_db
+    from app.repositories import stockpile_db
 
     stockpile_db.import_from_dataframe(
         pd.DataFrame(
@@ -487,7 +487,7 @@ def test_build_response_current_with_unknown_prefix(memdb):
     import pandas as pd
 
     import history_service
-    import stockpile_db
+    from app.repositories import stockpile_db
 
     stockpile_db.import_from_dataframe(
         pd.DataFrame(

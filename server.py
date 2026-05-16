@@ -3,7 +3,7 @@ import socket
 from flask import Flask
 
 import monthly_summary_service
-import stockpile_db
+from app.repositories import stockpile_db
 import storage_service
 from config import CONFIG
 from routes import register_routes

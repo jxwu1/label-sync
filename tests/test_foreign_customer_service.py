@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-import stockpile_db
+from app.repositories import stockpile_db
 from foreign_customer_service import (
     add_record,
     delete_record,

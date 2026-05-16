@@ -4,11 +4,11 @@ from datetime import datetime
 from pathlib import Path
 
 from app.utils.file_io import find_latest_stockpile_file
-from output_repository import latest_output_dir
+from app.repositories.output import latest_output_dir
 from app.utils.path_safety import safe_filename
 from schemas import ServiceResult
 from state import INPUT_DIR, OUTPUT_DIR, TRANSFER_DIR, task_state
-from transfer_repository import iter_transfer_items, transfer_file_path
+from app.repositories.transfer import iter_transfer_items, transfer_file_path
 
 
 def startup_cleanup() -> None:
@@ -92,7 +92,7 @@ def validate_stockpile_is_today() -> tuple[bool, str | None]:
 
 
 def validate_stockpile_is_ready() -> tuple[bool, str | None]:
-    from stockpile_db import is_initialized
+    from app.repositories.stockpile_db import is_initialized
 
     if not is_initialized():
         return (

@@ -18,7 +18,7 @@ import numpy as np
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-import stockpile_db
+from app.repositories import stockpile_db
 from models import InventoryEvent
 
 _BULK_K_DEFAULT = 3.0
