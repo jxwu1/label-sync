@@ -41,6 +41,9 @@ investigate_output.txt
 
 # Secrets
 .env
+.env.*
+*.db
+docs/.private/
 
 # Tooling artifacts
 .claude/
@@ -55,6 +58,7 @@ tests/_tmp_*/
 # Runtime data
 attendance/
 monthly_summary/
+data/
 
 # Node tooling (only used for eslint, no build step)
 node_modules/

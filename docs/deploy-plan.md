@@ -100,7 +100,7 @@ A 端首页出来 = 部署成功 (数据是空的, 正常)。
 
 > **场景**: 工作 PC backtest 跑完后, 把真 DB 推到 Hetzner 替换今晚那份家用 PC 上传的版本。
 > **服务器路径**: `/data/coolify/applications/k11qu29j1y7wy1njh9eb5edj/data/stockpile.db`
-> **Hetzner IP**: `178.104.148.102`
+> **Hetzner IP**: `<hetzner_ip>`
 
 ### 1. 确认 backtest 完全跑完 (工作 PC)
 - Claude Code output 看到 `ALL DONE total Xh`
@@ -118,7 +118,7 @@ python -c "import sqlite3; print(sqlite3.connect('stockpile.db').execute('PRAGMA
 出 `('ok',)` 才传, 否则先 `.backup` 出 snapshot 用 snapshot。
 
 ### 3. Coolify 停应用
-- UI: `http://178.104.148.102:8000` → erp project → label-sync → **Stop**
+- UI: `http://<hetzner_ip>:8000` → erp project → label-sync → **Stop**
 - 弹窗里 **取消勾选** "Run Docker Cleanup" → Confirm
 - 第二个弹窗 (Warning: non-persistent data will be deleted) → Confirm
   - `./data` 是 bind mount, 在 host 磁盘上, 不会被删
@@ -128,15 +128,15 @@ python -c "import sqlite3; print(sqlite3.connect('stockpile.db').execute('PRAGMA
 **关键**: 必须 `rm -f` 把旧的 -wal / -shm 一起清掉, 否则新主库配旧 WAL 会数据错乱。
 
 ```powershell
-ssh root@178.104.148.102 "rm -f /data/coolify/applications/k11qu29j1y7wy1njh9eb5edj/data/stockpile.db /data/coolify/applications/k11qu29j1y7wy1njh9eb5edj/data/stockpile.db-shm /data/coolify/applications/k11qu29j1y7wy1njh9eb5edj/data/stockpile.db-wal"
-scp stockpile.db root@178.104.148.102:/data/coolify/applications/k11qu29j1y7wy1njh9eb5edj/data/
+ssh root@<hetzner_ip> "rm -f /data/coolify/applications/k11qu29j1y7wy1njh9eb5edj/data/stockpile.db /data/coolify/applications/k11qu29j1y7wy1njh9eb5edj/data/stockpile.db-shm /data/coolify/applications/k11qu29j1y7wy1njh9eb5edj/data/stockpile.db-wal"
+scp stockpile.db root@<hetzner_ip>:/data/coolify/applications/k11qu29j1y7wy1njh9eb5edj/data/
 ```
 
 灌库后 stockpile.db 估算 ~100-300MB, scp 几分钟内完 (Hetzner EU 带宽足)。
 
 ### 5. 服务器端校验
 ```powershell
-ssh root@178.104.148.102 "python3 -c \"import sqlite3; c=sqlite3.connect('/data/coolify/applications/k11qu29j1y7wy1njh9eb5edj/data/stockpile.db'); print('alembic:', c.execute('SELECT * FROM alembic_version').fetchall()); print('stockpile rows:', c.execute('SELECT COUNT(*) FROM stockpile').fetchone()[0]); print('integrity:', c.execute('PRAGMA integrity_check').fetchone())\""
+ssh root@<hetzner_ip> "python3 -c \"import sqlite3; c=sqlite3.connect('/data/coolify/applications/k11qu29j1y7wy1njh9eb5edj/data/stockpile.db'); print('alembic:', c.execute('SELECT * FROM alembic_version').fetchall()); print('stockpile rows:', c.execute('SELECT COUNT(*) FROM stockpile').fetchone()[0]); print('integrity:', c.execute('PRAGMA integrity_check').fetchone())\""
 ```
 三项都要对得上预期 (alembic 版本 = head 或本地版本; 行数 ≈ 工作 PC 上的数; integrity = ok)。
 
@@ -146,7 +146,7 @@ ssh root@178.104.148.102 "python3 -c \"import sqlite3; c=sqlite3.connect('/data/
 - 没必要 force rebuild — image 没变, 直接重启容器即可
 
 ### 7. 浏览器验数据
-打开 Coolify 给的临时域名 (`*.178.104.148.102.sslip.io`) → SKU 列表看 active SKU 数 ≈ 27,340。
+打开 Coolify 给的临时域名 (`*.<hetzner_ip>.sslip.io`) → SKU 列表看 active SKU 数 ≈ 27,340。
 
 ---
 
