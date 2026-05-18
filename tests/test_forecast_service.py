@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import unittest
 
+import numpy as np
+
 
 class EmpiricalQuantileModelTests(unittest.TestCase):
     """直接经验分位数模型 — 给 wholesale_only / 间歇序列用.
@@ -112,6 +114,101 @@ class EmpiricalQuantileModelTests(unittest.TestCase):
         d = m.predict()
         assert 96.0 <= d.p98 <= 98.5
         assert 49.0 <= d.p50 <= 50.0
+
+
+class HoltWintersModelTests(unittest.TestCase):
+    """HoltWinters 指数平滑 (plan 阶段 3.2)."""
+
+    def _new(self):
+        from app.services.forecast import HoltWintersModel
+        return HoltWintersModel()
+
+    def test_protocol_attrs(self) -> None:
+        m = self._new()
+        assert m.name == "HoltWinters"
+
+    def test_empty_history_zero_dist(self) -> None:
+        m = self._new()
+        m.fit([])
+        d = m.predict()
+        assert d.mu == 0.0
+        assert d.p98 == 0.0
+        assert m.used_path == "none"
+
+    def test_short_history_below_min_returns_zero(self) -> None:
+        m = self._new()
+        m.fit([1.0, 2.0, 3.0])  # 3 < 13
+        d = m.predict()
+        assert d.mu == 0.0
+        assert m.used_path == "none"
+
+    def test_medium_history_uses_trend_only(self) -> None:
+        """30 周 < 104, 走 trend-only 分支."""
+        m = self._new()
+        history = [5.0 + 0.1 * i for i in range(30)]  # 线性增长
+        m.fit(history)
+        assert m.used_path == "trend"
+        d = m.predict()
+        # 增长趋势 → 下一周预测应 >= 序列末值附近
+        assert d.mu >= 7.0
+        assert d.mu <= 10.0
+        # mu 非负 (业务量非负)
+        assert d.mu >= 0.0
+        assert d.p98 >= d.mu
+
+    def test_long_seasonal_history_uses_seasonal(self) -> None:
+        """104+ 周 + 明显年度周期 → 走 seasonal 分支."""
+        m = self._new()
+        # 构造 2.5 年, 52 周一个 sin 波 + 噪声
+        rng = np.random.default_rng(seed=42)
+        weeks = 130
+        seasonal = [10.0 + 5.0 * np.sin(2 * np.pi * i / 52) for i in range(weeks)]
+        noisy = [s + rng.normal(0, 0.5) for s in seasonal]
+        m.fit(noisy)
+        # seasonal 可能因数据形态被 statsmodels 拒绝 → 接受 seasonal 或 trend
+        assert m.used_path in ("seasonal", "trend")
+        d = m.predict()
+        # mu 应在合理范围 (-5..25 之间, 季节性数据)
+        assert -5.0 <= d.mu <= 25.0
+        # 实际我们的 dist clip 了 mu 到 >= 0
+        assert d.mu >= 0.0
+
+    def test_constant_history_predicts_constant(self) -> None:
+        m = self._new()
+        history = [10.0] * 30
+        m.fit(history)
+        d = m.predict()
+        # 常数序列预测应接近 10
+        assert 8.0 <= d.mu <= 12.0
+        # sigma 应接近 0 (残差极小)
+        assert d.sigma < 1.0
+
+    def test_p98_geq_mu(self) -> None:
+        """p98 = mu + 2.054·sigma, 必须 >= mu."""
+        m = self._new()
+        history = [float(i % 10) for i in range(30)]
+        m.fit(history)
+        d = m.predict()
+        assert d.p98 >= d.mu
+
+    def test_mu_clipped_nonneg(self) -> None:
+        """业务量非负, 即使 HW 预测出负值也 clip 到 0."""
+        m = self._new()
+        # 强下降趋势, 可能预测负
+        history = [10.0 - 0.3 * i for i in range(30)]
+        m.fit(history)
+        d = m.predict()
+        assert d.mu >= 0.0
+
+    def test_refit_overrides(self) -> None:
+        m = self._new()
+        m.fit([float(i) for i in range(30)])
+        used_first = m.used_path
+        m.fit([5.0] * 30)
+        # 第二次 fit 状态应替换第一次
+        assert m.used_path in ("trend", "mean")
+        d = m.predict()
+        assert 4.0 <= d.mu <= 6.0
 
 
 if __name__ == "__main__":
