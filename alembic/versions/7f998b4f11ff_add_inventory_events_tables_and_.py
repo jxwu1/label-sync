@@ -81,7 +81,7 @@ def upgrade() -> None:
         sa.Column(
             "imported_at",
             sa.Text(),
-            server_default=sa.text("(datetime('now','localtime'))"),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
             nullable=False,
         ),
         sa.PrimaryKeyConstraint("id"),
@@ -121,7 +121,7 @@ def upgrade() -> None:
         sa.Column(
             "created_at",
             sa.Text(),
-            server_default=sa.text("(datetime('now','localtime'))"),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
             nullable=True,
         ),
         sa.PrimaryKeyConstraint("id"),

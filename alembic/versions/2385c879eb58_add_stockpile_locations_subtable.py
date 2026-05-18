@@ -63,7 +63,7 @@ def upgrade() -> None:
         sa.Column(
             "created_at",
             sa.Text(),
-            server_default=sa.text("(datetime('now','localtime'))"),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
             nullable=True,
         ),
         sa.ForeignKeyConstraint(["stockpile_id"], ["stockpile.id"], ondelete="CASCADE"),

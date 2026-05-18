@@ -26,7 +26,7 @@ def upgrade() -> None:
         sa.Column(
             "created_at",
             sa.Text(),
-            server_default=sa.text("(datetime('now','localtime'))"),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
         ),
         sa.Column("model_name", sa.Text(), nullable=False),
         sa.Column("view", sa.Text(), nullable=False),

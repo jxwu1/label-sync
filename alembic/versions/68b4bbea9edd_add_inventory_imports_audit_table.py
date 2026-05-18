@@ -28,7 +28,7 @@ def upgrade() -> None:
             "imported_at",
             sa.Text(),
             nullable=False,
-            server_default=sa.text("(datetime('now','localtime'))"),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
         ),
         sa.Column("event_type", sa.Text(), nullable=False),  # 'purchase' / 'sale'
         sa.Column("filename", sa.Text(), nullable=False),

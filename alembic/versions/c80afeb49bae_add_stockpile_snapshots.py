@@ -29,7 +29,7 @@ def upgrade() -> None:
         sa.Column(
             "taken_at",
             sa.Text(),
-            server_default=sa.text("(datetime('now','localtime'))"),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
             nullable=False,
         ),
         sa.Column("trigger", sa.Text(), nullable=False),

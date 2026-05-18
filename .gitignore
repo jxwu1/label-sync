@@ -38,6 +38,9 @@ stockpile.db-shm
 _scratch/
 investigate_output.txt
 
+# Local dev PG container 数据卷（docker-compose.dev.yml 用）
+.dev/
+
 # Secrets
 .env
 .env.*
