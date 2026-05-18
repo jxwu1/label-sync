@@ -253,11 +253,24 @@ def coverage_p98(actual: list[float], p98: list[float]) -> float:
 # ---- §2.6 DB-aware 批量入口 -------------------------------------------------
 
 
+def _empirical_quantile():
+    from app.services.forecast import EmpiricalQuantileModel
+    return EmpiricalQuantileModel()
+
+
+def _holt_winters():
+    from app.services.forecast import HoltWintersModel
+    return HoltWintersModel()
+
+
+# 4 baseline + 2 阶段 3 主力模型. 命名沿用 BASELINES 不改, 避免破坏 routes 入口校验
 BASELINES: dict[str, Callable[[], ForecastModel]] = {
     "NaiveMean4W": NaiveMean4W,
     "NaiveSeasonal52W": NaiveSeasonal52W,
     "LinearTrend12W": LinearTrend12W,
     "CrostonSBA": CrostonSBA,
+    "EmpiricalQuantile": _empirical_quantile,
+    "HoltWinters": _holt_winters,
 }
 
 
