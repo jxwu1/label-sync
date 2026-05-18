@@ -328,3 +328,54 @@ mu clip 到 ≥ 0（业务量非负）。
 3. **季节性不可靠期**：只有 402 SKU 满足 104 周（1.3%）；HW 带季节降级为"少数 SKU 跑"，不影响主流程
 4. **parquet 是一次性历史回填，HTML 是长期主路径**：工具放独立文件不污染主 CLI
 5. **退货归并强制做**：document_no 内净抵，否则负数 qty 直接进周需求 = bug
+
+---
+
+## 9. 待决决策（2026-05-18 晚发现，明天处理）
+
+### 9.1 backtest 框架 window_train=13 的设计问题
+
+跑第二批（含新增 EmpQuant + HW）时发现：
+
+- `walk_forward_backtest` 写死 `window_train=13`
+- 每次 `fit()` 只看 13 周
+- **NaiveSeasonal52W 永远进 fallback**（要 ≥ 52 周才用 lag-52）
+- **HoltWinters 同样问题**（季节项至少要 ≥ 104 周）
+- 实际效果：现在所有模型的 mu 计算趋同 mean(13)，差异主要在 sigma / p98
+
+**佐证**：EmpiricalQuantile run（id=28）和 NaiveSeasonal52W run（id=25）的 med_MAPE / med_MASE / avg_Bias **完全相同 (0.852 / 0.937 / 0.013)**，因为两者 mu = mean(13)。唯一差异在 cov@98（0.912 vs 0.924，+1.2 pp）。
+
+**三个选项**：
+
+| 选项 | 工作量 | 收益 |
+|---|---|---|
+| A. 不动框架，仅修 HW timeout 让它跑完 | 1 小时 | 数据可对比但意义有限（季节模型还是测不出来） |
+| B. 改 walk_forward 用**累积训练**（`series[:start+13]`）+ 修 HW timeout，重跑 | 1-3 小时 | 季节 / 趋势 / 间歇模型真能体现差异 |
+| C. 保留现有 5 模型数据 + 加注释说明这是 13-week 窗口下的局限，下次正经做时再改 | 5 分钟 | 留技术债但今天结束 |
+
+### 9.2 HoltWintersModel 跑太慢
+
+- statsmodels BLAS 调用 8 核全开，但单 SKU fit 时间长（pathological 收敛）
+- 修复方向：`fit(optimized=True, use_brute=False)` 跳全局搜索；可能再加 `options={"maxiter": 50}`
+- 跟 §9.1 一起处理（先定框架再改 HW）
+
+### 9.3 SKU 来源分群（国外 / 国内）
+
+数据已经验证可分：
+
+- 14,580 个有采购记录的 SKU 按 `supplier_id` 前缀分：CN 10,664 / FOREIGN 3,916 / 0 cross-origin
+- 31,034 个没采购记录的 SKU 可启发式补：纯 5 位 model → CN (99.99% 准)；纯 13 位 model → FOREIGN (83% 准)
+
+**用户的实际诉求**：只看 FOREIGN 数据（用户负责的部分）。
+
+**实现路径**：分析层加 filter，不动 backtest pipeline（混跑一次 → 按 origin 切分查询）。
+
+待决策 9.1 之后用最终 backtest 数据做。
+
+### 9.4 当前 DB 状态（截至 2026-05-18 18:00）
+
+- 第一批（PR-C 后）8 runs：run_id 10-17（4 baseline × 2 view，已完整）
+- 第二批已完成 5 runs：run_id 24-28（4 baseline + EmpQuant，仅 base_demand view）
+- 第二批 6/12 起 HW base_demand 因慢被杀，未生效
+- backtest_results 表共约 50,000 行（first 8 runs + last 5 runs）
+
