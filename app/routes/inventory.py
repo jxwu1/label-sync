@@ -197,7 +197,7 @@ def do_import(file_type: str) -> tuple:
             # 更新 profile last_used_at
             prof = session.get(ImportProfile, file_type)
             if prof is not None:
-                prof.last_used_at = func.datetime("now", "localtime")
+                prof.last_used_at = func.current_timestamp()
             # PR-FE-5b：写一行 audit 给「最近导入」表用
             session.add(
                 InventoryImport(

@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 
@@ -24,6 +25,7 @@ from sqlalchemy import (
     UniqueConstraint,
     create_engine,
     event,
+    func,
     text,
 )
 from sqlalchemy.engine import Engine
@@ -38,13 +40,17 @@ from sqlalchemy.orm import (
 
 from app.config import CONFIG
 
-DB_URL = f"sqlite:///{CONFIG.stockpile_db}"
+# DATABASE_URL 环境变量优先（PG 迁移用），回退 SQLite 文件
+DB_URL = os.environ.get("DATABASE_URL") or f"sqlite:///{CONFIG.stockpile_db}"
 
 _engine: Engine = create_engine(DB_URL, future=True)
 
 
 @event.listens_for(_engine, "connect")
 def _enable_wal(dbapi_conn, _) -> None:
+    # WAL 是 SQLite 专属；PG 不需要这个 PRAGMA
+    if _engine.dialect.name != "sqlite":
+        return
     cursor = dbapi_conn.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")
     cursor.close()
@@ -69,10 +75,10 @@ class Stockpile(Base):
     extra: Mapped[str | None] = mapped_column(Text, server_default=text("'{}'"))
     source: Mapped[str | None] = mapped_column(Text, server_default=text("'system_export'"))
     created_at: Mapped[str | None] = mapped_column(
-        Text, server_default=text("(datetime('now','localtime'))")
+        Text, server_default=func.current_timestamp()
     )
     updated_at: Mapped[str | None] = mapped_column(
-        Text, server_default=text("(datetime('now','localtime'))")
+        Text, server_default=func.current_timestamp()
     )
 
     # 阶段 4 新增（2026-05-05）
@@ -125,7 +131,7 @@ class StockpileLocation(Base):
     kind: Mapped[str] = mapped_column(Text, nullable=False)  # store / warehouse / unknown
     position: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     created_at: Mapped[str | None] = mapped_column(
-        Text, server_default=text("(datetime('now','localtime'))")
+        Text, server_default=func.current_timestamp()
     )
 
     stockpile: Mapped[Stockpile] = relationship("Stockpile", back_populates="locations")
@@ -142,7 +148,7 @@ class StockpileChange(Base):
     new_value: Mapped[str | None] = mapped_column(Text)
     change_type: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[str | None] = mapped_column(
-        Text, server_default=text("(datetime('now','localtime'))")
+        Text, server_default=func.current_timestamp()
     )
 
 
@@ -165,7 +171,7 @@ class StockpileSnapshot(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     taken_at: Mapped[str] = mapped_column(
-        Text, nullable=False, server_default=text("(datetime('now','localtime'))")
+        Text, nullable=False, server_default=func.current_timestamp()
     )
     trigger: Mapped[str] = mapped_column(Text, nullable=False)  # 'import' / 'compare'
     total_local: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -252,7 +258,7 @@ class InventoryEvent(Base):
     erp_category_code: Mapped[str | None] = mapped_column(Text)
     manual_grade: Mapped[int | None] = mapped_column(Integer)
     imported_at: Mapped[str] = mapped_column(
-        Text, nullable=False, server_default=text("(datetime('now','localtime'))")
+        Text, nullable=False, server_default=func.current_timestamp()
     )
 
 
@@ -267,7 +273,7 @@ class InventoryImport(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     imported_at: Mapped[str] = mapped_column(
-        Text, nullable=False, server_default=text("(datetime('now','localtime'))")
+        Text, nullable=False, server_default=func.current_timestamp()
     )
     event_type: Mapped[str] = mapped_column(Text, nullable=False)  # 'purchase' / 'sale'
     filename: Mapped[str] = mapped_column(Text, nullable=False)
@@ -300,7 +306,7 @@ class ForeignCustomerRecord(Base):
     shipping_date: Mapped[str | None] = mapped_column(Text)
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[str | None] = mapped_column(
-        Text, server_default=text("(datetime('now','localtime'))")
+        Text, server_default=func.current_timestamp()
     )
 
 
@@ -325,7 +331,7 @@ class BacktestRun(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     created_at: Mapped[str | None] = mapped_column(
-        Text, server_default=text("(datetime('now','localtime'))")
+        Text, server_default=func.current_timestamp()
     )
     model_name: Mapped[str] = mapped_column(Text, nullable=False)
     view: Mapped[str] = mapped_column(Text, nullable=False)  # 'all' / 'base_demand'
