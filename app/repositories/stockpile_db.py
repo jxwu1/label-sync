@@ -72,10 +72,17 @@ _engine_cache: dict[str, Engine] = {}
 
 
 def _build_engine(db_path: str) -> Engine:
-    engine = create_engine(f"sqlite:///{db_path}", future=True, poolclass=NullPool)
+    # DATABASE_URL 优先（PG 迁移用），回退 SQLite 文件
+    import os
+
+    url = os.environ.get("DATABASE_URL") or f"sqlite:///{db_path}"
+    engine = create_engine(url, future=True, poolclass=NullPool)
 
     @event.listens_for(engine, "connect")
     def _enable_wal(dbapi_conn, _):
+        # WAL 是 SQLite 专属；PG 不需要这个 PRAGMA
+        if engine.dialect.name != "sqlite":
+            return
         cursor = dbapi_conn.cursor()
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.close()
@@ -117,8 +124,16 @@ def _connect() -> sqlite3.Connection:
     """raw sqlite3 连接，仅供需要绕过 ORM 的旧测试 / 维护脚本使用。
 
     自动先调 ensure_db()（幂等）确保 schema 存在，调用方无需关心。
+
+    注意：本函数仅在 SQLite 后端下可用。PG 迁移后调用方必须改走 SQLAlchemy
+    raw connection。若在 PG 配置下被误调，立即报错暴露漏改的依赖点。
     """
     ensure_db()
+    if _engine().dialect.name != "sqlite":
+        raise RuntimeError(
+            "_connect() requires SQLite backend; current engine is "
+            f"{_engine().dialect.name}. Rewrite caller to use SQLAlchemy session."
+        )
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
@@ -328,7 +343,7 @@ def _upsert(
         existing.is_active = effective_is_active
         existing.source = source
         existing.extra = extra_json
-        existing.updated_at = func.datetime("now", "localtime")
+        existing.updated_at = func.current_timestamp()
         # 扩展字段：仅当传入时更新（None = 保留旧值）
         if product_name_zh is not None:
             existing.product_name_zh = product_name_zh
@@ -382,7 +397,7 @@ def _deactivate_missing_records(session: Session, active_barcodes: set[str]) -> 
             "deactivate",
         )
         row.is_active = _INACTIVE
-        row.updated_at = func.datetime("now", "localtime")
+        row.updated_at = func.current_timestamp()
 
 
 def _sync_export_dataframe(df: pd.DataFrame) -> int:

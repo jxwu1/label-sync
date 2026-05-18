@@ -6,6 +6,7 @@ pyarrow
 lxml
 sqlalchemy
 alembic
+psycopg[binary]>=3.2
 reportlab
 pydantic
 waitress
