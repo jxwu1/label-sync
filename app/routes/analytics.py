@@ -243,13 +243,13 @@ def backtest_summary():
     from app.services.sku_origin import ORIGIN_CTE_SQL
 
     raw = request.args.get("run_id")
-    origin_filter = (request.args.get("origin") or "all").strip().upper()
-    if origin_filter == "ALL":
-        origin_filter = "all"
-    if origin_filter not in ("FOREIGN", "CN", "unknown", "all"):
+    origin_upper = (request.args.get("origin") or "all").strip().upper()
+    _ORIGIN_MAP = {"ALL": "all", "FOREIGN": "FOREIGN", "CN": "CN", "UNKNOWN": "unknown"}
+    if origin_upper not in _ORIGIN_MAP:
         return jsonify(
             {"ok": False, "msg": "origin 必须是 FOREIGN / CN / unknown / all"}
         ), 400
+    origin_filter = _ORIGIN_MAP[origin_upper]
     if not raw:
         return jsonify({"ok": False, "msg": "缺少 run_id"}), 400
     try:
