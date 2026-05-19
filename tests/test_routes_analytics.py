@@ -355,6 +355,27 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
         resp = self.client.get("/analytics/backtest/compare?run_a=99999&run_b=99998")
         self.assertEqual(resp.status_code, 404)
 
+    # /backtest/summary 仅覆盖 validation 路径 (SQL 用 PG-only percentile_cont
+    # + DISTINCT ON, SQLite 测试 DB 跑不了). 端到端验证通过线上 curl 完成.
+
+    def test_summary_missing_run_id(self) -> None:
+        resp = self.client.get("/analytics/backtest/summary")
+        self.assertEqual(resp.status_code, 400)
+        body = resp.get_json()
+        self.assertIn("run_id", body["msg"])
+
+    def test_summary_bad_run_id_parse(self) -> None:
+        resp = self.client.get("/analytics/backtest/summary?run_id=abc")
+        self.assertEqual(resp.status_code, 400)
+        body = resp.get_json()
+        self.assertIn("整数", body["msg"])
+
+    def test_summary_bad_origin(self) -> None:
+        resp = self.client.get("/analytics/backtest/summary?run_id=1&origin=xyz")
+        self.assertEqual(resp.status_code, 400)
+        body = resp.get_json()
+        self.assertIn("origin", body["msg"])
+
 
 if __name__ == "__main__":
     unittest.main()
