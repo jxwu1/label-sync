@@ -351,18 +351,22 @@ mu clip 到 ≥ 0（业务量非负）。
 
 > **2026-05-19 更新**：`HoltWintersModel._try_fit_seasonal` / `_try_fit_trend` 改用 `fit(optimized=True, use_brute=False, minimize_kwargs={"options": {"maxiter": 50}})`。本地 130 周季节性测试单 SKU 秒级返回（之前 pathological 收敛）。
 
-### 9.3 SKU 来源分群（国外 / 国内）
+### 9.3 SKU 来源分群（国外 / 国内）✅ 已落地
 
-数据已经验证可分：
+> **2026-05-19 更新**：`app/services/sku_origin.py` 落地（commit `abfb214` + `801318d`）。
+> 规则：supplier_id 前缀（CN / GR/ES/TR/BG/NE/IT）优先 → 无采购记录回退 product_model 长度（5 位 CN / 13 位 FOREIGN）。
+> 端点：`GET /analytics/backtest/summary?run_id=N&origin=FOREIGN|CN|unknown|all`（SQL 端 CTE JOIN aggregate）。
 
-- 14,580 个有采购记录的 SKU 按 `supplier_id` 前缀分：CN 10,664 / FOREIGN 3,916 / 0 cross-origin
-- 31,034 个没采购记录的 SKU 可启发式补：纯 5 位 model → CN (99.99% 准)；纯 13 位 model → FOREIGN (83% 准)
+**run_id=44 EmpQuant base_demand 验证**：
 
-**用户的实际诉求**：只看 FOREIGN 数据（用户负责的部分）。
+| origin | n | MAPE | MASE | Bias | Cov@98 |
+|---|---:|---:|---:|---:|---:|
+| FOREIGN | 1572 | 0.806 | 0.952 | 0.227 | 0.971 |
+| CN | 2701 | 0.821 | 0.995 | 0.333 | 0.972 |
+| all | 4279 | 0.814 | 0.978 | 0.296 | 0.972 |
 
-**实现路径**：分析层加 filter，不动 backtest pipeline（混跑一次 → 按 origin 切分查询）。
-
-待决策 9.1 之后用最终 backtest 数据做。
+FOREIGN 货比 CN 货所有指标都更好（MASE 0.95 vs 0.99，bias 低 32%）。
+说明用户关心的国外货数据质量足以支撑生产用 EmpQuant 模型。
 
 ### 9.4 当前 DB 状态（截至 2026-05-18 18:00）
 
