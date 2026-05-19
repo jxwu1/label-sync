@@ -184,11 +184,12 @@ def walk_forward_backtest(
     window_train: int = 13,
     window_test: int = 4,
 ) -> list[dict]:
-    """滚动窗口回测.
+    """累积窗口回测 (expanding window).
 
-    每次 train 取连续 window_train 周, test 取下 window_test 周;
-    模型在 train 上 fit, 然后输出 horizon 1..window_test 的预测.
-    窗口每次前进 1 周.
+    window_train 是**最小训练长度**, 不是固定窗口宽度. 每次 train 取
+    series[:start+window_train], 累计扩张; 这样季节模型 (NaiveSeasonal52W
+    需 ≥52w, HoltWinters 需 ≥104w) 在序列长度跨过阈值后能真正生效, 而不是
+    永远 fallback 到均值. start 仍每次 +1, test 是下 window_test 周.
     """
     records: list[dict] = []
     n = len(series)
@@ -196,8 +197,9 @@ def walk_forward_backtest(
         return records
 
     for start in range(n - window_train - window_test + 1):
-        train = series[start : start + window_train]
-        test = series[start + window_train : start + window_train + window_test]
+        train_end = start + window_train
+        train = series[:train_end]
+        test = series[train_end : train_end + window_test]
         model = model_cls()
         model.fit(list(train))
         for h in range(1, window_test + 1):

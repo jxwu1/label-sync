@@ -331,33 +331,25 @@ mu clip 到 ≥ 0（业务量非负）。
 
 ---
 
-## 9. 待决决策（2026-05-18 晚发现，明天处理）
+## 9. 待决决策（2026-05-18 晚发现，2026-05-19 已处理）
 
-### 9.1 backtest 框架 window_train=13 的设计问题
+### 9.1 backtest 框架 window_train=13 的设计问题 ✅ 已选 B 落地
 
-跑第二批（含新增 EmpQuant + HW）时发现：
+> **2026-05-19 更新**：选项 B 已落地。`walk_forward_backtest` 改为累积训练 `series[:start+window_train]`，`window_train` 现在是**最小训练长度**而非固定窗口宽度。`pytest tests/test_backtest_service.py tests/test_forecast_service.py` 63/63 全绿。
+
+原问题（保留作历史记录）：
 
 - `walk_forward_backtest` 写死 `window_train=13`
 - 每次 `fit()` 只看 13 周
 - **NaiveSeasonal52W 永远进 fallback**（要 ≥ 52 周才用 lag-52）
 - **HoltWinters 同样问题**（季节项至少要 ≥ 104 周）
-- 实际效果：现在所有模型的 mu 计算趋同 mean(13)，差异主要在 sigma / p98
+- 实际效果：所有模型的 mu 计算趋同 mean(13)，差异主要在 sigma / p98
 
 **佐证**：EmpiricalQuantile run（id=28）和 NaiveSeasonal52W run（id=25）的 med_MAPE / med_MASE / avg_Bias **完全相同 (0.852 / 0.937 / 0.013)**，因为两者 mu = mean(13)。唯一差异在 cov@98（0.912 vs 0.924，+1.2 pp）。
 
-**三个选项**：
+### 9.2 HoltWintersModel 跑太慢 ✅ 已处理
 
-| 选项 | 工作量 | 收益 |
-|---|---|---|
-| A. 不动框架，仅修 HW timeout 让它跑完 | 1 小时 | 数据可对比但意义有限（季节模型还是测不出来） |
-| B. 改 walk_forward 用**累积训练**（`series[:start+13]`）+ 修 HW timeout，重跑 | 1-3 小时 | 季节 / 趋势 / 间歇模型真能体现差异 |
-| C. 保留现有 5 模型数据 + 加注释说明这是 13-week 窗口下的局限，下次正经做时再改 | 5 分钟 | 留技术债但今天结束 |
-
-### 9.2 HoltWintersModel 跑太慢
-
-- statsmodels BLAS 调用 8 核全开，但单 SKU fit 时间长（pathological 收敛）
-- 修复方向：`fit(optimized=True, use_brute=False)` 跳全局搜索；可能再加 `options={"maxiter": 50}`
-- 跟 §9.1 一起处理（先定框架再改 HW）
+> **2026-05-19 更新**：`HoltWintersModel._try_fit_seasonal` / `_try_fit_trend` 改用 `fit(optimized=True, use_brute=False, minimize_kwargs={"options": {"maxiter": 50}})`。本地 130 周季节性测试单 SKU 秒级返回（之前 pathological 收敛）。
 
 ### 9.3 SKU 来源分群（国外 / 国内）
 

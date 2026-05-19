@@ -146,7 +146,11 @@ class HoltWintersModel:
                     seasonal="add",
                     seasonal_periods=self._SEASONAL_PERIOD,
                     initialization_method="estimated",
-                ).fit(optimized=True)
+                ).fit(
+                    optimized=True,
+                    use_brute=False,
+                    minimize_kwargs={"options": {"maxiter": 50}},
+                )
                 forecast = model.forecast(steps=1)
                 mu = float(forecast[0])
                 # σ 用 in-sample 残差; 比原始 std 更准
@@ -169,7 +173,11 @@ class HoltWintersModel:
                     trend="add",
                     seasonal=None,
                     initialization_method="estimated",
-                ).fit(optimized=True)
+                ).fit(
+                    optimized=True,
+                    use_brute=False,
+                    minimize_kwargs={"options": {"maxiter": 50}},
+                )
                 forecast = model.forecast(steps=1)
                 mu = float(forecast[0])
                 resid = np.asarray(model.resid, dtype=float)
