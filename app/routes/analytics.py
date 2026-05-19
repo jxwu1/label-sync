@@ -226,6 +226,82 @@ def backtest_compare():
     return jsonify({"ok": True, **result})
 
 
+@bp.get("/backtest/summary")
+def backtest_summary():
+    """单个 run 的 aggregate 指标, 按 SKU origin (FOREIGN/CN/unknown/all) 筛选.
+
+    query:
+        run_id (必填)
+        origin (可选, 默认 all): FOREIGN | CN | unknown | all
+    返回 {ok, run_id, origin, n, med_mape, med_mase, avg_bias, avg_cov98}.
+    用 sku_origin.ORIGIN_CTE_SQL 计算每个 barcode 的 origin (供应商前缀
+    优先 + model 长度回退), 在 SQL 端聚合.
+    """
+    from flask import request
+    from sqlalchemy import text
+
+    from app.services.sku_origin import ORIGIN_CTE_SQL
+
+    raw = request.args.get("run_id")
+    origin_filter = (request.args.get("origin") or "all").strip().upper()
+    if origin_filter == "ALL":
+        origin_filter = "all"
+    if origin_filter not in ("FOREIGN", "CN", "unknown", "all"):
+        return jsonify(
+            {"ok": False, "msg": "origin 必须是 FOREIGN / CN / unknown / all"}
+        ), 400
+    if not raw:
+        return jsonify({"ok": False, "msg": "缺少 run_id"}), 400
+    try:
+        run_id = int(raw)
+    except ValueError:
+        return jsonify({"ok": False, "msg": "run_id 必须是整数"}), 400
+
+    where_origin = "" if origin_filter == "all" else "AND so.origin = :origin"
+    sql = ORIGIN_CTE_SQL + f"""
+SELECT
+    COUNT(*) AS n,
+    percentile_cont(0.5) WITHIN GROUP (ORDER BY br.mape) AS med_mape,
+    percentile_cont(0.5) WITHIN GROUP (ORDER BY br.mase) AS med_mase,
+    AVG(br.bias)         AS avg_bias,
+    AVG(br.coverage_p98) AS avg_cov98
+FROM backtest_results br
+JOIN sku_origin so ON so.product_barcode = br.product_barcode
+WHERE br.run_id = :run_id {where_origin}
+"""
+    params: dict = {"run_id": run_id}
+    if origin_filter != "all":
+        params["origin"] = origin_filter
+
+    with stockpile_db._session() as session:
+        row = session.execute(text(sql), params).first()
+        if row is None or row.n == 0:
+            return jsonify(
+                {
+                    "ok": True,
+                    "run_id": run_id,
+                    "origin": origin_filter,
+                    "n": 0,
+                    "med_mape": None,
+                    "med_mase": None,
+                    "avg_bias": None,
+                    "avg_cov98": None,
+                }
+            )
+        return jsonify(
+            {
+                "ok": True,
+                "run_id": run_id,
+                "origin": origin_filter,
+                "n": int(row.n),
+                "med_mape": float(row.med_mape) if row.med_mape is not None else None,
+                "med_mase": float(row.med_mase) if row.med_mase is not None else None,
+                "avg_bias": float(row.avg_bias) if row.avg_bias is not None else None,
+                "avg_cov98": float(row.avg_cov98) if row.avg_cov98 is not None else None,
+            }
+        )
+
+
 @bp.get("/backtest/results")
 def backtest_results():
     """单个 run 的 per-SKU 分数 (query param run_id)."""
