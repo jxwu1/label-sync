@@ -46,6 +46,22 @@ class HashNameTests(unittest.TestCase):
     def test_strips_whitespace_before_hash(self) -> None:
         assert self._h("foo") == self._h("  foo  ")
 
+    def test_pd_na_returns_none(self) -> None:
+        """pandas string dtype 用 pd.NA 表示缺失, 必须接住."""
+        assert self._h(pd.NA) is None
+
+    def test_pd_na_in_string_series(self) -> None:
+        """从 pandas StringDtype Series .apply() 进来的 NA 也要正确处理.
+
+        pandas 在 result Series 里把 None 转成 nan, 所以用 pd.isna 而不是 is None.
+        """
+        s = pd.Series(["张三", pd.NA, "", "  "], dtype="string")
+        hashed = s.apply(self._h)
+        assert not pd.isna(hashed[0]) and len(hashed[0]) == 16
+        assert pd.isna(hashed[1])
+        assert pd.isna(hashed[2])
+        assert pd.isna(hashed[3])
+
 
 class SanitizeDataframeTests(unittest.TestCase):
     def _sanitize(self, df):

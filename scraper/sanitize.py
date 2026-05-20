@@ -57,8 +57,12 @@ _HASH_LEN = 16  # SHA-256 hex 前 16 字符 = 64 bit, 碰撞概率忽略
 
 
 def _hash_name(value) -> str | None:
-    """SHA-256[:16]. 空值返回 None, 同名得同 hash (确定性)."""
-    if value is None or (isinstance(value, float) and pd.isna(value)):
+    """SHA-256[:16]. 空值返回 None, 同名得同 hash (确定性).
+
+    pd.isna 同时接 None / float NaN / pd.NA (pandas string dtype 用这个),
+    比 isinstance(value, float) 检查更全.
+    """
+    if value is None or pd.isna(value):
         return None
     s = str(value).strip()
     if not s:
