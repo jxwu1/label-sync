@@ -370,6 +370,44 @@ class BacktestResult(Base):
     mean_predicted: Mapped[float] = mapped_column(nullable=False)
 
 
+class StockpileInventorySnapshot(Base):
+    """库存快照表 (plan §2.3 服务器侧).
+
+    每次抓取 (周一 cron) 写一份 snapshot_date 全量, 保留历史. product_barcode
+    不在快照里 (ERP 库存页不导出条码), 通过 product_model JOIN stockpile 反查.
+    """
+
+    __tablename__ = "stockpile_inventory_snapshot"
+    __table_args__ = (
+        UniqueConstraint(
+            "snapshot_date",
+            "product_model",
+            name="uq_inventory_snapshot_date_model",
+        ),
+        Index("idx_inventory_snapshot_date", "snapshot_date"),
+        Index("idx_inventory_snapshot_model", "product_model"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    snapshot_date: Mapped[str] = mapped_column(Text, nullable=False)
+    product_model: Mapped[str] = mapped_column(Text, nullable=False)
+    product_name_zh: Mapped[str | None] = mapped_column(Text)
+    erp_category_code: Mapped[str | None] = mapped_column(Text)
+    erp_category_raw: Mapped[str | None] = mapped_column(Text)
+    last_purchase_at: Mapped[str | None] = mapped_column(Text)
+    last_arrival_at: Mapped[str | None] = mapped_column(Text)
+    qty_store: Mapped[int | None] = mapped_column(Integer)
+    qty_total: Mapped[int] = mapped_column(Integer, nullable=False)
+    reorder_min: Mapped[int | None] = mapped_column(Integer)
+    reorder_max: Mapped[int | None] = mapped_column(Integer)
+    is_discontinued_in_erp: Mapped[bool] = mapped_column(
+        nullable=False, server_default=text("false")
+    )
+    imported_at: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=func.current_timestamp()
+    )
+
+
 class ForecastOutput(Base):
     """阶段 3.7 per-SKU 最新预测快照 (dashboard 用).
 

@@ -579,10 +579,12 @@ def data_upload():
     fname = f.filename or ""
     if not fname.endswith(".parquet"):
         return jsonify({"ok": False, "msg": "file 必须是 .parquet"}), 400
-    if not fname.startswith("events_"):
+    is_events = fname.startswith("events_")
+    is_inventory = fname.startswith("inventory_snapshot_")
+    if not (is_events or is_inventory):
         return jsonify({
             "ok": False,
-            "msg": "v1 仅接受 events_*.parquet (inventory_snapshot 入库未实现)",
+            "msg": "文件名必须以 events_ 或 inventory_snapshot_ 开头",
         }), 400
 
     upload_dir = Path(CONFIG.base_dir) / "scrape_uploads"
@@ -591,36 +593,54 @@ def data_upload():
     saved = upload_dir / f"{ts}_{secure_filename(fname)}"
     f.save(saved)
 
-    err = _validate_event_parquet(saved)
-    if err:
-        saved.unlink(missing_ok=True)
-        return jsonify({"ok": False, "msg": err}), 400
+    if is_events:
+        err = _validate_event_parquet(saved)
+        if err:
+            saved.unlink(missing_ok=True)
+            return jsonify({"ok": False, "msg": err}), 400
+        try:
+            from etl.parquet_importer import import_cleaned_parquet
+            with stockpile_db._session() as session:
+                sale_r, purchase_r = import_cleaned_parquet(saved, session)
+                session.commit()
+        except Exception as exc:
+            return jsonify({"ok": False, "msg": f"导入失败: {exc}"}), 500
+        return jsonify({
+            "ok": True,
+            "kind": "events",
+            "filename": saved.name,
+            "sale": {
+                "imported": sale_r.rows_imported,
+                "dup_skipped": sale_r.rows_skipped_duplicate,
+                "missing_skipped": sale_r.rows_skipped_missing_key,
+                "new_customers": sale_r.new_customers,
+                "new_skus": sale_r.new_skus,
+            },
+            "purchase": {
+                "imported": purchase_r.rows_imported,
+                "dup_skipped": purchase_r.rows_skipped_duplicate,
+                "missing_skipped": purchase_r.rows_skipped_missing_key,
+                "new_suppliers": purchase_r.new_suppliers,
+                "new_skus": purchase_r.new_skus,
+            },
+        })
 
+    # inventory_snapshot 分支
     try:
-        from etl.parquet_importer import import_cleaned_parquet
+        from etl.inventory_importer import import_inventory_snapshot
         with stockpile_db._session() as session:
-            sale_r, purchase_r = import_cleaned_parquet(saved, session)
+            stats = import_inventory_snapshot(saved, session)
             session.commit()
+    except ValueError as exc:
+        saved.unlink(missing_ok=True)
+        return jsonify({"ok": False, "msg": f"inventory schema 错误: {exc}"}), 400
     except Exception as exc:
         return jsonify({"ok": False, "msg": f"导入失败: {exc}"}), 500
-
     return jsonify({
         "ok": True,
+        "kind": "inventory_snapshot",
         "filename": saved.name,
-        "sale": {
-            "imported": sale_r.rows_imported,
-            "dup_skipped": sale_r.rows_skipped_duplicate,
-            "missing_skipped": sale_r.rows_skipped_missing_key,
-            "new_customers": sale_r.new_customers,
-            "new_skus": sale_r.new_skus,
-        },
-        "purchase": {
-            "imported": purchase_r.rows_imported,
-            "dup_skipped": purchase_r.rows_skipped_duplicate,
-            "missing_skipped": purchase_r.rows_skipped_missing_key,
-            "new_suppliers": purchase_r.new_suppliers,
-            "new_skus": purchase_r.new_skus,
-        },
+        **stats,
     })
 
 

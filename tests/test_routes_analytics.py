@@ -493,6 +493,130 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
         finally:
             os.environ.pop("UPLOAD_TOKEN", None)
 
+    def test_upload_inventory_success(self) -> None:
+        """合法 inventory_snapshot parquet 应成功 import."""
+        import os
+        import tempfile
+
+        import pandas as pd
+
+        os.environ["UPLOAD_TOKEN"] = "secret_token_abc"
+        df = pd.DataFrame({
+            "snapshot_date": ["2026-05-20"] * 2,
+            "product_model": ["10110", "10111"],
+            "product_name_zh": ["渔具工具 弹弓", "渔具 钓鱼 报警器"],
+            "erp_category_code": ["A001-0904", "A001-0101"],
+            "erp_category_raw": ["渔具-工具 弹弓", "渔具-渔具 配件"],
+            "last_purchase_at": ["2026-01-19", "2023-03-11"],
+            "last_arrival_at": ["2026-04-11", "2023-04-24"],
+            "qty_store": [294, 195],
+            "qty_total": [294, 195],
+            "reorder_min": [180, 640],
+            "reorder_max": [540, 1920],
+            "is_discontinued_in_erp": [False, False],
+        })
+        with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as tmp:
+            df.to_parquet(tmp.name, engine="pyarrow")
+            tmp_path = tmp.name
+
+        try:
+            with open(tmp_path, "rb") as fp:
+                resp = self.client.post(
+                    "/analytics/data/upload",
+                    headers={"X-Upload-Token": "secret_token_abc"},
+                    data={"file": (fp, "inventory_snapshot_2026-05-20.parquet")},
+                    content_type="multipart/form-data",
+                )
+            self.assertEqual(resp.status_code, 200)
+            body = resp.get_json()
+            self.assertEqual(body["kind"], "inventory_snapshot")
+            self.assertEqual(body["snapshot_date"], "2026-05-20")
+            self.assertEqual(body["rows_imported"], 2)
+            self.assertEqual(body["rows_replaced"], 0)
+        finally:
+            os.environ.pop("UPLOAD_TOKEN", None)
+            import pathlib
+            pathlib.Path(tmp_path).unlink(missing_ok=True)
+
+    def test_upload_inventory_replaces_existing(self) -> None:
+        """重复上传同 snapshot_date 应替换 (rows_replaced > 0)."""
+        import os
+        import tempfile
+
+        import pandas as pd
+
+        os.environ["UPLOAD_TOKEN"] = "secret_token_abc"
+        df = pd.DataFrame({
+            "snapshot_date": ["2026-05-20"],
+            "product_model": ["10110"],
+            "product_name_zh": ["test"],
+            "erp_category_code": [None],
+            "erp_category_raw": [None],
+            "last_purchase_at": [None],
+            "last_arrival_at": [None],
+            "qty_store": [10],
+            "qty_total": [10],
+            "reorder_min": [None],
+            "reorder_max": [None],
+            "is_discontinued_in_erp": [False],
+        })
+        with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as tmp:
+            df.to_parquet(tmp.name, engine="pyarrow")
+            tmp_path = tmp.name
+
+        try:
+            for i in range(2):
+                with open(tmp_path, "rb") as fp:
+                    resp = self.client.post(
+                        "/analytics/data/upload",
+                        headers={"X-Upload-Token": "secret_token_abc"},
+                        data={"file": (fp, "inventory_snapshot_2026-05-20.parquet")},
+                        content_type="multipart/form-data",
+                    )
+                body = resp.get_json()
+                if i == 0:
+                    self.assertEqual(body["rows_replaced"], 0)
+                    self.assertEqual(body["rows_imported"], 1)
+                else:
+                    self.assertEqual(body["rows_replaced"], 1)
+                    self.assertEqual(body["rows_imported"], 1)
+        finally:
+            os.environ.pop("UPLOAD_TOKEN", None)
+            import pathlib
+            pathlib.Path(tmp_path).unlink(missing_ok=True)
+
+    def test_upload_inventory_missing_snapshot_date_column(self) -> None:
+        """inventory parquet 缺 snapshot_date 列应被拒收."""
+        import os
+        import tempfile
+
+        import pandas as pd
+
+        os.environ["UPLOAD_TOKEN"] = "secret_token_abc"
+        # 故意不放 snapshot_date 列
+        df = pd.DataFrame({
+            "product_model": ["10110"],
+            "qty_total": [10],
+        })
+        with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as tmp:
+            df.to_parquet(tmp.name, engine="pyarrow")
+            tmp_path = tmp.name
+
+        try:
+            with open(tmp_path, "rb") as fp:
+                resp = self.client.post(
+                    "/analytics/data/upload",
+                    headers={"X-Upload-Token": "secret_token_abc"},
+                    data={"file": (fp, "inventory_snapshot_2026-05-20.parquet")},
+                    content_type="multipart/form-data",
+                )
+            self.assertEqual(resp.status_code, 400)
+            self.assertIn("snapshot_date", resp.get_json()["msg"])
+        finally:
+            os.environ.pop("UPLOAD_TOKEN", None)
+            import pathlib
+            pathlib.Path(tmp_path).unlink(missing_ok=True)
+
     def test_forecast_refresh_returns_stats(self) -> None:
         """§3.7 POST /forecast/refresh: 空库返回 n_total=0."""
         resp = self.client.post("/analytics/forecast/refresh")
