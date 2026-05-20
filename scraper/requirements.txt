@@ -1,0 +1,6 @@
+# scraper 专用依赖 (本地脚本, 不部署到服务器)
+# pandas / openpyxl / pyarrow 跟主项目共用 (在根 requirements.txt 已有)
+# 这里只列 scraper 独有的:
+
+requests
+python-dateutil

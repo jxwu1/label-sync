@@ -6,10 +6,25 @@
 ## 首次配置
 
 ```bash
+# 1. 装依赖 (除主项目依赖外, scraper 还需 requests / dateutil)
+pip install -r scraper/requirements.txt
+
+# 2. 配置
 cd scraper
 cp .env.example .env          # 改里面的 BOSON_BASE_URL / 输出目录
 cp cookie.txt.example cookie.txt
 # 编辑 cookie.txt, 粘贴 PHPSESSID
+```
+
+## 用法
+
+```bash
+# 销售明细 (默认最近 1 年)
+python scraper/sales_scraper.py
+python scraper/sales_scraper.py --from 2023-01-01 --to 2026-05-20
+
+# 采购明细
+python scraper/purchase_scraper.py --from 2023-01-01 --to 2026-05-20
 ```
 
 `.env` 和 `cookie.txt` 已经在根 `.gitignore` 里, **不会被提交**.
