@@ -50,8 +50,11 @@ docs/.private/
 # Scraper secrets / staging
 scraper/cookie.txt
 scraper/.env
+!scraper/.env.example
 scraper/staging/
 scraper/sanitized/
+scraper/uploaded/
+scraper/logs/
 data/scrape_staging/
 
 # Tooling artifacts

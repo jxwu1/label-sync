@@ -53,9 +53,35 @@ scraper/
 └── inventory_scraper.py  # (Step 2.3) 库存快照抓取 (新写)
 ```
 
+## 自动化 (run_weekly.ps1 + Windows Task Scheduler)
+
+每周一 14:00 自动跑全链路 (抓取 → 脱敏 → 上传):
+
+```powershell
+# 一次性: 注册 Task Scheduler (管理员 PowerShell)
+$action = New-ScheduledTaskAction -Execute "powershell.exe" `
+  -Argument "-NoProfile -ExecutionPolicy Bypass -File C:\Dev\label-sync\scraper\run_weekly.ps1"
+$trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday -At 14:00
+$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopOnIdleEnd
+Register-ScheduledTask -TaskName "label-sync-weekly-scrape" `
+  -Action $action -Trigger $trigger -Principal $principal -Settings $settings
+```
+
+手动测试 (登记前先跑一遍验证):
+
+```powershell
+.\scraper\run_weekly.ps1
+```
+
+输出在 `scraper/logs/run_weekly_<ts>.log`. 成功后:
+- `scraper/sanitized/*.parquet` → 挪到 `scraper/uploaded/<ts>/`
+- 任一步失败 exit 1, Task Scheduler "上次运行结果" 显示非 0
+
 ## TODO
 
-- [ ] Step 2.2 迁移 sales / purchase 脚本, env var 化
-- [ ] Step 2.3 新写 inventory_scraper.py (输出当前库存快照)
-- [ ] Step 2.4 本地 cron 触发器 + 推送到服务器入库
-- [ ] cookie 失效自动告警
+- [x] Step 2.2 迁移 sales / purchase 脚本, env var 化
+- [x] Step 2.3 inventory_scraper.py 输出库存快照
+- [x] Step 2.4 sanitize.py 脱敏
+- [x] Step 2.5 run_weekly.ps1 cron wrapper
+- [ ] cookie 失效自动告警 (响应 < 50KB 时邮件 / 桌面通知)
