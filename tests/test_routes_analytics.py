@@ -376,6 +376,21 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
         body = resp.get_json()
         self.assertIn("origin", body["msg"])
 
+    def test_sales_top_bad_origin(self) -> None:
+        resp = self.client.get("/analytics/sales/top?origin=xyz")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("origin", resp.get_json()["msg"])
+
+    def test_sales_top_bad_weeks(self) -> None:
+        resp = self.client.get("/analytics/sales/top?weeks=2")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("weeks", resp.get_json()["msg"])
+
+    def test_sales_top_bad_format(self) -> None:
+        resp = self.client.get("/analytics/sales/top?format=xml")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("format", resp.get_json()["msg"])
+
     def test_top_bad_origin(self) -> None:
         resp = self.client.get("/analytics/forecast/top?origin=xyz")
         self.assertEqual(resp.status_code, 400)

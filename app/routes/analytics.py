@@ -302,6 +302,137 @@ WHERE br.run_id = :run_id {where_origin}
         )
 
 
+@bp.get("/sales/top")
+def sales_top():
+    """历史实测好卖货清单 (区别于 /forecast/top 是预测).
+
+    按过去 N 周 inventory_events 净销量 (扣退货) 聚合, 支持 origin filter.
+
+    query:
+        origin (可选, 默认 FOREIGN): FOREIGN | CN | unknown | all
+        weeks  (可选, 默认 52, 范围 4-208): 回溯几周
+        limit  (可选, 默认 200, 上限 5000)
+        min_active_weeks (可选, 默认 0): 过滤至少有 N 个非零销售周的 SKU
+        format (可选, 默认 csv): csv | json
+    """
+    import csv
+    import io
+
+    from flask import request, Response
+    from sqlalchemy import text
+
+    from app.services.sku_origin import ORIGIN_CTE_SQL
+
+    origin_upper = (request.args.get("origin") or "FOREIGN").strip().upper()
+    _ORIGIN_MAP = {"ALL": "all", "FOREIGN": "FOREIGN", "CN": "CN", "UNKNOWN": "unknown"}
+    if origin_upper not in _ORIGIN_MAP:
+        return jsonify(
+            {"ok": False, "msg": "origin 必须是 FOREIGN / CN / unknown / all"}
+        ), 400
+    origin_filter = _ORIGIN_MAP[origin_upper]
+
+    try:
+        weeks = int(request.args.get("weeks", "52"))
+        limit = int(request.args.get("limit", "200"))
+        min_active_weeks = int(request.args.get("min_active_weeks", "0"))
+    except ValueError:
+        return jsonify({"ok": False, "msg": "weeks/limit/min_active_weeks 必须是整数"}), 400
+    if weeks < 4 or weeks > 208:
+        return jsonify({"ok": False, "msg": "weeks 范围 4-208"}), 400
+    if limit < 1 or limit > 5000:
+        return jsonify({"ok": False, "msg": "limit 范围 1-5000"}), 400
+
+    fmt = (request.args.get("format") or "csv").lower()
+    if fmt not in ("csv", "json"):
+        return jsonify({"ok": False, "msg": "format 必须是 csv 或 json"}), 400
+
+    where_origin = "" if origin_filter == "all" else "AND so.origin = :origin"
+    sql = ORIGIN_CTE_SQL + f""",
+sales_agg AS (
+    SELECT
+        product_barcode,
+        SUM(qty)::int AS total_qty,
+        COUNT(DISTINCT DATE_TRUNC('week', event_at::date)) AS n_active_weeks
+    FROM inventory_events
+    WHERE event_type = 'sale'
+      AND event_at::date >= (CURRENT_DATE - (:weeks * 7))
+    GROUP BY product_barcode
+    HAVING SUM(qty) > 0
+)
+SELECT
+    sa.product_barcode,
+    s.product_model,
+    s.product_name_zh,
+    s.product_name_local,
+    s.erp_category_raw,
+    so.origin,
+    s.auto_category,
+    sa.total_qty,
+    sa.n_active_weeks,
+    (sa.total_qty * 1.0 / NULLIF(sa.n_active_weeks, 0)) AS mean_qty_per_active_week,
+    s.sale_price
+FROM sales_agg sa
+JOIN stockpile s ON s.product_barcode = sa.product_barcode
+JOIN sku_origin so ON so.product_barcode = sa.product_barcode
+WHERE s.is_active = 1
+  AND sa.n_active_weeks >= :min_active_weeks
+  {where_origin}
+ORDER BY sa.total_qty DESC
+LIMIT :limit
+"""
+    params: dict = {"weeks": weeks, "limit": limit, "min_active_weeks": min_active_weeks}
+    if origin_filter != "all":
+        params["origin"] = origin_filter
+
+    with stockpile_db._session() as session:
+        rows = session.execute(text(sql), params).all()
+
+    items = [
+        {
+            "product_barcode": r.product_barcode,
+            "product_model": r.product_model,
+            "product_name_zh": r.product_name_zh,
+            "product_name_local": r.product_name_local,
+            "erp_category_raw": r.erp_category_raw,
+            "origin": r.origin,
+            "auto_category": r.auto_category,
+            "total_qty": int(r.total_qty),
+            "n_active_weeks": int(r.n_active_weeks),
+            "mean_qty_per_active_week": (
+                float(r.mean_qty_per_active_week)
+                if r.mean_qty_per_active_week is not None else None
+            ),
+            "sale_price": float(r.sale_price) if r.sale_price is not None else None,
+        }
+        for r in rows
+    ]
+
+    if fmt == "json":
+        return jsonify({
+            "ok": True, "origin": origin_filter, "weeks": weeks,
+            "n": len(items), "items": items,
+        })
+
+    buf = io.StringIO()
+    fields = [
+        "product_barcode", "product_model",
+        "product_name_zh", "product_name_local",
+        "erp_category_raw", "origin", "auto_category",
+        "total_qty", "n_active_weeks", "mean_qty_per_active_week",
+        "sale_price",
+    ]
+    writer = csv.DictWriter(buf, fieldnames=fields)
+    writer.writeheader()
+    writer.writerows(items)
+    csv_bytes = buf.getvalue().encode("utf-8-sig")
+    fname = f"sales_top_{origin_filter}_{weeks}w.csv"
+    return Response(
+        csv_bytes,
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
 @bp.get("/forecast/top")
 def forecast_top():
     """§3.7+ 按预测周销量排序的「好卖货」清单, 支持按 origin filter.
