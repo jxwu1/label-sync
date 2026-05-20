@@ -51,6 +51,7 @@ docs/.private/
 scraper/cookie.txt
 scraper/.env
 scraper/staging/
+scraper/sanitized/
 data/scrape_staging/
 
 # Tooling artifacts
