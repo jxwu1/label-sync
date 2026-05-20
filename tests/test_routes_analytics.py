@@ -376,6 +376,15 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
         body = resp.get_json()
         self.assertIn("origin", body["msg"])
 
+    def test_forecast_refresh_returns_stats(self) -> None:
+        """§3.7 POST /forecast/refresh: 空库返回 n_total=0."""
+        resp = self.client.post("/analytics/forecast/refresh")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["n_total"], 0)
+        self.assertEqual(body["n_written"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

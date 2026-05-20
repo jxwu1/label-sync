@@ -211,5 +211,137 @@ class HoltWintersModelTests(unittest.TestCase):
         assert 4.0 <= d.mu <= 6.0
 
 
+class RefreshForecastOutputTests(unittest.TestCase):
+    """§3.7 refresh_forecast_output: 全量 SKU 写 forecast_output 表."""
+
+    def setUp(self) -> None:
+        import shutil
+        from pathlib import Path
+        from unittest import mock
+
+        from app.repositories import stockpile_db
+
+        self._tmp = Path(__file__).resolve().parent / "_test_refresh_forecast"
+        shutil.rmtree(self._tmp, ignore_errors=True)
+        self._tmp.mkdir(parents=True, exist_ok=True)
+        self._db = self._tmp / "test.db"
+        self._patch = mock.patch.object(stockpile_db, "DB_PATH", self._db)
+        self._patch.start()
+        self.addCleanup(self._patch.stop)
+        stockpile_db._engine_cache.clear()
+        stockpile_db.ensure_db()
+
+    def tearDown(self) -> None:
+        import shutil
+
+        from app.repositories import stockpile_db
+
+        stockpile_db._engine_cache.clear()
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _seed_retail(self, barcode: str, weeks: int = 30, qty: int = 5) -> None:
+        from datetime import date, timedelta
+
+        from sqlalchemy import insert
+
+        from app.models import InventoryEvent, Stockpile
+        from app.repositories import stockpile_db
+
+        with stockpile_db._session() as s:
+            s.execute(
+                insert(Stockpile).values(
+                    product_barcode=barcode,
+                    product_model=barcode,
+                    stockpile_location="",
+                    is_active=1,
+                )
+            )
+            for w in range(weeks):
+                event_at = (date(2026, 5, 13) - timedelta(days=w * 7)).isoformat()
+                s.execute(
+                    insert(InventoryEvent).values(
+                        event_at=event_at,
+                        event_type="sale",
+                        product_barcode=barcode,
+                        qty=qty,
+                        document_no=f"{barcode}-D{w}",
+                    )
+                )
+            s.commit()
+
+    def test_writes_row_for_retail_sku(self) -> None:
+        from datetime import date
+
+        from sqlalchemy import select
+
+        from app.models import ForecastOutput
+        from app.repositories import stockpile_db
+        from app.services.forecast import refresh_forecast_output
+
+        self._seed_retail("B1", weeks=30)
+        result = refresh_forecast_output(end_date=date(2026, 5, 13), barcodes=["B1"])
+
+        assert result["n_total"] == 1
+        assert result["n_written"] == 1
+        assert result["n_skipped"] == 0
+
+        with stockpile_db._session() as s:
+            row = s.execute(
+                select(ForecastOutput).where(ForecastOutput.product_barcode == "B1")
+            ).scalar_one()
+            assert row.model_used == "EmpiricalQuantile"
+            assert row.sku_type == "retail_dominant"
+            assert row.n_weeks_history > 0
+            assert row.p98 >= row.p50
+
+    def test_upsert_replaces_previous_row(self) -> None:
+        from datetime import date
+
+        from sqlalchemy import select
+
+        from app.models import ForecastOutput
+        from app.repositories import stockpile_db
+        from app.services.forecast import refresh_forecast_output
+
+        self._seed_retail("B1", weeks=30, qty=5)
+        refresh_forecast_output(end_date=date(2026, 5, 13), barcodes=["B1"])
+        refresh_forecast_output(end_date=date(2026, 5, 13), barcodes=["B1"])
+
+        with stockpile_db._session() as s:
+            rows = s.execute(
+                select(ForecastOutput).where(ForecastOutput.product_barcode == "B1")
+            ).all()
+            assert len(rows) == 1
+
+    def test_skips_sku_with_no_history(self) -> None:
+        from datetime import date
+
+        from sqlalchemy import insert, select
+
+        from app.models import ForecastOutput, Stockpile
+        from app.repositories import stockpile_db
+        from app.services.forecast import refresh_forecast_output
+
+        with stockpile_db._session() as s:
+            s.execute(
+                insert(Stockpile).values(
+                    product_barcode="EMPTY",
+                    product_model="EMPTY",
+                    stockpile_location="",
+                    is_active=1,
+                )
+            )
+            s.commit()
+
+        result = refresh_forecast_output(
+            end_date=date(2026, 5, 13), barcodes=["EMPTY"]
+        )
+        assert result["n_written"] == 0
+        assert result["n_skipped"] == 1
+        with stockpile_db._session() as s:
+            rows = s.execute(select(ForecastOutput)).all()
+            assert rows == []
+
+
 if __name__ == "__main__":
     unittest.main()

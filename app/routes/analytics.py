@@ -302,6 +302,22 @@ WHERE br.run_id = :run_id {where_origin}
         )
 
 
+@bp.post("/forecast/refresh")
+def forecast_refresh():
+    """§3.7 触发 forecast_output 表全量刷新 (供 cron 容器调).
+
+    无 query/body. 同步执行 (生产规模 ~27k SKU, 实测几分钟内完成).
+    返回 {ok, n_total, n_written, n_skipped}.
+    """
+    from app.services.forecast import refresh_forecast_output
+
+    try:
+        stats = refresh_forecast_output()
+    except Exception as exc:
+        return jsonify({"ok": False, "msg": f"刷新失败：{exc}"}), 500
+    return jsonify({"ok": True, **stats})
+
+
 @bp.get("/backtest/results")
 def backtest_results():
     """单个 run 的 per-SKU 分数 (query param run_id)."""

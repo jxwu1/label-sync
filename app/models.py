@@ -366,6 +366,30 @@ class BacktestResult(Base):
     mean_predicted: Mapped[float] = mapped_column(nullable=False)
 
 
+class ForecastOutput(Base):
+    """阶段 3.7 per-SKU 最新预测快照 (dashboard 用).
+
+    每 SKU 一行, 刷新时 upsert. 不保留历史快照 (历史回测分数在 backtest_results).
+    """
+
+    __tablename__ = "forecast_output"
+    __table_args__ = (
+        Index("idx_forecast_output_computed_at", "computed_at"),
+    )
+
+    product_barcode: Mapped[str] = mapped_column(Text, primary_key=True)
+    model_used: Mapped[str] = mapped_column(Text, nullable=False)
+    sku_type: Mapped[str] = mapped_column(Text, nullable=False)
+    n_weeks_history: Mapped[int] = mapped_column(Integer, nullable=False)
+    mu: Mapped[float] = mapped_column(nullable=False)
+    sigma: Mapped[float] = mapped_column(nullable=False)
+    p50: Mapped[float] = mapped_column(nullable=False)
+    p98: Mapped[float] = mapped_column(nullable=False)
+    computed_at: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=func.current_timestamp()
+    )
+
+
 _SessionFactory = sessionmaker(bind=_engine, future=True, expire_on_commit=False)
 
 

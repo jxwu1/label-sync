@@ -12,11 +12,15 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import warnings
 
 import numpy as np
 
-from app.services.backtest import ForecastDist
+from app.services.backtest import ForecastDist, _build_series
+
+# refresh_forecast_output: 序列太短就跳过 (与 backtest min_weeks 对齐)
+_MIN_FIT_WEEKS = 13
 
 _Z98 = 2.054  # Φ⁻¹(0.98)
 
@@ -73,6 +77,77 @@ class EmpiricalQuantileModel:
 
     def predict(self, steps: int = 1) -> ForecastDist:
         return self._dist
+
+
+def refresh_forecast_output(
+    end_date: dt.date | None = None,
+    weeks: int = 156,
+    barcodes: list[str] | None = None,
+) -> dict:
+    """对全部 active SKU 算最新预测快照, upsert 到 forecast_output 表.
+
+    模型路由 (§3.7 设计 3-B):
+        retail_dominant / mixed → EmpiricalQuantile (base_demand_view)
+        wholesale_only / dying / unclassified → 跳过
+
+    跳过逻辑由 backtest._build_series(view='base_demand') 承担: 它对非
+    retail/mixed 直接返回 None.
+
+    返回 {"n_total", "n_written", "n_skipped"}.
+    """
+    from sqlalchemy import delete, insert, select
+
+    from app.models import ForecastOutput, Stockpile
+    from app.repositories import stockpile_db
+
+    if end_date is None:
+        end_date = dt.date.today()
+
+    with stockpile_db._session() as s:
+        if barcodes is None:
+            rows = s.execute(
+                select(Stockpile.product_barcode).where(Stockpile.is_active == 1)
+            ).all()
+            barcodes = [r[0] for r in rows]
+
+        n_total = len(barcodes)
+        n_written = 0
+        for bc in barcodes:
+            built = _build_series(bc, end_date, weeks, "base_demand", session=s)
+            if built is None:
+                continue
+            series, sku_type = built
+            if len(series) < _MIN_FIT_WEEKS:
+                continue
+
+            model = EmpiricalQuantileModel()
+            model.fit(series)
+            d = model.predict(steps=1)
+
+            # SQLite 不支持原生 ON CONFLICT for SQLAlchemy core 跨方言; delete+insert
+            # 简单可靠. PG/SQLite 行为一致.
+            s.execute(
+                delete(ForecastOutput).where(ForecastOutput.product_barcode == bc)
+            )
+            s.execute(
+                insert(ForecastOutput).values(
+                    product_barcode=bc,
+                    model_used=model.name,
+                    sku_type=sku_type,
+                    n_weeks_history=len(series),
+                    mu=d.mu,
+                    sigma=d.sigma,
+                    p50=d.p50,
+                    p98=d.p98,
+                )
+            )
+            n_written += 1
+        s.commit()
+        return {
+            "n_total": n_total,
+            "n_written": n_written,
+            "n_skipped": n_total - n_written,
+        }
 
 
 class HoltWintersModel:
