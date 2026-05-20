@@ -98,6 +98,10 @@ class Stockpile(Base):
     # 产品总档（product.csv）的档案价格 — 与 inventory_events 的实际成交价不同
     stock_price: Mapped[float | None] = mapped_column()  # 进价档案
     sale_price: Mapped[float | None] = mapped_column()  # 售价档案
+    # 极高置信「真停用」: 库存=0 AND PG 完全无销售/采购事件. dashboard toggle 用.
+    is_truly_discontinued: Mapped[bool] = mapped_column(
+        nullable=False, server_default=text("false")
+    )
 
     locations: Mapped[list[StockpileLocation]] = relationship(
         "StockpileLocation",
