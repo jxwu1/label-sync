@@ -406,6 +406,93 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
         self.assertEqual(resp.status_code, 400)
         self.assertIn("format", resp.get_json()["msg"])
 
+    def test_upload_missing_token_env_returns_500(self) -> None:
+        import os
+        os.environ.pop("UPLOAD_TOKEN", None)
+        resp = self.client.post("/analytics/data/upload")
+        self.assertEqual(resp.status_code, 500)
+        self.assertIn("UPLOAD_TOKEN", resp.get_json()["msg"])
+
+    def test_upload_bad_token_returns_401(self) -> None:
+        import os
+        os.environ["UPLOAD_TOKEN"] = "secret_token_abc"
+        try:
+            resp = self.client.post(
+                "/analytics/data/upload",
+                headers={"X-Upload-Token": "wrong"},
+            )
+            self.assertEqual(resp.status_code, 401)
+        finally:
+            os.environ.pop("UPLOAD_TOKEN", None)
+
+    def test_upload_no_file_returns_400(self) -> None:
+        import os
+        os.environ["UPLOAD_TOKEN"] = "secret_token_abc"
+        try:
+            resp = self.client.post(
+                "/analytics/data/upload",
+                headers={"X-Upload-Token": "secret_token_abc"},
+            )
+            self.assertEqual(resp.status_code, 400)
+            self.assertIn("file", resp.get_json()["msg"])
+        finally:
+            os.environ.pop("UPLOAD_TOKEN", None)
+
+    def test_upload_rejects_purchase_with_price(self) -> None:
+        """核心安全测试: 带进价的 purchase parquet 必须被拒收."""
+        import os
+        import tempfile
+
+        import pandas as pd
+
+        os.environ["UPLOAD_TOKEN"] = "secret_token_abc"
+        df = pd.DataFrame({
+            "event_at": ["2026-04-01"],
+            "event_type": ["purchase"],
+            "product_barcode": ["B1"],
+            "qty": [10],
+            "unit_price": [1.23],
+            "document_no": ["DOC1"],
+        })
+        with tempfile.NamedTemporaryFile(
+            suffix=".parquet", delete=False
+        ) as tmp:
+            df.to_parquet(tmp.name, engine="pyarrow")
+            tmp_path = tmp.name
+
+        try:
+            with open(tmp_path, "rb") as fp:
+                resp = self.client.post(
+                    "/analytics/data/upload",
+                    headers={"X-Upload-Token": "secret_token_abc"},
+                    data={"file": (fp, "events_purchase_2026-04.parquet")},
+                    content_type="multipart/form-data",
+                )
+            self.assertEqual(resp.status_code, 400)
+            self.assertIn("脱敏", resp.get_json()["msg"])
+        finally:
+            os.environ.pop("UPLOAD_TOKEN", None)
+            import pathlib
+            pathlib.Path(tmp_path).unlink(missing_ok=True)
+
+    def test_upload_rejects_non_events_filename(self) -> None:
+        import io
+        import os
+        os.environ["UPLOAD_TOKEN"] = "secret_token_abc"
+        try:
+            resp = self.client.post(
+                "/analytics/data/upload",
+                headers={"X-Upload-Token": "secret_token_abc"},
+                data={
+                    "file": (io.BytesIO(b"fake"), "inventory_snapshot.parquet"),
+                },
+                content_type="multipart/form-data",
+            )
+            self.assertEqual(resp.status_code, 400)
+            self.assertIn("events_", resp.get_json()["msg"])
+        finally:
+            os.environ.pop("UPLOAD_TOKEN", None)
+
     def test_forecast_refresh_returns_stats(self) -> None:
         """§3.7 POST /forecast/refresh: 空库返回 n_total=0."""
         resp = self.client.post("/analytics/forecast/refresh")

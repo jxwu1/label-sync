@@ -542,6 +542,110 @@ LIMIT :limit
     )
 
 
+@bp.post("/data/upload")
+def data_upload():
+    """§2.6 接收脱敏后的 parquet 文件入库.
+
+    Auth: X-Upload-Token 头, 跟服务器 env UPLOAD_TOKEN 常时间比较.
+    Schema 校验 (events parquet):
+        - 必有 event_type + unit_price 列
+        - event_type='purchase' 行的 unit_price 必须 NULL (拒收带进价数据)
+
+    保存到 CONFIG.base_dir/scrape_uploads/<ts>_<name>.parquet, 然后调
+    etl.parquet_importer.import_cleaned_parquet 入 inventory_events.
+
+    返回 200 {ok, sale/purchase 各 imported/dup/missed} 或 400/401/500.
+    """
+    import os
+    import secrets
+    from datetime import datetime, timezone
+    from pathlib import Path
+
+    from flask import request
+    from werkzeug.utils import secure_filename
+
+    from app.config import CONFIG
+
+    expected = os.environ.get("UPLOAD_TOKEN", "")
+    if not expected:
+        return jsonify({"ok": False, "msg": "服务器 UPLOAD_TOKEN 未配置"}), 500
+    provided = request.headers.get("X-Upload-Token", "")
+    if not secrets.compare_digest(provided, expected):
+        return jsonify({"ok": False, "msg": "鉴权失败"}), 401
+
+    if "file" not in request.files:
+        return jsonify({"ok": False, "msg": "缺少 file (multipart form 字段名)"}), 400
+    f = request.files["file"]
+    fname = f.filename or ""
+    if not fname.endswith(".parquet"):
+        return jsonify({"ok": False, "msg": "file 必须是 .parquet"}), 400
+    if not fname.startswith("events_"):
+        return jsonify({
+            "ok": False,
+            "msg": "v1 仅接受 events_*.parquet (inventory_snapshot 入库未实现)",
+        }), 400
+
+    upload_dir = Path(CONFIG.base_dir) / "scrape_uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    saved = upload_dir / f"{ts}_{secure_filename(fname)}"
+    f.save(saved)
+
+    err = _validate_event_parquet(saved)
+    if err:
+        saved.unlink(missing_ok=True)
+        return jsonify({"ok": False, "msg": err}), 400
+
+    try:
+        from etl.parquet_importer import import_cleaned_parquet
+        with stockpile_db._session() as session:
+            sale_r, purchase_r = import_cleaned_parquet(saved, session)
+            session.commit()
+    except Exception as exc:
+        return jsonify({"ok": False, "msg": f"导入失败: {exc}"}), 500
+
+    return jsonify({
+        "ok": True,
+        "filename": saved.name,
+        "sale": {
+            "imported": sale_r.rows_imported,
+            "dup_skipped": sale_r.rows_skipped_duplicate,
+            "missing_skipped": sale_r.rows_skipped_missing_key,
+            "new_customers": sale_r.new_customers,
+            "new_skus": sale_r.new_skus,
+        },
+        "purchase": {
+            "imported": purchase_r.rows_imported,
+            "dup_skipped": purchase_r.rows_skipped_duplicate,
+            "missing_skipped": purchase_r.rows_skipped_missing_key,
+            "new_suppliers": purchase_r.new_suppliers,
+            "new_skus": purchase_r.new_skus,
+        },
+    })
+
+
+def _validate_event_parquet(path) -> str | None:
+    """返回错误信息 or None. 校验 purchase 行 unit_price 已脱敏."""
+    import pyarrow.parquet as pq
+
+    try:
+        table = pq.read_table(path, columns=["event_type", "unit_price"])
+    except KeyError:
+        return "parquet 缺必需列 event_type / unit_price"
+    except Exception as exc:
+        return f"parquet 读取失败: {exc}"
+
+    df = table.to_pandas()
+    leak_mask = (df["event_type"] == "purchase") & df["unit_price"].notna()
+    n_leak = int(leak_mask.sum())
+    if n_leak > 0:
+        return (
+            f"拒收: {n_leak} 行 purchase 带 unit_price (应脱敏成 NULL). "
+            f"先本地跑 scraper/sanitize.py 再上传."
+        )
+    return None
+
+
 @bp.post("/forecast/refresh")
 def forecast_refresh():
     """§3.7 触发 forecast_output 表全量刷新 (供 cron 容器调).
