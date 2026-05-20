@@ -47,6 +47,12 @@ investigate_output.txt
 *.db
 docs/.private/
 
+# Scraper secrets / staging
+scraper/cookie.txt
+scraper/.env
+scraper/staging/
+data/scrape_staging/
+
 # Tooling artifacts
 .claude/*
 !.claude/hooks/
