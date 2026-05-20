@@ -35,3 +35,23 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+
+  # §3.7 每日 03:00 Athens 触发 forecast_output 全量刷新
+  # 单独容器隔离, label-sync redeploy 不影响 cron, cron 重启不影响 web
+  forecast-cron:
+    image: alpine:3.20
+    container_name: label-sync-cron
+    restart: unless-stopped
+    depends_on:
+      - label-sync
+    environment:
+      TZ: Europe/Athens
+    command:
+      - sh
+      - -c
+      - |
+        apk add --no-cache curl tzdata >/dev/null 2>&1
+        cp /usr/share/zoneinfo/Europe/Athens /etc/localtime
+        echo "0 3 * * * curl -fsS -X POST http://label-sync:5000/analytics/forecast/refresh >> /proc/1/fd/1 2>&1" > /etc/crontabs/root
+        echo "[cron] installed: daily 03:00 Athens -> POST /analytics/forecast/refresh"
+        exec crond -f -l 2
