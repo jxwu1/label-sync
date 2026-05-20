@@ -17,8 +17,20 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import pandas as pd
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
+
+
+def _dialect_insert(session: Session):
+    """按 session 的 dialect 选 insert builder (SQLite / PostgreSQL).
+
+    两者的 on_conflict_do_nothing(index_elements=...) 接口签名一致, 但底层
+    类型不同, 在另一个 dialect 上 execute 会报 constraint_target 缺失.
+    """
+    if session.bind.dialect.name == "postgresql":
+        return pg_insert
+    return sqlite_insert
 
 from app.utils.customer_classifier import classify_customer
 from app.parsers.erp_category import parse_erp_category
@@ -326,7 +338,7 @@ def _insert_event_idempotent(
         "erp_category_code": erp_code or None,
         "manual_grade": _clean_int(internal.get("manual_grade")),
     }
-    stmt = sqlite_insert(InventoryEvent).values(**values)
+    stmt = _dialect_insert(session)(InventoryEvent).values(**values)
     stmt = stmt.on_conflict_do_nothing(
         index_elements=[
             "event_type",
