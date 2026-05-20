@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 import time
 from datetime import date
@@ -29,6 +30,18 @@ from pathlib import Path
 
 import pandas as pd
 import requests
+
+_STOP_MARKER_RE = re.compile(r"\s*\(停用\)\s*$")
+
+
+def _strip_stop_marker(value):
+    """剥离 model 末尾的 (停用) 标记, 返回 (clean_value, was_marked)."""
+    if value is None or pd.isna(value) or value == "":
+        return None, False
+    s = str(value).strip()
+    cleaned = _STOP_MARKER_RE.sub("", s).strip() or None
+    was_marked = cleaned != s
+    return cleaned, was_marked
 
 _HERE = Path(__file__).resolve().parent
 _REPO_ROOT = _HERE.parent
@@ -88,8 +101,8 @@ form_data_template = {
     "stack_kind_id": "", "stack_kind_name": "", "product_model": "",
     "document_valid_grade": ">=1", "audit_status": "", "document_kind_id": "",
     "store_id": "", "begin_product_model": "", "end_product_model": "",
-    "valid_grade_range": "", "product_batch": "", "valid_grade_symbol": "=",
-    "valid_grade": "", "produce_type": "", "product_barcode": "",
+    "valid_grade_range": "", "product_batch": "", "valid_grade_symbol": ">=",
+    "valid_grade": "0", "produce_type": "", "product_barcode": "",
     "sequence_number": "", "begin_product_barcode": "", "end_product_barcode": "",
     "client_model": "", "provider_model": "", "begin_unit_price": "",
     "end_unit_price": "", "begin_stockpile_quantity": "",
@@ -149,6 +162,11 @@ def to_standard_schema(df: pd.DataFrame, snapshot_date: str) -> pd.DataFrame:
         std[col] = std[col].astype("string").replace(
             {"": None, "nan": None, "None": None, "<NA>": None}
         )
+
+    # 剥离 product_model 末尾的 (停用) 标记, 保留 ERP 等级=0 信号到新列
+    cleaned = std["product_model"].apply(_strip_stop_marker)
+    std["product_model"] = cleaned.apply(lambda t: t[0])
+    std["is_discontinued_in_erp"] = cleaned.apply(lambda t: t[1])
 
     # 整数列 (允许 None, 用 Int64)
     for col in ("qty_store", "qty_total", "reorder_min", "reorder_max"):
