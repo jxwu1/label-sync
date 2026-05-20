@@ -38,9 +38,10 @@ function Read-EnvVar {
 }
 
 function Run-Step {
-    param([string]$Name, [string]$Script, [string[]]$Args = @())
-    Log "→ $Name"
-    & $python $Script @Args 2>&1 | Tee-Object -FilePath $log -Append
+    # NOTE: 参数名不能用 $Args, 跟 PowerShell 函数自动变量冲突, 传值会丢
+    param([string]$Name, [string]$Script, [string[]]$ScriptArgs = @())
+    Log "→ $Name $($ScriptArgs -join ' ')"
+    & $python $Script @ScriptArgs 2>&1 | Tee-Object -FilePath $log -Append
     if ($LASTEXITCODE -ne 0) {
         throw "$Name 失败 (exit $LASTEXITCODE)"
     }
@@ -64,9 +65,9 @@ try {
     Log "时间窗口: $weekAgo → $today"
 
     # === 抓取 ===
-    Run-Step "sales_scraper"    (Join-Path $PSScriptRoot "sales_scraper.py")    @("--from", $weekAgo, "--to", $today)
-    Run-Step "purchase_scraper" (Join-Path $PSScriptRoot "purchase_scraper.py") @("--from", $weekAgo, "--to", $today)
-    Run-Step "inventory_scraper" (Join-Path $PSScriptRoot "inventory_scraper.py") @()
+    Run-Step "sales_scraper"    (Join-Path $PSScriptRoot "sales_scraper.py")    -ScriptArgs @("--from", $weekAgo, "--to", $today)
+    Run-Step "purchase_scraper" (Join-Path $PSScriptRoot "purchase_scraper.py") -ScriptArgs @("--from", $weekAgo, "--to", $today)
+    Run-Step "inventory_scraper" (Join-Path $PSScriptRoot "inventory_scraper.py")
 
     # === 脱敏 ===
     Run-Step "sanitize" (Join-Path $PSScriptRoot "sanitize.py") @()

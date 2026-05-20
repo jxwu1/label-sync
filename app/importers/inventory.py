@@ -350,6 +350,12 @@ def _insert_event_idempotent(
             "unit_price",
         ]
     )
+    # PG: result.rowcount 在 ON CONFLICT DO NOTHING 下不可靠 (会把跳过的报成 1),
+    # 用 RETURNING id 判断真实插入. SQLite rowcount 行为正确, 不需要 RETURNING.
+    if session.bind.dialect.name == "postgresql":
+        stmt = stmt.returning(InventoryEvent.id)
+        result = session.execute(stmt)
+        return result.first() is not None
     result = session.execute(stmt)
     return bool(result.rowcount)
 
