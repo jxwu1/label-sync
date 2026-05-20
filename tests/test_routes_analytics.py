@@ -376,6 +376,21 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
         body = resp.get_json()
         self.assertIn("origin", body["msg"])
 
+    def test_top_bad_origin(self) -> None:
+        resp = self.client.get("/analytics/forecast/top?origin=xyz")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("origin", resp.get_json()["msg"])
+
+    def test_top_bad_limit(self) -> None:
+        resp = self.client.get("/analytics/forecast/top?limit=99999")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("limit", resp.get_json()["msg"])
+
+    def test_top_bad_format(self) -> None:
+        resp = self.client.get("/analytics/forecast/top?format=xml")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("format", resp.get_json()["msg"])
+
     def test_forecast_refresh_returns_stats(self) -> None:
         """§3.7 POST /forecast/refresh: 空库返回 n_total=0."""
         resp = self.client.post("/analytics/forecast/refresh")

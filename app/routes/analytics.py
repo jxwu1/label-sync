@@ -302,6 +302,115 @@ WHERE br.run_id = :run_id {where_origin}
         )
 
 
+@bp.get("/forecast/top")
+def forecast_top():
+    """§3.7+ 按预测周销量排序的「好卖货」清单, 支持按 origin filter.
+
+    query:
+        origin (可选, 默认 FOREIGN): FOREIGN | CN | unknown | all
+        limit (可选, 默认 200, 上限 5000)
+        format (可选, 默认 csv): csv | json
+
+    JOIN forecast_output + stockpile + sku_origin CTE, 按 p50 desc 排序.
+    不返回进价 (stock_price), 只含售价 (sale_price).
+    """
+    import csv
+    import io
+
+    from flask import request, Response
+    from sqlalchemy import text
+
+    from app.services.sku_origin import ORIGIN_CTE_SQL
+
+    origin_upper = (request.args.get("origin") or "FOREIGN").strip().upper()
+    _ORIGIN_MAP = {"ALL": "all", "FOREIGN": "FOREIGN", "CN": "CN", "UNKNOWN": "unknown"}
+    if origin_upper not in _ORIGIN_MAP:
+        return jsonify(
+            {"ok": False, "msg": "origin 必须是 FOREIGN / CN / unknown / all"}
+        ), 400
+    origin_filter = _ORIGIN_MAP[origin_upper]
+
+    try:
+        limit = int(request.args.get("limit", "200"))
+    except ValueError:
+        return jsonify({"ok": False, "msg": "limit 必须是整数"}), 400
+    if limit < 1 or limit > 5000:
+        return jsonify({"ok": False, "msg": "limit 范围 1-5000"}), 400
+
+    fmt = (request.args.get("format") or "csv").lower()
+    if fmt not in ("csv", "json"):
+        return jsonify({"ok": False, "msg": "format 必须是 csv 或 json"}), 400
+
+    where_origin = "" if origin_filter == "all" else "AND so.origin = :origin"
+    sql = ORIGIN_CTE_SQL + f"""
+SELECT
+    f.product_barcode,
+    s.product_model,
+    s.product_name_zh,
+    s.product_name_local,
+    s.erp_category_raw,
+    so.origin,
+    f.sku_type,
+    f.model_used,
+    f.n_weeks_history,
+    f.p50,
+    f.mu,
+    s.sale_price
+FROM forecast_output f
+JOIN stockpile s ON s.product_barcode = f.product_barcode
+JOIN sku_origin so ON so.product_barcode = f.product_barcode
+WHERE s.is_active = 1 {where_origin}
+ORDER BY f.p50 DESC
+LIMIT :limit
+"""
+    params: dict = {"limit": limit}
+    if origin_filter != "all":
+        params["origin"] = origin_filter
+
+    with stockpile_db._session() as session:
+        rows = session.execute(text(sql), params).all()
+
+    items = [
+        {
+            "product_barcode": r.product_barcode,
+            "product_model": r.product_model,
+            "product_name_zh": r.product_name_zh,
+            "product_name_local": r.product_name_local,
+            "erp_category_raw": r.erp_category_raw,
+            "origin": r.origin,
+            "sku_type": r.sku_type,
+            "model_used": r.model_used,
+            "n_weeks_history": r.n_weeks_history,
+            "p50": float(r.p50) if r.p50 is not None else None,
+            "mu": float(r.mu) if r.mu is not None else None,
+            "sale_price": float(r.sale_price) if r.sale_price is not None else None,
+        }
+        for r in rows
+    ]
+
+    if fmt == "json":
+        return jsonify({"ok": True, "origin": origin_filter, "n": len(items), "items": items})
+
+    buf = io.StringIO()
+    fields = [
+        "product_barcode", "product_model",
+        "product_name_zh", "product_name_local",
+        "erp_category_raw", "origin", "sku_type",
+        "model_used", "n_weeks_history",
+        "p50", "mu", "sale_price",
+    ]
+    writer = csv.DictWriter(buf, fieldnames=fields)
+    writer.writeheader()
+    writer.writerows(items)
+    csv_bytes = buf.getvalue().encode("utf-8-sig")  # Excel 友好 BOM
+    fname = f"forecast_top_{origin_filter}.csv"
+    return Response(
+        csv_bytes,
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
 @bp.post("/forecast/refresh")
 def forecast_refresh():
     """§3.7 触发 forecast_output 表全量刷新 (供 cron 容器调).
