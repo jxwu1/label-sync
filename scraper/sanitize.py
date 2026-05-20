@@ -133,9 +133,12 @@ def main() -> int:
     if not STAGING_DIR.exists():
         print(f"❌ staging 目录不存在: {STAGING_DIR}", file=sys.stderr)
         return 1
-    files = sorted(STAGING_DIR.glob("events_*.parquet"))
+    files = sorted(
+        list(STAGING_DIR.glob("events_*.parquet"))
+        + list(STAGING_DIR.glob("inventory_snapshot_*.parquet"))
+    )
     if not files:
-        print(f"⚠️  staging 目录里没有 events_*.parquet: {STAGING_DIR}")
+        print(f"⚠️  staging 目录里没有 events_*.parquet / inventory_snapshot_*.parquet: {STAGING_DIR}")
         return 0
 
     print(f"批量脱敏 {len(files)} 个文件")
