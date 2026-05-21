@@ -21,7 +21,6 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-sales-analytics.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-restock.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-transfer.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/quickmenu.css') }}">
 <script defer src="{{ url_for('static', filename='js/store.js') }}"></script>
 <script defer src="{{ url_for('static', filename='vendor/alpinejs/alpine.min.js') }}"></script>
 <script>
@@ -1081,18 +1080,6 @@
           </section>
         </div>
       </div>
-  </div>
-</div>
-
-<div class="quickmenu" id="quickMenu" x-data
-     :class="$store.ui.quickMenu ? 'is-open' : ''"
-     @click.outside="$store.ui.closeQuick()">
-  <button class="quickmenu__toggle" id="quickToggle" type="button" title="工具菜单" aria-label="工具菜单"
-          @click.stop="$store.ui.toggleQuick()">≡</button>
-  <div class="quickmenu__panel">
-    <!-- quickmenu 现已为空（transfer 搬到 nav module 10、终端日志已删）；
-         保留容器 + 切换按钮以备未来加入新工具 -->
-    <div class="quickmenu__empty">暂无快捷工具</div>
   </div>
 </div>
 
