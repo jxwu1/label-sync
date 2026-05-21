@@ -209,6 +209,11 @@ function renderRow(it) {
     : `<span class="rs-model">${escapeHtml(it.model)}</span>`;
   const trend = it.trend_slope_pct_per_week;
   const sparkColor = trend > 0 ? "var(--accent)" : trend < 0 ? "var(--error)" : "var(--ink-3)";
+  const bars = realBars(it);
+  const hasSparkData = bars.some((v) => v > 0);
+  const sparkCell = hasSparkData
+    ? sparkline(bars, sparkColor)
+    : '<span class="rs-spark-empty" title="近 12 周无销售">—</span>';
   const disc = it.is_truly_discontinued ? '<span class="rs-tag rs-tag--disc">停用</span>' : "";
   const newTag = it.is_new_item ? '<span class="rs-tag rs-tag--new">新品</span>' : "";
   const ordered = it.barcode in state.ordered;
@@ -232,7 +237,7 @@ function renderRow(it) {
       <td class="rs-num">${fmt(it.qty_total)}</td>
       <td class="rs-num">${fmt(it.weekly_velocity, 1)}</td>
       <td class="rs-num">${weeksOfCoverCell(it.weeks_of_cover)}</td>
-      <td class="rs-num">${sparkline(realBars(it), sparkColor)}</td>
+      <td class="rs-num">${sparkCell}</td>
       <td class="rs-num">${fmtDays(it.last_purchase_days_ago)}</td>
       <td>${autoBadge}</td>
       <td class="rs-num">${urgencyCell(it)}</td>
@@ -306,9 +311,13 @@ const BUNDLE_TARGET_COUNT = 20;
 
 function _bundleCandidates() {
   // 当前 filter 后, 按 urgency_score desc 内部排序 (不依赖 UI sort).
-  // 返回 (picks, hotMode):
-  //   hotMode=true → 取 score>=70 全部 (>= 20 个时)
-  //   hotMode=false → fallback 取 top 20, 但跳过 score<30 (避免凑死货)
+  // 行为分两态:
+  //   - supplier filter 已选 → "凑单模式": 取该 supplier 内 score>=70 全部
+  //     (不 cap; 该 supplier 内 SKU 数自然有上限, 一单凑齐方便)
+  //   - 无 supplier filter → "扫描模式": 强制 cap 在 BUNDLE_TARGET_COUNT
+  //     防止 876+ 个 ≥70 全选拍上去 (按 default filter, FOREIGN/active/cover<=4
+  //     的 ≥70 在线上有 876 个)
+  // 不足 BUNDLE_TARGET_COUNT 时 fallback top N, 跳过 <30 避免凑死货.
   const filtered = applyFilter(state.items);
   const sortedByUrgency = [...filtered].sort(
     (a, b) => (b.urgency_score ?? -Infinity) - (a.urgency_score ?? -Infinity)
@@ -316,11 +325,16 @@ function _bundleCandidates() {
   const hot = sortedByUrgency.filter(
     (it) => (it.urgency_score ?? -1) >= BUNDLE_HOT_THRESHOLD
   );
-  if (hot.length >= BUNDLE_TARGET_COUNT) return { picks: hot, hotMode: true };
+  const inSupplierMode = Boolean(state.filter.supplier);
+
+  if (hot.length >= BUNDLE_TARGET_COUNT) {
+    const picks = inSupplierMode ? hot : hot.slice(0, BUNDLE_TARGET_COUNT);
+    return { picks, hotMode: true, capped: !inSupplierMode };
+  }
   const fallback = sortedByUrgency
     .filter((it) => (it.urgency_score ?? -1) >= BUNDLE_FALLBACK_FLOOR)
     .slice(0, BUNDLE_TARGET_COUNT);
-  return { picks: fallback, hotMode: false };
+  return { picks: fallback, hotMode: false, capped: false };
 }
 
 function smartBundleSelect() {
@@ -450,15 +464,22 @@ function syncChipActive() {
   $("rsBtnMark").disabled = state.selected.size === 0;
 
   // 智能凑单按钮预览数
-  const { picks: bundlePicks, hotMode } = _bundleCandidates();
+  const { picks: bundlePicks, hotMode, capped } = _bundleCandidates();
   const bundleBtn = $("rsBtnBundle");
   if (bundleBtn) {
-    const tag = hotMode ? "≥70" : `top${BUNDLE_TARGET_COUNT}`;
+    let tag;
+    if (hotMode && capped) tag = `top${BUNDLE_TARGET_COUNT}/扫描`;
+    else if (hotMode) tag = `≥70 凑单`;
+    else tag = `top${BUNDLE_TARGET_COUNT}`;
     bundleBtn.textContent = `✓ 智能凑单 (${bundlePicks.length}, ${tag})`;
     bundleBtn.disabled = bundlePicks.length === 0;
-    bundleBtn.title = hotMode
-      ? `当前筛选范围内紧迫分 ≥${BUNDLE_HOT_THRESHOLD} 的 SKU 全选`
-      : `紧迫分 ≥${BUNDLE_HOT_THRESHOLD} 的不足 ${BUNDLE_TARGET_COUNT} 个, 退到 top ${BUNDLE_TARGET_COUNT} (≥${BUNDLE_FALLBACK_FLOOR} 才参与, 避免凑死货)`;
+    if (capped) {
+      bundleBtn.title = `未选供应商: 自动 cap 在 top ${BUNDLE_TARGET_COUNT} 防止全选. 选具体供应商进入凑单模式后才不 cap.`;
+    } else if (hotMode) {
+      bundleBtn.title = `凑单模式 (供应商=${state.filter.supplier}): 紧迫分 ≥${BUNDLE_HOT_THRESHOLD} 的 SKU 全选`;
+    } else {
+      bundleBtn.title = `紧迫分 ≥${BUNDLE_HOT_THRESHOLD} 不足 ${BUNDLE_TARGET_COUNT} 个, 退到 top ${BUNDLE_TARGET_COUNT} (≥${BUNDLE_FALLBACK_FLOOR} 才参与, 避免凑死货)`;
+    }
   }
   $("rsBtnUndo").disabled = state.orderedHistory.length === 0;
   const orderedN = Object.keys(state.ordered).length;
