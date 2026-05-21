@@ -276,6 +276,7 @@ def _upsert(
     manual_grade: int | None = None,
     stock_price: float | None = None,
     sale_price: float | None = None,
+    supplier_id: str | None = None,
 ) -> None:
     """所有 stockpile 写入路径的统一入口。
 
@@ -325,6 +326,7 @@ def _upsert(
                 ("stock_price", stock_price),
                 ("sale_price", sale_price),
                 ("manual_grade", manual_grade),
+                ("supplier_id", supplier_id),
             ):
                 if new_val is None:
                     continue
@@ -359,6 +361,8 @@ def _upsert(
             existing.stock_price = stock_price
         if sale_price is not None:
             existing.sale_price = sale_price
+        if supplier_id is not None:
+            existing.supplier_id = supplier_id
         _sync_locations(session, existing, location)
         return
 
@@ -376,6 +380,7 @@ def _upsert(
         manual_grade=manual_grade,
         stock_price=stock_price,
         sale_price=sale_price,
+        supplier_id=supplier_id,
     )
     session.add(new_obj)
     _sync_locations(session, new_obj, location)

@@ -596,10 +596,11 @@ def data_upload():
         return jsonify({"ok": False, "msg": "file 必须是 .parquet"}), 400
     is_events = fname.startswith("events_")
     is_inventory = fname.startswith("inventory_snapshot_")
-    if not (is_events or is_inventory):
+    is_product_master = fname.startswith("product_master_")
+    if not (is_events or is_inventory or is_product_master):
         return jsonify({
             "ok": False,
-            "msg": "文件名必须以 events_ 或 inventory_snapshot_ 开头",
+            "msg": "文件名必须以 events_ / inventory_snapshot_ / product_master_ 开头",
         }), 400
 
     upload_dir = Path(CONFIG.base_dir) / "scrape_uploads"
@@ -640,22 +641,46 @@ def data_upload():
             },
         })
 
-    # inventory_snapshot 分支
+    if is_inventory:
+        try:
+            from etl.inventory_importer import import_inventory_snapshot
+            with stockpile_db._session() as session:
+                stats = import_inventory_snapshot(saved, session)
+                session.commit()
+        except ValueError as exc:
+            saved.unlink(missing_ok=True)
+            return jsonify({"ok": False, "msg": f"inventory schema 错误: {exc}"}), 400
+        except Exception as exc:
+            return jsonify({"ok": False, "msg": f"导入失败: {exc}"}), 500
+        return jsonify({
+            "ok": True,
+            "kind": "inventory_snapshot",
+            "filename": saved.name,
+            **stats,
+        })
+
+    # product_master 分支: parquet → DataFrame → 复用现有 importer
     try:
-        from etl.inventory_importer import import_inventory_snapshot
+        import pandas as pd
+        from app.importers.product_master import (
+            import_product_master,
+            DEFAULT_PRODUCT_MAPPING,
+        )
+        df = pd.read_parquet(saved)
         with stockpile_db._session() as session:
-            stats = import_inventory_snapshot(saved, session)
+            result = import_product_master(df, DEFAULT_PRODUCT_MAPPING, session)
             session.commit()
-    except ValueError as exc:
-        saved.unlink(missing_ok=True)
-        return jsonify({"ok": False, "msg": f"inventory schema 错误: {exc}"}), 400
     except Exception as exc:
-        return jsonify({"ok": False, "msg": f"导入失败: {exc}"}), 500
+        return jsonify({"ok": False, "msg": f"product_master 导入失败: {exc}"}), 500
     return jsonify({
         "ok": True,
-        "kind": "inventory_snapshot",
+        "kind": "product_master",
         "filename": saved.name,
-        **stats,
+        "rows_imported": result.rows_imported,
+        "rows_updated": result.rows_updated,
+        "rows_skipped_missing_barcode": result.rows_skipped_missing_barcode,
+        "rows_skipped_duplicate_barcode": result.rows_skipped_duplicate_barcode,
+        "new_suppliers": result.new_suppliers,
     })
 
 

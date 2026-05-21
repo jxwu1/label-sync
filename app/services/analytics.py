@@ -383,6 +383,7 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
                 Stockpile.manual_category,
                 Stockpile.manual_grade,
                 Stockpile.is_truly_discontinued,
+                Stockpile.supplier_id,
             ).where(Stockpile.is_truly_discontinued == False)  # noqa: E712 — SQL eq
         ).all()
         sales_rows = session.execute(
@@ -416,7 +417,7 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
             last_purchase[r.product_barcode] = (r.event_at, r.supplier_id)
 
     items: list[dict[str, Any]] = []
-    for bc, model, name_zh, auto_cat, manual_cat, grade, is_disc in sp_rows:
+    for bc, model, name_zh, auto_cat, manual_cat, grade, is_disc, sp_supplier_id in sp_rows:
         sales = by_bc.get(bc, [])
         total_qty = int(sum(r.qty for r in sales))
         if sales:
@@ -458,7 +459,10 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
         last_purchase_days_ago = (
             (as_of - _parse_date(lp[0])).days if lp else None
         )
-        supplier_id = lp[1] if lp else None
+        last_purchase_supplier = lp[1] if lp else None
+        # ERP 主档优先 (覆盖"标了供应商但还没产生 purchase event"的 SKU),
+        # fallback 到最近 purchase event 的 supplier_id (兼容旧数据)
+        supplier_id = sp_supplier_id or last_purchase_supplier
         origin = classify_origin(supplier_id, model)
         is_new_item = bool(sales) and lifespan < _NEW_ITEM_LIFESPAN_DAYS
         items.append(

@@ -94,10 +94,18 @@ def sanitize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def sanitize_file(input_path: Path, output_path: Path) -> tuple[int, int]:
-    """读取一个 parquet, 脱敏, 写出. 返回 (rows_in, rows_out)."""
+    """读取一个 parquet, 脱敏, 写出. 返回 (rows_in, rows_out).
+
+    product_master_*.parquet 直接透传 (per 2026-05-21 决策: 供应商公司名非
+    PII, 不哈希; 也没有 unit_price 进价字段要 NULL).
+    其它文件 (events_*, inventory_snapshot_*) 走 sanitize_dataframe.
+    """
     df = pd.read_parquet(input_path)
     n_in = len(df)
-    df_clean = sanitize_dataframe(df)
+    if input_path.name.startswith("product_master_"):
+        df_clean = df  # 透传, 不哈希也不删字段
+    else:
+        df_clean = sanitize_dataframe(df)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df_clean.to_parquet(output_path, index=False, engine="pyarrow",
                         compression="zstd", compression_level=9)
@@ -136,6 +144,7 @@ def main() -> int:
     files = sorted(
         list(STAGING_DIR.glob("events_*.parquet"))
         + list(STAGING_DIR.glob("inventory_snapshot_*.parquet"))
+        + list(STAGING_DIR.glob("product_master_*.parquet"))
     )
     if not files:
         print(f"⚠️  staging 目录里没有 events_*.parquet / inventory_snapshot_*.parquet: {STAGING_DIR}")

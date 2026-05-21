@@ -426,6 +426,34 @@ class ListSkuSummaryRestockFieldsTests(_Base):
         assert "DEAD_A" not in barcodes
         assert "DEAD_B" not in barcodes
 
+    def test_supplier_id_prefers_stockpile_over_last_purchase(self) -> None:
+        """stockpile.supplier_id 优先 (来自 ERP 产品总档), 即使最近 purchase 是别家."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("SKU_M", model="SKU_M", supplier_id="GR0099")
+        self._add_event(
+            barcode="SKU_M", event_type="purchase",
+            event_at="2026-03-01", qty=10, supplier_id="ES0001", document_no="P1",
+        )
+
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "SKU_M")
+        assert it["supplier_id"] == "GR0099"
+
+    def test_supplier_id_falls_back_to_last_purchase_when_stockpile_null(self) -> None:
+        """stockpile.supplier_id 没填 → fallback 到最近 purchase event 的 supplier_id."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("SKU_N", model="SKU_N")  # supplier_id 默认 None
+        self._add_event(
+            barcode="SKU_N", event_type="purchase",
+            event_at="2026-03-01", qty=10, supplier_id="CN0036", document_no="P2",
+        )
+
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "SKU_N")
+        assert it["supplier_id"] == "CN0036"
+
     def test_snapshot_join_rule_b_barcode_13_digit(self) -> None:
         from app.services.analytics import list_sku_summary
 

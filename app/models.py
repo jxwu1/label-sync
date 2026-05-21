@@ -102,6 +102,9 @@ class Stockpile(Base):
     is_truly_discontinued: Mapped[bool] = mapped_column(
         nullable=False, server_default=text("false")
     )
+    # ERP 产品总档里的供应商关系. 来源: product_master.py importer 写入.
+    # analytics 端取 supplier_id 时优先这个, fallback 到 last_purchase event 的 supplier_id.
+    supplier_id: Mapped[str | None] = mapped_column(Text)
 
     locations: Mapped[list[StockpileLocation]] = relationship(
         "StockpileLocation",

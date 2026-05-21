@@ -69,6 +69,16 @@ try {
     Run-Step "purchase_scraper" (Join-Path $PSScriptRoot "purchase_scraper.py") -ScriptArgs @("--from", $weekAgo, "--to", $today)
     Run-Step "inventory_scraper" (Join-Path $PSScriptRoot "inventory_scraper.py")
 
+    # 月度: 本月第一个周一才跑 product master (DayOfMonth <= 7).
+    # 抓产品总档全量, 包括 "标了供应商但还没采购过" 的 SKU, 用来补 stockpile.supplier_id.
+    $dayOfMonth = (Get-Date).Day
+    if ($dayOfMonth -le 7) {
+        Log "本月第一个周一 (day=$dayOfMonth), 跑 product_master_scraper"
+        Run-Step "product_master_scraper" (Join-Path $PSScriptRoot "product_master_scraper.py")
+    } else {
+        Log "跳过 product_master_scraper (day=$dayOfMonth, 非本月第一周)"
+    }
+
     # === 脱敏 ===
     Run-Step "sanitize" (Join-Path $PSScriptRoot "sanitize.py") @()
 

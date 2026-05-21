@@ -220,6 +220,7 @@ def import_product_master(
             manual_grade=grade,
             stock_price=stock_p,
             sale_price=sale_p,
+            supplier_id=supplier_id or None,
         )
 
         if already_exists:
