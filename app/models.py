@@ -105,6 +105,10 @@ class Stockpile(Base):
     # ERP 产品总档里的供应商关系. 来源: product_master.py importer 写入.
     # analytics 端取 supplier_id 时优先这个, fallback 到 last_purchase event 的 supplier_id.
     supplier_id: Mapped[str | None] = mapped_column(Text)
+    # 最近一次有效采购的折后净价 (unit_price * (1-discount/100)).
+    # 来源: parquet_importer 每次导入 purchase event 后回填 (filter qty>0 + unit_price>0).
+    # 给毛利近似计算用: (sale_price - last_purchase_unit_price) / sale_price.
+    last_purchase_unit_price: Mapped[float | None] = mapped_column()
 
     locations: Mapped[list[StockpileLocation]] = relationship(
         "StockpileLocation",

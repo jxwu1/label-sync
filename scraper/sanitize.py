@@ -73,8 +73,11 @@ def _hash_name(value) -> str | None:
 def sanitize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """对 events parquet DataFrame 执行脱敏.
 
-    输入: 原始 events_sale_*.parquet 或 events_purchase_*.parquet 的 DataFrame
-    输出: 同结构, 但敏感字段已处理. 不修改输入.
+    2026-05-21 起策略变更 (用户决策):
+      - customer_name / supplier_name 仍走 SHA-256[:16] 哈希
+      - purchase.unit_price **不再** NULL out, 接受内网态势下明文上 PG;
+        给 stockpile.last_purchase_unit_price 毛利计算填底
+    sale.unit_price 一直保留, 跟现状不变.
     """
     out = df.copy()
 
@@ -83,12 +86,6 @@ def sanitize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
     if "supplier_name" in out.columns:
         out["supplier_name"] = out["supplier_name"].apply(_hash_name).astype("string")
-
-    # purchase 行的 unit_price 设 None (进价不上云). sale 行保留.
-    if "event_type" in out.columns and "unit_price" in out.columns:
-        purchase_mask = out["event_type"] == "purchase"
-        if purchase_mask.any():
-            out.loc[purchase_mask, "unit_price"] = None
 
     return out
 

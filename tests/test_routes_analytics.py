@@ -452,24 +452,26 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
             os.environ.pop("UPLOAD_TOKEN", None)
 
     def test_upload_rejects_purchase_with_price(self) -> None:
-        """核心安全测试: 带进价的 purchase parquet 必须被拒收."""
+        """2026-05-21 起策略变更: 带进价的 purchase parquet 接收 + 回填
+        stockpile.last_purchase_unit_price (折后净价)."""
         import os
+        import pathlib
         import tempfile
 
         import pandas as pd
 
         os.environ["UPLOAD_TOKEN"] = "secret_token_abc"
+        self._seed_sku("B1")  # seed stockpile, 让回填有目标
         df = pd.DataFrame({
             "event_at": ["2026-04-01"],
             "event_type": ["purchase"],
             "product_barcode": ["B1"],
             "qty": [10],
             "unit_price": [1.23],
+            "discount_pct": [10.0],   # 折后净 = 1.23 * 0.9 = 1.107
             "document_no": ["DOC1"],
         })
-        with tempfile.NamedTemporaryFile(
-            suffix=".parquet", delete=False
-        ) as tmp:
+        with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as tmp:
             df.to_parquet(tmp.name, engine="pyarrow")
             tmp_path = tmp.name
 
@@ -481,11 +483,18 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
                     data={"file": (fp, "events_purchase_2026-04.parquet")},
                     content_type="multipart/form-data",
                 )
-            self.assertEqual(resp.status_code, 400)
-            self.assertIn("脱敏", resp.get_json()["msg"])
+            self.assertEqual(resp.status_code, 200)
+            self.assertTrue(resp.get_json()["ok"])
+
+            from app.models import Stockpile
+            with stockpile_db._session() as s:
+                row = s.execute(
+                    stockpile_db.select(Stockpile).where(Stockpile.product_barcode == "B1")
+                ).scalar_one()
+                self.assertIsNotNone(row.last_purchase_unit_price)
+                self.assertAlmostEqual(row.last_purchase_unit_price, 1.107, places=4)
         finally:
             os.environ.pop("UPLOAD_TOKEN", None)
-            import pathlib
             pathlib.Path(tmp_path).unlink(missing_ok=True)
 
     def test_upload_rejects_non_events_filename(self) -> None:

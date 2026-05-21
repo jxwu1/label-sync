@@ -562,9 +562,10 @@ def data_upload():
     """§2.6 接收脱敏后的 parquet 文件入库.
 
     Auth: X-Upload-Token 头, 跟服务器 env UPLOAD_TOKEN 常时间比较.
-    Schema 校验 (events parquet):
-        - 必有 event_type + unit_price 列
-        - event_type='purchase' 行的 unit_price 必须 NULL (拒收带进价数据)
+
+    2026-05-21 起策略变更: events.purchase 带 unit_price 不再被拒收
+    (用户决策接受内网态势下进价上 PG). 上线后 stockpile.last_purchase_unit_price
+    会被 parquet_importer 自动回填供毛利计算.
 
     保存到 CONFIG.base_dir/scrape_uploads/<ts>_<name>.parquet, 然后调
     etl.parquet_importer.import_cleaned_parquet 入 inventory_events.
@@ -610,10 +611,6 @@ def data_upload():
     f.save(saved)
 
     if is_events:
-        err = _validate_event_parquet(saved)
-        if err:
-            saved.unlink(missing_ok=True)
-            return jsonify({"ok": False, "msg": err}), 400
         try:
             from etl.parquet_importer import import_cleaned_parquet
             with stockpile_db._session() as session:
@@ -682,28 +679,6 @@ def data_upload():
         "rows_skipped_duplicate_barcode": result.rows_skipped_duplicate_barcode,
         "new_suppliers": result.new_suppliers,
     })
-
-
-def _validate_event_parquet(path) -> str | None:
-    """返回错误信息 or None. 校验 purchase 行 unit_price 已脱敏."""
-    import pyarrow.parquet as pq
-
-    try:
-        table = pq.read_table(path, columns=["event_type", "unit_price"])
-    except KeyError:
-        return "parquet 缺必需列 event_type / unit_price"
-    except Exception as exc:
-        return f"parquet 读取失败: {exc}"
-
-    df = table.to_pandas()
-    leak_mask = (df["event_type"] == "purchase") & df["unit_price"].notna()
-    n_leak = int(leak_mask.sum())
-    if n_leak > 0:
-        return (
-            f"拒收: {n_leak} 行 purchase 带 unit_price (应脱敏成 NULL). "
-            f"先本地跑 scraper/sanitize.py 再上传."
-        )
-    return None
 
 
 @bp.post("/forecast/refresh")

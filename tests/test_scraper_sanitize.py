@@ -3,8 +3,8 @@
 覆盖:
   - customer_name / supplier_name → SHA-256[:16] (确定性 + 不同值不同 hash)
   - 空值 / NaN / 空字符串 → None
-  - event_type='purchase' 行的 unit_price → None
-  - event_type='sale' 行的 unit_price 保留
+  - 2026-05-21 起 purchase.unit_price **不再** NULL out, plaintext 通过
+  - event_type='sale' 行的 unit_price 一直保留
   - 输入 df 不被修改 (copy-on-write)
 """
 from __future__ import annotations
@@ -87,14 +87,15 @@ class SanitizeDataframeTests(unittest.TestCase):
         assert out.loc[0, "supplier_name"] != "GR05 SomeSupplier Ltd"
         assert len(out.loc[0, "supplier_name"]) == 16
 
-    def test_purchase_unit_price_dropped(self) -> None:
+    def test_purchase_unit_price_kept(self) -> None:
+        """2026-05-21 起策略变更, purchase.unit_price 也保留 (不再 NULL out)."""
         df = pd.DataFrame({
             "event_type": ["purchase", "purchase"],
             "unit_price": [1.23, 4.56],
         })
         out = self._sanitize(df)
-        assert pd.isna(out.loc[0, "unit_price"])
-        assert pd.isna(out.loc[1, "unit_price"])
+        assert out.loc[0, "unit_price"] == 1.23
+        assert out.loc[1, "unit_price"] == 4.56
 
     def test_sale_unit_price_kept(self) -> None:
         df = pd.DataFrame({
@@ -105,14 +106,15 @@ class SanitizeDataframeTests(unittest.TestCase):
         assert out.loc[0, "unit_price"] == 1.23
         assert out.loc[1, "unit_price"] == 4.56
 
-    def test_mixed_sale_and_purchase(self) -> None:
+    def test_mixed_sale_and_purchase_both_kept(self) -> None:
+        """2026-05-21 起 sale + purchase 的 unit_price 都保留."""
         df = pd.DataFrame({
             "event_type": ["sale", "purchase", "sale"],
             "unit_price": [1.0, 2.0, 3.0],
         })
         out = self._sanitize(df)
         assert out.loc[0, "unit_price"] == 1.0
-        assert pd.isna(out.loc[1, "unit_price"])
+        assert out.loc[1, "unit_price"] == 2.0
         assert out.loc[2, "unit_price"] == 3.0
 
     def test_input_not_modified(self) -> None:

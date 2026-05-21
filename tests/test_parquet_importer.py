@@ -103,6 +103,68 @@ class ParquetImporterTest(unittest.TestCase):
             assert e.supplier_id == "V001"
             assert e.customer_id is None
 
+    def test_purchase_backfills_stockpile_last_purchase_unit_price(self):
+        """import_dataframe 后 stockpile.last_purchase_unit_price = 折后净价 (round 4)."""
+        df = pd.DataFrame([
+            _row(
+                event_type="purchase",
+                customer_id=None, customer_name=None,
+                supplier_id="V001", supplier_name="X",
+                unit_price=1.23, discount_pct=10.0,  # 净 = 1.107
+                document_no="P_BACK",
+            )
+        ])
+        with Session(self.engine) as session:
+            import_dataframe(df, session)
+            session.commit()
+        with Session(self.engine) as session:
+            sp = session.execute(
+                select(Stockpile).where(Stockpile.product_barcode == "1234567890123")
+            ).scalar_one()
+            self.assertAlmostEqual(sp.last_purchase_unit_price, 1.107, places=4)
+
+    def test_last_purchase_unit_price_picks_most_recent(self):
+        """两次 purchase, 取 event_at desc 排序的第一个."""
+        df = pd.DataFrame([
+            _row(event_type="purchase", customer_id=None, customer_name=None,
+                 supplier_id="V001", supplier_name="X",
+                 event_at="2025-06-01", unit_price=1.0, discount_pct=0.0, document_no="P1"),
+            _row(event_type="purchase", customer_id=None, customer_name=None,
+                 supplier_id="V001", supplier_name="X",
+                 event_at="2025-08-15", unit_price=2.0, discount_pct=0.0, document_no="P2"),
+        ])
+        with Session(self.engine) as session:
+            import_dataframe(df, session)
+            session.commit()
+        with Session(self.engine) as session:
+            sp = session.execute(
+                select(Stockpile).where(Stockpile.product_barcode == "1234567890123")
+            ).scalar_one()
+            self.assertEqual(sp.last_purchase_unit_price, 2.0)
+
+    def test_last_purchase_unit_price_skips_invalid_rows(self):
+        """qty<=0 (退货) 或 unit_price<=0 (赠品) 不参与回填,
+        应该用更早的合法行 (1.5) 而不是最新的退货 (10.0)."""
+        df = pd.DataFrame([
+            _row(event_type="purchase", customer_id=None, customer_name=None,
+                 supplier_id="V001", supplier_name="X",
+                 event_at="2025-06-01", qty=10, unit_price=1.5, discount_pct=0.0, document_no="P_OK"),
+            _row(event_type="purchase", customer_id=None, customer_name=None,
+                 supplier_id="V001", supplier_name="X",
+                 event_at="2025-08-15", qty=-3, unit_price=10.0, discount_pct=0.0, document_no="P_RET"),
+            _row(event_type="purchase", customer_id=None, customer_name=None,
+                 supplier_id="V001", supplier_name="X",
+                 event_at="2025-09-01", qty=5, unit_price=0.0, discount_pct=0.0, document_no="P_GIFT"),
+        ])
+        with Session(self.engine) as session:
+            import_dataframe(df, session)
+            session.commit()
+        with Session(self.engine) as session:
+            sp = session.execute(
+                select(Stockpile).where(Stockpile.product_barcode == "1234567890123")
+            ).scalar_one()
+            self.assertEqual(sp.last_purchase_unit_price, 1.5)
+
     def test_mixed_sale_and_purchase_split_correctly(self):
         df = pd.DataFrame(
             [
