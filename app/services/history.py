@@ -71,7 +71,13 @@ def current_locations(barcode: str) -> dict:
 
 
 def _parse_dt(s: str) -> datetime:
-    return datetime.fromisoformat(s)
+    """归一为 naive datetime, 避免 stockpile_changes (PG tz-aware) 跟
+    inventory_events (parquet naive YYYY-MM-DD) 混排时
+    "can't compare offset-naive and offset-aware datetimes" 报错."""
+    dt = datetime.fromisoformat(s)
+    if dt.tzinfo is not None:
+        dt = dt.replace(tzinfo=None)
+    return dt
 
 
 def find_record(query: str) -> dict | None:

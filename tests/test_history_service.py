@@ -359,6 +359,23 @@ def test_full_timeline_merges_changes_and_inventory_desc(memdb):
     assert events[3]["change_type"] == "update"
 
 
+def test_full_timeline_handles_tz_aware_and_naive_mixed(memdb):
+    """回归: stockpile_changes 在 PG 是 tz-aware (e.g. '2024-08-10 12:34:56+00'),
+    inventory_events.event_at 是 naive 日期 ('2024-08-10').
+    混排 sort 时不能 'can't compare offset-naive and offset-aware datetimes'."""
+    from app.services import history as history_service
+
+    bc = "B_TZ"
+    _insert_change(memdb, bc, "stockpile_location", "X", "Y", "update", "2024-08-10 12:34:56+00:00")
+    _insert_inventory_event(memdb, bc, "sale", qty=3, at="2024-09-11", unit_price=5.0)
+
+    events = history_service.aggregate_full_timeline(bc)
+    assert len(events) == 2
+    # 倒序: sale 2024-09-11 > update 2024-08-10
+    assert events[0]["change_type"] == "sale"
+    assert events[1]["change_type"] == "update"
+
+
 def test_full_timeline_no_inventory_falls_back_to_changes_only(memdb):
     """没有 inventory_events 时退化为 aggregate_events 行为。"""
     from app.services import history as history_service
