@@ -14,6 +14,9 @@ const AUTO_CN = {
   unclassified: "未分类",
 };
 
+const LS_KEY_ORDERED = "restock_ordered_v1";
+const ORDERED_EXPIRY_DAYS = 30;
+
 const state = {
   items: [],
   filter: {
@@ -21,9 +24,52 @@ const state = {
     view: "active",
     auto: "",
     coverMax: 4,
+    supplier: null,        // 供应商筛选 (点击表里 supplier_id 触发)
+    show_ordered: false,   // 显示已下单
   },
   sort: { key: "urgency_score", dir: "desc" },
+  selected: new Set(),     // 当前勾选的 barcode
+  ordered: {},             // {barcode: {marked_at: ISO}}; 从 localStorage 加载
+  orderedHistory: [],      // 撤销栈: 每次「标已下单」推入 [bc1, bc2, ...]
 };
+
+function loadOrdered() {
+  try {
+    const raw = localStorage.getItem(LS_KEY_ORDERED);
+    if (!raw) return {};
+    const data = JSON.parse(raw);
+    const cutoff = Date.now() - ORDERED_EXPIRY_DAYS * 86400000;
+    const cleaned = {};
+    for (const [bc, v] of Object.entries(data || {})) {
+      if (v && v.marked_at && Date.parse(v.marked_at) >= cutoff) cleaned[bc] = v;
+    }
+    return cleaned;
+  } catch (_) {
+    return {};
+  }
+}
+
+function saveOrdered() {
+  try {
+    localStorage.setItem(LS_KEY_ORDERED, JSON.stringify(state.ordered));
+  } catch (_) { /* ignore quota */ }
+}
+
+function autoClearOrderedByPurchase() {
+  // 货到后 inventory_events 出现新 purchase → last_purchase_at 更新 → 自动 unmark
+  let changed = false;
+  for (const bc of Object.keys(state.ordered)) {
+    const it = state.items.find((x) => x.barcode === bc);
+    if (!it || !it.last_purchase_at) continue;
+    const last = Date.parse(it.last_purchase_at);
+    const marked = Date.parse(state.ordered[bc].marked_at);
+    if (Number.isFinite(last) && last > marked) {
+      delete state.ordered[bc];
+      changed = true;
+    }
+  }
+  if (changed) saveOrdered();
+}
 
 function escapeHtml(s) {
   if (s === null || s === undefined) return "";
@@ -110,7 +156,15 @@ function sparkline(values, color) {
 
 function applyFilter(items) {
   return items.filter((it) => {
+    const isOrdered = it.barcode in state.ordered;
+    if (state.filter.show_ordered) {
+      if (!isOrdered) return false;
+      // 已下单视图: 不应用其它筛, 让用户看到全部 ordered 历史
+      return true;
+    }
+    if (isOrdered) return false; // 默认隐藏已下单
     if (state.filter.origin && it.origin !== state.filter.origin) return false;
+    if (state.filter.supplier && it.supplier_id !== state.filter.supplier) return false;
     if (state.filter.view === "active") {
       if (it.is_truly_discontinued) return false;
       if (it.is_new_item) return false;
@@ -119,7 +173,7 @@ function applyFilter(items) {
     }
     if (state.filter.auto && it.auto_category !== state.filter.auto) return false;
     if (state.filter.coverMax !== null && state.filter.view === "active") {
-      // null 代表 "无 snapshot 数据"，不当作"不缺货"过滤掉
+      // null = 无 snapshot 数据, 不当 "不缺货" 过滤
       if (it.weeks_of_cover !== null && it.weeks_of_cover !== undefined
           && it.weeks_of_cover > state.filter.coverMax) return false;
     }
@@ -152,11 +206,24 @@ function renderRow(it) {
   const sparkColor = trend > 0 ? "var(--accent)" : trend < 0 ? "var(--error)" : "var(--ink-3)";
   const disc = it.is_truly_discontinued ? '<span class="rs-tag rs-tag--disc">停用</span>' : "";
   const newTag = it.is_new_item ? '<span class="rs-tag rs-tag--new">新品</span>' : "";
+  const ordered = it.barcode in state.ordered;
+  const orderedTag = ordered
+    ? `<span class="rs-tag rs-tag--ordered" title="标已下单 ${escapeHtml(state.ordered[it.barcode].marked_at.slice(0,10))}">已下单</span>`
+    : "";
+  const checked = state.selected.has(it.barcode) ? "checked" : "";
+  const checkboxCol = state.filter.show_ordered
+    ? "" // 已下单视图不让勾选
+    : `<input type="checkbox" class="rs-check" data-bc="${escapeHtml(it.barcode)}" ${checked}>`;
+  const supplierCell = it.supplier_id
+    ? `<button class="rs-supplier" data-supplier="${escapeHtml(it.supplier_id)}" title="筛选同供应商 SKU">${escapeHtml(it.supplier_id)}</button>`
+    : '<span class="rs-supplier rs-supplier--none">—</span>';
   return `
     <tr class="rs-row" data-bc="${escapeHtml(it.barcode)}">
-      <td class="rs-bc">${escapeHtml(it.barcode)}${disc}${newTag}</td>
+      <td class="rs-check-cell">${checkboxCol}</td>
+      <td class="rs-bc">${escapeHtml(it.barcode)}${disc}${newTag}${orderedTag}</td>
       <td class="rs-name-cell">${nameCell}</td>
       <td>${originBadge(it.origin)}</td>
+      <td>${supplierCell}</td>
       <td class="rs-num">${fmt(it.qty_total)}</td>
       <td class="rs-num">${fmt(it.weekly_velocity, 1)}</td>
       <td class="rs-num">${weeksOfCoverCell(it.weeks_of_cover)}</td>
@@ -168,15 +235,75 @@ function renderRow(it) {
   `;
 }
 
-function updateExportLink() {
-  const params = new URLSearchParams();
-  const origin = state.filter.origin || "all";
-  params.set("origin", origin);
-  params.set("weeks", "26");
-  params.set("limit", "5000");
-  params.set("exclude_discontinued", state.filter.view === "all" ? "false" : "true");
-  params.set("format", "csv");
-  $("rsExportCsv").href = `/analytics/sales/top?${params.toString()}`;
+function csvCell(v) {
+  if (v === null || v === undefined) return "";
+  const s = String(v);
+  if (/[,"\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+function exportSelectedCsv() {
+  if (state.selected.size === 0) {
+    alert("请先勾选要导出的行");
+    return;
+  }
+  const cols = [
+    ["barcode", "条码"],
+    ["model", "型号"],
+    ["name_zh", "品名"],
+    ["origin", "Origin"],
+    ["supplier_id", "供应商"],
+    ["qty_total", "当前库存"],
+    ["weekly_velocity", "周销速"],
+    ["weeks_of_cover", "可撑周数"],
+    ["last_purchase_days_ago", "距上次进货 (天)"],
+    ["auto_category", "分类"],
+    ["urgency_score", "紧迫分"],
+  ];
+  const head = cols.map((c) => c[1]).join(",");
+  const rows = state.items
+    .filter((it) => state.selected.has(it.barcode))
+    .sort((a, b) => (b.urgency_score || 0) - (a.urgency_score || 0))
+    .map((it) => cols.map((c) => csvCell(it[c[0]])).join(","));
+  const csv = "﻿" + head + "\n" + rows.join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const ts = new Date().toISOString().slice(0, 16).replace(/[:T-]/g, "");
+  a.href = url;
+  a.download = `restock_${state.selected.size}_${ts}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function markSelectedOrdered() {
+  if (state.selected.size === 0) {
+    alert("请先勾选要标记的行");
+    return;
+  }
+  const now = new Date().toISOString();
+  const newBatch = [];
+  for (const bc of state.selected) {
+    if (!(bc in state.ordered)) {
+      state.ordered[bc] = { marked_at: now };
+      newBatch.push(bc);
+    }
+  }
+  if (newBatch.length > 0) state.orderedHistory.push(newBatch);
+  state.selected.clear();
+  saveOrdered();
+  render();
+}
+
+function undoMarkRecent() {
+  const batch = state.orderedHistory.pop();
+  if (!batch || batch.length === 0) {
+    alert("没有可撤销的标记");
+    return;
+  }
+  for (const bc of batch) delete state.ordered[bc];
+  saveOrdered();
+  render();
 }
 
 function syncChipActive() {
@@ -190,6 +317,30 @@ function syncChipActive() {
   $("rsCoverOff").classList.toggle("rs-chip--active", v === null);
   $("rsCoverRange").disabled = v === null;
   if (v !== null) $("rsCoverRange").value = String(v);
+
+  // 供应商筛选标签
+  const supEl = $("rsSupplierTag");
+  if (supEl) {
+    if (state.filter.supplier) {
+      supEl.style.display = "";
+      supEl.querySelector(".rs-supplier-tag-val").textContent = state.filter.supplier;
+    } else {
+      supEl.style.display = "none";
+    }
+  }
+
+  // 已下单工具栏
+  $("rsBtnExport").textContent = `↓ 导出选中 (${state.selected.size})`;
+  $("rsBtnMark").textContent = `✓ 标已下单 (${state.selected.size})`;
+  $("rsBtnExport").disabled = state.selected.size === 0;
+  $("rsBtnMark").disabled = state.selected.size === 0;
+  $("rsBtnUndo").disabled = state.orderedHistory.length === 0;
+  const orderedN = Object.keys(state.ordered).length;
+  const showOrderedChip = $("rsShowOrderedChip");
+  showOrderedChip.textContent = state.filter.show_ordered
+    ? `← 返回主表`
+    : `✓ 显示已下单 (${orderedN})`;
+  showOrderedChip.classList.toggle("rs-chip--active", state.filter.show_ordered);
 }
 
 function render() {
@@ -198,11 +349,31 @@ function render() {
   const visible = sorted.slice(0, 500);
   const tbody = $("rsTbody");
   if (visible.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" class="empty">无匹配项</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" class="empty">无匹配项</td></tr>';
   } else {
     tbody.innerHTML = visible.map(renderRow).join("");
+    // checkbox 勾选状态
+    for (const cb of tbody.querySelectorAll(".rs-check")) {
+      cb.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const bc = cb.dataset.bc;
+        if (cb.checked) state.selected.add(bc);
+        else state.selected.delete(bc);
+        syncChipActive();
+      });
+    }
+    // 供应商点击 → 设置筛选
+    for (const sup of tbody.querySelectorAll(".rs-supplier[data-supplier]")) {
+      sup.addEventListener("click", (e) => {
+        e.stopPropagation();
+        state.filter.supplier = sup.dataset.supplier;
+        render();
+      });
+    }
+    // 行点击 → 跳货号历史 (排除 checkbox / supplier 子元素)
     for (const tr of tbody.querySelectorAll(".rs-row")) {
-      tr.addEventListener("click", () => {
+      tr.addEventListener("click", (e) => {
+        if (e.target.closest(".rs-check, .rs-supplier")) return;
         if (typeof window.historySearch === "function") {
           window.Alpine?.store("nav")?.switch("history");
           setTimeout(() => window.historySearch(tr.dataset.bc), 50);
@@ -227,31 +398,47 @@ function render() {
     }
   }
   syncChipActive();
-  updateExportLink();
 }
 
 async function load() {
   const tbody = $("rsTbody");
-  tbody.innerHTML = '<tr><td colspan="10" class="empty">加载中…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="12" class="empty">加载中…</td></tr>';
   try {
     const resp = await fetch("/analytics/list");
     const data = await resp.json();
     if (!data.ok) {
-      tbody.innerHTML = `<tr><td colspan="10" class="empty">加载失败：${escapeHtml(data.msg || "")}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="12" class="empty">加载失败：${escapeHtml(data.msg || "")}</td></tr>`;
       return;
     }
     state.items = data.items;
+    // 货到后自动 unmark
+    autoClearOrderedByPurchase();
     $("rsStatTotal").textContent = `共 ${data.total} 个 SKU`;
     render();
   } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="10" class="empty">网络错误：${escapeHtml(err.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="empty">网络错误：${escapeHtml(err.message)}</td></tr>`;
   }
 }
 
 function init() {
   if (!$("pageRestock")) return;
 
+  // 启动时先把 localStorage 里 ordered 加载进来 (含 30 天过期清理)
+  state.ordered = loadOrdered();
+
   $("rsRefresh").addEventListener("click", load);
+  $("rsBtnExport").addEventListener("click", exportSelectedCsv);
+  $("rsBtnMark").addEventListener("click", markSelectedOrdered);
+  $("rsBtnUndo").addEventListener("click", undoMarkRecent);
+  $("rsShowOrderedChip").addEventListener("click", () => {
+    state.filter.show_ordered = !state.filter.show_ordered;
+    state.selected.clear();
+    render();
+  });
+  $("rsSupplierClear").addEventListener("click", () => {
+    state.filter.supplier = null;
+    render();
+  });
 
   for (const btn of document.querySelectorAll("#pageRestock .rs-chip[data-filter]")) {
     btn.addEventListener("click", () => {

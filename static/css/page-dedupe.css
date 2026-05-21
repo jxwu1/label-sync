@@ -68,6 +68,8 @@
 .dd-toolbar-spacer { flex: 1; }
 .dd-num--ok   { color: var(--accent); font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .dd-num--warn { color: var(--warn);   font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.dd-num--neg  { color: #f87171;       font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; font-weight: 600; }
+.dd-table td.dd-num--neg { text-align: right; }
 
 /* === CTA 按钮（设计 size sm，复用全站样式） === */
 .dd-cta {

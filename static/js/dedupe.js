@@ -30,6 +30,8 @@ const GROUPS = [
     stateId: "ddDuplicateState", bodyId: "ddDuplicate",     tone: "error" },
   { key: "empty_locations",      statId: "ddStatEmptyLoc",  panelId: "ddEmptyLocPanel",
     stateId: "ddEmptyLocState",  bodyId: "ddEmptyLoc",      tone: "warn" },
+  { key: "negative_stock",       statId: "ddStatNegStock",  panelId: "ddNegStockPanel",
+    stateId: "ddNegStockState",  bodyId: "ddNegStock",      tone: "error" },
 ];
 
 function setStat(statId, count, baseTone) {
@@ -120,11 +122,24 @@ function renderEmptyLocations(section) {
   renderTable("ddEmptyLoc", ["条码", "型号", "品名", "最近更新"], rows);
 }
 
+function renderNegativeStock(section) {
+  const rows = section.samples.map((s) => `
+    <tr>
+      <td>${escapeHtml(s.barcode || "(未关联)")}</td>
+      <td>${escapeHtml(s.model || "")}</td>
+      <td>${escapeHtml(s.product_name || "")}</td>
+      <td class="dd-num dd-num--neg">${s.qty}</td>
+    </tr>
+  `);
+  renderTable("ddNegStock", ["条码", "型号", "品名", "库存（负）"], rows);
+}
+
 const RENDERERS = {
   whitespace_anomalies: renderWhitespace,
   unknown_prefix: renderUnknown,
   duplicate_segments: renderDuplicate,
   empty_locations: renderEmptyLocations,
+  negative_stock: renderNegativeStock,
 };
 
 async function refresh() {

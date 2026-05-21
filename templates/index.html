@@ -411,6 +411,10 @@
             <div class="dd-stat-num">—</div>
             <div class="dd-stat-label">空库位</div>
           </div>
+          <div class="dd-stat" id="ddStatNegStock" data-tone="error">
+            <div class="dd-stat-num">—</div>
+            <div class="dd-stat-label">负库存</div>
+          </div>
         </div>
 
         <!-- 工具条 -->
@@ -473,6 +477,18 @@
             <button class="dd-cta dd-cta--ghost dd-copy" data-copy-section="empty_locations">⎘ 一键复制</button>
           </header>
           <div class="dd-group-body" id="ddEmptyLoc"></div>
+        </section>
+
+        <section class="dd-group" id="ddNegStockPanel">
+          <header class="dd-group-hd">
+            <span class="dd-group-code">G·NEGATIVE_STOCK</span>
+            <span class="dd-group-title">异常库存（负）</span>
+            <span class="dd-group-sub">最新 snapshot 中 qty &lt; 0，需 ERP 纠错</span>
+            <span class="dd-toolbar-spacer"></span>
+            <span class="dd-pill" id="ddNegStockState">—</span>
+            <button class="dd-cta dd-cta--ghost dd-copy" data-copy-section="negative_stock">⎘ 一键复制</button>
+          </header>
+          <div class="dd-group-body" id="ddNegStock"></div>
         </section>
       </div>
       <div class="page" id="pagePurchase" x-data :class="$store.nav.current === 'purchase' ? 'active' : ''"></div>
@@ -904,7 +920,10 @@
             补货决策（按紧迫分排序）
             <div class="rs-actions">
               <span class="rs-stat" id="rsStatTotal"></span>
-              <a class="rs-cta rs-cta--ghost" id="rsExportCsv" href="#" download>↓ 导出 CSV（当前筛选）</a>
+              <button class="rs-cta rs-cta--ghost" id="rsBtnExport" type="button" disabled>↓ 导出选中 (0)</button>
+              <button class="rs-cta rs-cta--ghost" id="rsBtnMark" type="button" disabled>✓ 标已下单 (0)</button>
+              <button class="rs-cta rs-cta--ghost" id="rsBtnUndo" type="button" disabled>↺ 撤销</button>
+              <button class="rs-chip" id="rsShowOrderedChip" type="button">✓ 显示已下单 (0)</button>
               <button class="rs-cta rs-cta--primary" id="rsRefresh">↻ 刷新</button>
             </div>
           </div>
@@ -929,6 +948,13 @@
                 <span class="rs-filter-val" id="rsCoverVal">4 周</span>
                 <button class="rs-chip rs-chip--toggle" id="rsCoverOff" type="button" title="关闭缺货过滤">禁用过滤</button>
               </div>
+              <div class="rs-filter-group" id="rsSupplierTag" style="display:none;">
+                <span class="rs-filter-label">供应商</span>
+                <span class="rs-chip rs-chip--active rs-supplier-tag">
+                  <span class="rs-supplier-tag-val">—</span>
+                  <button class="rs-supplier-tag-x" id="rsSupplierClear" type="button" title="清除供应商筛选">✕</button>
+                </span>
+              </div>
               <div class="rs-filter-group">
                 <span class="rs-filter-label">分类</span>
                 <button class="rs-chip" data-filter="auto" data-value="">全部</button>
@@ -951,9 +977,11 @@
             <table class="rs-table">
               <thead>
                 <tr>
+                  <th class="rs-check-cell"></th>
                   <th>条码</th>
                   <th>型号 / 品名</th>
                   <th>Origin</th>
+                  <th>供应商</th>
                   <th class="rs-num rs-th-sort" data-sort="qty_total">当前库存 <span class="rs-sort-ind"></span></th>
                   <th class="rs-num rs-th-sort" data-sort="weekly_velocity">周销速 <span class="rs-sort-ind"></span></th>
                   <th class="rs-num rs-th-sort" data-sort="weeks_of_cover">可撑周数 <span class="rs-sort-ind"></span></th>
@@ -964,7 +992,7 @@
                 </tr>
               </thead>
               <tbody id="rsTbody">
-                <tr><td colspan="10" class="empty">点「刷新」加载</td></tr>
+                <tr><td colspan="12" class="empty">点「刷新」加载</td></tr>
               </tbody>
             </table>
           </div>

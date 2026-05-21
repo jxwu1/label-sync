@@ -270,5 +270,71 @@ class DataQualityTests(unittest.TestCase):
         self.assertEqual(report["empty_locations"]["samples"], [])
 
 
+    def _add_snapshot(self, snapshot_date: str, product_model: str, qty_total: int) -> None:
+        from sqlalchemy import insert
+
+        from app.models import StockpileInventorySnapshot
+
+        with stockpile_db._session() as s:
+            s.execute(
+                insert(StockpileInventorySnapshot).values(
+                    snapshot_date=snapshot_date,
+                    product_model=product_model,
+                    qty_total=qty_total,
+                )
+            )
+            s.commit()
+
+    def test_negative_stock_empty_when_no_snapshot(self) -> None:
+        report = data_quality_service.build_report()
+        self.assertEqual(report["negative_stock"]["count"], 0)
+        self.assertEqual(report["negative_stock"]["samples"], [])
+
+    def test_negative_stock_lists_qty_below_zero(self) -> None:
+        self._import(
+            [
+                {"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A1"},
+                {"product_barcode": "B2", "product_model": "M2", "stockpile_location": "A2"},
+            ]
+        )
+        self._add_snapshot("2026-05-21", "M1", -5)
+        self._add_snapshot("2026-05-21", "M2", 0)   # 不算
+        self._add_snapshot("2026-05-21", "M3", -1)  # 关联不到 stockpile, 仍列出
+
+        report = data_quality_service.build_report()
+        self.assertEqual(report["negative_stock"]["count"], 2)
+        bcs = [s["barcode"] for s in report["negative_stock"]["samples"]]
+        self.assertIn("B1", bcs)
+        m3_sample = next(s for s in report["negative_stock"]["samples"] if s["model"] == "M3")
+        self.assertEqual(m3_sample["barcode"], "")
+        self.assertEqual(m3_sample["qty"], -1)
+
+    def test_negative_stock_rule_b_13_digit_barcode(self) -> None:
+        self._import(
+            [
+                {
+                    "product_barcode": "8435286885768",
+                    "product_model": "8435286885768",
+                    "stockpile_location": "A1",
+                },
+            ]
+        )
+        self._add_snapshot("2026-05-21", "88576", -3)
+        report = data_quality_service.build_report()
+        self.assertEqual(report["negative_stock"]["count"], 1)
+        sample = report["negative_stock"]["samples"][0]
+        self.assertEqual(sample["barcode"], "8435286885768")
+        self.assertEqual(sample["qty"], -3)
+
+    def test_negative_stock_only_uses_latest_snapshot_date(self) -> None:
+        self._import([
+            {"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A1"},
+        ])
+        self._add_snapshot("2026-05-19", "M1", -99)
+        self._add_snapshot("2026-05-21", "M1", 5)
+        report = data_quality_service.build_report()
+        self.assertEqual(report["negative_stock"]["count"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -468,6 +468,7 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
                 "manual_grade": grade,
                 "is_truly_discontinued": bool(is_disc),
                 "origin": origin,
+                "supplier_id": supplier_id,
                 "qty_total": qty_total,
                 "total_qty": total_qty,
                 "weekly_velocity": round(weekly_velocity, 2),

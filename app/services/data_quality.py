@@ -17,7 +17,12 @@ import pandas as pd
 from sqlalchemy import func, select
 
 from app.repositories import stockpile_db
-from app.models import Stockpile, StockpileChange, StockpileLocation
+from app.models import (
+    Stockpile,
+    StockpileChange,
+    StockpileInventorySnapshot,
+    StockpileLocation,
+)
 
 _FLIPPER_THRESHOLD = 4  # location 变更次数 ≥ 该值才算 flipper
 _FLIPPER_TOP_N = 50  # 最多返回 Top N
@@ -25,6 +30,7 @@ _WHITESPACE_TOP_N = 100
 _MULTI_SAME_KIND_TOP_N = 200
 _DUPLICATE_SEGMENTS_TOP_N = 100
 _EMPTY_LOCATION_TOP_N = 200
+_NEGATIVE_STOCK_TOP_N = 3000  # 线上 ~2249 行, 留余量
 
 
 def _multi_same_kind(session) -> dict:
@@ -277,8 +283,77 @@ def _empty_locations(session) -> dict:
     return {"count": total, "samples": samples}
 
 
+def _negative_stock(session) -> dict:
+    """最新 snapshot 中 qty_total<0 的 SKU（ERP 超卖待到货 / 入库漏做 / 盘点错）。
+
+    业务含义：负库存几乎肯定是数据错误，需要逐个去 ERP 核对修正。
+    JOIN 用 rule A (snap.model == stockpile.model) + rule B
+    (13 位 barcode 取倒数第 2-6 位匹配 5 位短码)，跟 v3 stop list 算法保持一致。
+    返回最负的在前（qty_total 升序）。
+    """
+    latest_date = session.execute(
+        select(func.max(StockpileInventorySnapshot.snapshot_date))
+    ).scalar()
+    if not latest_date:
+        return {"count": 0, "samples": []}
+
+    snap_rows = session.execute(
+        select(
+            StockpileInventorySnapshot.product_model,
+            StockpileInventorySnapshot.qty_total,
+        )
+        .where(
+            (StockpileInventorySnapshot.snapshot_date == latest_date)
+            & (StockpileInventorySnapshot.qty_total < 0)
+        )
+        .order_by(StockpileInventorySnapshot.qty_total.asc())
+        .limit(_NEGATIVE_STOCK_TOP_N)
+    ).all()
+
+    # 用 stockpile 反查 barcode/name. 一次性拉所有 stockpile, 内存匹配 rule A + B.
+    sp_rows = session.execute(
+        select(Stockpile.product_barcode, Stockpile.product_model, Stockpile.product_name_zh)
+    ).all()
+    by_model: dict[str, tuple[str, str, str | None]] = {}
+    by_short5: dict[str, tuple[str, str, str | None]] = {}
+    for bc, model, name in sp_rows:
+        if model:
+            by_model.setdefault(model, (bc, model, name))
+        if bc and len(bc) == 13:
+            by_short5.setdefault(bc[-6:-1], (bc, model, name))
+
+    samples = []
+    for snap_model, qty in snap_rows:
+        hit = by_model.get(snap_model) or by_short5.get(snap_model)
+        if hit is None:
+            samples.append({
+                "barcode": "",
+                "model": snap_model,
+                "product_name": "(未关联到 stockpile)",
+                "qty": int(qty),
+            })
+        else:
+            bc, model, name = hit
+            samples.append({
+                "barcode": bc,
+                "model": model or snap_model,
+                "product_name": name or "",
+                "qty": int(qty),
+            })
+
+    total = session.execute(
+        select(func.count())
+        .select_from(StockpileInventorySnapshot)
+        .where(
+            (StockpileInventorySnapshot.snapshot_date == latest_date)
+            & (StockpileInventorySnapshot.qty_total < 0)
+        )
+    ).scalar() or 0
+    return {"count": total, "samples": samples, "snapshot_date": latest_date}
+
+
 def build_report() -> dict:
-    """顶层入口：返回 6 类异常的汇总。供 routes_data_quality jsonify。"""
+    """顶层入口：返回 7 类异常的汇总。供 routes_data_quality jsonify。"""
     with stockpile_db._session() as session:
         return {
             "multi_same_kind": _multi_same_kind(session),
@@ -287,4 +362,5 @@ def build_report() -> dict:
             "unknown_prefix": _unknown_prefix(session),
             "duplicate_segments": _duplicate_segments(session),
             "empty_locations": _empty_locations(session),
+            "negative_stock": _negative_stock(session),
         }
