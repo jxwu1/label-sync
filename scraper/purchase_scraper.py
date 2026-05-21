@@ -264,7 +264,8 @@ def to_standard_schema(df):
 
 
 # ============ 主流程 ============
-def main():
+def main() -> int:
+    """跑全流程. 返回非零表示失败 (cookie 失效 / 部分月份抓不到), 给 cron 用."""
     months = generate_months(DATE_FROM, DATE_TO)
     print(f"准备抓取 {len(months)} 个月: {DATE_FROM} → {DATE_TO}")
     print(f"输出 parquet: {OUTPUT_PARQUET}")
@@ -275,7 +276,7 @@ def main():
     for f in [OUTPUT_PARQUET, OUTPUT_XLSX]:
         if not safe_remove(f):
             print("❌ 旧文件无法删除,关闭后重试")
-            return
+            return 1
     print()
 
     total_t0 = time.time()
@@ -319,7 +320,8 @@ def main():
             print(f"  {b} → {e}")
 
     if not all_dfs:
-        return
+        print("❌ 全部月份抓取失败 (cookie 可能过期, 去 boson 重登换 PHPSESSID)")
+        return 1
 
     print(f"\n合并 {len(all_dfs)} 个月数据...")
     df = pd.concat(all_dfs, ignore_index=True)
@@ -390,6 +392,11 @@ def main():
     print(f"   parquet: {OUTPUT_PARQUET}")
     print(f"   xlsx:    {OUTPUT_XLSX}")
 
+    if failed_months:
+        print(f"\n⚠️  有 {len(failed_months)} 个月份失败 (见上面列表), 返回非零")
+        return 1
+    return 0
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -413,4 +420,4 @@ if __name__ == "__main__":
     OUTPUT_PARQUET = OUTPUT_DIR / f"events_purchase_{DATE_FROM}_{DATE_TO}.parquet"
     OUTPUT_XLSX = OUTPUT_DIR / f"events_purchase_{DATE_FROM}_{DATE_TO}.xlsx"
 
-    main()
+    sys.exit(main())
