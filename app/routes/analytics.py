@@ -313,6 +313,7 @@ def sales_top():
         weeks  (可选, 默认 52, 范围 4-208): 回溯几周
         limit  (可选, 默认 200, 上限 5000)
         min_active_weeks (可选, 默认 0): 过滤至少有 N 个非零销售周的 SKU
+        exclude_discontinued (可选, 默认 true): 是否排除 is_truly_discontinued=true 的 SKU
         format (可选, 默认 csv): csv | json
     """
     import csv
@@ -346,7 +347,13 @@ def sales_top():
     if fmt not in ("csv", "json"):
         return jsonify({"ok": False, "msg": "format 必须是 csv 或 json"}), 400
 
+    exclude_raw = (request.args.get("exclude_discontinued") or "true").strip().lower()
+    if exclude_raw not in ("true", "false", "1", "0"):
+        return jsonify({"ok": False, "msg": "exclude_discontinued 必须是 true 或 false"}), 400
+    exclude_discontinued = exclude_raw in ("true", "1")
+
     where_origin = "" if origin_filter == "all" else "AND so.origin = :origin"
+    where_disc = "AND s.is_truly_discontinued = false" if exclude_discontinued else ""
     sql = ORIGIN_CTE_SQL + f""",
 sales_agg AS (
     SELECT
@@ -377,6 +384,7 @@ JOIN sku_origin so ON so.product_barcode = sa.product_barcode
 WHERE s.is_active = 1
   AND sa.n_active_weeks >= :min_active_weeks
   {where_origin}
+  {where_disc}
 ORDER BY sa.total_qty DESC
 LIMIT :limit
 """
@@ -440,6 +448,7 @@ def forecast_top():
     query:
         origin (可选, 默认 FOREIGN): FOREIGN | CN | unknown | all
         limit (可选, 默认 200, 上限 5000)
+        exclude_discontinued (可选, 默认 true): 是否排除 is_truly_discontinued=true 的 SKU
         format (可选, 默认 csv): csv | json
 
     JOIN forecast_output + stockpile + sku_origin CTE, 按 p50 desc 排序.
@@ -472,7 +481,13 @@ def forecast_top():
     if fmt not in ("csv", "json"):
         return jsonify({"ok": False, "msg": "format 必须是 csv 或 json"}), 400
 
+    exclude_raw = (request.args.get("exclude_discontinued") or "true").strip().lower()
+    if exclude_raw not in ("true", "false", "1", "0"):
+        return jsonify({"ok": False, "msg": "exclude_discontinued 必须是 true 或 false"}), 400
+    exclude_discontinued = exclude_raw in ("true", "1")
+
     where_origin = "" if origin_filter == "all" else "AND so.origin = :origin"
+    where_disc = "AND s.is_truly_discontinued = false" if exclude_discontinued else ""
     sql = ORIGIN_CTE_SQL + f"""
 SELECT
     f.product_barcode,
@@ -490,7 +505,7 @@ SELECT
 FROM forecast_output f
 JOIN stockpile s ON s.product_barcode = f.product_barcode
 JOIN sku_origin so ON so.product_barcode = f.product_barcode
-WHERE s.is_active = 1 {where_origin}
+WHERE s.is_active = 1 {where_origin} {where_disc}
 ORDER BY f.p50 DESC
 LIMIT :limit
 """

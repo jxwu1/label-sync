@@ -406,6 +406,16 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
         self.assertEqual(resp.status_code, 400)
         self.assertIn("format", resp.get_json()["msg"])
 
+    def test_sales_top_bad_exclude_discontinued(self) -> None:
+        resp = self.client.get("/analytics/sales/top?exclude_discontinued=maybe")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("exclude_discontinued", resp.get_json()["msg"])
+
+    def test_forecast_top_bad_exclude_discontinued(self) -> None:
+        resp = self.client.get("/analytics/forecast/top?exclude_discontinued=maybe")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("exclude_discontinued", resp.get_json()["msg"])
+
     def test_upload_missing_token_env_returns_500(self) -> None:
         import os
         os.environ.pop("UPLOAD_TOKEN", None)
