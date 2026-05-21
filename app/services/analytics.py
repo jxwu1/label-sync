@@ -315,7 +315,10 @@ def _compute_urgency_score(
     if weeks_of_cover is None:
         c = 0.0
     else:
-        c = max(0.0, 1.0 - weeks_of_cover / _URGENCY_COVER_TARGET_WEEKS) * 30.0
+        # weeks_of_cover 可能 < 0 (ERP 超卖待到货, qty_total 负) → 视为 0 库存,
+        # cover 满分. clamp 在 [0, 1] 避免分数溢出.
+        woc = max(0.0, weeks_of_cover)
+        c = max(0.0, 1.0 - woc / _URGENCY_COVER_TARGET_WEEKS) * 30.0
     if last_purchase_days is None:
         r = 0.0
     else:

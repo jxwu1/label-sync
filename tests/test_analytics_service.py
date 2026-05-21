@@ -336,6 +336,15 @@ class UrgencyScoreTests(unittest.TestCase):
         out = _compute_urgency_score(velocity_pctile=0.0, weeks_of_cover=None, last_purchase_days=None)
         assert out == {"total": 0.0, "velocity": 0.0, "cover": 0.0, "recency": 0.0}
 
+    def test_negative_weeks_of_cover_caps_at_max_not_overflow(self) -> None:
+        """ERP 超卖待到货 → qty_total<0 → weeks_of_cover<0 → cover 项应 cap 30, 总分 ≤100."""
+        from app.services.analytics import _compute_urgency_score
+
+        out = _compute_urgency_score(velocity_pctile=0.5, weeks_of_cover=-62.1, last_purchase_days=0)
+        assert out["cover"] == 30.0  # 负库存按 0 库存满分, 不溢出
+        assert out["total"] <= 100.0
+        assert out["total"] == 25.0 + 30.0 + 0.0
+
     def test_cover_clamped_at_zero_when_overstocked(self) -> None:
         from app.services.analytics import _compute_urgency_score
 
