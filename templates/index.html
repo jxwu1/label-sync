@@ -19,6 +19,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-inventory.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-foreign-customers.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-sales-analytics.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/page-restock.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-transfer.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/widgets/quickmenu.css') }}">
 <script defer src="{{ url_for('static', filename='js/store.js') }}"></script>
@@ -108,7 +109,7 @@
       </div>
     </div>
     <nav class="app-sidebar__nav">
-      <div class="app-sidebar__section-label">MODULES · 10</div>
+      <div class="app-sidebar__section-label">MODULES · 11</div>
       <template x-for="p in $store.nav.pages" :key="p.id">
         <button class="app-nav__item"
                 :class="$store.nav.current === p.id && 'active'"
@@ -897,6 +898,78 @@
         </div>
       </div>
     </div>
+      <div class="page" id="pageRestock" x-data :class="$store.nav.current === 'restock' ? 'active' : ''">
+        <div class="panel">
+          <div class="panel-hd">
+            补货决策（按紧迫分排序）
+            <div class="rs-actions">
+              <span class="rs-stat" id="rsStatTotal"></span>
+              <a class="rs-cta rs-cta--ghost" id="rsExportCsv" href="#" download>↓ 导出 CSV（当前筛选）</a>
+              <button class="rs-cta rs-cta--primary" id="rsRefresh">↻ 刷新</button>
+            </div>
+          </div>
+          <div class="panel-bd">
+            <div class="rs-filter-bar">
+              <div class="rs-filter-group">
+                <span class="rs-filter-label">Origin</span>
+                <button class="rs-chip" data-filter="origin" data-value="FOREIGN">🇬🇷 老外货</button>
+                <button class="rs-chip" data-filter="origin" data-value="CN">🇨🇳 中国货</button>
+                <button class="rs-chip" data-filter="origin" data-value="unknown">未知</button>
+                <button class="rs-chip" data-filter="origin" data-value="">全部</button>
+              </div>
+              <div class="rs-filter-group">
+                <span class="rs-filter-label">视图</span>
+                <button class="rs-chip" data-filter="view" data-value="active">活跃（默认）</button>
+                <button class="rs-chip" data-filter="view" data-value="new">新品（&lt;4 周）</button>
+                <button class="rs-chip" data-filter="view" data-value="all">含停用</button>
+              </div>
+              <div class="rs-filter-group">
+                <span class="rs-filter-label">可撑周数 ≤</span>
+                <input type="range" id="rsCoverRange" min="0" max="20" step="1" value="4">
+                <span class="rs-filter-val" id="rsCoverVal">4 周</span>
+                <button class="rs-chip rs-chip--toggle" id="rsCoverOff" type="button" title="关闭缺货过滤">禁用过滤</button>
+              </div>
+              <div class="rs-filter-group">
+                <span class="rs-filter-label">分类</span>
+                <button class="rs-chip" data-filter="auto" data-value="">全部</button>
+                <button class="rs-chip" data-filter="auto" data-value="new">新品</button>
+                <button class="rs-chip" data-filter="auto" data-value="seasonal">季节性</button>
+                <button class="rs-chip" data-filter="auto" data-value="declining">衰退</button>
+                <button class="rs-chip" data-filter="auto" data-value="stable">稳定</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-hd">
+            清单
+            <div class="rs-actions">
+              <span class="rs-stat" id="rsStatShowing"></span>
+            </div>
+          </div>
+          <div class="panel-bd">
+            <table class="rs-table">
+              <thead>
+                <tr>
+                  <th>条码</th>
+                  <th>型号 / 品名</th>
+                  <th>Origin</th>
+                  <th class="rs-num rs-th-sort" data-sort="qty_total">当前库存 <span class="rs-sort-ind"></span></th>
+                  <th class="rs-num rs-th-sort" data-sort="weekly_velocity">周销速 <span class="rs-sort-ind"></span></th>
+                  <th class="rs-num rs-th-sort" data-sort="weeks_of_cover">可撑周数 <span class="rs-sort-ind"></span></th>
+                  <th class="rs-num">12 周</th>
+                  <th class="rs-num rs-th-sort" data-sort="last_purchase_days_ago">距上次进货 <span class="rs-sort-ind"></span></th>
+                  <th>分类</th>
+                  <th class="rs-num rs-th-sort rs-th-sort--default" data-sort="urgency_score">紧迫分 <span class="rs-sort-ind"></span></th>
+                </tr>
+              </thead>
+              <tbody id="rsTbody">
+                <tr><td colspan="10" class="empty">点「刷新」加载</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
       <div class="page" id="pageTransfer" x-data :class="$store.nav.current === 'transfer' ? 'active' : ''">
         <!-- ConnectionBar -->
         <div class="tr-connbar">
@@ -1003,6 +1076,7 @@
 <script type="module" src="{{ url_for('static', filename='js/index-scan-history.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/inventory.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/foreign-customers.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/restock.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/sales-analytics.js') }}"></script>
 </body>
 </html>

@@ -201,10 +201,13 @@ class TimelineTests(AnalyticsRoutesTests):
 
 
 class ListEndpointTests(AnalyticsRoutesTests):
-    def test_list_returns_active_skus_with_aggregates(self) -> None:
+    def test_list_returns_non_discontinued_skus_with_aggregates(self) -> None:
+        # 新口径 (2026-05-21): 过滤 is_truly_discontinued, 不再用 is_active.
+        # is_active=0 (网店下架) 但还在卖的货也要进列表.
         self._seed_sku("B1", auto_category="stable", manual_grade=5)
         self._seed_sku("B2", auto_category="new")
-        self._seed_sku("B3", is_active=0)  # 应被过滤
+        self._seed_sku("B3_OFFLINE", is_active=0)  # 网店下架但保留
+        self._seed_sku("B4_DEAD", is_truly_discontinued=True)  # 应被过滤
         self._seed_sale("B1", "2026-04-01", 10)
         self._seed_sale("B1", "2026-04-15", 5)
         self._seed_sale("B2", "2026-04-25", 100)
@@ -213,9 +216,9 @@ class ListEndpointTests(AnalyticsRoutesTests):
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         self.assertTrue(data["ok"])
-        self.assertEqual(data["total"], 2)
+        self.assertEqual(data["total"], 3)
         bcs = {it["barcode"] for it in data["items"]}
-        self.assertEqual(bcs, {"B1", "B2"})
+        self.assertEqual(bcs, {"B1", "B2", "B3_OFFLINE"})
         b1 = next(it for it in data["items"] if it["barcode"] == "B1")
         self.assertEqual(b1["total_qty"], 15)
         self.assertEqual(b1["lifespan_days"], 14)

@@ -303,5 +303,130 @@ class RecomputeCategoriesTests(_Base):
             assert inact1.auto_category is None  # 没动
 
 
+class UrgencyScoreTests(unittest.TestCase):
+    """_compute_urgency_score 单测（纯函数，无 DB）。"""
+
+    def test_new_item_returns_all_none(self) -> None:
+        from app.services.analytics import _compute_urgency_score
+
+        out = _compute_urgency_score(0.9, 2.0, 30, is_new_item=True)
+        assert out == {"total": None, "velocity": None, "cover": None, "recency": None}
+
+    def test_sold_out_top_seller_long_no_purchase_maxes_out(self) -> None:
+        from app.services.analytics import _compute_urgency_score
+
+        out = _compute_urgency_score(velocity_pctile=1.0, weeks_of_cover=0.0, last_purchase_days=200)
+        assert out["velocity"] == 50.0
+        assert out["cover"] == 30.0
+        assert out["recency"] == 20.0
+        assert out["total"] == 100.0
+
+    def test_just_restocked_low_recency(self) -> None:
+        from app.services.analytics import _compute_urgency_score
+
+        out = _compute_urgency_score(velocity_pctile=0.5, weeks_of_cover=10.0, last_purchase_days=0)
+        assert out["velocity"] == 25.0
+        assert out["cover"] == 0.0
+        assert out["recency"] == 0.0
+        assert out["total"] == 25.0
+
+    def test_no_history_zero_score(self) -> None:
+        from app.services.analytics import _compute_urgency_score
+
+        out = _compute_urgency_score(velocity_pctile=0.0, weeks_of_cover=None, last_purchase_days=None)
+        assert out == {"total": 0.0, "velocity": 0.0, "cover": 0.0, "recency": 0.0}
+
+    def test_cover_clamped_at_zero_when_overstocked(self) -> None:
+        from app.services.analytics import _compute_urgency_score
+
+        out = _compute_urgency_score(velocity_pctile=0.8, weeks_of_cover=50.0, last_purchase_days=10)
+        assert out["cover"] == 0.0
+
+
+class ListSkuSummaryRestockFieldsTests(_Base):
+    """list_sku_summary 新增字段（补货决策面板用）端到端测试。"""
+
+    def _add_sku(self, barcode: str, model: str | None = None, **fields) -> None:
+        from app.models import Stockpile
+
+        values = {
+            "product_barcode": barcode,
+            "product_model": model or barcode,
+            "stockpile_location": "",
+            "is_active": 1,
+        }
+        values.update(fields)
+        with stockpile_db._session() as s:
+            s.execute(insert(Stockpile).values(**values))
+            s.commit()
+
+    def _add_snapshot(self, snapshot_date: str, model: str, qty: int) -> None:
+        from app.models import StockpileInventorySnapshot
+
+        with stockpile_db._session() as s:
+            s.execute(
+                insert(StockpileInventorySnapshot).values(
+                    snapshot_date=snapshot_date,
+                    product_model=model,
+                    qty_total=qty,
+                )
+            )
+            s.commit()
+
+    def test_new_fields_present_and_typed(self) -> None:
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("12345", model="12345")
+        self._add_event(barcode="12345", event_at="2026-04-20", qty=10, document_no="S1")
+        self._add_event(
+            barcode="12345", event_type="purchase",
+            event_at="2026-03-01", qty=50, supplier_id="GR01", document_no="P1",
+        )
+        self._add_snapshot("2026-05-19", "12345", 8)
+
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "12345")
+        assert it["qty_total"] == 8
+        assert it["origin"] == "FOREIGN"
+        assert it["last_purchase_at"] == "2026-03-01"
+        assert it["last_purchase_days_ago"] == 81
+        assert it["weekly_velocity"] > 0
+        assert it["weeks_of_cover"] is not None
+        assert "urgency_score" in it
+        assert "urgency_breakdown" in it
+        assert "is_truly_discontinued" in it
+
+    def test_inactive_but_not_discontinued_sku_included(self) -> None:
+        """is_active=0 (网店下架) 但 v3 算法未标停用 → 应该出现在列表里
+        (5206753044598 这类 '线下还在卖+ERP 等级 1+不上网店' 的 case)."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("OFFLINE", model="OFFLINE", is_active=0, is_truly_discontinued=False)
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        barcodes = [it["barcode"] for it in items]
+        assert "OFFLINE" in barcodes
+
+    def test_truly_discontinued_excluded_regardless_of_is_active(self) -> None:
+        """is_truly_discontinued=true 永远不出现, 不管 is_active 是 1 还是 0."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("DEAD_A", model="DEAD_A", is_active=1, is_truly_discontinued=True)
+        self._add_sku("DEAD_B", model="DEAD_B", is_active=0, is_truly_discontinued=True)
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        barcodes = [it["barcode"] for it in items]
+        assert "DEAD_A" not in barcodes
+        assert "DEAD_B" not in barcodes
+
+    def test_snapshot_join_rule_b_barcode_13_digit(self) -> None:
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("8435286885768", model="8435286885768")
+        self._add_snapshot("2026-05-19", "88576", 42)
+
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "8435286885768")
+        assert it["qty_total"] == 42
+
+
 if __name__ == "__main__":
     unittest.main()
