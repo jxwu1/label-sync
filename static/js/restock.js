@@ -16,6 +16,8 @@ const AUTO_CN = {
 
 const LS_KEY_ORDERED = "restock_ordered_v1";
 const ORDERED_EXPIRY_DAYS = 30;
+const SUPPLIER_OVERVIEW_HOT = 70;     // ≥70 紧迫分计入概览
+const SUPPLIER_OVERVIEW_TOP = 5;       // 默认显示前 5 家
 
 const state = {
   items: [],
@@ -31,6 +33,7 @@ const state = {
   selected: new Set(),     // 当前勾选的 barcode
   ordered: {},             // {barcode: {marked_at: ISO}}; 从 localStorage 加载
   orderedHistory: [],      // 撤销栈: 每次「标已下单」推入 [bc1, bc2, ...]
+  supplierOverviewExpanded: false, // 概览展开 / 折叠
 };
 
 function loadOrdered() {
@@ -151,31 +154,36 @@ function sparkline(values, color) {
     `</span>`;
 }
 
-function applyFilter(items) {
-  return items.filter((it) => {
-    const isOrdered = it.barcode in state.ordered;
-    if (state.filter.show_ordered) {
-      if (!isOrdered) return false;
-      // 已下单视图: 不应用其它筛, 让用户看到全部 ordered 历史
-      return true;
-    }
-    if (isOrdered) return false; // 默认隐藏已下单
-    if (state.filter.origin && it.origin !== state.filter.origin) return false;
-    if (state.filter.supplier && it.supplier_id !== state.filter.supplier) return false;
-    if (state.filter.view === "active") {
-      if (it.is_truly_discontinued) return false;
-      if (it.is_new_item) return false;
-    } else if (state.filter.view === "new") {
-      if (!it.is_new_item) return false;
-    }
-    if (state.filter.auto && it.auto_category !== state.filter.auto) return false;
-    if (state.filter.coverMax !== null && state.filter.view === "active") {
-      // null = 无 snapshot 数据, 不当 "不缺货" 过滤
-      if (it.weeks_of_cover !== null && it.weeks_of_cover !== undefined
-          && it.weeks_of_cover > state.filter.coverMax) return false;
-    }
+function _filterPredicate(it, opts = {}) {
+  const isOrdered = it.barcode in state.ordered;
+  if (state.filter.show_ordered) {
+    if (!isOrdered) return false;
     return true;
-  });
+  }
+  if (isOrdered) return false;
+  if (state.filter.origin && it.origin !== state.filter.origin) return false;
+  if (!opts.skipSupplier && state.filter.supplier && it.supplier_id !== state.filter.supplier) return false;
+  if (state.filter.view === "active") {
+    if (it.is_truly_discontinued) return false;
+    if (it.is_new_item) return false;
+  } else if (state.filter.view === "new") {
+    if (!it.is_new_item) return false;
+  }
+  if (state.filter.auto && it.auto_category !== state.filter.auto) return false;
+  if (state.filter.coverMax !== null && state.filter.view === "active") {
+    // null = 无 snapshot 数据, 不当 "不缺货" 过滤
+    if (it.weeks_of_cover !== null && it.weeks_of_cover !== undefined
+        && it.weeks_of_cover > state.filter.coverMax) return false;
+  }
+  return true;
+}
+
+function applyFilter(items) {
+  return items.filter((it) => _filterPredicate(it));
+}
+
+function applyFilterExceptSupplier(items) {
+  return items.filter((it) => _filterPredicate(it, { skipSupplier: true }));
 }
 
 function applySort(items) {
@@ -339,6 +347,79 @@ function undoMarkRecent() {
   render();
 }
 
+function _supplierSummary() {
+  // 当前筛选 (忽略 supplier filter) 后, 按 urgency_score >= SUPPLIER_OVERVIEW_HOT
+  // 的 SKU 数 group by supplier_id, 降序排列.
+  const pool = applyFilterExceptSupplier(state.items);
+  const hot = pool.filter(
+    (it) => it.supplier_id && (it.urgency_score ?? -1) >= SUPPLIER_OVERVIEW_HOT
+  );
+  const byS = new Map();
+  for (const it of hot) {
+    const key = it.supplier_id;
+    if (!byS.has(key)) byS.set(key, { supplier_id: key, count: 0, max: 0 });
+    const e = byS.get(key);
+    e.count += 1;
+    if (it.urgency_score > e.max) e.max = it.urgency_score;
+  }
+  return Array.from(byS.values()).sort((a, b) => b.count - a.count);
+}
+
+function renderSupplierSummary() {
+  const root = $("rsSupplierOverview");
+  if (!root) return;
+  const all = _supplierSummary();
+  if (all.length === 0) {
+    root.innerHTML = '<div class="rs-sup-empty">当前范围内没有紧迫分 ≥70 的 SKU</div>';
+    return;
+  }
+  const maxCount = Math.max(...all.map((s) => s.count));
+  const show = state.supplierOverviewExpanded ? all : all.slice(0, SUPPLIER_OVERVIEW_TOP);
+  const hidden = all.length - show.length;
+
+  const rows = show.map((s) => {
+    const pct = Math.round((s.count / maxCount) * 100);
+    const isActive = state.filter.supplier === s.supplier_id;
+    return `
+      <button class="rs-sup-row${isActive ? " rs-sup-row--active" : ""}"
+              data-supplier="${escapeHtml(s.supplier_id)}"
+              title="点击进入凑单模式: 筛 ${escapeHtml(s.supplier_id)} 全部 SKU">
+        <span class="rs-sup-name">${escapeHtml(s.supplier_id)}</span>
+        <span class="rs-sup-bar"><span class="rs-sup-bar-fill" style="width:${pct}%"></span></span>
+        <span class="rs-sup-count">${s.count}</span>
+        <span class="rs-sup-max">max ${s.max.toFixed(1)}</span>
+      </button>
+    `;
+  }).join("");
+
+  const expandBtn = hidden > 0
+    ? `<button class="rs-sup-expand" id="rsSupExpand">↓ 展开剩余 ${hidden} 家</button>`
+    : state.supplierOverviewExpanded && all.length > SUPPLIER_OVERVIEW_TOP
+      ? `<button class="rs-sup-expand" id="rsSupExpand">↑ 折叠</button>`
+      : "";
+
+  root.innerHTML = `
+    <div class="rs-sup-hd">🔥 紧迫供应商 (≥${SUPPLIER_OVERVIEW_HOT}, 共 ${all.length} 家)</div>
+    <div class="rs-sup-list">${rows}</div>
+    ${expandBtn}
+  `;
+
+  for (const btn of root.querySelectorAll(".rs-sup-row[data-supplier]")) {
+    btn.addEventListener("click", () => {
+      state.filter.supplier = btn.dataset.supplier;
+      state.filter.coverMax = null; // 凑单模式
+      render();
+    });
+  }
+  const exp = $("rsSupExpand");
+  if (exp) {
+    exp.addEventListener("click", () => {
+      state.supplierOverviewExpanded = !state.supplierOverviewExpanded;
+      renderSupplierSummary();
+    });
+  }
+}
+
 function syncChipActive() {
   for (const btn of document.querySelectorAll("#pageRestock .rs-chip[data-filter]")) {
     const f = btn.dataset.filter;
@@ -445,6 +526,7 @@ function render() {
     }
   }
   syncChipActive();
+  renderSupplierSummary();
 }
 
 async function load() {
