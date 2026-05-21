@@ -424,6 +424,8 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
             lifespan = (max(dates) - min(dates)).days
             weekly = _weekly_qty_array(dates, [r.qty for r in sales], as_of, _TREND_WEEKS)
             trend = _trend_slope_pct(weekly)
+            # weekly 已经是 _TREND_WEEKS=12 周净销量数组 (最近一周在末尾), 直接复用做 sparkline
+            weekly_qty_12w = [int(x) for x in weekly]
             # 26 周窗口净销量 + 有销售周数
             recent_qty = 0
             recent_weeks: set[tuple[int, int]] = set()
@@ -440,6 +442,7 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
             trend = None
             weekly_velocity = 0.0
             n_active_weeks = 0
+            weekly_qty_12w = [0] * _TREND_WEEKS
         cn_qty = int(sum(r.qty for r in sales if r.customer_type == "chinese"))
         fo_qty = int(sum(r.qty for r in sales if r.customer_type == "foreign"))
         qty_total = _lookup_qty(qty_by_model, bc, model)
@@ -479,6 +482,7 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
                 "lifespan_days": lifespan,
                 "is_new_item": is_new_item,
                 "trend_slope_pct_per_week": (round(trend, 2) if trend is not None else None),
+                "weekly_qty_12w": weekly_qty_12w,
                 "cn_qty": cn_qty,
                 "fo_qty": fo_qty,
             }

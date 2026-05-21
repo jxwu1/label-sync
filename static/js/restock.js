@@ -133,14 +133,11 @@ function weeksOfCoverCell(woc) {
   return `<span class="rs-woc ${cls}">${label}</span>`;
 }
 
-function fakeBars(it) {
-  const seed = (it.total_qty || 0) % 100;
-  const trend = it.trend_slope_pct_per_week || 0;
-  return Array.from({ length: 12 }, (_, i) => {
-    const noise = Math.sin(i * 0.7 + seed) + 1.4;
-    const trendAdj = trend ? (trend / 5) * i : 0;
-    return Math.max(1, Math.round(noise * (it.total_qty / 200) + trendAdj));
-  });
+function realBars(it) {
+  // 后端 weekly_qty_12w 是 12 周净销量数组, 最近一周在末尾
+  return Array.isArray(it.weekly_qty_12w) && it.weekly_qty_12w.length === 12
+    ? it.weekly_qty_12w
+    : new Array(12).fill(0);
 }
 
 function sparkline(values, color) {
@@ -227,7 +224,7 @@ function renderRow(it) {
       <td class="rs-num">${fmt(it.qty_total)}</td>
       <td class="rs-num">${fmt(it.weekly_velocity, 1)}</td>
       <td class="rs-num">${weeksOfCoverCell(it.weeks_of_cover)}</td>
-      <td class="rs-num">${sparkline(fakeBars(it), sparkColor)}</td>
+      <td class="rs-num">${sparkline(realBars(it), sparkColor)}</td>
       <td class="rs-num">${fmtDays(it.last_purchase_days_ago)}</td>
       <td>${autoBadge}</td>
       <td class="rs-num">${urgencyCell(it)}</td>
@@ -362,11 +359,13 @@ function render() {
         syncChipActive();
       });
     }
-    // 供应商点击 → 设置筛选
+    // 供应商点击 → 进入"凑单模式": 设供应商筛选 + 自动禁用 cover filter
+    // (凑单时要看全这家所有 SKU, 不只是缺货的; 想再筛缺货自己开滑块)
     for (const sup of tbody.querySelectorAll(".rs-supplier[data-supplier]")) {
       sup.addEventListener("click", (e) => {
         e.stopPropagation();
         state.filter.supplier = sup.dataset.supplier;
+        state.filter.coverMax = null;  // 自动关闭缺货过滤
         render();
       });
     }
