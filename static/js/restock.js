@@ -292,6 +292,42 @@ function markSelectedOrdered() {
   render();
 }
 
+const BUNDLE_HOT_THRESHOLD = 70;
+const BUNDLE_FALLBACK_FLOOR = 30;
+const BUNDLE_TARGET_COUNT = 20;
+
+function _bundleCandidates() {
+  // 当前 filter 后, 按 urgency_score desc 内部排序 (不依赖 UI sort).
+  // 返回 (picks, hotMode):
+  //   hotMode=true → 取 score>=70 全部 (>= 20 个时)
+  //   hotMode=false → fallback 取 top 20, 但跳过 score<30 (避免凑死货)
+  const filtered = applyFilter(state.items);
+  const sortedByUrgency = [...filtered].sort(
+    (a, b) => (b.urgency_score ?? -Infinity) - (a.urgency_score ?? -Infinity)
+  );
+  const hot = sortedByUrgency.filter(
+    (it) => (it.urgency_score ?? -1) >= BUNDLE_HOT_THRESHOLD
+  );
+  if (hot.length >= BUNDLE_TARGET_COUNT) return { picks: hot, hotMode: true };
+  const fallback = sortedByUrgency
+    .filter((it) => (it.urgency_score ?? -1) >= BUNDLE_FALLBACK_FLOOR)
+    .slice(0, BUNDLE_TARGET_COUNT);
+  return { picks: fallback, hotMode: false };
+}
+
+function smartBundleSelect() {
+  const { picks, hotMode } = _bundleCandidates();
+  if (picks.length === 0) {
+    alert("当前筛选范围内没有紧迫分 ≥30 的 SKU, 没东西可凑");
+    return;
+  }
+  // 清空重选 (用户决策: 简单可预测)
+  state.selected = new Set(picks.map((it) => it.barcode));
+  render();
+  const mode = hotMode ? `≥${BUNDLE_HOT_THRESHOLD} 全选` : `top ${BUNDLE_TARGET_COUNT}`;
+  console.log(`[smartBundle] 选了 ${picks.length} 个 (${mode})`);
+}
+
 function undoMarkRecent() {
   const batch = state.orderedHistory.pop();
   if (!batch || batch.length === 0) {
@@ -331,6 +367,18 @@ function syncChipActive() {
   $("rsBtnMark").textContent = `✓ 标已下单 (${state.selected.size})`;
   $("rsBtnExport").disabled = state.selected.size === 0;
   $("rsBtnMark").disabled = state.selected.size === 0;
+
+  // 智能凑单按钮预览数
+  const { picks: bundlePicks, hotMode } = _bundleCandidates();
+  const bundleBtn = $("rsBtnBundle");
+  if (bundleBtn) {
+    const tag = hotMode ? "≥70" : `top${BUNDLE_TARGET_COUNT}`;
+    bundleBtn.textContent = `✓ 智能凑单 (${bundlePicks.length}, ${tag})`;
+    bundleBtn.disabled = bundlePicks.length === 0;
+    bundleBtn.title = hotMode
+      ? `当前筛选范围内紧迫分 ≥${BUNDLE_HOT_THRESHOLD} 的 SKU 全选`
+      : `紧迫分 ≥${BUNDLE_HOT_THRESHOLD} 的不足 ${BUNDLE_TARGET_COUNT} 个, 退到 top ${BUNDLE_TARGET_COUNT} (≥${BUNDLE_FALLBACK_FLOOR} 才参与, 避免凑死货)`;
+  }
   $("rsBtnUndo").disabled = state.orderedHistory.length === 0;
   const orderedN = Object.keys(state.ordered).length;
   const showOrderedChip = $("rsShowOrderedChip");
@@ -428,6 +476,7 @@ function init() {
   $("rsRefresh").addEventListener("click", load);
   $("rsBtnExport").addEventListener("click", exportSelectedCsv);
   $("rsBtnMark").addEventListener("click", markSelectedOrdered);
+  $("rsBtnBundle").addEventListener("click", smartBundleSelect);
   $("rsBtnUndo").addEventListener("click", undoMarkRecent);
   $("rsShowOrderedChip").addEventListener("click", () => {
     state.filter.show_ordered = !state.filter.show_ordered;
