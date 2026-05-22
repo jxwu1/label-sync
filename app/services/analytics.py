@@ -244,20 +244,30 @@ def compute_weekly_timeline(
 
 
 def _attach_urgency_scores(items: list[dict[str, Any]]) -> None:
-    """按 origin 子集算销速分位 → 灌 urgency_score / urgency_breakdown 字段。
+    """按 origin 子集算 revenue + margin 双分位 → 灌 urgency_score / urgency_breakdown。
 
-    velocity_pctile = 子集内 < self.weekly_velocity 的 SKU 数 / 子集总数。
+    P2 (2026-05-22) 起公式:
+        score = velocity_pctile*30 + cover*30 + recency*10 + margin_pctile*30
+    velocity_pctile 仍按 weekly_revenue 排名 (P1 决策).
+    margin_pctile 按 margin_pct 排名, 缺 margin (没有 last_purchase_unit_price)
+    或负毛利的 SKU → margin_pctile=0 (不加分也不扣).
+
     新品 / 真停用单独标 None。停用 SKU 不参与分位计算（否则会拉低活跃 SKU）。
     """
     import bisect
 
-    by_origin: dict[str, list[float]] = {}
+    by_origin_rev: dict[str, list[float]] = {}
+    by_origin_margin: dict[str, list[float]] = {}
     for it in items:
         if it["is_truly_discontinued"] or it["is_new_item"]:
             continue
-        if it["weekly_velocity"] > 0:
-            by_origin.setdefault(it["origin"], []).append(it["weekly_velocity"])
-    for vs in by_origin.values():
+        if it["weekly_revenue"] > 0:
+            by_origin_rev.setdefault(it["origin"], []).append(it["weekly_revenue"])
+        if it["margin_pct"] is not None and it["margin_pct"] > 0:
+            by_origin_margin.setdefault(it["origin"], []).append(it["margin_pct"])
+    for vs in by_origin_rev.values():
+        vs.sort()
+    for vs in by_origin_margin.values():
         vs.sort()
 
     for it in items:
@@ -265,16 +275,25 @@ def _attach_urgency_scores(items: list[dict[str, Any]]) -> None:
             it["urgency_score"] = None
             it["urgency_breakdown"] = None
             continue
-        bucket = by_origin.get(it["origin"], [])
-        if not bucket or it["weekly_velocity"] == 0:
-            pctile = 0.0
+        # revenue 分位
+        rbucket = by_origin_rev.get(it["origin"], [])
+        if not rbucket or it["weekly_revenue"] == 0:
+            v_pctile = 0.0
         else:
-            idx = bisect.bisect_left(bucket, it["weekly_velocity"])
-            pctile = idx / len(bucket)
+            idx = bisect.bisect_left(rbucket, it["weekly_revenue"])
+            v_pctile = idx / len(rbucket)
+        # margin 分位 (缺 margin 或 <=0 → 0 分)
+        mbucket = by_origin_margin.get(it["origin"], [])
+        if not mbucket or it["margin_pct"] is None or it["margin_pct"] <= 0:
+            m_pctile = 0.0
+        else:
+            idx = bisect.bisect_left(mbucket, it["margin_pct"])
+            m_pctile = idx / len(mbucket)
         breakdown = _compute_urgency_score(
-            velocity_pctile=pctile,
+            velocity_pctile=v_pctile,
             weeks_of_cover=it["weeks_of_cover"],
             last_purchase_days=it["last_purchase_days_ago"],
+            margin_pctile=m_pctile,
             is_new_item=it["is_new_item"],
         )
         it["urgency_score"] = breakdown["total"]
@@ -284,7 +303,10 @@ def _attach_urgency_scores(items: list[dict[str, Any]]) -> None:
                 "velocity": breakdown["velocity"],
                 "cover": breakdown["cover"],
                 "recency": breakdown["recency"],
-                "velocity_pctile": round(pctile, 3),
+                "margin": breakdown["margin"],
+                "velocity_pctile": round(v_pctile, 3),
+                "margin_pctile": round(m_pctile, 3),
+                "margin_missing": it["margin_pct"] is None,
             }
         )
 
@@ -293,25 +315,30 @@ def _compute_urgency_score(
     velocity_pctile: float | None,
     weeks_of_cover: float | None,
     last_purchase_days: int | None,
+    margin_pctile: float | None = None,
     is_new_item: bool = False,
 ) -> dict[str, Any]:
-    """补货紧迫分（0-100）+ 三项分解。
+    """补货紧迫分（0-100）+ 四项分解。
 
-    score = velocity_pctile * 50 + cover_factor * 30 + recency_factor * 20
+    P2 (2026-05-22 起) 公式 E:
+        score = velocity_pctile*30 + cover*30 + recency*10 + margin_pctile*30
 
     分项含义（透明给前端展示用）：
-        velocity:  origin 子集内周销速分位 → 卖得越好分越高
-        cover:     max(0, 1 - weeks_of_cover / 8) → 8 周内会断货加权；
-                   weeks_of_cover=None（无库存数据或销速=0）按 0 处理
-        recency:   min(1, days_since_last_purchase / 180) → 越久没补越急；
-                   None（从无采购记录）按 0 处理
+        velocity:  origin 子集内周销额 (€/周) 分位 → 销额越大分越高
+        cover:     max(0, 1 - weeks_of_cover / 8) → 8 周内断货加权;
+                   weeks_of_cover=None (无库存数据或销速=0) 按 0
+        recency:   min(1, days_since_last_purchase / 180) → 越久没补越急;
+                   None (从无采购) 按 0
+        margin:    origin 子集内 margin_pct 分位 → 越赚钱分越高;
+                   None (缺 last_purchase_unit_price) 或 <=0 按 0,
+                   防止"卖得飞快但不赚钱"的伪好卖货霸占顶部
 
-    新品（lifespan < 28d）数据不足，整体分置 None，前端单独 tab 展示。
+    新品（lifespan < 28d）数据不足, 整体分置 None, 前端单独 tab 展示。
     """
     if is_new_item:
-        return {"total": None, "velocity": None, "cover": None, "recency": None}
+        return {"total": None, "velocity": None, "cover": None, "recency": None, "margin": None}
 
-    v = (velocity_pctile or 0.0) * 50.0
+    v = (velocity_pctile or 0.0) * 30.0
     if weeks_of_cover is None:
         c = 0.0
     else:
@@ -322,12 +349,14 @@ def _compute_urgency_score(
     if last_purchase_days is None:
         r = 0.0
     else:
-        r = min(1.0, last_purchase_days / _URGENCY_RECENCY_FULL_DAYS) * 20.0
+        r = min(1.0, last_purchase_days / _URGENCY_RECENCY_FULL_DAYS) * 10.0
+    m = (margin_pctile or 0.0) * 30.0
     return {
-        "total": round(v + c + r, 1),
+        "total": round(v + c + r + m, 1),
         "velocity": round(v, 1),
         "cover": round(c, 1),
         "recency": round(r, 1),
+        "margin": round(m, 1),
     }
 
 
@@ -384,6 +413,7 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
                 Stockpile.manual_grade,
                 Stockpile.is_truly_discontinued,
                 Stockpile.supplier_id,
+                Stockpile.last_purchase_unit_price,
             ).where(Stockpile.is_truly_discontinued == False)  # noqa: E712 — SQL eq
         ).all()
         sales_rows = session.execute(
@@ -391,6 +421,8 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
                 InventoryEvent.product_barcode,
                 InventoryEvent.event_at,
                 InventoryEvent.qty,
+                InventoryEvent.unit_price,
+                InventoryEvent.discount_pct,
                 Customer.customer_type,
             )
             .join(Customer, Customer.customer_id == InventoryEvent.customer_id, isouter=True)
@@ -417,7 +449,7 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
             last_purchase[r.product_barcode] = (r.event_at, r.supplier_id)
 
     items: list[dict[str, Any]] = []
-    for bc, model, name_zh, auto_cat, manual_cat, grade, is_disc, sp_supplier_id in sp_rows:
+    for bc, model, name_zh, auto_cat, manual_cat, grade, is_disc, sp_supplier_id, last_pp in sp_rows:
         sales = by_bc.get(bc, [])
         total_qty = int(sum(r.qty for r in sales))
         if sales:
@@ -427,23 +459,31 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
             trend = _trend_slope_pct(weekly)
             # weekly 已经是 _TREND_WEEKS=12 周净销量数组 (最近一周在末尾), 直接复用做 sparkline
             weekly_qty_12w = [int(x) for x in weekly]
-            # 26 周窗口净销量 + 有销售周数
+            # 26 周窗口净销量 + 净销售额 + 有销售周数 + 销售净加权均价
             recent_qty = 0
+            recent_revenue = 0.0
             recent_weeks: set[tuple[int, int]] = set()
             for r in sales:
                 d = _parse_date(r.event_at)
                 if 0 <= (as_of - d).days < velocity_cutoff_days:
                     recent_qty += r.qty
+                    recent_revenue += r.qty * _net_unit(r.unit_price, r.discount_pct)
                     iso = d.isocalendar()
                     recent_weeks.add((iso[0], iso[1]))
             n_active_weeks = len(recent_weeks)
             weekly_velocity = (recent_qty / n_active_weeks) if n_active_weeks else 0.0
+            weekly_revenue = (recent_revenue / n_active_weeks) if n_active_weeks else 0.0
+            # 销售净加权均价: 26 周窗口内 recent_revenue / recent_qty.
+            # 用作 margin = (sale_net - last_purchase) / sale_net 的分子.
+            sale_net_avg = (recent_revenue / recent_qty) if recent_qty > 0 else None
         else:
             lifespan = 0
             trend = None
             weekly_velocity = 0.0
+            weekly_revenue = 0.0
             n_active_weeks = 0
             weekly_qty_12w = [0] * _TREND_WEEKS
+            sale_net_avg = None
         cn_qty = int(sum(r.qty for r in sales if r.customer_type == "chinese"))
         fo_qty = int(sum(r.qty for r in sales if r.customer_type == "foreign"))
         qty_total = _lookup_qty(qty_by_model, bc, model)
@@ -465,6 +505,13 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
         supplier_id = sp_supplier_id or last_purchase_supplier
         origin = classify_origin(supplier_id, model)
         is_new_item = bool(sales) and lifespan < _NEW_ITEM_LIFESPAN_DAYS
+        # 毛利率: (sale_net_avg - last_purchase_unit_price) / sale_net_avg * 100
+        # 缺任一面 → None, 紧迫分 margin 项=0
+        margin_pct: float | None
+        if sale_net_avg is not None and sale_net_avg > 0 and last_pp is not None and last_pp > 0:
+            margin_pct = round((sale_net_avg - float(last_pp)) / sale_net_avg * 100.0, 2)
+        else:
+            margin_pct = None
         items.append(
             {
                 "barcode": bc,
@@ -479,10 +526,14 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
                 "qty_total": qty_total,
                 "total_qty": total_qty,
                 "weekly_velocity": round(weekly_velocity, 2),
+                "weekly_revenue": round(weekly_revenue, 2),
                 "n_active_weeks_26w": n_active_weeks,
                 "weeks_of_cover": weeks_of_cover,
                 "last_purchase_at": last_purchase_at,
                 "last_purchase_days_ago": last_purchase_days_ago,
+                "last_purchase_unit_price": (float(last_pp) if last_pp is not None else None),
+                "sale_net_avg": (round(sale_net_avg, 4) if sale_net_avg is not None else None),
+                "margin_pct": margin_pct,
                 "lifespan_days": lifespan,
                 "is_new_item": is_new_item,
                 "trend_slope_pct_per_week": (round(trend, 2) if trend is not None else None),

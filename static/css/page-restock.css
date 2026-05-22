@@ -266,6 +266,17 @@
 .rs-woc--warn { color: #facc15; }
 .rs-woc--cold { color: var(--ink-3); }
 
+.rs-margin {
+  display: inline-block;
+  font-family: var(--mono);
+  font-weight: 500;
+}
+.rs-margin--great { color: #4ade80; }   /* >=50% 翠绿 */
+.rs-margin--good  { color: #86efac; }   /* 30-50% 浅绿 */
+.rs-margin--meh   { color: #facc15; }   /* 10-30% 黄 */
+.rs-margin--bad   { color: #f87171; }   /* <10% 或负 红 */
+.rs-margin--none  { color: var(--ink-3); }
+
 .rs-tag {
   display: inline-block;
   margin-left: 6px;

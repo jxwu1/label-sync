@@ -1,6 +1,12 @@
 // 补货决策面板（pageRestock）
-// 数据源 /analytics/list（扩字段后包含 qty_total / weekly_velocity /
-// weeks_of_cover / urgency_score / urgency_breakdown / is_truly_discontinued / origin）。
+// 数据源 /analytics/list（扩字段后包含 qty_total / weekly_velocity (件/周) /
+// weekly_revenue (€/周, P1 起加入) / weeks_of_cover / margin_pct (P2 起加入) /
+// last_purchase_unit_price / urgency_score / urgency_breakdown {velocity, cover,
+// recency, margin, velocity_pctile, margin_pctile, margin_missing} /
+// is_truly_discontinued / origin）。
+//
+// 紧迫分公式 (P2 起, E 方案): v_pctile*30 + cover*30 + recency*10 + m_pctile*30
+// v_pctile 按 weekly_revenue 排名; m_pctile 按 margin_pct 排名; 缺 margin 时 m=0.
 // 浏览器侧 filter + sort，导出走 /analytics/sales/top（透传 origin / 排除停用）。
 "use strict";
 
@@ -118,9 +124,13 @@ function urgencyCell(it) {
   const bd = it.urgency_breakdown;
   let tip = `紧迫分 ${score}`;
   if (bd) {
-    tip += `\n  销速(50): ${bd.velocity}（origin 分位 ${(bd.velocity_pctile * 100).toFixed(0)}%）`;
+    tip += `\n  销额(30): ${bd.velocity}（€/周分位 ${(bd.velocity_pctile * 100).toFixed(0)}%）`;
     tip += `\n  库存(30): ${bd.cover}（${it.weeks_of_cover === null ? "无库存数据" : it.weeks_of_cover + " 周可撑"}）`;
-    tip += `\n  距进货(20): ${bd.recency}（${fmtDays(it.last_purchase_days_ago)}）`;
+    tip += `\n  距进货(10): ${bd.recency}（${fmtDays(it.last_purchase_days_ago)}）`;
+    const marginInfo = bd.margin_missing
+      ? "缺进货价"
+      : `毛利 ${it.margin_pct}% / 分位 ${(bd.margin_pctile * 100).toFixed(0)}%`;
+    tip += `\n  毛利(30): ${bd.margin}（${marginInfo}）`;
   }
   return `<span class="rs-urgency ${cls}" title="${escapeHtml(tip)}">${score}</span>`;
 }
@@ -134,6 +144,22 @@ function weeksOfCoverCell(woc) {
     "";
   const label = woc === 0 ? "🔥 已断" : `${woc.toFixed(1)} 周`;
   return `<span class="rs-woc ${cls}">${label}</span>`;
+}
+
+function marginCell(it) {
+  const m = it.margin_pct;
+  if (m === null || m === undefined) {
+    return '<span class="rs-margin rs-margin--none" title="缺进货价 (待下次进货抓取)">—</span>';
+  }
+  const cls =
+    m >= 50 ? "rs-margin--great" :
+    m >= 30 ? "rs-margin--good" :
+    m >= 10 ? "rs-margin--meh" :
+    "rs-margin--bad";
+  const pp = it.last_purchase_unit_price != null ? `进价 €${it.last_purchase_unit_price}` : "";
+  const sp = it.sale_net_avg != null ? `售净 €${it.sale_net_avg}` : "";
+  const tip = `毛利 ${m}%\n${sp}\n${pp}`;
+  return `<span class="rs-margin ${cls}" title="${escapeHtml(tip)}">${m.toFixed(1)}%</span>`;
 }
 
 function realBars(it) {
@@ -236,6 +262,8 @@ function renderRow(it) {
       <td>${supplierCell}</td>
       <td class="rs-num">${fmt(it.qty_total)}</td>
       <td class="rs-num">${fmt(it.weekly_velocity, 1)}</td>
+      <td class="rs-num" title="周销额 = 折后净销售额 / 有销售周数 (近 26 周)">€${fmt(it.weekly_revenue, 1)}</td>
+      <td class="rs-num">${marginCell(it)}</td>
       <td class="rs-num">${weeksOfCoverCell(it.weeks_of_cover)}</td>
       <td class="rs-num">${sparkCell}</td>
       <td class="rs-num">${fmtDays(it.last_purchase_days_ago)}</td>
@@ -264,7 +292,10 @@ function exportSelectedCsv() {
     ["origin", "Origin"],
     ["supplier_id", "供应商"],
     ["qty_total", "当前库存"],
-    ["weekly_velocity", "周销速"],
+    ["weekly_velocity", "周销 件"],
+    ["weekly_revenue", "周销额 €"],
+    ["margin_pct", "毛利 %"],
+    ["last_purchase_unit_price", "上次进价 €"],
     ["weeks_of_cover", "可撑周数"],
     ["last_purchase_days_ago", "距上次进货 (天)"],
     ["auto_category", "分类"],

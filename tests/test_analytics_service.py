@@ -309,47 +309,73 @@ class UrgencyScoreTests(unittest.TestCase):
     def test_new_item_returns_all_none(self) -> None:
         from app.services.analytics import _compute_urgency_score
 
-        out = _compute_urgency_score(0.9, 2.0, 30, is_new_item=True)
-        assert out == {"total": None, "velocity": None, "cover": None, "recency": None}
+        out = _compute_urgency_score(0.9, 2.0, 30, margin_pctile=0.5, is_new_item=True)
+        assert out == {"total": None, "velocity": None, "cover": None, "recency": None, "margin": None}
 
     def test_sold_out_top_seller_long_no_purchase_maxes_out(self) -> None:
+        """P2 公式 E: v*30 + c*30 + r*10 + m*30 = 100."""
         from app.services.analytics import _compute_urgency_score
 
-        out = _compute_urgency_score(velocity_pctile=1.0, weeks_of_cover=0.0, last_purchase_days=200)
-        assert out["velocity"] == 50.0
+        out = _compute_urgency_score(
+            velocity_pctile=1.0, weeks_of_cover=0.0, last_purchase_days=200, margin_pctile=1.0,
+        )
+        assert out["velocity"] == 30.0
         assert out["cover"] == 30.0
-        assert out["recency"] == 20.0
+        assert out["recency"] == 10.0
+        assert out["margin"] == 30.0
         assert out["total"] == 100.0
 
     def test_just_restocked_low_recency(self) -> None:
         from app.services.analytics import _compute_urgency_score
 
         out = _compute_urgency_score(velocity_pctile=0.5, weeks_of_cover=10.0, last_purchase_days=0)
-        assert out["velocity"] == 25.0
+        assert out["velocity"] == 15.0  # 0.5 * 30
         assert out["cover"] == 0.0
         assert out["recency"] == 0.0
-        assert out["total"] == 25.0
+        assert out["margin"] == 0.0
+        assert out["total"] == 15.0
 
     def test_no_history_zero_score(self) -> None:
         from app.services.analytics import _compute_urgency_score
 
         out = _compute_urgency_score(velocity_pctile=0.0, weeks_of_cover=None, last_purchase_days=None)
-        assert out == {"total": 0.0, "velocity": 0.0, "cover": 0.0, "recency": 0.0}
+        assert out == {"total": 0.0, "velocity": 0.0, "cover": 0.0, "recency": 0.0, "margin": 0.0}
 
     def test_negative_weeks_of_cover_caps_at_max_not_overflow(self) -> None:
         """ERP 超卖待到货 → qty_total<0 → weeks_of_cover<0 → cover 项应 cap 30, 总分 ≤100."""
         from app.services.analytics import _compute_urgency_score
 
         out = _compute_urgency_score(velocity_pctile=0.5, weeks_of_cover=-62.1, last_purchase_days=0)
-        assert out["cover"] == 30.0  # 负库存按 0 库存满分, 不溢出
+        assert out["cover"] == 30.0
         assert out["total"] <= 100.0
-        assert out["total"] == 25.0 + 30.0 + 0.0
+        assert out["total"] == 15.0 + 30.0 + 0.0 + 0.0
 
     def test_cover_clamped_at_zero_when_overstocked(self) -> None:
         from app.services.analytics import _compute_urgency_score
 
         out = _compute_urgency_score(velocity_pctile=0.8, weeks_of_cover=50.0, last_purchase_days=10)
         assert out["cover"] == 0.0
+
+    def test_margin_pctile_contributes_30_max(self) -> None:
+        """P2: 高 margin_pctile 在低 velocity 情况下仍可显著推升分数."""
+        from app.services.analytics import _compute_urgency_score
+
+        out = _compute_urgency_score(
+            velocity_pctile=0.0, weeks_of_cover=None, last_purchase_days=None, margin_pctile=1.0,
+        )
+        assert out["margin"] == 30.0
+        assert out["total"] == 30.0
+
+    def test_margin_none_treated_as_zero(self) -> None:
+        """缺 margin (没有 last_purchase_unit_price) → margin 项=0, 不扣分."""
+        from app.services.analytics import _compute_urgency_score
+
+        out = _compute_urgency_score(
+            velocity_pctile=0.8, weeks_of_cover=2.0, last_purchase_days=100, margin_pctile=None,
+        )
+        # v 24 + c (1-2/8)*30=22.5 + r (100/180)*10≈5.56 + m 0
+        assert out["margin"] == 0.0
+        assert out["total"] == round(24.0 + 22.5 + 100/180*10, 1)
 
 
 class ListSkuSummaryRestockFieldsTests(_Base):
@@ -463,6 +489,119 @@ class ListSkuSummaryRestockFieldsTests(_Base):
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "8435286885768")
         assert it["qty_total"] == 42
+
+    def test_weekly_revenue_present_and_uses_net_price(self) -> None:
+        """P1: weekly_revenue = sum(qty * net_unit) / n_active_weeks (€/周)."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("REV1", model="REV1")
+        # 同一 ISO 周, 2 笔: 10件×2.5×(1-0%) + 4件×3×(1-50%) = 25 + 6 = 31, n_active_weeks=1
+        self._add_event(barcode="REV1", event_at="2026-05-04", qty=10,
+                        unit_price=2.5, discount_pct=0.0, document_no="S1")
+        self._add_event(barcode="REV1", event_at="2026-05-05", qty=4,
+                        unit_price=3.0, discount_pct=50.0, document_no="S2")
+
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "REV1")
+        assert it["weekly_revenue"] == 31.0
+        assert it["weekly_velocity"] == 14.0
+
+    def test_weekly_revenue_zero_when_no_sales(self) -> None:
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("REV2", model="REV2")
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "REV2")
+        assert it["weekly_revenue"] == 0.0
+        assert it["weekly_velocity"] == 0.0
+
+    def test_margin_pct_computed_from_sale_net_and_last_purchase(self) -> None:
+        """margin_pct = (sale_net_avg - last_purchase_unit_price) / sale_net_avg * 100."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("M1", model="M1", last_purchase_unit_price=2.0)
+        # 销售净加权均价 = (10*5.0 + 5*5.0) / 15 = 5.0
+        # margin = (5.0 - 2.0) / 5.0 * 100 = 60.0
+        self._add_event(barcode="M1", event_at="2026-05-04", qty=10,
+                        unit_price=5.0, discount_pct=0.0, document_no="S1")
+        self._add_event(barcode="M1", event_at="2026-05-11", qty=5,
+                        unit_price=5.0, discount_pct=0.0, document_no="S2")
+
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "M1")
+        assert it["last_purchase_unit_price"] == 2.0
+        assert it["sale_net_avg"] == 5.0
+        assert it["margin_pct"] == 60.0
+
+    def test_margin_pct_none_when_no_purchase_price(self) -> None:
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("M2", model="M2")  # last_purchase_unit_price 默认 None
+        self._add_event(barcode="M2", event_at="2026-05-04", qty=10,
+                        unit_price=5.0, document_no="S1")
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "M2")
+        assert it["margin_pct"] is None
+        # breakdown 应标记 margin_missing
+        if it["urgency_breakdown"]:
+            assert it["urgency_breakdown"].get("margin_missing") is True
+
+    def test_high_margin_beats_high_revenue_when_other_factors_equal(self) -> None:
+        """P2 痛点核心: 销额前列但低毛利的"伪好卖"被高毛利货压下去."""
+        from app.services.analytics import list_sku_summary
+
+        # 同 origin (FOREIGN GR), 同 cover (无 snapshot 都是 None),
+        # 同 recency (无 purchase event 都是 None),
+        # 只差 margin: HIGH_MARGIN margin=80%, LOW_MARGIN margin=10%
+        # 但 LOW_MARGIN revenue 大 (件数*单价更大)
+        self._add_sku("LOW_MARGIN", model="LOW_MARGIN",
+                      supplier_id="GR0001", last_purchase_unit_price=4.5)
+        self._add_sku("HIGH_MARGIN", model="HIGH_MARGIN",
+                      supplier_id="GR0001", last_purchase_unit_price=1.0)
+        # LOW_MARGIN: 100件×5€ = 500€/周, margin=(5-4.5)/5=10%
+        for i, dt in enumerate(["2026-04-13", "2026-04-20", "2026-04-27", "2026-05-04", "2026-05-11"]):
+            self._add_event(barcode="LOW_MARGIN", event_at=dt, qty=100,
+                            unit_price=5.0, document_no=f"SL{i}")
+        # HIGH_MARGIN: 10件×5€ = 50€/周, margin=(5-1)/5=80%
+        for i, dt in enumerate(["2026-04-13", "2026-04-20", "2026-04-27", "2026-05-04", "2026-05-11"]):
+            self._add_event(barcode="HIGH_MARGIN", event_at=dt, qty=10,
+                            unit_price=5.0, document_no=f"SH{i}")
+
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        low = next(x for x in items if x["barcode"] == "LOW_MARGIN")
+        high = next(x for x in items if x["barcode"] == "HIGH_MARGIN")
+        # revenue 上 LOW 占优, margin 上 HIGH 占优
+        assert low["weekly_revenue"] > high["weekly_revenue"]
+        assert high["margin_pct"] > low["margin_pct"]
+        # margin 权重 30 + velocity 权重 30, 双高 margin pctile=1 + 低 velocity pctile=0 (单 pair)
+        # 实际 origin 子集只有 2 个 → bisect_left 给 0/1
+        # LOW: v_pctile=1 (revenue 大), m_pctile=0 (margin 小)
+        # HIGH: v_pctile=0 (revenue 小), m_pctile=1 (margin 大)
+        # 两者其他维度 (cover/recency) 相同 → 平局
+        # 验证 margin 至少跟 velocity 同权: HIGH urgency >= LOW urgency
+        assert high["urgency_score"] >= low["urgency_score"]
+        assert high["urgency_breakdown"]["margin"] > low["urgency_breakdown"]["margin"]
+
+    def test_urgency_pctile_ranks_by_revenue_not_qty(self) -> None:
+        """高单价低销量 SKU 在 revenue 维度上能压过低单价高销量 SKU.
+        50€×2件/周 = €100/周  vs  0.5€×100件/周 = €50/周 → 前者紧迫分应更高."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("EXPENSIVE", model="EXPENSIVE", supplier_id="GR0001")
+        self._add_sku("CHEAP", model="CHEAP", supplier_id="GR0001")
+        for i, dt in enumerate(["2026-04-13", "2026-04-20", "2026-04-27", "2026-05-04", "2026-05-11"]):
+            self._add_event(barcode="EXPENSIVE", event_at=dt, qty=2,
+                            unit_price=50.0, document_no=f"SE{i}")
+        for i, dt in enumerate(["2026-04-13", "2026-04-20", "2026-04-27", "2026-05-04", "2026-05-11"]):
+            self._add_event(barcode="CHEAP", event_at=dt, qty=100,
+                            unit_price=0.5, document_no=f"SC{i}")
+
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        expensive = next(x for x in items if x["barcode"] == "EXPENSIVE")
+        cheap = next(x for x in items if x["barcode"] == "CHEAP")
+        assert cheap["weekly_velocity"] > expensive["weekly_velocity"]
+        assert expensive["weekly_revenue"] > cheap["weekly_revenue"]
+        assert expensive["urgency_breakdown"]["velocity_pctile"] > cheap["urgency_breakdown"]["velocity_pctile"]
 
 
 if __name__ == "__main__":
