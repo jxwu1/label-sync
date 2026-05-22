@@ -221,6 +221,16 @@ function applyFilterExceptSupplier(items) {
 }
 
 function applySort(items) {
+  // 压货模式: 默认按"压货金额" = weekly_revenue × weeks_of_cover desc, 锁最多现金的在顶.
+  // 解决"资金流通"痛点: 顶部 = 最该清的库存.
+  // 用户点表头会切回 state.sort.key (sort key 改成非默认即取代).
+  if (state.filter.kpi === "overstock" && state.sort.key === "urgency_score") {
+    return [...items].sort((a, b) => {
+      const lockedA = (a.weekly_revenue ?? 0) * (a.weeks_of_cover ?? 0);
+      const lockedB = (b.weekly_revenue ?? 0) * (b.weeks_of_cover ?? 0);
+      return lockedB - lockedA;
+    });
+  }
   const { key, dir } = state.sort;
   const mul = dir === "asc" ? 1 : -1;
   return [...items].sort((a, b) => {
@@ -564,10 +574,13 @@ function render() {
       });
     }
   }
-  $("rsStatShowing").textContent =
-    visible.length < sorted.length
-      ? `显示前 ${visible.length} / ${sorted.length}`
-      : `${sorted.length} 条`;
+  const baseStat = visible.length < sorted.length
+    ? `显示前 ${visible.length} / ${sorted.length}`
+    : `${sorted.length} 条`;
+  const sortHint = state.filter.kpi === "overstock" && state.sort.key === "urgency_score"
+    ? " · 按压货金额 (周销额×可撑周) desc"
+    : "";
+  $("rsStatShowing").textContent = baseStat + sortHint;
 
   for (const th of document.querySelectorAll(".rs-th-sort")) {
     const ind = th.querySelector(".rs-sort-ind");
