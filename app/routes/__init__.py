@@ -16,6 +16,7 @@ from app.routes.pages_tasks import bp as pages_tasks_bp
 from app.routes.purchase import bp as purchase_bp
 from app.routes.query import bp as query_bp
 from app.routes.recent_changes import bp as recent_changes_bp
+from app.routes.restock import bp as restock_bp
 from app.routes.scan_history import bp as scan_history_bp
 from app.routes.stockpile import bp as stockpile_bp
 
@@ -34,6 +35,7 @@ def register_routes(app) -> None:
     app.register_blueprint(inventory_bp)
     app.register_blueprint(foreign_customers_bp)
     app.register_blueprint(analytics_bp)
+    app.register_blueprint(restock_bp)
     if CONFIG.enable_transfer:
         from app.routes.collab import bp as collab_bp
         from app.routes.transfer import bp as transfer_bp

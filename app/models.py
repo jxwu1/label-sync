@@ -443,6 +443,42 @@ class ForecastOutput(Base):
     )
 
 
+class RestockDecision(Base):
+    """补货决策反馈快照（P3 数据收集，给算法体检用）。
+
+    每条 = 一次用户决策瞬时快照。analyse 时按 decision 类型聚合:
+      - 'ordered' / 'overridden' 区分推荐命中 vs 反向覆盖
+      - 'skipped' 含 reason 文本, 找拒绝模式
+      - 'stale_high_score' 按需 backfill, 标识算法持续推但未被采纳的 SKU
+
+    存"那一刻"的 urgency_score + breakdown + 原始 dimension 值, 周后回看
+    SKU 数据已变, 仍能还原决策上下文.
+    """
+
+    __tablename__ = "restock_decisions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    barcode: Mapped[str] = mapped_column(Text, nullable=False, index=True)
+    decision: Mapped[str] = mapped_column(Text, nullable=False, index=True)
+    decided_at: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=func.current_timestamp(), index=True
+    )
+    urgency_score: Mapped[float | None] = mapped_column()
+    velocity_pctile: Mapped[float | None] = mapped_column()
+    margin_pctile: Mapped[float | None] = mapped_column()
+    breakdown_velocity: Mapped[float | None] = mapped_column()
+    breakdown_cover: Mapped[float | None] = mapped_column()
+    breakdown_recency: Mapped[float | None] = mapped_column()
+    breakdown_margin: Mapped[float | None] = mapped_column()
+    margin_source: Mapped[str | None] = mapped_column(Text)
+    weekly_revenue: Mapped[float | None] = mapped_column()
+    weekly_velocity: Mapped[float | None] = mapped_column()
+    margin_pct: Mapped[float | None] = mapped_column()
+    weeks_of_cover: Mapped[float | None] = mapped_column()
+    origin: Mapped[str | None] = mapped_column(Text)
+    supplier_id: Mapped[str | None] = mapped_column(Text)
+    reason: Mapped[str | None] = mapped_column(Text)
+
+
 _SessionFactory = sessionmaker(bind=_engine, future=True, expire_on_commit=False)
 
 

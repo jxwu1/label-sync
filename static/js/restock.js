@@ -345,16 +345,53 @@ function markSelectedOrdered() {
   }
   const now = new Date().toISOString();
   const newBatch = [];
+  const itemSnapshots = [];
   for (const bc of state.selected) {
     if (!(bc in state.ordered)) {
       state.ordered[bc] = { marked_at: now };
       newBatch.push(bc);
+      const it = state.items.find((x) => x.barcode === bc);
+      if (it) itemSnapshots.push(it);
     }
   }
   if (newBatch.length > 0) state.orderedHistory.push(newBatch);
   state.selected.clear();
   saveOrdered();
   render();
+  // P3 后端记录: ordered 或 overridden (低分硬要进) 自动改判
+  if (itemSnapshots.length > 0) recordDecisionsBatch("ordered", itemSnapshots);
+}
+
+function markSelectedSkipped() {
+  if (state.selected.size === 0) {
+    alert("请先勾选要标记的行");
+    return;
+  }
+  const reason = prompt("跳过原因? (可空, 例: 供应商断货 / 客人未确认 / 等下次活动)") ?? "";
+  const items = [];
+  for (const bc of state.selected) {
+    const it = state.items.find((x) => x.barcode === bc);
+    if (it) items.push(it);
+  }
+  state.selected.clear();
+  render();
+  if (items.length > 0) recordDecisionsBatch("skipped", items, reason || null);
+}
+
+async function recordDecisionsBatch(decision, items, reason) {
+  try {
+    const resp = await fetch("/restock/decisions/batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision, items, reason: reason || null }),
+    });
+    const data = await resp.json();
+    if (data.ok && data.overridden > 0) {
+      console.log(`[restock-decisions] ${data.recorded} 条 (含 ${data.overridden} 个低分覆盖)`);
+    }
+  } catch (err) {
+    console.warn("[restock-decisions] 失败:", err.message);
+  }
 }
 
 const BUNDLE_HOT_THRESHOLD = 70;
@@ -512,8 +549,10 @@ function syncChipActive() {
   // 已下单工具栏
   $("rsBtnExport").textContent = `↓ 导出选中 (${state.selected.size})`;
   $("rsBtnMark").textContent = `✓ 标已下单 (${state.selected.size})`;
+  $("rsBtnSkip").textContent = `✗ 不进 (${state.selected.size})`;
   $("rsBtnExport").disabled = state.selected.size === 0;
   $("rsBtnMark").disabled = state.selected.size === 0;
+  $("rsBtnSkip").disabled = state.selected.size === 0;
 
   // 智能凑单按钮预览数
   const { picks: bundlePicks, hotMode, capped } = _bundleCandidates();
@@ -656,6 +695,7 @@ function init() {
   $("rsRefresh").addEventListener("click", load);
   $("rsBtnExport").addEventListener("click", exportSelectedCsv);
   $("rsBtnMark").addEventListener("click", markSelectedOrdered);
+  $("rsBtnSkip").addEventListener("click", markSelectedSkipped);
   $("rsBtnBundle").addEventListener("click", smartBundleSelect);
   $("rsBtnUndo").addEventListener("click", undoMarkRecent);
   $("rsShowOrderedChip").addEventListener("click", () => {
