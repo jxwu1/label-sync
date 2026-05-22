@@ -25,15 +25,18 @@ const ORDERED_EXPIRY_DAYS = 30;
 const SUPPLIER_OVERVIEW_HOT = 70;     // ≥70 紧迫分计入概览
 const SUPPLIER_OVERVIEW_TOP = 5;       // 默认显示前 5 家
 
+const OVERSTOCK_WEEKS = 20;  // weeks_of_cover >= 此值算压货
+const HOT_URGENCY = 70;      // urgency_score >= 此值算紧急
+
 const state = {
   items: [],
   filter: {
     origin: "FOREIGN",
     view: "active",
-    auto: "",
     coverMax: 4,
     supplier: null,        // 供应商筛选 (点击表里 supplier_id 触发)
     show_ordered: false,   // 显示已下单
+    kpi: null,             // null | 'hot' | 'overstock' (KPI 条 toggle)
   },
   sort: { key: "urgency_score", dir: "desc" },
   selected: new Set(),     // 当前勾选的 barcode
@@ -195,8 +198,13 @@ function _filterPredicate(it, opts = {}) {
   } else if (state.filter.view === "new") {
     if (!it.is_new_item) return false;
   }
-  if (state.filter.auto && it.auto_category !== state.filter.auto) return false;
-  if (state.filter.coverMax !== null && state.filter.view === "active") {
+  // KPI 模式覆盖 coverMax: 'hot' 只看 urgency>=70, 'overstock' 只看 cover>=20
+  if (state.filter.kpi === "hot") {
+    if ((it.urgency_score ?? -1) < HOT_URGENCY) return false;
+  } else if (state.filter.kpi === "overstock") {
+    if (it.weeks_of_cover === null || it.weeks_of_cover === undefined) return false;
+    if (it.weeks_of_cover < OVERSTOCK_WEEKS) return false;
+  } else if (state.filter.coverMax !== null && state.filter.view === "active") {
     // null = 无 snapshot 数据, 不当 "不缺货" 过滤
     if (it.weeks_of_cover !== null && it.weeks_of_cover !== undefined
         && it.weeks_of_cover > state.filter.coverMax) return false;
@@ -227,9 +235,6 @@ function applySort(items) {
 }
 
 function renderRow(it) {
-  const autoBadge = it.auto_category
-    ? `<span class="cat-badge cat-${escapeHtml(it.auto_category)}">${escapeHtml(AUTO_CN[it.auto_category] || it.auto_category)}</span>`
-    : "—";
   const nameCell = it.name_zh
     ? `<span class="rs-model">${escapeHtml(it.model)}</span><span class="rs-name">${escapeHtml(it.name_zh)}</span>`
     : `<span class="rs-model">${escapeHtml(it.model)}</span>`;
@@ -267,7 +272,6 @@ function renderRow(it) {
       <td class="rs-num">${weeksOfCoverCell(it.weeks_of_cover)}</td>
       <td class="rs-num">${sparkCell}</td>
       <td class="rs-num">${fmtDays(it.last_purchase_days_ago)}</td>
-      <td>${autoBadge}</td>
       <td class="rs-num">${urgencyCell(it)}</td>
     </tr>
   `;
@@ -298,7 +302,6 @@ function exportSelectedCsv() {
     ["last_purchase_unit_price", "上次进价 €"],
     ["weeks_of_cover", "可撑周数"],
     ["last_purchase_days_ago", "距上次进货 (天)"],
-    ["auto_category", "分类"],
     ["urgency_score", "紧迫分"],
   ];
   const head = cols.map((c) => c[1]).join(",");
@@ -579,6 +582,28 @@ function render() {
   }
   syncChipActive();
   renderSupplierSummary();
+  renderKpi();
+}
+
+function renderKpi() {
+  // 全表统计仅看活跃 SKU (排除 truly_discontinued + new), 跟紧迫分计算口径一致
+  const pool = state.items.filter((it) => !it.is_truly_discontinued && !it.is_new_item);
+  const total = pool.length;
+  const hot = pool.filter((it) => (it.urgency_score ?? -1) >= HOT_URGENCY).length;
+  const over = pool.filter(
+    (it) => it.weeks_of_cover !== null && it.weeks_of_cover !== undefined
+            && it.weeks_of_cover >= OVERSTOCK_WEEKS,
+  ).length;
+  const noMargin = pool.filter((it) => it.margin_pct === null || it.margin_pct === undefined).length;
+  const set = (id, v) => { const el = $(id); if (el) el.textContent = v; };
+  set("rsKpiTotal", total.toLocaleString());
+  set("rsKpiHot", hot.toLocaleString());
+  set("rsKpiOverstock", over.toLocaleString());
+  set("rsKpiNoMargin", noMargin.toLocaleString());
+  const pct = total > 0 ? Math.round(over * 100 / total) : 0;
+  set("rsKpiOverstockPct", `(${pct}%)`);
+  $("rsKpiHotBtn")?.classList.toggle("rs-kpi__btn--active", state.filter.kpi === "hot");
+  $("rsKpiOverstockBtn")?.classList.toggle("rs-kpi__btn--active", state.filter.kpi === "overstock");
 }
 
 async function load() {
@@ -619,6 +644,16 @@ function init() {
   });
   $("rsSupplierClear").addEventListener("click", () => {
     state.filter.supplier = null;
+    render();
+  });
+
+  // KPI 条 toggle: 紧急 / 压货 (互斥, 再点取消)
+  $("rsKpiHotBtn")?.addEventListener("click", () => {
+    state.filter.kpi = state.filter.kpi === "hot" ? null : "hot";
+    render();
+  });
+  $("rsKpiOverstockBtn")?.addEventListener("click", () => {
+    state.filter.kpi = state.filter.kpi === "overstock" ? null : "overstock";
     render();
   });
 

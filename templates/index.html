@@ -928,6 +928,12 @@
             </div>
           </div>
           <div class="panel-bd">
+            <div id="rsKpi" class="rs-kpi">
+              <span class="rs-kpi__item rs-kpi__item--muted">全表 <b id="rsKpiTotal">—</b></span>
+              <button class="rs-kpi__btn rs-kpi__btn--hot" id="rsKpiHotBtn" type="button" title="点击只看紧急 (≥70)">紧急 <b id="rsKpiHot">—</b></button>
+              <button class="rs-kpi__btn rs-kpi__btn--warn" id="rsKpiOverstockBtn" type="button" title="点击只看压货 (可撑 ≥20 周)">压货 <b id="rsKpiOverstock">—</b> <span class="rs-kpi__pct" id="rsKpiOverstockPct"></span></button>
+              <span class="rs-kpi__item rs-kpi__item--muted">缺进价 <b id="rsKpiNoMargin">—</b></span>
+            </div>
             <div id="rsSupplierOverview" class="rs-sup-overview"></div>
             <div class="rs-filter-bar">
               <div class="rs-filter-group">
@@ -956,14 +962,6 @@
                   <button class="rs-supplier-tag-x" id="rsSupplierClear" type="button" title="清除供应商筛选">✕</button>
                 </span>
               </div>
-              <div class="rs-filter-group">
-                <span class="rs-filter-label">分类</span>
-                <button class="rs-chip" data-filter="auto" data-value="">全部</button>
-                <button class="rs-chip" data-filter="auto" data-value="new">新品</button>
-                <button class="rs-chip" data-filter="auto" data-value="seasonal">季节性</button>
-                <button class="rs-chip" data-filter="auto" data-value="declining">衰退</button>
-                <button class="rs-chip" data-filter="auto" data-value="stable">稳定</button>
-              </div>
             </div>
           </div>
         </div>
@@ -990,12 +988,11 @@
                   <th class="rs-num rs-th-sort" data-sort="weeks_of_cover">可撑周数 <span class="rs-sort-ind"></span></th>
                   <th class="rs-num">12 周</th>
                   <th class="rs-num rs-th-sort" data-sort="last_purchase_days_ago">距上次进货 <span class="rs-sort-ind"></span></th>
-                  <th>分类</th>
                   <th class="rs-num rs-th-sort rs-th-sort--default" data-sort="urgency_score">紧迫分 <span class="rs-sort-ind"></span></th>
                 </tr>
               </thead>
               <tbody id="rsTbody">
-                <tr><td colspan="12" class="empty">点「刷新」加载</td></tr>
+                <tr><td colspan="13" class="empty">点「刷新」加载</td></tr>
               </tbody>
             </table>
           </div>
