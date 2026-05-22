@@ -139,6 +139,10 @@ async function loadTimelineChart(barcode) {
 function renderTmlEmpty(msg) {
   $("historyTimelineChart").innerHTML = `<div class="hist-tml-empty">${escapeHtml(msg)}</div>`;
   $("historyTimelineXAxis").innerHTML = "";
+  const yl = $("historyTimelineYLeft");
+  const yr = $("historyTimelineYRight");
+  if (yl) yl.innerHTML = "";
+  if (yr) yr.innerHTML = "";
 }
 
 // PR 8b · 52 周 chart 用 SVG 重写（原 canvas drawTimeline 废弃）
@@ -158,19 +162,19 @@ function renderTmlSvg(timeline) {
   const maxQ = Math.max(1, ...sales);
   const validPrices = rawPrices.filter((p) => p !== null && p !== undefined);
   const hasPrices = validPrices.length > 0;
-  // 前向填充: null 沿用上次进价 (语义: 没新采购前进价没变).
-  // 首个 null 段 (在最早进价之前) 保持 null 不画.
+  // 前向填充 + 反向外推:
+  // - null 沿用上次进价 (语义: 没新采购前进价没变, 阶梯线)
+  // - 最早进价之前段也用第一个进价填 (避免起点段空白)
   const prices = (() => {
     const out = new Array(n).fill(null);
-    let last = null;
+    const firstValid = rawPrices.findIndex((v) => v !== null && v !== undefined);
+    if (firstValid < 0) return out;
+    const firstValue = rawPrices[firstValid];
+    let last = firstValue;
     for (let i = 0; i < n; i++) {
       const v = rawPrices[i];
-      if (v !== null && v !== undefined) {
-        last = v;
-        out[i] = v;
-      } else if (last !== null) {
-        out[i] = last;
-      }
+      if (v !== null && v !== undefined) last = v;
+      out[i] = last;  // 前段沿用 firstValue, 后段前向填充
     }
     return out;
   })();
@@ -191,28 +195,44 @@ function renderTmlSvg(timeline) {
   const stepW = innerW / n;
   const barW = Math.max(1, stepW - 2);
 
-  // 网格 + Y 轴左侧（销量）
+  // 网格（Y 轴标签改到 HTML overlay 避免 preserveAspectRatio=none 拉伸字形）
   const gridParts = [];
   [0.25, 0.5, 0.75, 1].forEach((f) => {
     const y = padT + innerH * (1 - f);
     gridParts.push(
       `<line x1="${padL}" x2="${W - padR}" y1="${y}" y2="${y}" stroke="var(--line-soft)" stroke-width="1" stroke-dasharray="2 4"/>`,
     );
-    gridParts.push(
-      `<text x="${padL - 4}" y="${y + 3}" font-size="9" fill="var(--ink-3)" text-anchor="end" font-family="monospace">${Math.round(maxQ * f)}</text>`,
-    );
   });
 
-  // Y 轴右侧（进价）
-  if (hasPrices) {
-    [0, 0.25, 0.5, 0.75, 1].forEach((f) => {
-      const y = padT + innerH * (1 - f);
-      const v = (minP + priceRange * f).toFixed(2);
-      gridParts.push(
-        `<text x="${W - padR + 4}" y="${y + 3}" font-size="9" fill="var(--warn)" text-anchor="start" font-family="monospace">€${v}</text>`,
-      );
-    });
-  }
+  // Y 轴 HTML overlay (在 innerH 内按比例放 span)
+  const yPxOf = (f) => padT + innerH * (1 - f);
+  const chartTopOffset = padT;
+  const renderYAxis = () => {
+    // 左轴: 销量 4 ticks
+    const leftHtml = [0.25, 0.5, 0.75, 1].map((f) => {
+      // SVG Y 坐标 (0..H) → HTML top% relative to .hist-tml-yaxis (高度 = 200px 同 SVG)
+      const topPct = (yPxOf(f) / H) * 100;
+      return `<span style="top:${topPct.toFixed(2)}%">${Math.round(maxQ * f)}</span>`;
+    }).join("");
+    $("historyTimelineYLeft").innerHTML = leftHtml;
+    // 右轴: 进价
+    let rightHtml = "";
+    if (hasPrices) {
+      if (sameValue) {
+        // 同价 → 只在折线那条 y (innerH * 0.4) 放 1 个 label
+        const topPct = ((padT + innerH * 0.4) / H) * 100;
+        rightHtml = `<span style="top:${topPct.toFixed(2)}%">€${maxP.toFixed(2)}</span>`;
+      } else {
+        rightHtml = [0, 0.25, 0.5, 0.75, 1].map((f) => {
+          const topPct = (yPxOf(f) / H) * 100;
+          const v = (minP + priceRange * f).toFixed(2);
+          return `<span style="top:${topPct.toFixed(2)}%">€${v}</span>`;
+        }).join("");
+      }
+    }
+    $("historyTimelineYRight").innerHTML = rightHtml;
+  };
+  void chartTopOffset;  // 保留变量供阅读
 
   // 销量柱
   const barParts = sales.map((qty, i) => {
@@ -261,6 +281,7 @@ function renderTmlSvg(timeline) {
       ${baseline}
     </svg>
   `;
+  renderYAxis();
 
   // X 轴月份 label：6 个均匀分布
   const labelCount = Math.min(6, n);

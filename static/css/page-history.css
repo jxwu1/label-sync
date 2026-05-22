@@ -575,13 +575,39 @@
 
 /* SVG 容器：固定 200px 高度、占满宽度 */
 .hist-tml-chart {
-  padding: 14px 14px 4px 14px;
+  padding: 14px 4px 4px 4px;
+  flex: 1;
+  min-width: 0;
 }
 .hist-tml-svg {
   width: 100%;
   height: 200px;
   display: block;
 }
+
+/* chart 左右 Y 轴 (HTML overlay 避开 preserveAspectRatio 拉伸) */
+.hist-tml-wrap {
+  display: flex;
+  align-items: stretch;
+  padding: 0 14px;
+}
+.hist-tml-yaxis {
+  position: relative;
+  width: 38px;
+  padding-top: 14px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+}
+.hist-tml-yaxis--left  { color: var(--ink-3); text-align: right; padding-right: 6px; }
+.hist-tml-yaxis--right { color: var(--warn);  text-align: left;  padding-left: 6px; }
+.hist-tml-yaxis span {
+  position: absolute;
+  right: 6px;
+  transform: translateY(-50%);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.hist-tml-yaxis--right span { right: auto; left: 6px; }
 
 /* X 轴月份 label */
 .hist-tml-xaxis {
