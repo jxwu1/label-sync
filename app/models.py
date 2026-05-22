@@ -109,6 +109,10 @@ class Stockpile(Base):
     # 来源: parquet_importer 每次导入 purchase event 后回填 (filter qty>0 + unit_price>0).
     # 给毛利近似计算用: (sale_price - last_purchase_unit_price) / sale_price.
     last_purchase_unit_price: Mapped[float | None] = mapped_column()
+    # ERP 产品总档 (product_master.stock_price) 折算后的 EUR 兜底进价.
+    # FOREIGN 货 stock_price 直接是 EUR (已验), CN/HZ 一律 NULL (海运费混在里面).
+    # 仅当 last_purchase_unit_price 为 NULL 时给 margin 兜底用.
+    master_stock_price_eur: Mapped[float | None] = mapped_column()
 
     locations: Mapped[list[StockpileLocation]] = relationship(
         "StockpileLocation",

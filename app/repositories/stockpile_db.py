@@ -277,6 +277,7 @@ def _upsert(
     stock_price: float | None = None,
     sale_price: float | None = None,
     supplier_id: str | None = None,
+    master_stock_price_eur: float | None = None,
 ) -> None:
     """所有 stockpile 写入路径的统一入口。
 
@@ -363,6 +364,11 @@ def _upsert(
             existing.sale_price = sale_price
         if supplier_id is not None:
             existing.supplier_id = supplier_id
+        # master_stock_price_eur: None = 不更新 (跟其他 kwarg 一致).
+        # 已知边界: SKU supplier 从 FOREIGN 改成 CN 不会自动 null 老的 EUR 值,
+        # 这种重新分类极少, 接受 stale 数据.
+        if master_stock_price_eur is not None:
+            existing.master_stock_price_eur = master_stock_price_eur
         _sync_locations(session, existing, location)
         return
 
@@ -381,6 +387,7 @@ def _upsert(
         stock_price=stock_price,
         sale_price=sale_price,
         supplier_id=supplier_id,
+        master_stock_price_eur=master_stock_price_eur,
     )
     session.add(new_obj)
     _sync_locations(session, new_obj, location)

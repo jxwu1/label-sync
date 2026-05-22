@@ -536,15 +536,43 @@ class ListSkuSummaryRestockFieldsTests(_Base):
     def test_margin_pct_none_when_no_purchase_price(self) -> None:
         from app.services.analytics import list_sku_summary
 
-        self._add_sku("M2", model="M2")  # last_purchase_unit_price 默认 None
+        self._add_sku("M2", model="M2")
         self._add_event(barcode="M2", event_at="2026-05-04", qty=10,
                         unit_price=5.0, document_no="S1")
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "M2")
         assert it["margin_pct"] is None
-        # breakdown 应标记 margin_missing
+        assert it["margin_source"] is None
         if it["urgency_breakdown"]:
             assert it["urgency_breakdown"].get("margin_missing") is True
+
+    def test_margin_falls_back_to_master_stock_price_eur(self) -> None:
+        """缺 last_purchase 但 master_stock_price_eur 有值 → margin 用 master 兜底, source='master'."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("MFB", model="MFB", supplier_id="GR0001",
+                      last_purchase_unit_price=None, master_stock_price_eur=2.0)
+        self._add_event(barcode="MFB", event_at="2026-05-04", qty=10,
+                        unit_price=5.0, document_no="S1")
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "MFB")
+        # margin = (5.0 - 2.0) / 5.0 * 100 = 60
+        assert it["margin_pct"] == 60.0
+        assert it["margin_source"] == "master"
+
+    def test_margin_prefers_last_purchase_over_master(self) -> None:
+        """两路都有 → last_purchase 优先 (更准, source='purchase')."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("MPR", model="MPR", supplier_id="GR0001",
+                      last_purchase_unit_price=2.5, master_stock_price_eur=10.0)
+        self._add_event(barcode="MPR", event_at="2026-05-04", qty=10,
+                        unit_price=5.0, document_no="S1")
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "MPR")
+        # margin 用 last_purchase 2.5: (5-2.5)/5*100 = 50
+        assert it["margin_pct"] == 50.0
+        assert it["margin_source"] == "purchase"
 
     def test_high_margin_beats_high_revenue_when_other_factors_equal(self) -> None:
         """P2 痛点核心: 销额前列但低毛利的"伪好卖"被高毛利货压下去."""

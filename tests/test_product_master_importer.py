@@ -128,6 +128,32 @@ class ImportProductMasterTests(_Base):
             sp = session.execute(select(Stockpile)).scalar_one()
             assert sp.is_active == 0
 
+    def test_foreign_writes_master_stock_price_eur(self) -> None:
+        """FOREIGN (GR/ES/IT/...) provider → stock_price 直接写入 master_stock_price_eur."""
+        df = pd.DataFrame([self._row(provider_id="GR0001", stock_price=2.5)])
+        with Session(self.engine) as session:
+            import_product_master(df, DEFAULT_PRODUCT_MAPPING, session)
+            session.commit()
+            sp = session.execute(select(Stockpile)).scalar_one()
+            assert sp.master_stock_price_eur == 2.5
+
+    def test_cn_skips_master_stock_price_eur(self) -> None:
+        """CN provider → master_stock_price_eur=None (海运费混在 stock_price 里, 不可用)."""
+        df = pd.DataFrame([self._row(provider_id="CN0001", stock_price=18.0)])
+        with Session(self.engine) as session:
+            import_product_master(df, DEFAULT_PRODUCT_MAPPING, session)
+            session.commit()
+            sp = session.execute(select(Stockpile)).scalar_one()
+            assert sp.master_stock_price_eur is None
+
+    def test_zero_stock_price_skipped(self) -> None:
+        df = pd.DataFrame([self._row(provider_id="GR0001", stock_price=0)])
+        with Session(self.engine) as session:
+            import_product_master(df, DEFAULT_PRODUCT_MAPPING, session)
+            session.commit()
+            sp = session.execute(select(Stockpile)).scalar_one()
+            assert sp.master_stock_price_eur is None
+
     def test_kind_id_zero_kept_as_category_code(self) -> None:
         """新分类（kind_id='0'）也存 erp_category_code='0'，不当 NULL。"""
         df = pd.DataFrame(

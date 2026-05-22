@@ -28,6 +28,24 @@ from app.importers.inventory import (
     _clean_str,
 )
 from app.models import Stockpile, StockpileSnapshot, Supplier
+from app.services.sku_origin import classify_origin
+
+
+def _master_stock_price_to_eur(stock_p: float | None, supplier_id: str | None, model: str | None) -> float | None:
+    """ERP 产品总档 stock_price 折算成 EUR 兜底进价.
+
+    规则 (2026-05-22 用户确认, 见 alembic a3c9b7e4d2f1 + classify_origin):
+      - FOREIGN (GR/ES/TR/BG/NE/IT): stock_price 已是 EUR, 直接返回
+      - CN/HZ: 一律 None (国内同事把海运费混在 stock_price 里, 不能当纯进价)
+      - stock_price 缺失 / 0 / 负: None
+      - unknown origin: 保守起见也 None (避免脏数据污染毛利计算)
+    """
+    if stock_p is None or stock_p <= 0:
+        return None
+    origin = classify_origin(supplier_id, model)
+    if origin == "FOREIGN":
+        return float(stock_p)
+    return None
 
 # 默认列映射：product.csv 的列名 → 内部字段。
 # 整列吃掉，复杂字段（包装尺寸 / 价格折扣等）进 stockpile.extra json。
@@ -204,6 +222,7 @@ def import_product_master(
             if _upsert_supplier_from_product(session, supplier_id, supplier_name or ""):
                 result.new_suppliers += 1
 
+        master_price_eur = _master_stock_price_to_eur(stock_p, supplier_id, model)
         # 统一走 stockpile_db._upsert：自动维护 stockpile_changes + stockpile_locations 子表
         stockpile_db._upsert(
             session,
@@ -221,6 +240,7 @@ def import_product_master(
             stock_price=stock_p,
             sale_price=sale_p,
             supplier_id=supplier_id or None,
+            master_stock_price_eur=master_price_eur,
         )
 
         if already_exists:

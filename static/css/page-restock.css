@@ -311,6 +311,7 @@
 .rs-margin--meh   { color: #facc15; }   /* 10-30% 黄 */
 .rs-margin--bad   { color: #f87171; }   /* <10% 或负 红 */
 .rs-margin--none  { color: var(--ink-3); }
+.rs-margin__src   { color: var(--ink-3); margin-left: 2px; font-size: 11px; }
 
 .rs-tag {
   display: inline-block;

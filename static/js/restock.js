@@ -130,9 +130,13 @@ function urgencyCell(it) {
     tip += `\n  销额(30): ${bd.velocity}（€/周分位 ${(bd.velocity_pctile * 100).toFixed(0)}%）`;
     tip += `\n  库存(30): ${bd.cover}（${it.weeks_of_cover === null ? "无库存数据" : it.weeks_of_cover + " 周可撑"}）`;
     tip += `\n  距进货(10): ${bd.recency}（${fmtDays(it.last_purchase_days_ago)}）`;
-    const marginInfo = bd.margin_missing
-      ? "缺进货价"
-      : `毛利 ${it.margin_pct}% / 分位 ${(bd.margin_pctile * 100).toFixed(0)}%`;
+    let marginInfo;
+    if (bd.margin_missing) {
+      marginInfo = "缺进货价";
+    } else {
+      const sourceTag = bd.margin_source === "master" ? " · 主档参考价" : "";
+      marginInfo = `毛利 ${it.margin_pct}% / 分位 ${(bd.margin_pctile * 100).toFixed(0)}%${sourceTag}`;
+    }
     tip += `\n  毛利(30): ${bd.margin}（${marginInfo}）`;
   }
   return `<span class="rs-urgency ${cls}" title="${escapeHtml(tip)}">${score}</span>`;
@@ -159,10 +163,14 @@ function marginCell(it) {
     m >= 30 ? "rs-margin--good" :
     m >= 10 ? "rs-margin--meh" :
     "rs-margin--bad";
-  const pp = it.last_purchase_unit_price != null ? `进价 €${it.last_purchase_unit_price}` : "";
+  // 兜底来源标记: master 表示用 ERP 总档进价 (精度低), purchase 表示实际成交
+  const isMaster = it.margin_source === "master";
+  const cost = isMaster ? it.master_stock_price_eur : it.last_purchase_unit_price;
+  const costLabel = isMaster ? "主档参考进价" : "上次进价";
   const sp = it.sale_net_avg != null ? `售净 €${it.sale_net_avg}` : "";
-  const tip = `毛利 ${m}%\n${sp}\n${pp}`;
-  return `<span class="rs-margin ${cls}" title="${escapeHtml(tip)}">${m.toFixed(1)}%</span>`;
+  const tip = `毛利 ${m}%\n${sp}\n${costLabel} €${cost}`;
+  const suffix = isMaster ? '<span class="rs-margin__src" title="ERP 主档参考价, 非实际成交">~</span>' : "";
+  return `<span class="rs-margin ${cls}" title="${escapeHtml(tip)}">${m.toFixed(1)}%${suffix}</span>`;
 }
 
 function realBars(it) {

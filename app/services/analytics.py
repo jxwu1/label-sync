@@ -307,6 +307,7 @@ def _attach_urgency_scores(items: list[dict[str, Any]]) -> None:
                 "velocity_pctile": round(v_pctile, 3),
                 "margin_pctile": round(m_pctile, 3),
                 "margin_missing": it["margin_pct"] is None,
+                "margin_source": it.get("margin_source"),
             }
         )
 
@@ -414,6 +415,7 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
                 Stockpile.is_truly_discontinued,
                 Stockpile.supplier_id,
                 Stockpile.last_purchase_unit_price,
+                Stockpile.master_stock_price_eur,
             ).where(Stockpile.is_truly_discontinued == False)  # noqa: E712 — SQL eq
         ).all()
         sales_rows = session.execute(
@@ -449,7 +451,7 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
             last_purchase[r.product_barcode] = (r.event_at, r.supplier_id)
 
     items: list[dict[str, Any]] = []
-    for bc, model, name_zh, auto_cat, manual_cat, grade, is_disc, sp_supplier_id, last_pp in sp_rows:
+    for bc, model, name_zh, auto_cat, manual_cat, grade, is_disc, sp_supplier_id, last_pp, master_pp in sp_rows:
         sales = by_bc.get(bc, [])
         total_qty = int(sum(r.qty for r in sales))
         if sales:
@@ -505,13 +507,28 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
         supplier_id = sp_supplier_id or last_purchase_supplier
         origin = classify_origin(supplier_id, model)
         is_new_item = bool(sales) and lifespan < _NEW_ITEM_LIFESPAN_DAYS
-        # 毛利率: (sale_net_avg - last_purchase_unit_price) / sale_net_avg * 100
-        # 缺任一面 → None, 紧迫分 margin 项=0
+        # 毛利率: (sale_net_avg - cost) / sale_net_avg * 100
+        # cost = COALESCE(last_purchase_unit_price, master_stock_price_eur)
+        # margin_source 标记数据出处, 让前端展示精度提示:
+        #   'purchase' = 实际 purchase event 的折后净价 (准)
+        #   'master'   = ERP 产品总档 stock_price (FOREIGN only, 兜底)
+        #   None       = 两路都缺 → margin_pct=None
         margin_pct: float | None
-        if sale_net_avg is not None and sale_net_avg > 0 and last_pp is not None and last_pp > 0:
-            margin_pct = round((sale_net_avg - float(last_pp)) / sale_net_avg * 100.0, 2)
+        margin_source: str | None
+        cost: float | None = None
+        if last_pp is not None and last_pp > 0:
+            cost = float(last_pp)
+            margin_source = "purchase"
+        elif master_pp is not None and master_pp > 0:
+            cost = float(master_pp)
+            margin_source = "master"
+        else:
+            margin_source = None
+        if sale_net_avg is not None and sale_net_avg > 0 and cost is not None:
+            margin_pct = round((sale_net_avg - cost) / sale_net_avg * 100.0, 2)
         else:
             margin_pct = None
+            margin_source = None  # 没销售净价也算不出, 重置 source
         items.append(
             {
                 "barcode": bc,
@@ -532,8 +549,10 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
                 "last_purchase_at": last_purchase_at,
                 "last_purchase_days_ago": last_purchase_days_ago,
                 "last_purchase_unit_price": (float(last_pp) if last_pp is not None else None),
+                "master_stock_price_eur": (float(master_pp) if master_pp is not None else None),
                 "sale_net_avg": (round(sale_net_avg, 4) if sale_net_avg is not None else None),
                 "margin_pct": margin_pct,
+                "margin_source": margin_source,
                 "lifespan_days": lifespan,
                 "is_new_item": is_new_item,
                 "trend_slope_pct_per_week": (round(trend, 2) if trend is not None else None),
