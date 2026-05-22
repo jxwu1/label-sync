@@ -154,12 +154,30 @@ function renderTmlSvg(timeline) {
 
   const n = timeline.length;
   const sales = timeline.map((t) => t.sale_qty || 0);
-  const prices = timeline.map((t) => t.purchase_unit_price);
+  const rawPrices = timeline.map((t) => t.purchase_unit_price);
   const maxQ = Math.max(1, ...sales);
-  const validPrices = prices.filter((p) => p !== null && p !== undefined);
+  const validPrices = rawPrices.filter((p) => p !== null && p !== undefined);
   const hasPrices = validPrices.length > 0;
+  // 前向填充: null 沿用上次进价 (语义: 没新采购前进价没变).
+  // 首个 null 段 (在最早进价之前) 保持 null 不画.
+  const prices = (() => {
+    const out = new Array(n).fill(null);
+    let last = null;
+    for (let i = 0; i < n; i++) {
+      const v = rawPrices[i];
+      if (v !== null && v !== undefined) {
+        last = v;
+        out[i] = v;
+      } else if (last !== null) {
+        out[i] = last;
+      }
+    }
+    return out;
+  })();
   const maxP = hasPrices ? Math.max(...validPrices) : 1;
   const minP = hasPrices ? Math.min(...validPrices) : 0;
+  // 同价情况 (range=0): 把折线放中段而不是图表底, 避免跟 baseline 撞.
+  const sameValue = hasPrices && maxP === minP;
   const priceRange = Math.max(0.01, maxP - minP);
 
   const W = 1000;
@@ -206,7 +224,8 @@ function renderTmlSvg(timeline) {
     return `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${fill}" opacity="0.85" rx="0.5"/>`;
   });
 
-  // 进价折线（断点处分段，null 不画）
+  // 进价折线 (前向填充后是阶梯线, null 段在最早进价之前不画).
+  // 同价 (sameValue) 时 Y 固定中段, 避免跟 baseline 撞.
   let pathD = "";
   const dotParts = [];
   let started = false;
@@ -216,10 +235,15 @@ function renderTmlSvg(timeline) {
       return;
     }
     const x = padL + (i + 0.5) * stepW;
-    const y = padT + innerH - ((p - minP) / priceRange) * innerH * 0.85;
+    const y = sameValue
+      ? padT + innerH * 0.4   // 中段稍偏上, 跟柱状销量留出层次
+      : padT + innerH - ((p - minP) / priceRange) * innerH * 0.85;
     pathD += started ? ` L${x.toFixed(1)},${y.toFixed(1)}` : `M${x.toFixed(1)},${y.toFixed(1)}`;
     started = true;
-    dotParts.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2" fill="var(--warn)"/>`);
+    // 只在原始数据点 (非填充) 上放 dot, 让用户看到"哪周真有进货"
+    if (rawPrices[i] !== null && rawPrices[i] !== undefined) {
+      dotParts.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.5" fill="var(--warn)"/>`);
+    }
   });
   const linePart = pathD
     ? `<path d="${pathD}" stroke="var(--warn)" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke"/>`

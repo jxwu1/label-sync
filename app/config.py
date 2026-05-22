@@ -40,7 +40,7 @@ class AppConfig:
     child_process_encoding: str = "utf-8"
     csv_fallback_encoding: str = "gbk"
     web_poll_interval_ms: int = 5000
-    enable_transfer: bool = True
+    enable_transfer: bool = False  # 2026-05-22: 双端互传废弃 (单端线上为主), 蓝图不再注册. 代码留着, 下周确认无人用再删.
 
     @property
     def input_dir(self) -> Path:

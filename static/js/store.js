@@ -143,7 +143,6 @@ document.addEventListener("alpine:init", () => {
       { id: "foreign_customers", label: "老外客人",   icon: "overseas",   code: "08", shortcut: "8" },
       { id: "sales_analytics",   label: "销售分析",   icon: "sales",      code: "09", shortcut: "9" },
       { id: "restock",           label: "补货决策",   icon: "sales",      code: "11", shortcut: "" },
-      { id: "transfer",          label: "互传",       icon: "transfer",   code: "10", shortcut: "0" },
     ],
     switch(id) {
       this.current = id;

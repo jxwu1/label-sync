@@ -49,21 +49,8 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(response.get_json(), {"ok": True})
         start_task.assert_called_once()
 
-    def test_text_send_validates_empty_content(self):
-        response = self.client.post("/text_send", json={"text": "   ", "sender": "A"})
-
-        self.assertEqual(response.status_code, 400)
-        body = response.get_json()
-        self.assertFalse(body["ok"])
-        self.assertIn("text", body["msg"])
-
-    def test_transfer_delete_validates_filename(self):
-        response = self.client.post("/transfer_delete", json={"filename": "   "})
-
-        self.assertEqual(response.status_code, 400)
-        body = response.get_json()
-        self.assertFalse(body["ok"])
-        self.assertIn("filename", body["msg"])
+    # transfer/collab 路由测试已删除 (2026-05-22): CONFIG.enable_transfer=False
+    # 后蓝图不再注册, 这两个 case 永远 404. 等下周删 transfer 代码时一起清理.
 
 
 if __name__ == "__main__":
