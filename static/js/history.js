@@ -46,6 +46,7 @@ function renderEmpty(msg) {
   $("historyFuzzyPanel").hidden = true;
   $("historyAnalyticsPanel").hidden = true;
   if ($("historyPurchasePanel")) $("historyPurchasePanel").hidden = true;
+  if ($("historyExtrasPanel")) $("historyExtrasPanel").hidden = true;
   $("historyTimelineChartPanel").hidden = true;
 }
 
@@ -57,6 +58,7 @@ function renderFuzzyMatches(matches, originalQuery) {
   $("historyFuzzyPanel").hidden = false;
   $("historyAnalyticsPanel").hidden = true;
   if ($("historyPurchasePanel")) $("historyPurchasePanel").hidden = true;
+  if ($("historyExtrasPanel")) $("historyExtrasPanel").hidden = true;
   $("historyTimelineChartPanel").hidden = true;
 
   const rows = matches
@@ -130,7 +132,7 @@ async function loadTimelineChart(barcode) {
       renderTmlEmpty(data.msg || "加载失败");
       return;
     }
-    renderTmlSvg(data.timeline || []);
+    renderTmlSvg(data.timeline || [], data.monthly_sales || []);
   } catch (err) {
     renderTmlEmpty(`网络错误：${err.message}`);
   }
@@ -145,20 +147,25 @@ function renderTmlEmpty(msg) {
   if (yr) yr.innerHTML = "";
 }
 
-// PR 8b · 52 周 chart 用 SVG 重写（原 canvas drawTimeline 废弃）
-// viewBox 1000×200 + preserveAspectRatio="none" 让 SVG 拉伸填满 width，
-// 柱/折线/网格/Y label 都是 vector 几何，跟着拉伸不变形（mono Y label
-// 数字短，水平拉伸轻微可接受）。X 轴月份 label 走 HTML overlay。
-function renderTmlSvg(timeline) {
+// PR 8b · 时间线 SVG (2026-05-23 重写: 3 年 = 156 周进价 / 36 月销量柱)
+// 柱状: monthly_sales (36 月, 宽柱不挤)
+// 进价线/点: timeline (156 周, 阶梯前向填充 + dot on 真实进货事件)
+// viewBox 1000×200 + preserveAspectRatio="none". X label HTML overlay.
+function renderTmlSvg(timeline, monthlySales) {
   const xAxis = $("historyTimelineXAxis");
   if (!timeline || timeline.length === 0) {
     renderTmlEmpty("无数据");
     return;
   }
+  // 月度销量 fallback: 老 API 没 monthly_sales 字段 → 按 week 用 timeline
+  const months = (monthlySales && monthlySales.length > 0) ? monthlySales : null;
 
-  const n = timeline.length;
-  const sales = timeline.map((t) => t.sale_qty || 0);
+  const n = timeline.length;  // 周数 (156)
   const rawPrices = timeline.map((t) => t.purchase_unit_price);
+  // 销量柱用 monthly_sales (sale_qty + retail_qty); 没有就退化到 weekly
+  const sales = months
+    ? months.map((m) => (m.sale_qty || 0) + (m.retail_qty || 0))
+    : timeline.map((t) => t.sale_qty || 0);
   const maxQ = Math.max(1, ...sales);
   const validPrices = rawPrices.filter((p) => p !== null && p !== undefined);
   const hasPrices = validPrices.length > 0;
@@ -192,8 +199,11 @@ function renderTmlSvg(timeline) {
   const padB = 8;
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
-  const stepW = innerW / n;
-  const barW = Math.max(1, stepW - 2);
+  const stepW = innerW / n;             // 周 step (用于进价线 X 位置)
+  // 月柱用 monthly_sales 长度算 step; 退化时跟周 step 一致
+  const barCount = months ? months.length : n;
+  const barStep = innerW / barCount;
+  const barW = Math.max(1, barStep - 2);
 
   // 网格（Y 轴标签改到 HTML overlay 避免 preserveAspectRatio=none 拉伸字形）
   const gridParts = [];
@@ -234,14 +244,15 @@ function renderTmlSvg(timeline) {
   };
   void chartTopOffset;  // 保留变量供阅读
 
-  // 销量柱
+  // 销量柱 (月度: 36 根宽柱)
   const barParts = sales.map((qty, i) => {
     if (qty === 0) return "";
-    const x = padL + i * stepW + 1;
+    const x = padL + i * barStep + 1;
     const barH = (qty / maxQ) * innerH * 0.85;
     const y = padT + innerH - barH;
     const fill = qty > maxQ * 0.6 ? "var(--accent)" : "var(--accent-dim)";
-    return `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${fill}" opacity="0.85" rx="0.5"/>`;
+    const title = months ? `${months[i]?.month_start ?? ''}: ${qty} 件` : '';
+    return `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${fill}" opacity="0.85" rx="0.5"><title>${escapeHtml(title)}</title></rect>`;
   });
 
   // 进价折线 (前向填充后是阶梯线, null 段在最早进价之前不画).
@@ -291,26 +302,28 @@ function renderTmlSvg(timeline) {
   `;
   renderYAxis();
 
-  // X 轴月份 label：6 个均匀分布
-  const labelCount = Math.min(6, n);
-  const months = [];
+  // X 轴月份 label: 7 个均匀分布 (3 年覆盖 ~36 月, 每 ~6 月 1 个)
+  const labelSrc = months || timeline;
+  const labelCount = Math.min(7, labelSrc.length);
+  const xLabels = [];
   for (let i = 0; i < labelCount; i++) {
-    const idx = Math.floor(((n - 1) * i) / Math.max(1, labelCount - 1));
-    const wk = timeline[idx];
-    if (wk && wk.week_start) {
-      months.push(`<span>${escapeHtml(wk.week_start.slice(0, 7))}</span>`);
-    }
+    const idx = Math.floor(((labelSrc.length - 1) * i) / Math.max(1, labelCount - 1));
+    const pt = labelSrc[idx];
+    const ts = pt?.month_start || pt?.week_start;
+    if (ts) xLabels.push(`<span>${escapeHtml(ts.slice(0, 7))}</span>`);
   }
-  xAxis.innerHTML = months.join("");
+  xAxis.innerHTML = xLabels.join("");
 }
 
 async function loadAnalytics(barcode) {
   const slaPanel = $("historyAnalyticsPanel");
   const purPanel = $("historyPurchasePanel");
+  const extPanel = $("historyExtrasPanel");
   const slaBody = $("historyAnalytics");
   const purBody = $("historyPurchase");
   slaPanel.hidden = false;
   if (purPanel) purPanel.hidden = false;
+  if (extPanel) extPanel.hidden = false;
   slaBody.innerHTML = '<div class="hist-tle-count">加载中…</div>';
   if (purBody) purBody.innerHTML = '<div class="hist-tle-count">加载中…</div>';
   try {
@@ -333,7 +346,8 @@ async function loadAnalytics(barcode) {
 // PR 8a · 拆为 SLA + PUR 两段，分别渲染到独立 panel
 function renderAnalytics(data) {
   renderSLA(data);
-  renderPUR(data.purchase || {});
+  renderPUR(data.purchase || {}, data);
+  renderExtras(data);
 }
 
 function renderSLA(data) {
@@ -430,6 +444,102 @@ function renderPUR(p) {
     </div>
     ${warnBox}
   `;
+}
+
+// 货号历史扩展数据 (波 3, 2026-05-23): 退货 / 价格波动 / 客户 TOP10 /
+// 月度热力图 / 持仓周期 / 下季度预测 / 数据范围 + 完整性
+function renderExtras(data) {
+  const root = document.getElementById("historyExtras");
+  if (!root) return;
+  const ex = data.extras || {};
+  const h = data.holding || {};
+  const heat = data.heatmap || {};
+  const fc = data.forecast;
+
+  // 1. 退货 + 价格波动 卡片
+  const ps = ex.price_stats || {};
+  const returnCard = `
+    <section class="hist-ex-card">
+      <h4>📊 退货率 + 价格波动</h4>
+      <div class="hist-ex-row">退货率 <b>${ex.return_rate_pct != null ? ex.return_rate_pct + '%' : '—'}</b>
+        <span class="hist-ex-muted">(${ex.return_qty ?? 0} / ${(ex.total_sale_qty_gross ?? 0) + (ex.return_qty ?? 0)} 件)</span></div>
+      <div class="hist-ex-row">批发售价均 <b>€${ps.mean ?? '—'}</b> ± ${ps.std ?? '—'} <span class="hist-ex-muted">(${ps.n} 笔)</span></div>
+      <div class="hist-ex-row">售价区间 <b>€${ps.min ?? '—'}</b> ~ <b>€${ps.max ?? '—'}</b></div>
+    </section>`;
+
+  // 2. 客户 TOP10
+  const topRows = (ex.top_customers || []).map((c, i) => {
+    const typeBadge = c.customer_type === 'chinese'
+      ? '<span class="hist-ex-type hist-ex-type--cn">CN</span>'
+      : c.customer_type === 'foreign'
+      ? '<span class="hist-ex-type hist-ex-type--fo">GR</span>'
+      : '<span class="hist-ex-type hist-ex-type--unk">?</span>';
+    return `<tr>
+      <td class="hist-ex-rank">${i + 1}</td>
+      <td>${typeBadge}</td>
+      <td class="hist-ex-mono">${escapeHtml(c.customer_id || '')}</td>
+      <td>${escapeHtml(c.customer_name || '—')}</td>
+      <td class="hist-ex-num">${c.qty}</td>
+      <td class="hist-ex-mono">${c.last_at || ''}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="6" class="hist-ex-empty">暂无客户记录</td></tr>';
+  const topCustomersCard = `
+    <section class="hist-ex-card hist-ex-card--wide">
+      <h4>👥 客户 TOP 10 (按净 qty)</h4>
+      <table class="hist-ex-top">
+        <thead><tr><th>#</th><th></th><th>客户 ID</th><th>名字</th><th>件数</th><th>上次</th></tr></thead>
+        <tbody>${topRows}</tbody>
+      </table>
+    </section>`;
+
+  // 3. 月度热力图 (4 年 × 12 月)
+  const monthNames = ['1','2','3','4','5','6','7','8','9','10','11','12'];
+  const heatMax = heat.max_qty || 1;
+  const heatRows = (heat.years || []).slice().reverse().map(y => {
+    const row = heat.matrix[y] || [0]*12;
+    const cells = row.map((q, mi) => {
+      const intensity = q > 0 ? Math.max(0.15, q / heatMax) : 0;
+      const bg = intensity > 0
+        ? `background: rgba(46, 160, 67, ${intensity.toFixed(2)});`
+        : 'background: var(--surface-2);';
+      const label = q > 0 ? q : '';
+      const title = `${y}-${(mi+1).toString().padStart(2,'0')}: ${q} 件`;
+      return `<td class="hist-ex-heat-cell" style="${bg}" title="${title}">${label}</td>`;
+    }).join('');
+    return `<tr><th class="hist-ex-heat-year">${y}</th>${cells}</tr>`;
+  }).join('');
+  const heatmapCard = `
+    <section class="hist-ex-card hist-ex-card--wide">
+      <h4>🌡 月度销量热力图 (4 年)</h4>
+      <table class="hist-ex-heat">
+        <thead><tr><th></th>${monthNames.map(m => `<th>${m}月</th>`).join('')}</tr></thead>
+        <tbody>${heatRows}</tbody>
+      </table>
+    </section>`;
+
+  // 4. 持仓 + 预测 + 数据范围 卡片
+  const truncWarn = ex.is_history_truncated
+    ? '<span class="hist-ex-warn" title="首笔事件早于 ETL 窗口起点 2021-06-01, 更早期事件未纳入">⚠️ 历史可能不全</span>'
+    : '';
+  const fcLine = fc
+    ? `<div class="hist-ex-row">下季度预测 <b>${fc.quarter_mu}</b> 件 <span class="hist-ex-muted">(p98 ${fc.quarter_p98}, 模型 ${fc.model_used})</span></div>`
+    : '<div class="hist-ex-row">预测 <span class="hist-ex-muted">序列太短未训出</span></div>';
+  const oldestLine = h.oldest_held_days != null
+    ? `<div class="hist-ex-row">当前压最久 <b>${h.oldest_held_days} 天</b> <span class="hist-ex-muted">(库存最早进的那批)</span></div>`
+    : '';
+  const avgHoldLine = h.avg_days != null
+    ? `<div class="hist-ex-row">平均持仓 <b>${h.avg_days} 天</b> <span class="hist-ex-muted">(${h.n_pairs} 件配对)</span></div>`
+    : '';
+  const miscCard = `
+    <section class="hist-ex-card">
+      <h4>🔮 持仓 / 预测 / 数据范围</h4>
+      ${avgHoldLine}
+      ${oldestLine}
+      ${fcLine}
+      <div class="hist-ex-row hist-ex-muted">首笔 ${ex.first_event_at ?? '—'} · 末笔 ${ex.last_event_at ?? '—'} ${truncWarn}</div>
+    </section>`;
+
+  root.innerHTML = returnCard + topCustomersCard + heatmapCard + miscCard;
 }
 
 function renderManualDropdown(barcode, current) {
