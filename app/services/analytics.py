@@ -707,16 +707,29 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
         first_event_at = None
         if sales:
             first_event_at = min(_parse_date(r.event_at) for r in sales).isoformat()
-        realized_profit_eur: float | None = None
-        if cost is not None and lifetime_sale_qty > 0:
-            sold_cost = lifetime_sale_qty * cost
-            realized_profit_eur = round(lifetime_sale_revenue - sold_cost, 2)
         # 累计投入: lifetime_purchase_qty × cost (EUR 口径, 与 realized_profit 一致).
         # cost 用当前 master/last_purchase 估算; 多批次进价变化不追 (FIFO 简化).
         lifetime_purchase_qty = lifetime_purchase_qty_by_bc.get(bc, 0)
         lifetime_invested_eur: float | None = None
         if cost is not None and lifetime_purchase_qty > 0:
             lifetime_invested_eur = round(lifetime_purchase_qty * cost, 2)
+
+        # 实现利润 (2026-05-23 双口径):
+        #   qty_total > 0: FIFO. 销售 - 已售件数 × cost (剩余库存按 cost 算回资产).
+        #   qty_total == 0 / None: 净现金流. 销售 - 总投入 (库存空 = 全部成本已花掉,
+        #                                  进销差额是报损/盘亏/已花未收, 全部扣掉).
+        # 5828079293643 例: qty_total=0, FIFO 给 5107 (假设 3581 件还在某处), 净现金
+        # 流给 3852 (假设丢失), 净现金流更接近真实.
+        realized_profit_eur: float | None = None
+        if cost is not None and lifetime_sale_qty > 0:
+            if qty_total is not None and qty_total > 0:
+                sold_cost = lifetime_sale_qty * cost
+                realized_profit_eur = round(lifetime_sale_revenue - sold_cost, 2)
+            elif lifetime_invested_eur is not None:
+                realized_profit_eur = round(lifetime_sale_revenue - lifetime_invested_eur, 2)
+            else:
+                sold_cost = lifetime_sale_qty * cost
+                realized_profit_eur = round(lifetime_sale_revenue - sold_cost, 2)
         # ETL 窗口起点保守取 2021-06-01: 早于此的 first_event 标"数据不全"
         # (运营人员判断"已回本"时心里有数, 窗口外的销售/采购可能没纳入)
         is_history_truncated = (

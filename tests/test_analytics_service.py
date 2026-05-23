@@ -816,6 +816,14 @@ class LifetimeProfitTests(_Base):
             s.execute(insert(Stockpile).values(**values))
             s.commit()
 
+    def _add_snapshot(self, snapshot_date: str, model: str, qty: int) -> None:
+        from app.models import StockpileInventorySnapshot
+        with stockpile_db._session() as s:
+            s.execute(insert(StockpileInventorySnapshot).values(
+                snapshot_date=snapshot_date, product_model=model, qty_total=qty,
+            ))
+            s.commit()
+
     def test_realized_profit_positive_when_revenue_beats_sold_cost(self) -> None:
         """卖了 10 件 €100 + cost €5/件 → 实现利润 €100 - 10×5 = €50."""
         from app.services.analytics import list_sku_summary
@@ -918,6 +926,49 @@ class LifetimeProfitTests(_Base):
         # FOREIGN 优先 last_pp 4.0
         assert it["margin_source"] == "purchase"
         assert it["margin_pct"] == 60.0  # (10-4)/10
+
+    def test_realized_profit_switches_to_cashflow_when_qty_total_zero(self) -> None:
+        """库存清零 → realized_profit 用净现金流 (销售 - 总投入), 不用 FIFO.
+        5828079293643 case 回归: purchase=12000, sale=8419, qty=0
+        → FIFO 给 5107 (假设 3581 件还在某处), 净现金流给 3852 (更真实)."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("CF1", supplier_id="GR0001", sale_price=1.0,
+                      last_purchase_unit_price=0.35)
+        self._add_event(barcode="CF1", event_type="purchase",
+                        event_at="2024-01-01", qty=12000,
+                        unit_price=0.35, supplier_id="GR0001", document_no="P1")
+        self._add_event(barcode="CF1", event_at="2025-01-01", qty=8419,
+                        unit_price=0.957, document_no="W1")
+        self._add_snapshot("2026-05-19", "CF1", 0)
+
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "CF1")
+        assert it["qty_total"] == 0
+        # 净现金流 = revenue - invested = 8419*0.957 - 12000*0.35 = 3856.98
+        assert it["realized_profit_eur"] == 3856.98
+        # 不应该是 FIFO 的 (8056.98 - 8419*0.35) = 5110.33
+        assert it["realized_profit_eur"] != 5110.33
+
+    def test_realized_profit_uses_fifo_when_inventory_positive(self) -> None:
+        """qty_total > 0 → FIFO. 库存按 cost 算回资产, realized = sale - sold_qty*cost."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("FIFO1", supplier_id="GR0001", sale_price=10.0,
+                      last_purchase_unit_price=5.0)
+        self._add_event(barcode="FIFO1", event_type="purchase",
+                        event_at="2024-01-01", qty=100, unit_price=5.0,
+                        supplier_id="GR0001", document_no="P1")
+        self._add_event(barcode="FIFO1", event_at="2025-01-01", qty=30,
+                        unit_price=10.0, document_no="W1")
+        self._add_snapshot("2026-05-19", "FIFO1", 70)
+
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "FIFO1")
+        # FIFO: revenue - sold_qty × cost = 300 - 30*5 = 150
+        assert it["realized_profit_eur"] == 150.0
+        # 不该是现金流的 (300 - 500) = -200
+        assert it["realized_profit_eur"] != -200.0
 
     def test_lifetime_invested_uses_purchase_qty_times_cost(self) -> None:
         """累计投入 = 累计 purchase qty × cost (EUR 口径).
