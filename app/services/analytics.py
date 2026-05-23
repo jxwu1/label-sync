@@ -564,14 +564,25 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
         margin_source: str | None
         margin_price_source: str | None
         cost: float | None = None
-        if last_pp is not None and last_pp > 0:
-            cost = float(last_pp)
-            margin_source = "purchase"
-        elif master_pp is not None and master_pp > 0:
-            cost = float(master_pp)
-            margin_source = "master"
+        # cost 优先级取决于 origin (2026-05-23):
+        #   FOREIGN: purchase event 是 EUR 原始价 (准) → 优先 last_pp, 退 master_pp
+        #   CN/HZ:   purchase event 是 RMB 原始价 (不能当 EUR 用!) → 仅用 master_pp
+        #            (落地公式算出的 EUR), 不用 last_pp 避免币种混淆造成 -270% 假亏损
+        if origin in ("CN", "HZ"):
+            if master_pp is not None and master_pp > 0:
+                cost = float(master_pp)
+                margin_source = "master"
+            else:
+                margin_source = None
         else:
-            margin_source = None
+            if last_pp is not None and last_pp > 0:
+                cost = float(last_pp)
+                margin_source = "purchase"
+            elif master_pp is not None and master_pp > 0:
+                cost = float(master_pp)
+                margin_source = "master"
+            else:
+                margin_source = None
         sale: float | None = None
         if master_sp is not None and master_sp > 0:
             sale = float(master_sp)

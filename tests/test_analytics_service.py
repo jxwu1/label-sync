@@ -876,6 +876,49 @@ class LifetimeProfitTests(_Base):
         assert it["first_event_at"] == "2021-01-01"
         assert it["is_history_truncated"] is True
 
+    def test_cn_origin_ignores_last_purchase_uses_master_only(self) -> None:
+        """CN 货 last_purchase_unit_price 是 RMB 原始价, 不能当 EUR.
+        analytics 应优先 master_stock_price_eur (落地 EUR), 跳过 last_pp.
+        修复 2026-05-23 发现的 CN 全部账面巨亏 bug."""
+        from app.services.analytics import list_sku_summary
+
+        # CN 货: last_pp=1.85 (RMB), master=0.30 (EUR 落地价)
+        self._add_sku("CN1", supplier_id="CN0001", sale_price=0.5,
+                      last_purchase_unit_price=1.85,
+                      master_stock_price_eur=0.30)
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "CN1")
+        # cost 应取 master (0.30), 不是 last_pp (1.85)
+        assert it["margin_source"] == "master"
+        # margin = (0.5 - 0.30) / 0.5 = 40%, 不是 -270%
+        assert it["margin_pct"] == 40.0
+
+    def test_cn_origin_no_master_returns_none_margin(self) -> None:
+        """CN 货 master 缺失 (新货未跑 product_master) → margin=None.
+        不会再用 last_pp RMB 当 EUR 算出假亏损."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("CN2", supplier_id="CN0001", sale_price=0.5,
+                      last_purchase_unit_price=1.85,
+                      master_stock_price_eur=None)
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "CN2")
+        assert it["margin_pct"] is None
+        assert it["margin_source"] is None
+
+    def test_foreign_origin_still_prefers_last_purchase(self) -> None:
+        """FOREIGN 货逻辑保持: purchase event 就是 EUR, 优先 last_pp."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("FR1", supplier_id="GR0001", sale_price=10.0,
+                      last_purchase_unit_price=4.0,
+                      master_stock_price_eur=5.0)
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "FR1")
+        # FOREIGN 优先 last_pp 4.0
+        assert it["margin_source"] == "purchase"
+        assert it["margin_pct"] == 60.0  # (10-4)/10
+
     def test_lifetime_invested_uses_purchase_qty_times_cost(self) -> None:
         """累计投入 = 累计 purchase qty × cost (EUR 口径).
         进 30 件 + 进 20 件 = 50 件 × €5 = €250 投入."""
