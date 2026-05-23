@@ -259,6 +259,61 @@
 .rs-urgency--cold  { background: rgba(100, 116, 139, 0.18); color: var(--ink-3); }
 .rs-urgency--none  { color: var(--ink-3); }
 
+/* 4 维 mini bar (2026-05-23 D): 销 30% / 库 30% / 距 10% / 利 30% 段宽,
+   段内 fill % 反映该维分数 / 满分 */
+.rs-urgency-bar {
+  display: flex;
+  width: 100%;
+  height: 4px;
+  margin-top: 3px;
+  gap: 1px;
+  background: var(--surface-2);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.rs-urgency-seg {
+  display: block;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  cursor: help;
+}
+.rs-urgency-seg-fill {
+  display: block;
+  height: 100%;
+}
+.rs-urgency-seg-fill.rs-urgency-seg--v { background: #34d399; }  /* 销 绿 */
+.rs-urgency-seg-fill.rs-urgency-seg--c { background: #f87171; }  /* 库 红 */
+.rs-urgency-seg-fill.rs-urgency-seg--r { background: #fbbf24; }  /* 距 黄 */
+.rs-urgency-seg-fill.rs-urgency-seg--m { background: #a78bfa; }  /* 利 紫 */
+
+/* 供应商紧迫数 badge (2026-05-23 B): 展开态标 "🔥3" 紧迫 SKU 数 */
+.rs-sup-hot-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  background: rgba(239, 68, 68, 0.18);
+  color: #f87171;
+  border-radius: 3px;
+}
+
+/* 搜索框 (2026-05-23 C): 顶部模糊搜 supplier_id / barcode / model / 品名 */
+.rs-search-input {
+  padding: 4px 8px;
+  font-size: 12.5px;
+  border: 1px solid var(--border-1);
+  border-radius: 3px;
+  background: var(--surface-1);
+  color: var(--ink-1);
+  font-family: var(--mono);
+  width: 220px;
+}
+.rs-search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 .rs-woc {
   display: inline-block;
   font-family: var(--mono);

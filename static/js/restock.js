@@ -37,6 +37,7 @@ const state = {
     supplier: null,        // 供应商筛选 (点击表里 supplier_id 触发)
     show_ordered: false,   // 显示已下单
     kpi: null,             // null | 'hot' | 'overstock' (KPI 条 toggle)
+    search: "",            // 2026-05-23: 模糊搜 supplier_id / model / barcode / name
   },
   sort: { key: "urgency_score", dir: "desc" },
   selected: new Set(),     // 当前勾选的 barcode
@@ -146,7 +147,23 @@ function urgencyCell(it) {
       tip += `\n  零售(展示): 26 周 ${it.retail_qty_26w} 件 / €${it.retail_revenue_26w}（未进算法）`;
     }
   }
-  return `<span class="rs-urgency ${cls}" title="${escapeHtml(tip)}">${score}</span>`;
+  // 4 维 mini bar (2026-05-23): 让销/库/距/利贡献一眼可见
+  // 各段宽度 = 分项分数 / 各自满分; 颜色按段语义不同
+  let segs = '';
+  if (bd) {
+    const segments = [
+      { val: bd.velocity ?? 0, max: 30, cls: 'rs-urgency-seg--v', label: `销 ${bd.velocity ?? 0}/30` },
+      { val: bd.cover ?? 0,    max: 30, cls: 'rs-urgency-seg--c', label: `库 ${bd.cover ?? 0}/30` },
+      { val: bd.recency ?? 0,  max: 10, cls: 'rs-urgency-seg--r', label: `距 ${bd.recency ?? 0}/10` },
+      { val: bd.margin ?? 0,   max: 30, cls: 'rs-urgency-seg--m', label: `利 ${bd.margin ?? 0}/30` },
+    ];
+    segs = '<span class="rs-urgency-bar">' + segments.map(s => {
+      const fillPct = Math.max(0, Math.min(100, (s.val / s.max) * 100));
+      const widthPct = (s.max / 100) * 100; // 段宽按总分占比 (销 30% 库 30% 距 10% 利 30%)
+      return `<span class="rs-urgency-seg" style="width:${widthPct}%" title="${escapeHtml(s.label)}"><span class="rs-urgency-seg-fill ${s.cls}" style="width:${fillPct}%"></span></span>`;
+    }).join('') + '</span>';
+  }
+  return `<span class="rs-urgency ${cls}" title="${escapeHtml(tip)}">${score}${segs}</span>`;
 }
 
 function weeksOfCoverCell(woc) {
@@ -214,6 +231,12 @@ function _filterPredicate(it, opts = {}) {
   if (isOrdered) return false;
   if (state.filter.origin && it.origin !== state.filter.origin) return false;
   if (!opts.skipSupplier && state.filter.supplier && it.supplier_id !== state.filter.supplier) return false;
+  // 搜索框: 输入命中 supplier_id / barcode / model / name (任一含子串即留)
+  if (state.filter.search) {
+    const q = state.filter.search.toLowerCase();
+    const hay = `${it.supplier_id ?? ''} ${it.barcode ?? ''} ${it.model ?? ''} ${it.name_zh ?? ''}`.toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
   if (state.filter.view === "active") {
     if (it.is_truly_discontinued) return false;
     if (it.is_new_item) return false;
@@ -602,58 +625,91 @@ function undoMarkRecent() {
 }
 
 function _supplierSummary() {
-  // 当前筛选 (忽略 supplier filter) 后, 按 urgency_score >= SUPPLIER_OVERVIEW_HOT
-  // 的 SKU 数 group by supplier_id, 降序排列.
+  // 紧迫供应商: 有 SKU urgency >= SUPPLIER_OVERVIEW_HOT (默认 70) 的, 按 hot SKU 数 desc.
   const pool = applyFilterExceptSupplier(state.items);
-  const hot = pool.filter(
-    (it) => it.supplier_id && (it.urgency_score ?? -1) >= SUPPLIER_OVERVIEW_HOT
-  );
   const byS = new Map();
-  for (const it of hot) {
+  for (const it of pool) {
+    if (!it.supplier_id || it.urgency_score == null) continue;
     const key = it.supplier_id;
-    if (!byS.has(key)) byS.set(key, { supplier_id: key, count: 0, max: 0 });
+    if (!byS.has(key)) byS.set(key, { supplier_id: key, count: 0, hot_count: 0, max: 0 });
     const e = byS.get(key);
+    if (it.urgency_score >= SUPPLIER_OVERVIEW_HOT) e.hot_count += 1;
     e.count += 1;
     if (it.urgency_score > e.max) e.max = it.urgency_score;
   }
-  return Array.from(byS.values()).sort((a, b) => b.count - a.count);
+  return Array.from(byS.values()).filter((s) => s.hot_count > 0).sort((a, b) => b.hot_count - a.hot_count);
+}
+
+function _allSuppliersSummary() {
+  // 全量供应商: 展开模式用. 按 max urgency desc 排, 让"次紧迫" (69.5 那种) 露出来.
+  const pool = applyFilterExceptSupplier(state.items);
+  const byS = new Map();
+  for (const it of pool) {
+    if (!it.supplier_id || it.urgency_score == null) continue;
+    const key = it.supplier_id;
+    if (!byS.has(key)) byS.set(key, { supplier_id: key, count: 0, hot_count: 0, max: 0 });
+    const e = byS.get(key);
+    if (it.urgency_score >= SUPPLIER_OVERVIEW_HOT) e.hot_count += 1;
+    e.count += 1;
+    if (it.urgency_score > e.max) e.max = it.urgency_score;
+  }
+  return Array.from(byS.values()).sort((a, b) => b.max - a.max);
 }
 
 function renderSupplierSummary() {
   const root = $("rsSupplierOverview");
   if (!root) return;
-  const all = _supplierSummary();
-  if (all.length === 0) {
-    root.innerHTML = '<div class="rs-sup-empty">当前范围内没有紧迫分 ≥70 的 SKU</div>';
+  // 默认折叠态: 紧迫供应商 (有 SKU >=70). 展开态: 全量供应商 (按 max desc, 含 69.5 这种"次紧迫").
+  const hot = _supplierSummary();
+  const all = _allSuppliersSummary();
+  const expanded = state.supplierOverviewExpanded;
+  const show = expanded ? all : hot.slice(0, SUPPLIER_OVERVIEW_TOP);
+
+  if (show.length === 0 && !expanded) {
+    root.innerHTML = `
+      <div class="rs-sup-empty">当前范围内没有紧迫分 ≥${SUPPLIER_OVERVIEW_HOT} 的 SKU
+        <button class="rs-sup-expand" id="rsSupExpand">↓ 查看全部 ${all.length} 家供应商</button>
+      </div>
+    `;
+    const exp = $("rsSupExpand");
+    if (exp) exp.addEventListener("click", () => {
+      state.supplierOverviewExpanded = true;
+      renderSupplierSummary();
+    });
     return;
   }
-  const maxCount = Math.max(...all.map((s) => s.count));
-  const show = state.supplierOverviewExpanded ? all : all.slice(0, SUPPLIER_OVERVIEW_TOP);
-  const hidden = all.length - show.length;
 
+  const maxCount = Math.max(1, ...show.map((s) => s.count));
   const rows = show.map((s) => {
     const pct = Math.round((s.count / maxCount) * 100);
     const isActive = state.filter.supplier === s.supplier_id;
+    const hotBadge = s.hot_count > 0
+      ? `<span class="rs-sup-hot-badge">🔥${s.hot_count}</span>`
+      : '';
     return `
       <button class="rs-sup-row${isActive ? " rs-sup-row--active" : ""}"
               data-supplier="${escapeHtml(s.supplier_id)}"
-              title="点击进入凑单模式: 筛 ${escapeHtml(s.supplier_id)} 全部 SKU">
+              title="点击筛选 ${escapeHtml(s.supplier_id)} 全部 ${s.count} 个 SKU">
         <span class="rs-sup-name">${escapeHtml(s.supplier_id)}</span>
         <span class="rs-sup-bar"><span class="rs-sup-bar-fill" style="width:${pct}%"></span></span>
         <span class="rs-sup-count">${s.count}</span>
         <span class="rs-sup-max">max ${s.max.toFixed(1)}</span>
+        ${hotBadge}
       </button>
     `;
   }).join("");
 
-  const expandBtn = hidden > 0
-    ? `<button class="rs-sup-expand" id="rsSupExpand">↓ 展开剩余 ${hidden} 家</button>`
-    : state.supplierOverviewExpanded && all.length > SUPPLIER_OVERVIEW_TOP
-      ? `<button class="rs-sup-expand" id="rsSupExpand">↑ 折叠</button>`
-      : "";
+  const hdTitle = expanded
+    ? `全部供应商 (按 max urgency 降序, ${all.length} 家)`
+    : `🔥 紧迫供应商 (≥${SUPPLIER_OVERVIEW_HOT}, ${hot.length} 家)`;
+  const expandBtn = expanded
+    ? `<button class="rs-sup-expand" id="rsSupExpand">↑ 折叠 (仅 ≥${SUPPLIER_OVERVIEW_HOT} 紧迫)</button>`
+    : (hot.length > SUPPLIER_OVERVIEW_TOP
+        ? `<button class="rs-sup-expand" id="rsSupExpand">↓ 查看全部 ${all.length} 家 (含次紧迫)</button>`
+        : `<button class="rs-sup-expand" id="rsSupExpand">↓ 查看全部 ${all.length} 家</button>`);
 
   root.innerHTML = `
-    <div class="rs-sup-hd">🔥 紧迫供应商 (≥${SUPPLIER_OVERVIEW_HOT}, 共 ${all.length} 家)</div>
+    <div class="rs-sup-hd">${hdTitle}</div>
     <div class="rs-sup-list">${rows}</div>
     ${expandBtn}
   `;
@@ -897,6 +953,19 @@ function init() {
   });
   $("rsSupplierClear").addEventListener("click", () => {
     state.filter.supplier = null;
+    render();
+  });
+  // 搜索框: 输入即过滤 (无 debounce, 27k items 客户端 filter <50ms 体感秒)
+  const searchInput = $("rsSearch");
+  if (searchInput) {
+    searchInput.addEventListener("input", (e) => {
+      state.filter.search = e.target.value.trim();
+      render();
+    });
+  }
+  $("rsSearchClear")?.addEventListener("click", () => {
+    if (searchInput) searchInput.value = "";
+    state.filter.search = "";
     render();
   });
 
