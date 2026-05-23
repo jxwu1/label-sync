@@ -402,6 +402,16 @@ function renderRestockSnapshot(it) {
     badge = '<span class="rs-profit-badge rs-profit-badge--bad">🔴 账面亏损</span>';
     line = `实现利润 <b>€${fmtInt(rp)}</b> + 库存 <b>€${fmtInt(inv)}</b> 仍亏 <b>€${fmtInt(-(rp + inv))}</b>`;
   }
+  // 净现金流并列显示 (2026-05-23 A): 大库存差异时 FIFO 乐观 vs cashflow 保守
+  const ncf = it.net_cashflow_eur;
+  const imb = it.inventory_imbalance_pct;
+  let cashflowLine = "";
+  if (ncf !== null && ncf !== undefined) {
+    const imbWarn = (imb != null && imb > 30)
+      ? ` <span class="rs-trunc-warn" title="进销库存差 ${imb}% > 30%, FIFO 可能高估, 实际请看净现金流">⚠️ 不平 ${imb}%</span>`
+      : '';
+    cashflowLine = `<div>净现金流 <b>${ncf >= 0 ? '+' : ''}€${fmtInt(ncf)}</b>${imbWarn}</div>`;
+  }
   // 紧迫分四维 (dv 应用在 cover/recency)
   const coverScore = bd ? `${bd.cover}${dvTag}` : "—";
   const recencyScore = bd ? `${bd.recency}${dvTag}` : "—";
@@ -430,6 +440,7 @@ function renderRestockSnapshot(it) {
           <div>累计投入 <b>${fmtEur(it.lifetime_invested_eur)}</b> <span class="rs-drawer-muted">(${fmtInt(it.lifetime_purchase_qty)} 件)</span></div>
           <div>累计销售 <b>${fmtEurInt(it.lifetime_sale_revenue_eur)}</b> <span class="rs-drawer-muted">(${fmtInt(it.lifetime_sale_qty)} 件)</span></div>
           <div>${line}</div>
+          ${cashflowLine}
         </section>
         <section class="rs-drawer-sec">
           <h4>📊 销售 (26 周)</h4>

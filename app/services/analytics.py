@@ -1216,6 +1216,17 @@ def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
             else:
                 sold_cost = lifetime_sale_qty * cost
                 realized_profit_eur = round(lifetime_sale_revenue - sold_cost, 2)
+        # 净现金流 (始终算, 给 drawer 双口径并列): revenue - 总投入
+        # 与 realized_profit 对照: 大库存高差异时 FIFO 给乐观值, cashflow 给保守值
+        net_cashflow_eur: float | None = None
+        if lifetime_invested_eur is not None:
+            net_cashflow_eur = round(lifetime_sale_revenue - lifetime_invested_eur, 2)
+        # 进销库存不平百分比: 高于 30% 时 drawer 标 ⚠️ FIFO 可能高估
+        inventory_imbalance_pct: float | None = None
+        if lifetime_purchase_qty > 0:
+            qt = qty_total if qty_total is not None else 0
+            diff = lifetime_purchase_qty - lifetime_sale_qty - qt
+            inventory_imbalance_pct = round(abs(diff) / lifetime_purchase_qty * 100.0, 1)
         # ETL 窗口起点保守取 2021-06-01: 早于此的 first_event 标"数据不全"
         # (运营人员判断"已回本"时心里有数, 窗口外的销售/采购可能没纳入)
         is_history_truncated = (
@@ -1261,6 +1272,8 @@ def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
                 "lifetime_purchase_qty": int(lifetime_purchase_qty),
                 "lifetime_invested_eur": lifetime_invested_eur,
                 "realized_profit_eur": realized_profit_eur,
+                "net_cashflow_eur": net_cashflow_eur,
+                "inventory_imbalance_pct": inventory_imbalance_pct,
                 "first_event_at": first_event_at,
                 "is_history_truncated": is_history_truncated,
                 "lifespan_days": lifespan,

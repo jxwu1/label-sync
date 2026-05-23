@@ -635,6 +635,8 @@ def data_upload():
                 session.commit()
         except Exception as exc:
             return jsonify({"ok": False, "msg": f"导入失败: {exc}"}), 500
+        # 数据变了, 清 list_sku_summary 缓存让下次请求拿新数据
+        analytics_service.clear_list_sku_summary_cache()
         return jsonify({
             "ok": True,
             "kind": "events",
@@ -666,6 +668,7 @@ def data_upload():
             return jsonify({"ok": False, "msg": f"inventory schema 错误: {exc}"}), 400
         except Exception as exc:
             return jsonify({"ok": False, "msg": f"导入失败: {exc}"}), 500
+        analytics_service.clear_list_sku_summary_cache()
         return jsonify({
             "ok": True,
             "kind": "inventory_snapshot",
@@ -686,6 +689,7 @@ def data_upload():
             session.commit()
     except Exception as exc:
         return jsonify({"ok": False, "msg": f"product_master 导入失败: {exc}"}), 500
+    analytics_service.clear_list_sku_summary_cache()
     return jsonify({
         "ok": True,
         "kind": "product_master",
@@ -774,6 +778,7 @@ def data_dedup_purchase_events():
                 {"ids": chunk},
             )
         session.commit()
+        analytics_service.clear_list_sku_summary_cache()
         return jsonify({
             "ok": True,
             "mode": "execute",

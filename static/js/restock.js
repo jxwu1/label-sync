@@ -348,6 +348,16 @@ function renderDrawer(it) {
     profitBadge = '<span class="rs-profit-badge rs-profit-badge--bad">🔴 账面亏损</span>';
     profitLine = `实现利润 <b>€${fmt(rp, 0)}</b> + 库存 <b>€${fmt(inv, 0)}</b> 仍亏 <b>€${fmt(-(rp + inv), 0)}</b>`;
   }
+  // 净现金流并列显示 (2026-05-23 A 方案): 大库存差异时 FIFO 乐观, cashflow 保守
+  const ncf = it.net_cashflow_eur;
+  const imb = it.inventory_imbalance_pct;
+  let cashflowLine = "";
+  if (ncf !== null && ncf !== undefined) {
+    const imbWarn = (imb != null && imb > 30)
+      ? ` <span class="rs-trunc-warn" title="进销库存差额 ${imb}% > 30%, FIFO 实现利润可能高估, 实际请看净现金流">⚠️ 不平 ${imb}%</span>`
+      : '';
+    cashflowLine = `<div>净现金流 <b>${ncf >= 0 ? '+' : ''}€${fmt(ncf, 0)}</b>${imbWarn}</div>`;
+  }
   const truncWarn = it.is_history_truncated
     ? ' <span class="rs-trunc-warn" title="该 SKU 第一笔事件早于 ETL 窗口起点 (2021-06-01), 更早期的进/销记录未纳入, 实际累计利润可能与此估算有出入">⚠️ 历史可能不全</span>'
     : '';
@@ -384,6 +394,7 @@ function renderDrawer(it) {
               <div>累计投入 <b>${fmtEurOrDash(it.lifetime_invested_eur)}</b> <span class="rs-drawer-muted">(${fmt(it.lifetime_purchase_qty)} 件)</span></div>
               <div>累计销售 <b>€${fmt(it.lifetime_sale_revenue_eur, 0)}</b> <span class="rs-drawer-muted">(${fmt(it.lifetime_sale_qty)} 件)</span></div>
               <div>${profitLine}</div>
+              ${cashflowLine}
               ${firstEventLine}
             </section>
             <section class="rs-drawer-sec">
