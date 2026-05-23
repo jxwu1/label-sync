@@ -696,6 +696,53 @@ def data_upload():
     })
 
 
+@bp.get("/data/document-no-stats")
+def data_document_no_stats():
+    """统计 sale event document_no 前缀分布 (调试用).
+    Auth: X-Upload-Token. 不写数据, 仅 SELECT.
+    """
+    import os
+    import secrets
+    from flask import request
+    from sqlalchemy import text
+
+    expected = os.environ.get("UPLOAD_TOKEN", "")
+    if not expected:
+        return jsonify({"ok": False, "msg": "服务器 UPLOAD_TOKEN 未配置"}), 500
+    provided = request.headers.get("X-Upload-Token", "")
+    if not secrets.compare_digest(provided, expected):
+        return jsonify({"ok": False, "msg": "鉴权失败"}), 401
+
+    with stockpile_db._session() as session:
+        # 前 5 字符前缀分组 (MB 开头的拿到 MB7xx/MB9xx 等粒度)
+        rows = session.execute(text("""
+            SELECT SUBSTRING(document_no, 1, 5) AS prefix5,
+                   COUNT(*) AS n
+            FROM inventory_events
+            WHERE event_type = 'sale'
+              AND document_no IS NOT NULL
+              AND document_no LIKE 'MB%'
+            GROUP BY SUBSTRING(document_no, 1, 5)
+            ORDER BY COUNT(*) DESC
+        """)).all()
+        # 再按 MB 后第 1 字符聚合 (MB7 / MB9 等)
+        rows3 = session.execute(text("""
+            SELECT SUBSTRING(document_no, 1, 3) AS prefix3,
+                   COUNT(*) AS n
+            FROM inventory_events
+            WHERE event_type = 'sale'
+              AND document_no IS NOT NULL
+              AND document_no LIKE 'MB%'
+            GROUP BY SUBSTRING(document_no, 1, 3)
+            ORDER BY COUNT(*) DESC
+        """)).all()
+    return jsonify({
+        "ok": True,
+        "mb_prefix3": [{"prefix": r.prefix3, "n": int(r.n)} for r in rows3],
+        "mb_prefix5_top": [{"prefix": r.prefix5, "n": int(r.n)} for r in rows[:30]],
+    })
+
+
 @bp.post("/data/dedup-purchase-events")
 def data_dedup_purchase_events():
     """清理重复的 purchase inventory_events (2026-05-23).
