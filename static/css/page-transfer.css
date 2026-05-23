@@ -89,8 +89,8 @@
   color: var(--ink-3);
 }
 .tr-pill--ghost  { color: var(--ink-3); background: var(--bg-2); }
-.tr-pill--accent { color: var(--accent); border-color: rgba(0, 255, 149, .35); background: rgba(0, 255, 149, .08); }
-.tr-pill--info   { color: var(--info);   border-color: rgba(78, 163, 255, .40); background: rgba(78, 163, 255, .08); }
+.tr-pill--accent { color: var(--accent); border-color: var(--accent-subtle-border); background: var(--accent-subtle); }
+.tr-pill--info   { color: var(--info);   border-color: var(--info-subtle-border); background: var(--info-subtle); }
 
 /* ===== 主区 grid ===== */
 .tr-grid {
@@ -162,12 +162,12 @@
   background: var(--bg-2);
 }
 .tr-cta--primary {
-  background: rgba(0, 255, 149, .08);
+  background: var(--accent-subtle);
   border-color: var(--accent-dim);
   color: var(--accent);
 }
 .tr-cta--primary:hover:not(:disabled) {
-  background: rgba(0, 255, 149, .14);
+  background: var(--accent);
 }
 .tr-cta:disabled,
 .tr-cta[disabled] {
@@ -190,7 +190,7 @@
 .tr-drop.drag,
 .tr-drop:hover {
   border-color: var(--accent);
-  background: rgba(0, 255, 149, .04);
+  background: var(--accent-subtle);
 }
 .tr-drop input[type="file"] { display: none; }
 .tr-drop-icon {
@@ -317,7 +317,7 @@
 }
 .tr-bubble.is-self {
   align-self: flex-end;
-  background: rgba(0, 255, 149, .10);
+  background: var(--accent-subtle);
   border-color: var(--accent-dim);
 }
 .tr-bubble-hd {

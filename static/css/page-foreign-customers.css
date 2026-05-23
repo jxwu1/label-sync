@@ -97,12 +97,12 @@
   background: var(--bg-2);
 }
 .fc-cta--primary {
-  background: rgba(0, 255, 149, .08);
+  background: var(--accent-subtle);
   border-color: var(--accent-dim);
   color: var(--accent);
 }
 .fc-cta--primary:hover {
-  background: rgba(0, 255, 149, .14);
+  background: var(--accent);
 }
 
 /* ===== 5 stat box grid ===== */
@@ -216,7 +216,7 @@
 }
 .fc-table tbody tr:last-child td { border-bottom: none; }
 .fc-table tbody tr:nth-child(even) { background: rgba(255, 255, 255, .012); }
-.fc-table tbody tr:hover { background: rgba(0, 255, 149, .04); }
+.fc-table tbody tr:hover { background: var(--bg-2); }
 .fc-num { text-align: right; font-variant-numeric: tabular-nums; }
 .fc-td-name { color: var(--ink-0); font-family: var(--sans); font-weight: 500; }
 .fc-td-debt { color: var(--warn); font-variant-numeric: tabular-nums; }
@@ -238,23 +238,23 @@
 }
 .fc-st--paid {
   color: var(--accent);
-  border-color: rgba(0, 255, 149, .35);
-  background: rgba(0, 255, 149, .08);
+  border-color: var(--accent-subtle-border);
+  background: var(--accent-subtle);
 }
 .fc-st--unpaid {
   color: var(--error);
-  border-color: rgba(255, 59, 107, .40);
-  background: rgba(255, 59, 107, .08);
+  border-color: var(--error-subtle-border);
+  background: var(--error-subtle);
 }
 .fc-st--overdue {
   color: var(--error);
-  border-color: rgba(255, 59, 107, .40);
+  border-color: var(--error-subtle-border);
   background: rgba(255, 59, 107, .12);
 }
 .fc-st--partial {
   color: var(--warn);
-  border-color: rgba(255, 182, 39, .40);
-  background: rgba(255, 182, 39, .10);
+  border-color: var(--warn-subtle-border);
+  background: var(--warn-subtle);
 }
 .fc-st--free {
   color: var(--ink-3);
@@ -307,6 +307,3 @@
 }
 .fc-stack label .fc-inp { font-family: var(--sans); text-transform: none; letter-spacing: normal; }
 
-/* light theme */
-body[data-theme="light"] .fc-table tbody tr:nth-child(even) { background: rgba(0, 0, 0, .025); }
-body[data-theme="light"] .fc-table tbody tr:hover { background: rgba(26, 122, 76, .08); }

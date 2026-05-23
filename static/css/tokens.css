@@ -1,77 +1,253 @@
 /* ============================================================
- * DataOps tokens — 暗色专业数据终端 (默认 dark) + 浅色 paper 备选
+ * Design System Tokens
+ * 三套主题: terminal (冻结) / apple-dark / apple-light
  * ============================================================ */
 
+/* ============================================================
+ * 共享结构 token（跨主题不变）
+ * ============================================================ */
 :root {
-  /* ====== Design tokens (default = dark) ====== */
-
-  /* surfaces — 越大越亮 */
-  --bg-0: #0a0d12;       /* app 底色 */
-  --bg-1: #0f1319;       /* header / 子条 / panel 外壳 */
-  --bg-2: #151a23;       /* panel 内表面 */
-  --bg-3: #1c222d;       /* control / 输入 / hover 起 */
-  --bg-4: #232a37;       /* 强 hover / active */
-  --line: #2a3140;       /* 硬分隔线 */
-  --line-soft: #1f2530;  /* 软分隔 */
-
-  /* ink — 越小越亮 */
-  --ink-0: #e6ebf2;      /* 主文字 */
-  --ink-1: #b3bcc9;      /* 次文字 */
-  --ink-2: #7a8494;      /* 弱文字 */
-  --ink-3: #4d5666;      /* 标签 / 占位 */
-
-  /* accent — 终端绿 */
-  --accent: #00ff95;
-  --accent-dim: #00b86d;
-  --accent-glow: rgba(0, 255, 149, .18);
-
-  /* status */
-  --warn: #ffb627;
-  --warn-dim: #b87f10;
-  --error: #ff3b6b;
-  --error-dim: #b8264a;
-  --info: #4ea3ff;
-  --info-dim: #1f6fc9;
-
-  /* fonts */
-  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'Cascadia Code', Consolas, Menlo, monospace;
-  --sans: 'Inter', system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  --display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
-
-  /* spacing / sizing */
-  --pad: 16px;
+  /* spacing — 8pt grid */
   --sp-1: 4px;
   --sp-2: 8px;
   --sp-3: 12px;
   --sp-4: 16px;
   --sp-5: 20px;
   --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 40px;
+  --sp-9: 48px;
+  --sp-10: 64px;
+
+  /* font sizes */
+  --fs-xs: 10px;
+  --fs-sm: 11px;
+  --fs-md: 12px;
+  --fs-base: 13px;
+  --fs-lg: 15px;
+  --fs-xl: 17px;
+  --fs-2xl: 20px;
+  --fs-3xl: 22px;
+  --fs-4xl: 28px;
+
+  /* z-index */
+  --z-base: 0;
+  --z-dropdown: 10;
+  --z-sticky: 20;
+  --z-overlay: 30;
+  --z-modal: 40;
+  --z-toast: 50;
+}
+
+/* ============================================================
+ * Terminal — 冻结，当前 DataOps Terminal 暗色原样保留
+ * ============================================================ */
+[data-theme="terminal"] {
+  --bg-0: #0a0d12;
+  --bg-1: #0f1319;
+  --bg-2: #151a23;
+  --bg-3: #1c222d;
+  --bg-4: #232a37;
+  --line: #2a3140;
+  --line-soft: #1f2530;
+
+  --ink-0: #e6ebf2;
+  --ink-1: #b3bcc9;
+  --ink-2: #7a8494;
+  --ink-3: #4d5666;
+
+  --accent: #00ff95;
+  --accent-dim: #00b86d;
+  --accent-glow: rgba(0, 255, 149, .18);
+  --accent-subtle: rgba(0, 255, 149, .08);
+  --accent-subtle-border: rgba(0, 255, 149, .3);
+  --on-accent: #0a0d12;
+
+  --success: #00ff95;
+  --success-subtle: rgba(0, 255, 149, .06);
+  --warn: #ffb627;
+  --warn-dim: #b87f10;
+  --warn-subtle: rgba(255, 182, 39, .08);
+  --warn-subtle-border: rgba(255, 182, 39, .3);
+  --error: #ff3b6b;
+  --error-dim: #b8264a;
+  --error-subtle: rgba(255, 59, 107, .08);
+  --error-subtle-border: rgba(255, 59, 107, .3);
+  --info: #4ea3ff;
+  --info-dim: #1f6fc9;
+  --info-subtle: rgba(78, 163, 255, .08);
+  --info-subtle-border: rgba(78, 163, 255, .3);
+
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'Cascadia Code', Consolas, Menlo, monospace;
+  --sans: 'Inter', system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
 
   --r-sm: 4px;
   --r-md: 6px;
   --r-lg: 10px;
   --r-pill: 999px;
 
-  /* typography */
-  --fs-xs: 10px;
-  --fs-sm: 11px;
-  --fs-md: 12px;
-  --fs-base: 13px;
-  --fs-lg: 15px;
+  --sh-sm: 0 1px 3px rgba(0, 0, 0, .4);
+  --sh-md: 0 4px 14px rgba(0, 0, 0, .55);
+  --sh-lg: 0 8px 24px rgba(0, 0, 0, .6);
+  --sh-xl: 0 12px 36px rgba(0, 0, 0, .65);
 
-  /* shadow (dark) */
-  --sh-fab: 0 4px 14px rgba(0, 0, 0, .55);
-  --sh-overlay: 0 12px 36px rgba(0, 0, 0, .65);
-
-  /* timing */
   --t-fast: .12s ease;
   --t-base: .2s ease;
 
-  /* ============================================================
-   * Legacy 兼容：原 --c-* 变量映射到新 token，让现有 page-*.css
-   * 在没逐页改的情况下也能跑（文字会自动反白，UI 大多对）。
-   * 各页 PR-FE-1 后逐步直接用新 token。
-   * ============================================================ */
+  --glass-bg: rgba(15, 19, 25, .85);
+  --glass-blur: blur(12px);
+  --glass-border: rgba(255, 255, 255, .05);
+
+  color-scheme: dark;
+}
+
+/* ============================================================
+ * Apple Dark
+ * ============================================================ */
+[data-theme="apple-dark"] {
+  --bg-0: #000000;
+  --bg-1: #1C1C1E;
+  --bg-2: #2C2C2E;
+  --bg-3: #3A3A3C;
+  --bg-4: #48484A;
+  --line: rgba(84, 84, 88, .65);
+  --line-soft: rgba(84, 84, 88, .35);
+
+  --ink-0: rgba(255, 255, 255, .85);
+  --ink-1: rgba(255, 255, 255, .55);
+  --ink-2: rgba(255, 255, 255, .30);
+  --ink-3: rgba(255, 255, 255, .18);
+
+  --accent: #007AFF;
+  --accent-dim: #0062CC;
+  --accent-glow: rgba(0, 122, 255, .18);
+  --accent-subtle: rgba(0, 122, 255, .12);
+  --accent-subtle-border: rgba(0, 122, 255, .3);
+  --on-accent: #FFFFFF;
+
+  --success: #34C759;
+  --success-subtle: rgba(52, 199, 89, .10);
+  --warn: #FF9500;
+  --warn-dim: #CC7700;
+  --warn-subtle: rgba(255, 149, 0, .10);
+  --warn-subtle-border: rgba(255, 149, 0, .3);
+  --error: #FF3B30;
+  --error-dim: #CC2D25;
+  --error-subtle: rgba(255, 59, 48, .10);
+  --error-subtle-border: rgba(255, 59, 48, .3);
+  --info: #5AC8FA;
+  --info-dim: #3EA8D4;
+  --info-subtle: rgba(90, 200, 250, .10);
+  --info-subtle-border: rgba(90, 200, 250, .3);
+
+  --mono: 'SF Mono', 'Fira Code', ui-monospace, 'Cascadia Code', Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 9999px;
+
+  --sh-sm: 0 1px 3px rgba(0, 0, 0, .2), 0 1px 2px rgba(0, 0, 0, .15);
+  --sh-md: 0 2px 8px rgba(0, 0, 0, .3), 0 1px 3px rgba(0, 0, 0, .2);
+  --sh-lg: 0 8px 24px rgba(0, 0, 0, .4), 0 2px 8px rgba(0, 0, 0, .25);
+  --sh-xl: 0 16px 48px rgba(0, 0, 0, .5), 0 4px 12px rgba(0, 0, 0, .3);
+
+  --ease-snappy: cubic-bezier(0.2, 0.9, 0.3, 1.05);
+  --ease-default: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-gentle: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --t-fast: .2s cubic-bezier(0.2, 0.9, 0.3, 1.05);
+  --t-base: .35s cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --glass-bg: rgba(30, 30, 30, .72);
+  --glass-blur: saturate(180%) blur(20px);
+  --glass-border: rgba(255, 255, 255, .08);
+
+  --fill: rgba(120, 120, 128, .36);
+  --fill-secondary: rgba(120, 120, 128, .32);
+  --fill-tertiary: rgba(120, 120, 128, .24);
+
+  color-scheme: dark;
+}
+
+/* ============================================================
+ * Apple Light
+ * ============================================================ */
+[data-theme="apple-light"] {
+  --bg-0: #FFFFFF;
+  --bg-1: #F2F2F7;
+  --bg-2: #E5E5EA;
+  --bg-3: #D1D1D6;
+  --bg-4: #C7C7CC;
+  --line: rgba(60, 60, 67, .36);
+  --line-soft: rgba(60, 60, 67, .18);
+
+  --ink-0: rgba(0, 0, 0, .85);
+  --ink-1: rgba(0, 0, 0, .55);
+  --ink-2: rgba(0, 0, 0, .30);
+  --ink-3: rgba(0, 0, 0, .18);
+
+  --accent: #007AFF;
+  --accent-dim: #0055D4;
+  --accent-glow: rgba(0, 122, 255, .12);
+  --accent-subtle: rgba(0, 122, 255, .08);
+  --accent-subtle-border: rgba(0, 122, 255, .25);
+  --on-accent: #FFFFFF;
+
+  --success: #34C759;
+  --success-subtle: rgba(52, 199, 89, .08);
+  --warn: #FF9500;
+  --warn-dim: #CC7700;
+  --warn-subtle: rgba(255, 149, 0, .08);
+  --warn-subtle-border: rgba(255, 149, 0, .25);
+  --error: #FF3B30;
+  --error-dim: #CC2D25;
+  --error-subtle: rgba(255, 59, 48, .08);
+  --error-subtle-border: rgba(255, 59, 48, .25);
+  --info: #5AC8FA;
+  --info-dim: #3EA8D4;
+  --info-subtle: rgba(90, 200, 250, .10);
+  --info-subtle-border: rgba(90, 200, 250, .25);
+
+  --mono: 'SF Mono', 'Fira Code', ui-monospace, 'Cascadia Code', Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 9999px;
+
+  --sh-sm: 0 1px 3px rgba(0, 0, 0, .06), 0 1px 2px rgba(0, 0, 0, .04);
+  --sh-md: 0 2px 8px rgba(0, 0, 0, .10), 0 1px 3px rgba(0, 0, 0, .06);
+  --sh-lg: 0 8px 24px rgba(0, 0, 0, .12), 0 2px 8px rgba(0, 0, 0, .06);
+  --sh-xl: 0 16px 48px rgba(0, 0, 0, .15), 0 4px 12px rgba(0, 0, 0, .08);
+
+  --ease-snappy: cubic-bezier(0.2, 0.9, 0.3, 1.05);
+  --ease-default: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-gentle: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --t-fast: .2s cubic-bezier(0.2, 0.9, 0.3, 1.05);
+  --t-base: .35s cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --glass-bg: rgba(255, 255, 255, .72);
+  --glass-blur: saturate(180%) blur(20px);
+  --glass-border: rgba(0, 0, 0, .06);
+
+  --fill: rgba(120, 120, 128, .20);
+  --fill-secondary: rgba(120, 120, 128, .16);
+  --fill-tertiary: rgba(120, 120, 128, .12);
+
+  color-scheme: light;
+}
+
+/* ============================================================
+ * Legacy aliases — page-*.css 迁移到新 token 后可删
+ * ============================================================ */
+body {
+  --pad: var(--sp-4);
+
   --c-bg: var(--bg-0);
   --c-surface: var(--bg-2);
   --c-surface-elev: var(--bg-3);
@@ -88,18 +264,18 @@
   --c-accent: var(--accent);
   --c-accent-hover: var(--accent-dim);
   --c-accent-soft: var(--bg-3);
-  --c-accent-fg: var(--bg-0);
+  --c-accent-fg: var(--on-accent);
 
   --c-info: var(--info);
-  --c-info-bg: rgba(78, 163, 255, .08);
-  --c-success: var(--accent);
-  --c-success-bg: rgba(0, 255, 149, .06);
+  --c-info-bg: var(--info-subtle);
+  --c-success: var(--success);
+  --c-success-bg: var(--success-subtle);
   --c-warn: var(--warn);
   --c-warn-strong: var(--warn-dim);
-  --c-warn-bg: rgba(255, 182, 39, .08);
+  --c-warn-bg: var(--warn-subtle);
   --c-warn-bg-strong: rgba(255, 182, 39, .14);
   --c-danger: var(--error);
-  --c-danger-bg: rgba(255, 59, 107, .08);
+  --c-danger-bg: var(--error-subtle);
   --c-danger-border: var(--error-dim);
   --c-code: var(--warn);
   --c-loc: var(--info);
@@ -107,54 +283,11 @@
   --ff-sans: var(--sans);
   --ff-mono: var(--mono);
 
-  /* legacy 软底色兜底（page-history / data-quality 在用） */
   --color-surface-soft: var(--bg-2);
   --color-surface-hover: var(--bg-3);
-
-  color-scheme: dark;
 }
 
-/* ============================================================
- * 浅色 paper 主题 — 头部 ☀/☾ 钮切到这个
- * ============================================================ */
-
-body[data-theme="light"] {
-  --bg-0: #f5f3ee;
-  --bg-1: #ebe7dd;
-  --bg-2: #e1dccc;
-  --bg-3: #d6cfba;
-  --bg-4: #cabf9f;
-  --line: #b8aa82;
-  --line-soft: #cdc1a3;
-
-  --ink-0: #1f1a14;
-  --ink-1: #3f372c;
-  --ink-2: #6b5f47;
-  --ink-3: #8c8068;
-
-  --accent: #1a7a4c;
-  --accent-dim: #0f5a36;
-  --accent-glow: rgba(26, 122, 76, .16);
-
-  --warn: #b07a1a;
-  --warn-dim: #8d5e0e;
-  --error: #b03a2e;
-  --error-dim: #862919;
-  --info: #1f4a8a;
-  --info-dim: #143666;
-
-  --sh-fab: 0 4px 14px rgba(7, 54, 66, .10);
-  --sh-overlay: 0 12px 36px rgba(7, 54, 66, .16);
-
-  /* legacy paper alias */
-  --c-accent-fg: #f5f3ee;
-  --color-surface-soft: var(--bg-1);
-  --color-surface-hover: var(--bg-2);
-
-  color-scheme: light;
-}
-
-/* 主题切换时给所有颜色一个柔和过渡（避免闪烁，但太长会拖沓 — 150ms 经验值） */
+/* 主题切换过渡 */
 body,
 body * {
   transition:

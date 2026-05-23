@@ -24,19 +24,21 @@
 <script defer src="{{ url_for('static', filename='js/store.js') }}"></script>
 <script defer src="{{ url_for('static', filename='vendor/alpinejs/alpine.min.js') }}"></script>
 <script>
-  // FOUC 防御：Alpine 启动前先读 localStorage 把主题落到 body[data-theme]
-  // 否则 light 用户首屏会闪一下 dark
   (function () {
+    var VALID = ['apple-dark', 'apple-light', 'terminal'];
+    var MIGRATE = { dark: 'apple-dark', light: 'apple-light' };
     try {
-      var t = localStorage.getItem('theme') || 'dark';
+      var raw = localStorage.getItem('theme') || 'apple-dark';
+      var t = MIGRATE[raw] || raw;
+      if (VALID.indexOf(t) === -1) t = 'apple-dark';
+      if (t !== raw) localStorage.setItem('theme', t);
       document.documentElement.dataset.theme = t;
       document.addEventListener('DOMContentLoaded', function () {
         document.body.dataset.theme = t;
       });
-      // 万一 DOMContentLoaded 已触发（async race），双保险
       if (document.body) document.body.dataset.theme = t;
     } catch (e) {
-      document.documentElement.dataset.theme = 'dark';
+      document.documentElement.dataset.theme = 'apple-dark';
     }
   })();
 </script>
@@ -158,9 +160,10 @@
       <span class="app-header__clock" x-text="$store.clock.time"></span>
       <span class="pill pill--info pill--xs">PROD</span>
       <button class="app-header__icon-btn"
-              :title="$store.theme.current === 'dark' ? '切到浅色' : '切到暗色'"
-              @click="$store.theme.toggle()">
-        <span x-text="$store.theme.current === 'dark' ? '☀' : '☾'"></span>
+              :title="$store.theme.isDark() ? '切到浅色' : '切到暗色'"
+              @click="$store.theme.toggle()"
+              @click.shift="$store.theme.cycle()">
+        <span x-text="$store.theme.isDark() ? '☀' : '☾'"></span>
       </button>
       <span class="app-header__locale">ZH</span>
     </header>

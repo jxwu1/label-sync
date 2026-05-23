@@ -50,12 +50,12 @@
   background: var(--bg-2);
 }
 .sa-cta--primary {
-  background: rgba(0, 255, 149, .08);
+  background: var(--accent-subtle);
   border-color: var(--accent-dim);
   color: var(--accent);
 }
 .sa-cta--primary:hover {
-  background: rgba(0, 255, 149, .14);
+  background: var(--accent);
 }
 .sa-cta:disabled,
 .sa-cta[disabled] { opacity: .45; cursor: not-allowed; }
@@ -100,15 +100,10 @@
   color: var(--ink-0);
 }
 .sa-chip--active {
-  background: rgba(0, 255, 149, .10);
+  background: var(--accent-subtle);
   color: var(--accent);
-  border-color: rgba(0, 255, 149, .35);
+  border-color: var(--accent-subtle-border);
   font-weight: 600;
-}
-body[data-theme="light"] .sa-chip--active {
-  background: rgba(26, 122, 76, .10);
-  color: var(--accent);
-  border-color: rgba(26, 122, 76, .35);
 }
 
 /* === 表格 === */
@@ -237,9 +232,6 @@ body[data-theme="light"] .sa-chip--active {
 }
 .sa-gr {
   color: #b983ff;
-}
-body[data-theme="light"] .sa-gr {
-  color: #7c4ec9;
 }
 
 /* === Grade 4 档徽标 === */

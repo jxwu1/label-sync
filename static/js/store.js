@@ -78,19 +78,31 @@ document.addEventListener("alpine:init", () => {
     },
   });
 
-  // ===== 主题（PR-FE-1）=====
-  // FOUC 防御：index.html <head> inline script 已经设置 body.dataset.theme，
-  // 这里只负责响应式切换 + localStorage 持久化
+  // ===== 主题 =====
+  // 三套主题: terminal / apple-dark / apple-light
+  // FOUC 防御：index.html <head> inline script 已设置 body.dataset.theme
+  const THEMES = ["apple-dark", "apple-light", "terminal"];
   Alpine.store("theme", {
-    current: document.body.dataset.theme || "dark",
+    current: document.body.dataset.theme || "apple-dark",
+    isDark() {
+      return this.current !== "apple-light";
+    },
     toggle() {
-      this.current = this.current === "dark" ? "light" : "dark";
-      document.body.dataset.theme = this.current;
-      try {
-        localStorage.setItem("theme", this.current);
-      } catch (_) {
-        /* localStorage 可能被禁用 */
+      if (this.current === "apple-dark") {
+        this.set("apple-light");
+      } else {
+        this.set("apple-dark");
       }
+    },
+    cycle() {
+      const i = THEMES.indexOf(this.current);
+      this.set(THEMES[(i + 1) % THEMES.length]);
+    },
+    set(name) {
+      if (!THEMES.includes(name)) return;
+      this.current = name;
+      document.body.dataset.theme = name;
+      try { localStorage.setItem("theme", name); } catch (_) {}
     },
   });
 

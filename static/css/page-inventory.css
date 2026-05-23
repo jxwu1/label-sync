@@ -70,9 +70,9 @@
   background: var(--bg-2);
   color: var(--ink-3);
 }
-.inv-pill--accent { color: var(--accent); border-color: rgba(0, 255, 149, .35); background: rgba(0, 255, 149, .08); }
-.inv-pill--info   { color: var(--info);   border-color: rgba(78, 163, 255, .40); background: rgba(78, 163, 255, .08); }
-.inv-pill--warn   { color: var(--warn);   border-color: rgba(255, 182, 39, .40); background: rgba(255, 182, 39, .10); }
+.inv-pill--accent { color: var(--accent); border-color: var(--accent-subtle-border); background: var(--accent-subtle); }
+.inv-pill--info   { color: var(--info);   border-color: var(--info-subtle-border); background: var(--info-subtle); }
+.inv-pill--warn   { color: var(--warn);   border-color: var(--warn-subtle-border); background: var(--warn-subtle); }
 .inv-pill--ghost  { color: var(--ink-3); }
 
 /* ===== CTA ===== */
@@ -98,12 +98,12 @@
   background: var(--bg-2);
 }
 .inv-cta--primary {
-  background: rgba(0, 255, 149, .08);
+  background: var(--accent-subtle);
   border-color: var(--accent-dim);
   color: var(--accent);
 }
 .inv-cta--primary:hover {
-  background: rgba(0, 255, 149, .14);
+  background: var(--accent);
 }
 .inv-cta:disabled,
 .inv-cta[disabled] { opacity: .45; cursor: not-allowed; }
@@ -155,7 +155,7 @@
 }
 .inv-kind:has(input[type="radio"]:checked) {
   border-color: var(--accent);
-  background: rgba(0, 255, 149, .06);
+  background: var(--accent-subtle);
   color: var(--accent);
 }
 .inv-kind:has(input[type="radio"]:checked) .inv-kind-dot {
@@ -293,9 +293,9 @@
   border-radius: var(--r-pill, 999px);
   border: 1px solid;
 }
-.inv-cust-pill--cn { color: var(--accent); border-color: rgba(0, 255, 149, .35); background: rgba(0, 255, 149, .08); }
-.inv-cust-pill--fo { color: var(--info);   border-color: rgba(78, 163, 255, .40); background: rgba(78, 163, 255, .08); }
-.inv-cust-pill--mx { color: var(--warn);   border-color: rgba(255, 182, 39, .40); background: rgba(255, 182, 39, .10); }
+.inv-cust-pill--cn { color: var(--accent); border-color: var(--accent-subtle-border); background: var(--accent-subtle); }
+.inv-cust-pill--fo { color: var(--info);   border-color: var(--info-subtle-border); background: var(--info-subtle); }
+.inv-cust-pill--mx { color: var(--warn);   border-color: var(--warn-subtle-border); background: var(--warn-subtle); }
 .inv-cust-pill--un { color: var(--ink-3); border-color: var(--line); background: var(--bg-2); }
 
 .inv-bar {
@@ -373,7 +373,7 @@
 }
 .inv-imports-table tbody tr:last-child td { border-bottom: none; }
 .inv-imports-table tbody tr:nth-child(even) { background: rgba(255, 255, 255, .012); }
-.inv-imports-table tbody tr:hover { background: rgba(0, 255, 149, .04); }
+.inv-imports-table tbody tr:hover { background: var(--bg-2); }
 .inv-imp-num { text-align: right; font-variant-numeric: tabular-nums; }
 .inv-imp-time { color: var(--ink-2); }
 .inv-imp-file { font-family: var(--sans); color: var(--ink-0); }
@@ -392,9 +392,9 @@
   border: 1px solid;
   text-transform: uppercase;
 }
-.inv-imp-type--purchase { color: var(--accent); border-color: rgba(0, 255, 149, .35); background: rgba(0, 255, 149, .08); }
-.inv-imp-type--sale     { color: var(--info);   border-color: rgba(78, 163, 255, .40); background: rgba(78, 163, 255, .08); }
-.inv-imp-type--product  { color: var(--warn);   border-color: rgba(255, 182, 39, .40); background: rgba(255, 182, 39, .10); }
+.inv-imp-type--purchase { color: var(--accent); border-color: var(--accent-subtle-border); background: var(--accent-subtle); }
+.inv-imp-type--sale     { color: var(--info);   border-color: var(--info-subtle-border); background: var(--info-subtle); }
+.inv-imp-type--product  { color: var(--warn);   border-color: var(--warn-subtle-border); background: var(--warn-subtle); }
 
 .inv-imports-empty {
   padding: 22px 14px;
@@ -404,9 +404,6 @@
   font-size: 11.5px;
 }
 
-/* light theme */
-body[data-theme="light"] .inv-imports-table tbody tr:nth-child(even) { background: rgba(0, 0, 0, .025); }
-body[data-theme="light"] .inv-imports-table tbody tr:hover { background: rgba(26, 122, 76, .08); }
 
 /* ============ 数据健康总览 (2026-05-23) ============ */
 .inv-health-grid {

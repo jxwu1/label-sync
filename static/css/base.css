@@ -93,7 +93,7 @@ body {
 }
 
 /* 暗色专属：32×32 网格背景（带 radial mask 让中央更深四周更柔） */
-body[data-theme="dark"]::before {
+body[data-theme="terminal"]::before {
   content: '';
   position: fixed;
   inset: 0;

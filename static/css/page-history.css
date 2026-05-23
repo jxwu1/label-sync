@@ -148,12 +148,12 @@
   background: var(--bg-2);
 }
 .hist-cta--primary {
-  background: rgba(0, 255, 149, .08);
+  background: var(--accent-subtle);
   border-color: var(--accent-dim);
   color: var(--accent);
 }
 .hist-cta--primary:hover {
-  background: rgba(0, 255, 149, .14);
+  background: var(--accent);
 }
 /* 小尺寸（用于 panel-hd 内的 actions，如「复制货号」） */
 .hist-cta--sm {
@@ -268,8 +268,8 @@
 }
 .hist-status-pill--active {
   color: var(--accent);
-  border: 1px solid rgba(0, 255, 149, .35);
-  background: rgba(0, 255, 149, .08);
+  border: 1px solid var(--accent-subtle-border);
+  background: var(--accent-subtle);
 }
 .hist-status-pill--inactive {
   color: var(--ink-3);
@@ -405,8 +405,8 @@
   font-weight: 600;
   padding: 2px 8px;
   color: var(--warn);
-  border: 1px solid rgba(255, 182, 39, .40);
-  background: rgba(255, 182, 39, .10);
+  border: 1px solid var(--warn-subtle-border);
+  background: var(--warn-subtle);
   border-radius: var(--r-pill);
 }
 
@@ -554,13 +554,13 @@
 }
 .hist-tml-pill--accent {
   color: var(--accent);
-  border: 1px solid rgba(0, 255, 149, .35);
-  background: rgba(0, 255, 149, .08);
+  border: 1px solid var(--accent-subtle-border);
+  background: var(--accent-subtle);
 }
 .hist-tml-pill--warn {
   color: var(--warn);
-  border: 1px solid rgba(255, 182, 39, .40);
-  background: rgba(255, 182, 39, .10);
+  border: 1px solid var(--warn-subtle-border);
+  background: var(--warn-subtle);
 }
 .hist-tml-swatch--bar {
   width: 6px;
@@ -999,7 +999,7 @@
 }
 .rc-table tbody tr:last-child td { border-bottom: none; }
 .rc-table tbody tr:nth-child(even) { background: rgba(255, 255, 255, .012); }
-.rc-table tbody tr:hover { background: rgba(0, 255, 149, .04); }
+.rc-table tbody tr:hover { background: var(--bg-2); }
 .rc-row { cursor: pointer; }
 .rc-row td:first-child { color: var(--accent); }
 .rc-time { color: var(--ink-3); font-variant-numeric: tabular-nums; }
@@ -1028,23 +1028,23 @@
   border: 1px solid;
 }
 .rc-tag--insert {
-  background: rgba(0, 255, 149, .08);
-  border-color: rgba(0, 255, 149, .35);
+  background: var(--accent-subtle);
+  border-color: var(--accent-subtle-border);
   color: var(--accent);
 }
 .rc-tag--del {
-  background: rgba(255, 59, 107, .08);
-  border-color: rgba(255, 59, 107, .40);
+  background: var(--error-subtle);
+  border-color: var(--error-subtle-border);
   color: var(--error);
 }
 .rc-tag--ok {
   background: rgba(255, 182, 39, .08);
-  border-color: rgba(255, 182, 39, .40);
+  border-color: var(--warn-subtle-border);
   color: var(--warn);
 }
 .rc-tag--info {
-  background: rgba(78, 163, 255, .08);
-  border-color: rgba(78, 163, 255, .40);
+  background: var(--info-subtle);
+  border-color: var(--info-subtle-border);
   color: var(--info);
 }
 .rc-tag-glyph { line-height: 1; font-weight: 700; }

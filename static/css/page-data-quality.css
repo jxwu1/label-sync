@@ -24,7 +24,7 @@
   width: 36px;
   height: 36px;
   border-radius: var(--r-md, 6px);
-  background: rgba(78, 163, 255, .08);
+  background: var(--info-subtle);
   border: 1px solid rgba(78, 163, 255, .3);
   display: flex;
   align-items: center;
@@ -64,18 +64,18 @@
 }
 .dq-pill--info {
   color: var(--info);
-  border-color: rgba(78, 163, 255, .40);
-  background: rgba(78, 163, 255, .08);
+  border-color: var(--info-subtle-border);
+  background: var(--info-subtle);
 }
 .dq-pill--warn {
   color: var(--warn);
-  border-color: rgba(255, 182, 39, .40);
-  background: rgba(255, 182, 39, .10);
+  border-color: var(--warn-subtle-border);
+  background: var(--warn-subtle);
 }
 .dq-pill--accent {
   color: var(--accent);
-  border-color: rgba(0, 255, 149, .35);
-  background: rgba(0, 255, 149, .08);
+  border-color: var(--accent-subtle-border);
+  background: var(--accent-subtle);
 }
 
 /* ===== CTA ===== */
@@ -100,12 +100,12 @@
   background: var(--bg-2);
 }
 .dq-cta--primary {
-  background: rgba(0, 255, 149, .08);
+  background: var(--accent-subtle);
   border-color: var(--accent-dim);
   color: var(--accent);
 }
 .dq-cta--primary:hover {
-  background: rgba(0, 255, 149, .14);
+  background: var(--accent);
 }
 .dq-cta:disabled,
 .dq-cta[disabled] { opacity: .45; cursor: not-allowed; }
@@ -220,7 +220,7 @@
 }
 .dq-table tbody tr:last-child td { border-bottom: none; }
 .dq-table tbody tr:nth-child(even) { background: rgba(255, 255, 255, .012); }
-.dq-table tbody tr:hover { background: rgba(0, 255, 149, .04); }
+.dq-table tbody tr:hover { background: var(--bg-2); }
 
 /* 列样式 */
 .dq-td-idx { color: var(--ink-3); }
@@ -236,9 +236,6 @@
   font-size: 11.5px;
 }
 
-/* light theme */
-body[data-theme="light"] .dq-table tbody tr:nth-child(even) { background: rgba(0, 0, 0, .025); }
-body[data-theme="light"] .dq-table tbody tr:hover { background: rgba(26, 122, 76, .08); }
 
 /* === Stockpile compare 双轴结果（PR4 遗留，stockpile 页用） === */
 .sp-cmp-alert {
