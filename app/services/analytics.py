@@ -623,6 +623,29 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
             )
         if qty_total is not None and qty_total > 0 and cost is not None:
             inventory_cost_value = round(qty_total * cost, 2)
+
+        # 💵 累计盈亏 (drawer "已回本/压货中/亏损" 状态用):
+        # cost 统一走 EUR (master_stock_price_eur 或 last_purchase_unit_price).
+        # 不用 inventory_events.unit_price (CN 货是 RMB, 混币种会乱).
+        # 已售成本 = 全历史累计销量(批发+零售) × cost
+        # 实现利润 = 全历史累计销售额 - 已售成本
+        # 假设: cost 用当前估算反推历史投入 (FIFO 简化, 不追多批次进价变化).
+        lifetime_sale_qty = sum(r.qty for r in sales)
+        lifetime_sale_revenue = sum(
+            r.qty * _net_unit(r.unit_price, r.discount_pct) for r in sales
+        )
+        first_event_at = None
+        if sales:
+            first_event_at = min(_parse_date(r.event_at) for r in sales).isoformat()
+        realized_profit_eur: float | None = None
+        if cost is not None and lifetime_sale_qty > 0:
+            sold_cost = lifetime_sale_qty * cost
+            realized_profit_eur = round(lifetime_sale_revenue - sold_cost, 2)
+        # ETL 窗口起点保守取 2021-06-01: 早于此的 first_event 标"数据不全"
+        # (运营人员判断"已回本"时心里有数, 窗口外的销售/采购可能没纳入)
+        is_history_truncated = (
+            first_event_at is not None and first_event_at <= "2021-06-01"
+        )
         items.append(
             {
                 "barcode": bc,
@@ -658,6 +681,11 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
                 "retail_share_26w": round(retail_share_26w, 3),
                 "inventory_sale_value_eur": inventory_sale_value,
                 "inventory_cost_value_eur": inventory_cost_value,
+                "lifetime_sale_qty": int(lifetime_sale_qty),
+                "lifetime_sale_revenue_eur": round(lifetime_sale_revenue, 2),
+                "realized_profit_eur": realized_profit_eur,
+                "first_event_at": first_event_at,
+                "is_history_truncated": is_history_truncated,
                 "lifespan_days": lifespan,
                 "is_new_item": is_new_item,
                 "trend_slope_pct_per_week": (round(trend, 2) if trend is not None else None),

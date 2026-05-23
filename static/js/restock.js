@@ -331,6 +331,29 @@ function renderDrawer(it) {
   } else {
     retailPriceLine = `零售价 —`;
   }
+  // 累计盈亏状态: 实现利润 + 库存价值 决定 已回本/压货中/亏损
+  let profitBadge, profitLine;
+  const rp = it.realized_profit_eur;
+  const inv = it.inventory_cost_value_eur ?? 0;
+  if (rp === null || rp === undefined) {
+    profitBadge = '<span class="rs-profit-badge rs-profit-badge--unknown">缺成本</span>';
+    profitLine = '<span class="rs-drawer-muted">无 cost 数据, 无法计算</span>';
+  } else if (rp > 0) {
+    profitBadge = '<span class="rs-profit-badge rs-profit-badge--good">💚 已回本</span>';
+    profitLine = `实现利润 <b>+€${fmt(rp, 0)}</b>`;
+  } else if (rp + inv > 0) {
+    profitBadge = '<span class="rs-profit-badge rs-profit-badge--mid">🟡 压货中</span>';
+    profitLine = `实现利润 <b>€${fmt(rp, 0)}</b> · 库存能补 <b>€${fmt(inv, 0)}</b> 回本`;
+  } else {
+    profitBadge = '<span class="rs-profit-badge rs-profit-badge--bad">🔴 账面亏损</span>';
+    profitLine = `实现利润 <b>€${fmt(rp, 0)}</b> + 库存 <b>€${fmt(inv, 0)}</b> 仍亏 <b>€${fmt(-(rp + inv), 0)}</b>`;
+  }
+  const truncWarn = it.is_history_truncated
+    ? ' <span class="rs-trunc-warn" title="该 SKU 第一笔事件早于 ETL 窗口起点 (2021-06-01), 更早期的进/销记录未纳入, 实际累计利润可能与此估算有出入">⚠️ 历史可能不全</span>'
+    : '';
+  const firstEventLine = it.first_event_at
+    ? `<div class="rs-drawer-muted">首笔事件 ${it.first_event_at}${truncWarn}</div>`
+    : '';
   // cover/recency 受 dv 折扣的两项, 显示原始值
   const coverScore = bd ? `${bd.cover}${dvSuffix}` : "—";
   const recencyScore = bd ? `${bd.recency}${dvSuffix}` : "—";
@@ -355,6 +378,12 @@ function renderDrawer(it) {
               <div>库存可销售金额 <b>${fmtEurOrDash(it.inventory_sale_value_eur)}</b></div>
               <div>库存成本 <b>${fmtEurOrDash(it.inventory_cost_value_eur)}</b></div>
               <div>压舱率 <b>${it.weeks_of_cover != null ? it.weeks_of_cover.toFixed(1) + ' 周可撑' : '—'}</b></div>
+            </section>
+            <section class="rs-drawer-sec">
+              <h4>💵 累计盈亏 ${profitBadge}</h4>
+              <div>累计销售 <b>€${fmt(it.lifetime_sale_revenue_eur, 0)}</b> <span class="rs-drawer-muted">(${fmt(it.lifetime_sale_qty)} 件)</span></div>
+              <div>${profitLine}</div>
+              ${firstEventLine}
             </section>
             <section class="rs-drawer-sec">
               <h4>📊 销售 (26 周)</h4>

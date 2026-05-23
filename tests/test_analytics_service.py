@@ -800,5 +800,94 @@ class RetailPriceAndInventoryValueTests(_Base):
         assert it["inventory_cost_value_eur"] is None
 
 
+class LifetimeProfitTests(_Base):
+    """累计盈亏 (drawer 回本/压货状态) 测试 (2026-05-23)."""
+
+    def _add_sku(self, barcode: str, **fields) -> None:
+        from app.models import Stockpile
+        values = {
+            "product_barcode": barcode,
+            "product_model": barcode,
+            "stockpile_location": "",
+            "is_active": 1,
+        }
+        values.update(fields)
+        with stockpile_db._session() as s:
+            s.execute(insert(Stockpile).values(**values))
+            s.commit()
+
+    def test_realized_profit_positive_when_revenue_beats_sold_cost(self) -> None:
+        """卖了 10 件 €100 + cost €5/件 → 实现利润 €100 - 10×5 = €50."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("LP1", supplier_id="GR0001", sale_price=10.0,
+                      last_purchase_unit_price=5.0)
+        # 10 件 × €10 = €100 收入
+        self._add_event(barcode="LP1", event_at="2025-01-01", qty=10,
+                        unit_price=10.0, document_no="W1")
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "LP1")
+        assert it["lifetime_sale_qty"] == 10
+        assert it["lifetime_sale_revenue_eur"] == 100.0
+        assert it["realized_profit_eur"] == 50.0  # 100 - 10×5
+        assert it["first_event_at"] == "2025-01-01"
+        assert it["is_history_truncated"] is False
+
+    def test_realized_profit_negative_when_sold_cheap(self) -> None:
+        """卖了 10 件 €30 (亏本甩卖) + cost €5/件 → 实现利润 -€20."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("LP2", supplier_id="GR0001", sale_price=10.0,
+                      last_purchase_unit_price=5.0)
+        self._add_event(barcode="LP2", event_at="2025-01-01", qty=10,
+                        unit_price=3.0, document_no="W1")
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "LP2")
+        assert it["lifetime_sale_revenue_eur"] == 30.0
+        assert it["realized_profit_eur"] == -20.0  # 30 - 10×5
+
+    def test_lifetime_includes_retail_and_wholesale(self) -> None:
+        """累计销量+销售额 同时包括批发和零售事件."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("LP3", supplier_id="GR0001", sale_price=2.0,
+                      last_purchase_unit_price=1.0)
+        # 5 件批发 € 2 + 3 件零售 €4 = 8 件 + €22
+        self._add_event(barcode="LP3", event_at="2025-01-01", qty=5,
+                        unit_price=2.0, document_no="W1")
+        self._add_event(barcode="LP3", event_at="2025-02-01", qty=3,
+                        unit_price=4.0, document_no="MB1")
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "LP3")
+        assert it["lifetime_sale_qty"] == 8  # 5+3
+        assert it["lifetime_sale_revenue_eur"] == 22.0  # 5×2 + 3×4
+        assert it["realized_profit_eur"] == 14.0  # 22 - 8×1
+
+    def test_history_truncated_flag_when_first_event_old(self) -> None:
+        """first_event_at <= 2021-06-01 → is_history_truncated=True (ETL 窗口边界)."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("LP4", supplier_id="GR0001", sale_price=2.0,
+                      last_purchase_unit_price=1.0)
+        self._add_event(barcode="LP4", event_at="2021-01-01", qty=5,
+                        unit_price=2.0, document_no="W1")
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "LP4")
+        assert it["first_event_at"] == "2021-01-01"
+        assert it["is_history_truncated"] is True
+
+    def test_no_cost_yields_none_realized_profit(self) -> None:
+        """无 cost (purchase/master 都缺) → realized_profit=None, 不显示."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("LP5", supplier_id="GR0001", sale_price=2.0)  # 无 last_purchase, 无 master
+        self._add_event(barcode="LP5", event_at="2025-01-01", qty=5,
+                        unit_price=2.0, document_no="W1")
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "LP5")
+        assert it["lifetime_sale_qty"] == 5
+        assert it["realized_profit_eur"] is None
+
+
 if __name__ == "__main__":
     unittest.main()
