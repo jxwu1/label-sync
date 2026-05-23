@@ -141,7 +141,11 @@ document.addEventListener("alpine:init", () => {
       { id: "data_quality",      label: "数据质量",   icon: "quality",    code: "06", shortcut: "6" },
       { id: "inventory",         label: "数据健康",   icon: "inout",      code: "07", shortcut: "7" },
       { id: "foreign_customers", label: "老外客人",   icon: "overseas",   code: "08", shortcut: "8" },
-      { id: "sales_analytics",   label: "销售分析",   icon: "sales",      code: "09", shortcut: "9" },
+      // 2026-05-23: 销售分析功能已被货号历史 EXT panel + 补货决策吸收, 入口收起.
+      // 独有的"等级一致性告警" / "未设标签批量管理" 是低频审计场景, 真要做可
+      // 单独迁到 data_quality 页. 后端 list_sku_summary 不动 (补货决策也用),
+      // 页面 DOM (pageSalesAnalytics) 留着备份, 等下周确认无人用再彻底删.
+      // { id: "sales_analytics",   label: "销售分析",   icon: "sales",      code: "09", shortcut: "9" },
       { id: "restock",           label: "补货决策",   icon: "sales",      code: "11", shortcut: "" },
     ],
     switch(id) {
