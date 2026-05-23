@@ -700,12 +700,15 @@ def data_upload():
 
 @bp.post("/data/dedup-purchase-events")
 def data_dedup_purchase_events():
-    """清理重复的 purchase inventory_events (2026-05-23).
+    """清理重复的 purchase inventory_events (2026-05-23 两阶段).
 
-    规则: 相同 (barcode, event_at, qty, event_type='purchase'), 一行
-    unit_price 为 NULL, 另一行 > 0 → 删 NULL 行 (ERP 内部重复导入).
+    Phase 1: (barcode, event_at, qty, event_type) 同组, 一行 unit_price NULL,
+             另一行有价 → 删 NULL 行.
+    Phase 2: (barcode, event_at, qty, event_type, unit_price) 全部相同
+             (含价格都一样), 仅 document_no 不同 → 保留 min(id), 删其他.
 
     Auth: X-Upload-Token. Query: ?execute=true 实际删, 缺省 dry-run.
+    幂等: 多次跑同样输入只删一次.
     """
     import os
     import secrets
@@ -720,7 +723,8 @@ def data_dedup_purchase_events():
         return jsonify({"ok": False, "msg": "鉴权失败"}), 401
 
     execute = request.args.get("execute", "").lower() == "true"
-    find_sql = text("""
+    # Phase 1: NULL + priced 配对
+    find_null_sql = text("""
         SELECT e_null.id
         FROM inventory_events e_null
         JOIN inventory_events e_priced
@@ -733,21 +737,47 @@ def data_dedup_purchase_events():
         WHERE e_null.event_type = 'purchase'
           AND e_null.unit_price IS NULL
     """)
+    # Phase 2: 同 (barcode, date, qty, price) 多行, 保留 min(id) 删其他
+    find_priced_dup_sql = text("""
+        SELECT id FROM (
+            SELECT id,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY product_barcode, event_at, qty, unit_price
+                       ORDER BY id
+                   ) AS rn
+            FROM inventory_events
+            WHERE event_type = 'purchase'
+              AND unit_price IS NOT NULL
+        ) t
+        WHERE t.rn > 1
+    """)
     with stockpile_db._session() as session:
-        ids = [r[0] for r in session.execute(find_sql).all()]
-        count = len(ids)
+        null_ids = [r[0] for r in session.execute(find_null_sql).all()]
+        priced_dup_ids = [r[0] for r in session.execute(find_priced_dup_sql).all()]
+        all_ids = null_ids + priced_dup_ids
         if not execute:
-            return jsonify({"ok": True, "mode": "dry-run", "deletable_rows": count})
-        # 分批 DELETE
+            return jsonify({
+                "ok": True,
+                "mode": "dry-run",
+                "phase1_null_price_deletable": len(null_ids),
+                "phase2_priced_dup_deletable": len(priced_dup_ids),
+                "total_deletable": len(all_ids),
+            })
         BATCH = 500
-        for i in range(0, len(ids), BATCH):
-            chunk = ids[i:i + BATCH]
+        for i in range(0, len(all_ids), BATCH):
+            chunk = all_ids[i:i + BATCH]
             session.execute(
                 text("DELETE FROM inventory_events WHERE id = ANY(:ids)"),
                 {"ids": chunk},
             )
         session.commit()
-        return jsonify({"ok": True, "mode": "execute", "deleted": count})
+        return jsonify({
+            "ok": True,
+            "mode": "execute",
+            "phase1_null_price_deleted": len(null_ids),
+            "phase2_priced_dup_deleted": len(priced_dup_ids),
+            "total_deleted": len(all_ids),
+        })
 
 
 @bp.post("/forecast/refresh")
