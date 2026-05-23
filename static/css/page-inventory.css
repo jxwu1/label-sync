@@ -407,3 +407,83 @@
 /* light theme */
 body[data-theme="light"] .inv-imports-table tbody tr:nth-child(even) { background: rgba(0, 0, 0, .025); }
 body[data-theme="light"] .inv-imports-table tbody tr:hover { background: rgba(26, 122, 76, .08); }
+
+/* ============ 数据健康总览 (2026-05-23) ============ */
+.inv-health-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+@media (max-width: 900px) { .inv-health-grid { grid-template-columns: 1fr; } }
+
+.inv-health-card {
+  padding: 12px 14px;
+  border: 1px solid var(--border-1);
+  border-radius: 4px;
+  background: var(--surface-1);
+}
+.inv-health-card h4 {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  color: var(--ink-2);
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+.inv-health-card > div {
+  font-size: 13px;
+  line-height: 1.7;
+  font-family: var(--mono);
+}
+.inv-health-card b { color: var(--ink-1); font-weight: 600; }
+.inv-health-ago { color: var(--ink-3); font-size: 11.5px; margin-left: 4px; }
+.inv-health-ok    { color: #1f7a3a; }
+.inv-health-warn  { color: #c97a00; }
+.inv-health-stale { color: #b02a37; }
+.inv-health-subhd {
+  margin: 16px 0 8px 0;
+  font-size: 12px;
+  color: var(--ink-2);
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+.inv-health-imports {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.inv-health-imports th {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-1);
+  color: var(--ink-2);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.inv-health-imports td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border-1);
+  font-family: var(--mono);
+}
+.inv-health-imports tr:last-child td { border-bottom: none; }
+.inv-health-imports .inv-num { text-align: right; }
+.inv-health-imports .inv-mono { color: var(--ink-2); }
+.inv-health-empty { text-align: center; color: var(--ink-3); padding: 16px !important; }
+
+.inv-emergency-details { margin-top: 20px; }
+.inv-emergency-summary {
+  cursor: pointer;
+  padding: 8px 14px;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  font-family: var(--mono);
+  border: 1px dashed var(--border-1);
+  border-radius: 4px;
+  user-select: none;
+}
+.inv-emergency-summary:hover { color: var(--ink-2); border-color: var(--ink-3); }
+.inv-emergency-details[open] .inv-emergency-summary {
+  color: var(--ink-1);
+  border-style: solid;
+  margin-bottom: 12px;
+}

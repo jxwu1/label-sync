@@ -296,7 +296,7 @@ def do_import_product_master() -> tuple:
 
 @bp.get("/stats")
 def stats() -> tuple:
-    """主档与事件计数（dashboard 健康检查用）。"""
+    """主档与事件计数 + 各事件类型最新日期 (数据健康面板用)."""
     with stockpile_db._session() as session:
         totals = {
             "events_total": session.scalar(select(func.count()).select_from(InventoryEvent)) or 0,
@@ -316,6 +316,24 @@ def stats() -> tuple:
             "suppliers_total": session.scalar(select(func.count()).select_from(Supplier)) or 0,
             "skus_total": session.scalar(select(func.count()).select_from(Stockpile)) or 0,
         }
+        # 各事件类型最新日期 (推断 scraper 是否在跑)
+        totals["latest_sale_at"] = session.scalar(
+            select(func.max(InventoryEvent.event_at))
+            .where(InventoryEvent.event_type == "sale")
+        )
+        totals["latest_purchase_at"] = session.scalar(
+            select(func.max(InventoryEvent.event_at))
+            .where(InventoryEvent.event_type == "purchase")
+        )
+        # 库存快照 & 产品总档最新日期 (单独表)
+        from app.models import StockpileInventorySnapshot, StockpileSnapshot
+        totals["latest_inventory_snapshot_at"] = session.scalar(
+            select(func.max(StockpileInventorySnapshot.snapshot_date))
+        )
+        totals["latest_product_master_at"] = session.scalar(
+            select(func.max(StockpileSnapshot.taken_at))
+            .where(StockpileSnapshot.trigger == "import")
+        )
         # 按客户类型分布
         type_rows = session.execute(
             select(Customer.customer_type, func.count()).group_by(Customer.customer_type)

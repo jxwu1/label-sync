@@ -745,6 +745,21 @@
         </div>
       </div>
       <div class="page" id="pageInventory" x-data :class="$store.nav.current === 'inventory' ? 'active' : ''">
+        <!-- 📊 数据健康总览 (2026-05-23: 进销存 import 改名"数据健康", scraper 自动化后这页变成
+             看 scraper 跑得怎么样; 手动 import 通道折叠成应急入口在底部) -->
+        <section class="inv-panel">
+          <div class="inv-panel-titleline">
+            <span class="inv-phd-code">📊</span>
+            <span class="inv-phd-title">数据健康总览</span>
+            <span class="inv-spacer"></span>
+            <button class="inv-cta inv-cta--ghost" id="invHealthRefresh">↻ 刷新</button>
+          </div>
+          <div class="inv-panel-bd inv-panel-bd--padded" id="invHealth">加载中…</div>
+        </section>
+
+        <!-- 应急通道: 手动上传 (scraper 挂了时用; 默认折叠) -->
+        <details class="inv-emergency-details">
+        <summary class="inv-emergency-summary">▾ 应急: 手动上传 (scraper 失效时用)</summary>
         <!-- Import zone: 进销存 .xls (HTML 伪装) -->
         <section class="inv-panel">
           <div class="inv-panel-titleline">
@@ -832,7 +847,7 @@
           <div class="inv-panel-bd inv-panel-bd--padded" id="invStats">点「刷新」查看主档与事件计数</div>
         </section>
 
-        <!-- RECENT 最近导入 -->
+        <!-- RECENT 最近导入 (留在折叠区里 admin 视角看 import 失败记录) -->
         <section class="inv-panel">
           <header class="inv-panel-hd">
             <span class="inv-phd-code">RECENT</span>
@@ -842,6 +857,7 @@
           </header>
           <div class="inv-panel-bd" id="invImports">点「刷新」查看最近 import 记录</div>
         </section>
+        </details>
       </div>
       <div class="page" id="pageSalesAnalytics" x-data :class="$store.nav.current === 'sales_analytics' ? 'active' : ''">
         <div class="panel">

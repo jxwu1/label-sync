@@ -344,8 +344,71 @@ function init() {
   }
 }
 
-// 首次切到进销存导入页时自动 load 一次（DB-STATE + RECENT 两段）
+// 数据健康总览 (2026-05-23): scraper 自动化后的主视图.
+// 复用 /inventory/stats (已扩展 latest_*_at 字段) + /inventory/imports.
+async function refreshHealth() {
+  const root = document.getElementById("invHealth");
+  if (!root) return;
+  root.textContent = "加载中…";
+  try {
+    const [stats, imps] = await Promise.all([
+      fetch("/inventory/stats").then((r) => r.json()),
+      fetch("/inventory/imports?limit=10").then((r) => r.json()),
+    ]);
+    if (!stats.ok) throw new Error(stats.msg || "stats 失败");
+    const fmtAgo = (iso) => {
+      if (!iso) return '<span class="inv-health-stale">—</span>';
+      const d = new Date(iso.length === 10 ? iso + "T00:00:00" : iso);
+      const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+      const cls = days > 14 ? "inv-health-stale" : days > 7 ? "inv-health-warn" : "inv-health-ok";
+      const tag = days > 14 ? "⚠️" : days > 7 ? "·" : "✓";
+      const dateOnly = iso.slice(0, 10);
+      return `<span class="${cls}">${dateOnly} <span class="inv-health-ago">${tag} ${days} 天前</span></span>`;
+    };
+    const impsHtml = (imps.items || []).map((r) => {
+      const ts = (r.imported_at || "").slice(0, 16);
+      const ok = r.status === "ok" || r.status === "success";
+      return `<tr>
+        <td class="inv-mono">${ts}</td>
+        <td>${r.file_type || "—"}</td>
+        <td class="${ok ? 'inv-health-ok' : 'inv-health-stale'}">${ok ? '✓' : '✗'} ${r.status || ''}</td>
+        <td class="inv-num">${r.rows_imported ?? '—'}</td>
+        <td class="inv-mono">${r.file_name || ''}</td>
+      </tr>`;
+    }).join("") || '<tr><td colspan="5" class="inv-health-empty">暂无 import 记录</td></tr>';
+    root.innerHTML = `
+      <div class="inv-health-grid">
+        <div class="inv-health-card">
+          <h4>DB 总量</h4>
+          <div>主档 SKU <b>${stats.skus_total.toLocaleString()}</b></div>
+          <div>销售事件 <b>${stats.events_sale.toLocaleString()}</b></div>
+          <div>采购事件 <b>${stats.events_purchase.toLocaleString()}</b></div>
+          <div>客户 <b>${stats.customers_total.toLocaleString()}</b> · 供应商 <b>${stats.suppliers_total.toLocaleString()}</b></div>
+        </div>
+        <div class="inv-health-card">
+          <h4>Scraper 最新</h4>
+          <div>销售: ${fmtAgo(stats.latest_sale_at)}</div>
+          <div>采购: ${fmtAgo(stats.latest_purchase_at)}</div>
+          <div>库存快照: ${fmtAgo(stats.latest_inventory_snapshot_at)}</div>
+          <div>产品总档: ${fmtAgo(stats.latest_product_master_at)}</div>
+        </div>
+      </div>
+      <h4 class="inv-health-subhd">近 10 次 Import</h4>
+      <table class="inv-health-imports">
+        <thead><tr><th>时间</th><th>类型</th><th>状态</th><th>行数</th><th>文件</th></tr></thead>
+        <tbody>${impsHtml}</tbody>
+      </table>
+    `;
+  } catch (e) {
+    root.innerHTML = `<div class="inv-health-stale">加载失败: ${e.message}</div>`;
+  }
+}
+
+document.getElementById("invHealthRefresh")?.addEventListener("click", refreshHealth);
+
+// 首次切到数据健康页时自动 load (健康总览 + 折叠区两个旧 panel)
 window.Alpine?.store?.("nav")?.onFirstActivate?.("inventory", () => {
+  refreshHealth();
   refreshStats();
   refreshImports();
 });
