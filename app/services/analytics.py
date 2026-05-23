@@ -909,16 +909,45 @@ def _lookup_qty(qty_by_model: dict[str, int], barcode: str, model: str | None) -
     return None
 
 
+# list_sku_summary 60s 内存缓存 (2026-05-23): 整表计算 ~2-3s, 货号历史 / 补货决策
+# 每次开页都触发. 60s TTL 平衡新鲜度和延迟. tests setUp 显式 clear_cache 防泄漏.
+_LIST_CACHE: dict = {"key": None, "value": None, "ts": 0.0}
+_LIST_TTL_SECONDS = 60.0
+
+
+def clear_list_sku_summary_cache() -> None:
+    """测试 setUp 调用; 也可生产端点 (cron / 手动) 触发刷新."""
+    _LIST_CACHE["key"] = None
+    _LIST_CACHE["value"] = None
+    _LIST_CACHE["ts"] = 0.0
+
+
 def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
     """聚合所有 active SKU 的销售汇总（dashboard 列表页用）。
 
-    单次拉所有 active stockpile 主档 + 所有销售事件（带客户类型），
-    内存 group by barcode 算每个 SKU 的指标。199k events / 27k SKU 在
-    1-2 秒内完成。
+    60s 内存缓存: 整表计算 ~2-3s, 货号历史/补货决策每次开页都触发,
+    60s TTL 平衡新鲜度和延迟 (用户感知秒级响应).
+    """
+    import time
+    cache_key = (as_of,)
+    now = time.time()
+    if (_LIST_CACHE["key"] == cache_key
+            and _LIST_CACHE["value"] is not None
+            and now - _LIST_CACHE["ts"] < _LIST_TTL_SECONDS):
+        return _LIST_CACHE["value"]
+    result = _list_sku_summary_impl(as_of)
+    _LIST_CACHE["key"] = cache_key
+    _LIST_CACHE["value"] = result
+    _LIST_CACHE["ts"] = now
+    return result
 
-    返回字段：barcode / model / name_zh / auto_category / manual_category /
-    manual_grade / total_qty / lifespan_days / trend_slope_pct_per_week /
-    qty_percentile / cn_qty / fo_qty / is_grade_inconsistent。
+
+def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
+    """实际计算 list_sku_summary 的内部实现 (无缓存层).
+
+    单次拉所有 active stockpile 主档 + 所有销售事件 (带客户类型),
+    内存 group by barcode 算每个 SKU 的指标. 199k events / 27k SKU 在
+    1-2 秒内完成.
     """
     import bisect
 

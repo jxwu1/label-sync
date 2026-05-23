@@ -33,6 +33,9 @@ class _Base(unittest.TestCase):
         self.addCleanup(self.patch.stop)
         stockpile_db._engine_cache.clear()
         stockpile_db.ensure_db()
+        # list_sku_summary 有 60s 缓存, 测试间清掉避免数据泄漏
+        from app.services import analytics as _ans
+        _ans.clear_list_sku_summary_cache()
 
     def tearDown(self) -> None:
         stockpile_db._engine_cache.clear()

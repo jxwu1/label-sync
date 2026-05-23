@@ -26,6 +26,8 @@ class AnalyticsRoutesTests(unittest.TestCase):
         self.addCleanup(self.patch.stop)
         stockpile_db._engine_cache.clear()
         stockpile_db.ensure_db()
+        from app.services import analytics as _ans
+        _ans.clear_list_sku_summary_cache()
 
         self.app = Flask(__name__)
         self.app.register_blueprint(bp)
