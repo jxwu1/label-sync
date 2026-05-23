@@ -405,6 +405,261 @@ def compute_monthly_sales(
     ]
 
 
+def compute_sku_extras(
+    barcode: str,
+    as_of: date | None = None,
+    session: Session | None = None,
+) -> dict[str, Any]:
+    """货号历史扩展数据 (2026-05-23): 退货率 / 价格波动 / 客户 TOP10 / 首尾日期.
+
+    返回:
+      return_qty / total_sale_qty_gross / return_rate_pct
+        gross = 正 qty 销售总数, return_qty = |负 qty| 总数 (退货件数)
+        return_rate_pct = return_qty / (gross + return_qty) × 100
+      price_mean / price_std / price_min / price_max
+        批发 sale 事件 (qty > 0, document_no 非零售) unit_price 统计
+      top_customers: [{customer_id, customer_type, qty, last_at}] desc qty, 取 10
+      first_event_at / last_event_at: 全事件 (含 sale + purchase) 时间范围
+      is_history_truncated: first_event_at <= '2021-06-01' (ETL 边界)
+    """
+    as_of = as_of or _today()
+    rows = _fetch_all_rows_with_doc_no(barcode, session)
+
+    # 1. 退货率 (qty 件数口径)
+    pos_qty = sum(r.qty for r in rows if r.event_type == "sale" and r.qty > 0)
+    neg_qty = sum(-r.qty for r in rows if r.event_type == "sale" and r.qty < 0)
+    return_rate_pct: float | None
+    if pos_qty + neg_qty > 0:
+        return_rate_pct = round(neg_qty / (pos_qty + neg_qty) * 100.0, 2)
+    else:
+        return_rate_pct = None
+
+    # 2. 价格波动统计 (仅批发正销售, 滤掉零售 + 退货)
+    wholesale_prices = [
+        _net_unit(r.unit_price, r.discount_pct)
+        for r in rows
+        if r.event_type == "sale"
+        and r.qty > 0
+        and r.unit_price
+        and not _is_retail(r.document_no)
+        and _net_unit(r.unit_price, r.discount_pct) > 0
+    ]
+    if wholesale_prices:
+        mean_p = sum(wholesale_prices) / len(wholesale_prices)
+        # 总体标准差 (n 分母, 不是 n-1; 全样本统计描述用)
+        if len(wholesale_prices) > 1:
+            var_p = sum((p - mean_p) ** 2 for p in wholesale_prices) / len(wholesale_prices)
+            std_p = var_p ** 0.5
+        else:
+            std_p = 0.0
+        price_stats: dict[str, float | int | None] = {
+            "mean": round(mean_p, 4),
+            "std": round(std_p, 4),
+            "min": round(min(wholesale_prices), 4),
+            "max": round(max(wholesale_prices), 4),
+            "n": len(wholesale_prices),
+        }
+    else:
+        price_stats = {"mean": None, "std": None, "min": None, "max": None, "n": 0}
+
+    # 3. 客户 TOP10 (净 qty, 含退货抵销)
+    top_customers = _compute_top_customers(barcode, session)
+
+    # 4. 首尾日期 + 完整性
+    all_dates = [_parse_date(r.event_at) for r in rows]
+    first_event_at: str | None = min(all_dates).isoformat() if all_dates else None
+    last_event_at: str | None = max(all_dates).isoformat() if all_dates else None
+    is_history_truncated = first_event_at is not None and first_event_at <= "2021-06-01"
+
+    return {
+        "return_qty": int(neg_qty),
+        "total_sale_qty_gross": int(pos_qty),
+        "return_rate_pct": return_rate_pct,
+        "price_stats": price_stats,
+        "top_customers": top_customers,
+        "first_event_at": first_event_at,
+        "last_event_at": last_event_at,
+        "is_history_truncated": is_history_truncated,
+    }
+
+
+def _compute_top_customers(
+    barcode: str,
+    session: Session | None,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    """客户 TOP N: 按净 qty (含退货抵销) desc, 返回 customer_id/type/qty/last_at."""
+    stmt = (
+        select(
+            InventoryEvent.customer_id,
+            Customer.customer_type,
+            Customer.customer_name,
+            func.sum(InventoryEvent.qty).label("net_qty"),
+            func.max(InventoryEvent.event_at).label("last_at"),
+        )
+        .join(Customer, Customer.customer_id == InventoryEvent.customer_id, isouter=True)
+        .where(
+            InventoryEvent.product_barcode == barcode,
+            InventoryEvent.event_type == "sale",
+            InventoryEvent.customer_id.is_not(None),
+        )
+        .group_by(
+            InventoryEvent.customer_id,
+            Customer.customer_type,
+            Customer.customer_name,
+        )
+        .order_by(func.sum(InventoryEvent.qty).desc())
+        .limit(limit)
+    )
+    def _q(s: Session):
+        return [
+            {
+                "customer_id": r.customer_id,
+                "customer_type": r.customer_type,
+                "customer_name": r.customer_name,
+                "qty": int(r.net_qty or 0),
+                "last_at": (r.last_at or "")[:10] if r.last_at else None,
+            }
+            for r in s.execute(stmt).all()
+        ]
+    if session is not None:
+        return _q(session)
+    with stockpile_db._session() as s:
+        return _q(s)
+
+
+def compute_avg_holding_days(
+    barcode: str,
+    session: Session | None = None,
+) -> dict[str, Any]:
+    """平均持仓周期 (FIFO 简化): 每件货从进货到卖出经历几天.
+
+    算法 (FIFO 近似):
+      把所有 purchase events 按时间排序 → 形成 FIFO 队列, 每件标进货日.
+      把所有 sale events 按时间排序 → 按 qty 依次从队列取货, 算 (sale_date - purchase_date).
+      退货 (qty<0) 退回最早可退队列 (简化: 退到最后被卖那批).
+    返回 {avg_days, n_pairs, oldest_held_days}.
+      avg_days: 已售件的平均持仓
+      oldest_held_days: 当前仓库里最早进的那件已经放了多少天 (压货预警)
+      None 表示无法算 (无 purchase 或无 sale).
+    """
+    rows = _fetch_all_rows_with_doc_no(barcode, session)
+    purchases = sorted(
+        [r for r in rows if r.event_type == "purchase" and r.qty > 0],
+        key=lambda r: r.event_at,
+    )
+    sales = sorted(
+        [r for r in rows if r.event_type == "sale" and r.qty > 0],
+        key=lambda r: r.event_at,
+    )
+    if not purchases or not sales:
+        return {"avg_days": None, "n_pairs": 0, "oldest_held_days": None}
+
+    # FIFO 队列: [(进货日, 剩余 qty), ...]
+    queue: list[list[Any]] = [[_parse_date(r.event_at), r.qty] for r in purchases]
+    holding_days_sum = 0.0
+    holding_days_n = 0
+    for r in sales:
+        sale_d = _parse_date(r.event_at)
+        remaining = r.qty
+        while remaining > 0 and queue:
+            head = queue[0]
+            taken = min(remaining, head[1])
+            diff = (sale_d - head[0]).days
+            holding_days_sum += diff * taken
+            holding_days_n += taken
+            head[1] -= taken
+            remaining -= taken
+            if head[1] == 0:
+                queue.pop(0)
+        if remaining > 0:
+            # 销售超出已知进货 (历史不全), 跳过余量
+            break
+
+    avg_days: float | None = None
+    if holding_days_n > 0:
+        avg_days = round(holding_days_sum / holding_days_n, 1)
+    # 队列剩余最早的就是当前仓库里压最久的
+    oldest_held_days: int | None = None
+    if queue:
+        oldest_in_stock = queue[0][0]
+        oldest_held_days = (_today() - oldest_in_stock).days
+    return {
+        "avg_days": avg_days,
+        "n_pairs": holding_days_n,
+        "oldest_held_days": oldest_held_days,
+    }
+
+
+def compute_monthly_heatmap(
+    barcode: str,
+    years: int = 4,
+    as_of: date | None = None,
+    session: Session | None = None,
+) -> dict[str, Any]:
+    """月度销量热力图: years 年 × 12 月 矩阵.
+
+    返回 {
+      years: ['2023', '2024', '2025', '2026'],  # 最近 years 年 desc 到当年
+      matrix: { '2026': [Jan, Feb, ..., Dec], '2025': [...], ... }  # 每月批发净 qty
+      max_qty: 最大值 (前端归一化用)
+    }
+    用于看季节性 (哪个月卖得多) 和年增长 (跨年对比同月).
+    """
+    as_of = as_of or _today()
+    rows = _fetch_all_rows_with_doc_no(barcode, session)
+    current_year = as_of.year
+    year_list = [str(y) for y in range(current_year - years + 1, current_year + 1)]
+    matrix: dict[str, list[int]] = {y: [0] * 12 for y in year_list}
+    for r in rows:
+        if r.event_type != "sale" or _is_retail(r.document_no):
+            continue
+        d = _parse_date(r.event_at)
+        ykey = str(d.year)
+        if ykey not in matrix:
+            continue
+        matrix[ykey][d.month - 1] += r.qty
+    max_qty = 0
+    for v in matrix.values():
+        for q in v:
+            if q > max_qty:
+                max_qty = q
+    return {"years": year_list, "matrix": matrix, "max_qty": int(max_qty)}
+
+
+def compute_forecast_snapshot(
+    barcode: str,
+    session: Session | None = None,
+) -> dict[str, Any] | None:
+    """读 forecast_output 表的最新预测 (refresh_forecast_output 每周刷一次).
+
+    返回 {model_used, n_weeks_history, mu, sigma, p50, p98, quarter_mu, quarter_p98}
+    quarter_* = 周值 × 13 (3 个月口径). 无记录返 None.
+    """
+    from app.models import ForecastOutput
+    def _q(s: Session):
+        row = s.execute(
+            select(ForecastOutput).where(ForecastOutput.product_barcode == barcode)
+        ).scalar_one_or_none()
+        if row is None:
+            return None
+        return {
+            "model_used": row.model_used,
+            "sku_type": row.sku_type,
+            "n_weeks_history": row.n_weeks_history,
+            "weekly_mu": round(float(row.mu), 2),
+            "weekly_p50": round(float(row.p50), 2),
+            "weekly_p98": round(float(row.p98), 2),
+            "quarter_mu": round(float(row.mu) * 13, 0),
+            "quarter_p98": round(float(row.p98) * 13, 0),
+            "computed_at": row.computed_at,
+        }
+    if session is not None:
+        return _q(session)
+    with stockpile_db._session() as s:
+        return _q(s)
+
+
 def _fetch_all_rows_with_doc_no(barcode: str, session: Session | None):
     """compute_monthly_sales 需要 document_no 判定零售."""
     stmt = select(

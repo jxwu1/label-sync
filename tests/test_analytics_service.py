@@ -1090,5 +1090,161 @@ class WeeklyTimelineOriginAwareTests(_Base):
         assert priced[0]["raw_unit_price_local"] == 7.8
 
 
+class SkuExtrasTests(_Base):
+    """compute_sku_extras: 退货率 / 价格统计 / 客户 TOP / 首尾日期 (2026-05-23)."""
+
+    def _add_sku(self, barcode: str, **fields) -> None:
+        from app.models import Stockpile
+        values = {
+            "product_barcode": barcode,
+            "product_model": barcode,
+            "stockpile_location": "",
+            "is_active": 1,
+        }
+        values.update(fields)
+        with stockpile_db._session() as s:
+            s.execute(insert(Stockpile).values(**values))
+            s.commit()
+
+    def test_return_rate_qty_based(self) -> None:
+        """卖 10 件 + 退 2 件 → return_rate = 2/(10+2) = 16.67%."""
+        from app.services.analytics import compute_sku_extras
+
+        self._add_sku("EX1")
+        self._add_event(barcode="EX1", event_at="2026-04-01", qty=10,
+                        unit_price=5.0, document_no="W1")
+        self._add_event(barcode="EX1", event_at="2026-04-15", qty=-2,
+                        unit_price=5.0, document_no="W2")
+        e = compute_sku_extras("EX1", as_of=date(2026, 5, 1))
+        assert e["total_sale_qty_gross"] == 10
+        assert e["return_qty"] == 2
+        assert e["return_rate_pct"] == 16.67
+
+    def test_price_stats_excludes_retail_and_returns(self) -> None:
+        """价格统计仅批发正销售: MB 零售 + 负 qty 退货均剔除."""
+        from app.services.analytics import compute_sku_extras
+
+        self._add_sku("EX2")
+        # 3 笔批发: €5 / €6 / €7
+        for i, p in enumerate([5.0, 6.0, 7.0]):
+            self._add_event(barcode="EX2", event_at=f"2026-04-0{i+1}",
+                            qty=10, unit_price=p, document_no=f"W{i}")
+        # 1 笔零售 (MB 前缀) - 应被排除
+        self._add_event(barcode="EX2", event_at="2026-04-10", qty=2,
+                        unit_price=15.0, document_no="MB1")
+        # 1 笔退货 - 应被排除
+        self._add_event(barcode="EX2", event_at="2026-04-12", qty=-1,
+                        unit_price=99.0, document_no="W9")
+        e = compute_sku_extras("EX2", as_of=date(2026, 5, 1))
+        assert e["price_stats"]["n"] == 3
+        assert e["price_stats"]["mean"] == 6.0  # (5+6+7)/3
+        assert e["price_stats"]["min"] == 5.0
+        assert e["price_stats"]["max"] == 7.0
+
+    def test_top_customers_sorted_by_net_qty(self) -> None:
+        """TOP 客户按净 qty desc, 含退货抵销."""
+        from app.services.analytics import compute_sku_extras
+
+        self._add_sku("EX3")
+        self._add_customer("C1", "chinese", "客户1")
+        self._add_customer("C2", "foreign", "客户2")
+        # C1 买 20, 退 5 → 净 15. C2 买 10
+        self._add_event(barcode="EX3", event_at="2026-04-01", qty=20,
+                        customer_id="C1", document_no="W1")
+        self._add_event(barcode="EX3", event_at="2026-04-15", qty=-5,
+                        customer_id="C1", document_no="W2")
+        self._add_event(barcode="EX3", event_at="2026-04-10", qty=10,
+                        customer_id="C2", document_no="W3")
+        e = compute_sku_extras("EX3", as_of=date(2026, 5, 1))
+        assert len(e["top_customers"]) == 2
+        assert e["top_customers"][0]["customer_id"] == "C1"
+        assert e["top_customers"][0]["qty"] == 15
+        assert e["top_customers"][0]["customer_type"] == "chinese"
+        assert e["top_customers"][1]["customer_id"] == "C2"
+
+    def test_history_truncated_flag(self) -> None:
+        """首笔事件 <= 2021-06-01 → is_history_truncated=True."""
+        from app.services.analytics import compute_sku_extras
+
+        self._add_sku("EX4")
+        self._add_event(barcode="EX4", event_at="2021-01-01", qty=5,
+                        unit_price=1.0, document_no="W1")
+        e = compute_sku_extras("EX4", as_of=date(2026, 5, 1))
+        assert e["first_event_at"] == "2021-01-01"
+        assert e["is_history_truncated"] is True
+
+    def test_no_events_returns_empty(self) -> None:
+        from app.services.analytics import compute_sku_extras
+
+        self._add_sku("EX5")
+        e = compute_sku_extras("EX5", as_of=date(2026, 5, 1))
+        assert e["return_qty"] == 0
+        assert e["return_rate_pct"] is None
+        assert e["price_stats"]["n"] == 0
+        assert e["top_customers"] == []
+        assert e["first_event_at"] is None
+
+
+class HoldingAndHeatmapTests(_Base):
+    """持仓周期 + 月度热力图 (2026-05-23)."""
+
+    def _add_sku(self, barcode: str, **fields) -> None:
+        from app.models import Stockpile
+        values = {
+            "product_barcode": barcode,
+            "product_model": barcode,
+            "stockpile_location": "",
+            "is_active": 1,
+        }
+        values.update(fields)
+        with stockpile_db._session() as s:
+            s.execute(insert(Stockpile).values(**values))
+            s.commit()
+
+    def test_holding_days_fifo_pairing(self) -> None:
+        """FIFO: 进 100 件 (2026-01-01), 卖 30 件 (2026-02-01) → 31 天持仓.
+        队列剩 70 件最早是 2026-01-01."""
+        from app.services.analytics import compute_avg_holding_days
+
+        self._add_sku("HD1")
+        self._add_event(barcode="HD1", event_type="purchase",
+                        event_at="2026-01-01", qty=100, document_no="P1")
+        self._add_event(barcode="HD1", event_at="2026-02-01", qty=30, document_no="W1")
+        h = compute_avg_holding_days("HD1")
+        assert h["avg_days"] == 31.0
+        assert h["n_pairs"] == 30
+        assert h["oldest_held_days"] is not None
+        assert h["oldest_held_days"] > 0
+
+    def test_holding_days_none_when_no_data(self) -> None:
+        from app.services.analytics import compute_avg_holding_days
+
+        self._add_sku("HD2")
+        h = compute_avg_holding_days("HD2")
+        assert h["avg_days"] is None
+        assert h["n_pairs"] == 0
+
+    def test_heatmap_year_month_grid(self) -> None:
+        """4 年 × 12 月矩阵, 批发销量分桶, 零售不进."""
+        from app.services.analytics import compute_monthly_heatmap
+
+        self._add_sku("HM1")
+        self._add_event(barcode="HM1", event_at="2026-03-15", qty=50,
+                        unit_price=2.0, document_no="W1")
+        self._add_event(barcode="HM1", event_at="2025-12-10", qty=30,
+                        unit_price=2.0, document_no="W2")
+        # 零售不进热力图
+        self._add_event(barcode="HM1", event_at="2026-03-20", qty=5,
+                        unit_price=2.0, document_no="MB1")
+        h = compute_monthly_heatmap("HM1", years=4, as_of=date(2026, 5, 21))
+        assert len(h["years"]) == 4
+        assert "2026" in h["years"]
+        assert "2025" in h["years"]
+        assert h["matrix"]["2026"][2] == 50   # March (index 2) 2026
+        assert h["matrix"]["2025"][11] == 30  # December 2025
+        assert h["matrix"]["2026"][3] == 0    # 没数据
+        assert h["max_qty"] == 50
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -69,6 +69,10 @@ def sku_metrics(barcode: str):
         purchase = analytics_service.compute_purchase_metrics(barcode)
         customer_split = analytics_service.compute_customer_split(barcode)
         qty_percentile = analytics_service.compute_qty_percentile(barcode)
+        extras = analytics_service.compute_sku_extras(barcode)
+        holding = analytics_service.compute_avg_holding_days(barcode)
+        heatmap = analytics_service.compute_monthly_heatmap(barcode)
+        forecast = analytics_service.compute_forecast_snapshot(barcode)
         with stockpile_db._session() as session:
             row = session.execute(
                 select(
@@ -79,7 +83,7 @@ def sku_metrics(barcode: str):
                 ).where(Stockpile.product_barcode == barcode)
             ).first()
     except Exception as exc:
-        return jsonify({"ok": False, "msg": f"分析失败：{exc}"}), 500
+        return jsonify({"ok": False, "msg": f"分析失败:{exc}"}), 500
 
     if row is None:
         return jsonify({"ok": False, "msg": "未找到该条码"}), 404
@@ -92,6 +96,10 @@ def sku_metrics(barcode: str):
             "purchase": purchase,
             "customer_split": customer_split,
             "qty_percentile": qty_percentile,
+            "extras": extras,
+            "holding": holding,
+            "heatmap": heatmap,
+            "forecast": forecast,
             "auto_category": row[0],
             "auto_category_computed_at": row[1],
             "manual_category": row[2],
