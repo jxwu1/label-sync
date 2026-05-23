@@ -187,9 +187,10 @@ function renderTmlSvg(timeline, monthlySales) {
   })();
   const maxP = hasPrices ? Math.max(...validPrices) : 1;
   const minP = hasPrices ? Math.min(...validPrices) : 0;
-  // 同价情况 (range=0): 把折线放中段而不是图表底, 避免跟 baseline 撞.
+  // Y 轴从 0 起 (2026-05-23 用户反馈): 避免 min 价贴 baseline 看着像"压地".
+  // 代价: 高价区分辨率压缩, 但波动语义保留 (€5.20 vs €5.80 仍能看出来).
   const sameValue = hasPrices && maxP === minP;
-  const priceRange = Math.max(0.01, maxP - minP);
+  const priceRange = Math.max(0.01, maxP);  // 从 0 到 max
 
   const W = 1000;
   const H = 200;
@@ -225,7 +226,7 @@ function renderTmlSvg(timeline, monthlySales) {
       return `<span style="top:${topPct.toFixed(2)}%">${Math.round(maxQ * f)}</span>`;
     }).join("");
     $("historyTimelineYLeft").innerHTML = leftHtml;
-    // 右轴: 进价
+    // 右轴: 进价 (Y 轴从 0 起到 maxP)
     let rightHtml = "";
     if (hasPrices) {
       if (sameValue) {
@@ -235,7 +236,7 @@ function renderTmlSvg(timeline, monthlySales) {
       } else {
         rightHtml = [0, 0.25, 0.5, 0.75, 1].map((f) => {
           const topPct = (yPxOf(f) / H) * 100;
-          const v = (minP + priceRange * f).toFixed(2);
+          const v = (maxP * f).toFixed(2);  // 从 0 起
           return `<span style="top:${topPct.toFixed(2)}%">€${v}</span>`;
         }).join("");
       }
@@ -268,7 +269,7 @@ function renderTmlSvg(timeline, monthlySales) {
     const x = padL + (i + 0.5) * stepW;
     const y = sameValue
       ? padT + innerH * 0.4   // 中段稍偏上, 跟柱状销量留出层次
-      : padT + innerH - ((p - minP) / priceRange) * innerH * 0.85;
+      : padT + innerH - (p / priceRange) * innerH * 0.85;  // 从 0 到 maxP, 不贴地
     pathD += started ? ` L${x.toFixed(1)},${y.toFixed(1)}` : `M${x.toFixed(1)},${y.toFixed(1)}`;
     started = true;
     // 只在原始数据点 (非填充) 上放 dot, 让用户看到"哪周真有进货"
