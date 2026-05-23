@@ -677,6 +677,22 @@ def compute_monthly_heatmap(
     return {"years": year_list, "matrix": matrix, "max_qty": int(max_qty)}
 
 
+def compute_restock_snapshot(barcode: str) -> dict[str, Any] | None:
+    """单 SKU 补货决策快照 (2026-05-23): 给货号历史复用补货 drawer 的指标.
+
+    实现: 调 list_sku_summary 整表算一遍 (含 by-origin pctile), 再 filter 出
+    目标 barcode. 是否在批量列表里(active + 非真停用) 都能拉到; 否则返 None.
+
+    性能注意: 整表算 ~2-3s, 后续加 lru_cache (60s TTL) 即可秒回.
+    用户场景: 货号历史页打开单个 SKU 触发, 频率低, 当前可接受.
+    """
+    items = list_sku_summary()
+    for it in items:
+        if it["barcode"] == barcode:
+            return it
+    return None
+
+
 def compute_forecast_snapshot(
     barcode: str,
     session: Session | None = None,

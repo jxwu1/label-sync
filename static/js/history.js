@@ -47,6 +47,7 @@ function renderEmpty(msg) {
   $("historyAnalyticsPanel").hidden = true;
   if ($("historyPurchasePanel")) $("historyPurchasePanel").hidden = true;
   if ($("historyExtrasPanel")) $("historyExtrasPanel").hidden = true;
+  if ($("historyRestockPanel")) $("historyRestockPanel").hidden = true;
   $("historyTimelineChartPanel").hidden = true;
 }
 
@@ -59,6 +60,7 @@ function renderFuzzyMatches(matches, originalQuery) {
   $("historyAnalyticsPanel").hidden = true;
   if ($("historyPurchasePanel")) $("historyPurchasePanel").hidden = true;
   if ($("historyExtrasPanel")) $("historyExtrasPanel").hidden = true;
+  if ($("historyRestockPanel")) $("historyRestockPanel").hidden = true;
   $("historyTimelineChartPanel").hidden = true;
 
   const rows = matches
@@ -349,6 +351,103 @@ function renderAnalytics(data) {
   renderSLA(data);
   renderPUR(data.purchase || {}, data);
   renderExtras(data);
+  renderRestockSnapshot(data.restock_snapshot);
+}
+
+// 货号历史复用补货决策 drawer 的指标 (2026-05-23): 让"非补货"场景下也能
+// 看完整的财务 / 库存 / 累计盈亏 / 销售 26w / 紧迫分.
+function renderRestockSnapshot(it) {
+  const panel = document.getElementById("historyRestockPanel");
+  const root = document.getElementById("historyRestock");
+  if (!panel || !root) return;
+  if (!it) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+  const bd = it.urgency_breakdown;
+  const dv = bd?.demand_validity;
+  const dvTag = (dv != null && dv < 1.0) ? ` <span class="rs-dv-tag" title="长尾活跃度折扣">×${dv}</span>` : "";
+  const fmtNum2 = (v, d = 2) => (v === null || v === undefined) ? "—" : Number(v).toFixed(d);
+  const fmtInt = (v) => (v === null || v === undefined) ? "—" : Math.round(v);
+  const fmtEur = (v) => (v === null || v === undefined) ? "—" : `€${Number(v).toFixed(2)}`;
+  const fmtEurInt = (v) => (v === null || v === undefined) ? "—" : `€${Math.round(v)}`;
+  // 零售价行: observed vs estimate 并排展示
+  const rpObs = it.retail_price_observed;
+  const rpEst = it.retail_price_estimate;
+  let retailLine;
+  if (rpObs != null && rpEst != null) {
+    retailLine = `零售价 <b>${fmtEur(rpObs)}</b> <span class="rs-drawer-muted">(实际 ${it.retail_qty_26w} 笔)</span> · 估算 ${fmtEur(rpEst)} (×2)`;
+  } else if (rpObs != null) {
+    retailLine = `零售价 <b>${fmtEur(rpObs)}</b> <span class="rs-drawer-muted">(实际)</span>`;
+  } else if (rpEst != null) {
+    retailLine = `零售价 <b>${fmtEur(rpEst)}</b> <span class="rs-drawer-muted">(批发×2 估算)</span>`;
+  } else {
+    retailLine = `零售价 —`;
+  }
+  // 累计盈亏状态
+  const rp = it.realized_profit_eur;
+  const inv = it.inventory_cost_value_eur ?? 0;
+  let badge, line;
+  if (rp == null) {
+    badge = '<span class="rs-profit-badge rs-profit-badge--unknown">缺成本</span>';
+    line = '<span class="rs-drawer-muted">无 cost 数据</span>';
+  } else if (rp > 0) {
+    badge = '<span class="rs-profit-badge rs-profit-badge--good">💚 已回本</span>';
+    line = `实现利润 <b>+€${fmtInt(rp)}</b>`;
+  } else if (rp + inv > 0) {
+    badge = '<span class="rs-profit-badge rs-profit-badge--mid">🟡 压货中</span>';
+    line = `实现利润 <b>€${fmtInt(rp)}</b> · 库存能补 <b>€${fmtInt(inv)}</b> 回本`;
+  } else {
+    badge = '<span class="rs-profit-badge rs-profit-badge--bad">🔴 账面亏损</span>';
+    line = `实现利润 <b>€${fmtInt(rp)}</b> + 库存 <b>€${fmtInt(inv)}</b> 仍亏 <b>€${fmtInt(-(rp + inv))}</b>`;
+  }
+  // 紧迫分四维 (dv 应用在 cover/recency)
+  const coverScore = bd ? `${bd.cover}${dvTag}` : "—";
+  const recencyScore = bd ? `${bd.recency}${dvTag}` : "—";
+  const velocityScore = bd ? bd.velocity : "—";
+  const marginScore = bd ? bd.margin : "—";
+
+  root.innerHTML = `
+    <div class="rs-drawer">
+      <div class="rs-drawer-grid">
+        <section class="rs-drawer-sec">
+          <h4>💰 财务快照</h4>
+          <div>批发价 <b>${fmtEur(it.master_sale_price_eur ?? it.sale_net_avg)}</b> <span class="rs-drawer-muted">(主档)</span></div>
+          <div>${retailLine}</div>
+          <div>单件进价 <b>${fmtEur(it.last_purchase_unit_price ?? it.master_stock_price_eur)}</b> <span class="rs-drawer-muted">(${it.margin_source === 'master' ? '主档参考' : it.margin_source === 'purchase' ? '上次成交' : '—'})</span></div>
+          <div>单件毛利率 <b>${it.margin_pct != null ? it.margin_pct + '%' : '—'}</b></div>
+        </section>
+        <section class="rs-drawer-sec">
+          <h4>📦 库存</h4>
+          <div>当前库存 <b>${fmtInt(it.qty_total)} 件</b></div>
+          <div>库存可销售金额 <b>${fmtEur(it.inventory_sale_value_eur)}</b></div>
+          <div>库存成本 <b>${fmtEur(it.inventory_cost_value_eur)}</b></div>
+          <div>压舱率 <b>${it.weeks_of_cover != null ? it.weeks_of_cover.toFixed(1) + ' 周可撑' : '—'}</b></div>
+        </section>
+        <section class="rs-drawer-sec">
+          <h4>💵 累计盈亏 ${badge}</h4>
+          <div>累计投入 <b>${fmtEur(it.lifetime_invested_eur)}</b> <span class="rs-drawer-muted">(${fmtInt(it.lifetime_purchase_qty)} 件)</span></div>
+          <div>累计销售 <b>${fmtEurInt(it.lifetime_sale_revenue_eur)}</b> <span class="rs-drawer-muted">(${fmtInt(it.lifetime_sale_qty)} 件)</span></div>
+          <div>${line}</div>
+        </section>
+        <section class="rs-drawer-sec">
+          <h4>📊 销售 (26 周)</h4>
+          <div>周销速 <b>${fmtNum2(it.weekly_velocity, 2)} 件/周</b></div>
+          <div>周销额 <b>€${fmtNum2(it.weekly_revenue, 2)}/周</b></div>
+          <div>26 周活跃 <b>${fmtInt(it.n_active_weeks_26w)} 周</b></div>
+          <div>距上次进货 <b>${it.last_purchase_days_ago != null ? it.last_purchase_days_ago + ' 天' : '—'}</b></div>
+        </section>
+        <section class="rs-drawer-sec">
+          <h4>🎯 紧迫分 <b>${it.urgency_score ?? '—'}</b> 拆解</h4>
+          <div>销额(30): <b>${velocityScore}</b></div>
+          <div>库存(30): <b>${coverScore}</b></div>
+          <div>距进货(10): <b>${recencyScore}</b></div>
+          <div>毛利(30): <b>${marginScore}</b></div>
+        </section>
+      </div>
+    </div>
+  `;
 }
 
 function renderSLA(data) {

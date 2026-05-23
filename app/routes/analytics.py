@@ -73,6 +73,7 @@ def sku_metrics(barcode: str):
         holding = analytics_service.compute_avg_holding_days(barcode)
         heatmap = analytics_service.compute_monthly_heatmap(barcode)
         forecast = analytics_service.compute_forecast_snapshot(barcode)
+        restock_snapshot = analytics_service.compute_restock_snapshot(barcode)
         with stockpile_db._session() as session:
             row = session.execute(
                 select(
@@ -100,6 +101,7 @@ def sku_metrics(barcode: str):
             "holding": holding,
             "heatmap": heatmap,
             "forecast": forecast,
+            "restock_snapshot": restock_snapshot,
             "auto_category": row[0],
             "auto_category_computed_at": row[1],
             "manual_category": row[2],
