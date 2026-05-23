@@ -523,7 +523,21 @@ function renderExtras(data) {
       </table>
     </section>`;
 
-  // 4. 持仓 + 预测 + 数据范围 卡片
+  // 4. 零售汇总 (单独显示, 不进 TOP10): MB700 + customer_id='0'
+  const rs = ex.retail_summary || {};
+  const retailCard = rs.n_transactions > 0
+    ? `<section class="hist-ex-card">
+        <h4>🛒 零售汇总 (MB700 + ID=0)</h4>
+        <div class="hist-ex-row">零售件数 <b>${rs.qty}</b> · 营收 <b>€${rs.revenue}</b></div>
+        <div class="hist-ex-row">交易笔数 <b>${rs.n_transactions}</b> · 平均件数/单 <b>${rs.avg_ticket_qty ?? '—'}</b></div>
+        <div class="hist-ex-row hist-ex-muted">最近零售 ${rs.last_at ?? '—'}</div>
+      </section>`
+    : `<section class="hist-ex-card">
+        <h4>🛒 零售汇总</h4>
+        <div class="hist-ex-row hist-ex-muted">暂无零售记录 (MB700 / ID=0)</div>
+      </section>`;
+
+  // 5. 持仓 + 预测 + 数据范围 卡片
   const truncWarn = ex.is_history_truncated
     ? '<span class="hist-ex-warn" title="首笔事件早于 ETL 窗口起点 2021-06-01, 更早期事件未纳入">⚠️ 历史可能不全</span>'
     : '';
@@ -545,7 +559,7 @@ function renderExtras(data) {
       <div class="hist-ex-row hist-ex-muted">首笔 ${ex.first_event_at ?? '—'} · 末笔 ${ex.last_event_at ?? '—'} ${truncWarn}</div>
     </section>`;
 
-  root.innerHTML = returnCard + topCustomersCard + heatmapCard + miscCard;
+  root.innerHTML = returnCard + retailCard + topCustomersCard + heatmapCard + miscCard;
 }
 
 function renderManualDropdown(barcode, current) {

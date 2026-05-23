@@ -54,12 +54,15 @@ def _net_unit(unit_price: float | None, discount_pct: float | None) -> float:
 
 
 def _is_retail(document_no: str | None) -> bool:
-    """ERP 零售单识别: 'MB' 前缀 (店内) 或 '0' (柜台零零)。零售不进批发聚合。"""
+    """ERP 零售单识别 (2026-05-23 修正): 仅 'MB700' 前缀或 '0' 是零售.
+    用户决策: "MB700 开头一般为零售, MB900 基本都是批发". 之前一刀切
+    "MB 前缀全算零售" 把 MB900 批发误归零售, 拉低批发聚合.
+    """
     if document_no is None:
         return False
     if document_no == "0":
         return True
-    return document_no.startswith("MB")
+    return document_no.startswith("MB700")
 
 
 def compute_sales_metrics(
@@ -467,7 +470,27 @@ def compute_sku_extras(
     #    中国客户单笔大批量, 不拆栏会霸榜老外完全看不见
     top_cn, top_foreign = _compute_top_customers_split(barcode, session)
 
-    # 4. 首尾日期 + 完整性
+    # 4. 零售汇总 (单独显示, 不进 TOP10): MB700 单 + customer_id='0'.
+    retail_events = [r for r in rows if r.event_type == "sale" and _is_retail(r.document_no)]
+    retail_qty_lifetime = sum(r.qty for r in retail_events)
+    retail_revenue_lifetime = sum(
+        r.qty * _net_unit(r.unit_price, r.discount_pct)
+        for r in retail_events if r.unit_price
+    )
+    retail_n_transactions = len(retail_events)
+    retail_last_at: str | None = None
+    if retail_events:
+        retail_last_at = max(r.event_at for r in retail_events)[:10]
+    retail_summary = {
+        "qty": int(retail_qty_lifetime),
+        "revenue": round(retail_revenue_lifetime, 2),
+        "n_transactions": retail_n_transactions,
+        "last_at": retail_last_at,
+        "avg_ticket_qty": round(retail_qty_lifetime / retail_n_transactions, 1)
+            if retail_n_transactions > 0 else None,
+    }
+
+    # 5. 首尾日期 + 完整性
     all_dates = [_parse_date(r.event_at) for r in rows]
     first_event_at: str | None = min(all_dates).isoformat() if all_dates else None
     last_event_at: str | None = max(all_dates).isoformat() if all_dates else None
@@ -480,6 +503,7 @@ def compute_sku_extras(
         "price_stats": price_stats,
         "top_customers_cn": top_cn,
         "top_customers_foreign": top_foreign,
+        "retail_summary": retail_summary,
         "first_event_at": first_event_at,
         "last_event_at": last_event_at,
         "is_history_truncated": is_history_truncated,
@@ -494,8 +518,8 @@ def _compute_top_customers_split(
     """客户 TOP N 拆 CN + 老外两栏 (2026-05-23).
 
     返回 (top_cn, top_foreign), 每栏 limit 个.
-    客户类型判定: 名字含汉字 → CN (不依赖 stored customer_type, 避免漏归类).
-    无名字客户进 foreign 一档 (stored 类型 fallback).
+    排除零售事件 (document_no MB700* 或 '0'), 仅算批发客户.
+    客户类型判定: 名字含汉字 → CN.
     """
     from app.utils.customer_classifier import has_chinese_chars
 
@@ -512,6 +536,10 @@ def _compute_top_customers_split(
             InventoryEvent.product_barcode == barcode,
             InventoryEvent.event_type == "sale",
             InventoryEvent.customer_id.is_not(None),
+            InventoryEvent.customer_id != "0",  # 零售客户 ID=0
+            # 排除零售单: 不以 MB700 开头 + 不等于 '0'
+            ~InventoryEvent.document_no.like("MB700%"),
+            InventoryEvent.document_no != "0",
         )
         .group_by(
             InventoryEvent.customer_id,
