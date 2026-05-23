@@ -105,6 +105,7 @@ def find_record(query: str) -> dict | None:
                 Stockpile.manual_grade,
                 Stockpile.stock_price,
                 Stockpile.sale_price,
+                Stockpile.is_truly_discontinued,
             )
             .where(or_(Stockpile.product_barcode == q, Stockpile.product_model == q))
             .limit(1)
@@ -126,6 +127,7 @@ def find_record(query: str) -> dict | None:
         "manual_grade": row[11],
         "stock_price": row[12],
         "sale_price": row[13],
+        "is_truly_discontinued": bool(row[14]),
     }
 
 

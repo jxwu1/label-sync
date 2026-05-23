@@ -911,35 +911,49 @@ def _lookup_qty(qty_by_model: dict[str, int], barcode: str, model: str | None) -
 
 # list_sku_summary 60s 内存缓存 (2026-05-23): 整表计算 ~2-3s, 货号历史 / 补货决策
 # 每次开页都触发. 60s TTL 平衡新鲜度和延迟. tests setUp 显式 clear_cache 防泄漏.
+# Lock 防 thundering herd: 冷启动多个 panel 并发命中, 不加锁会重复计算 N 次.
+import threading as _threading
+
 _LIST_CACHE: dict = {"key": None, "value": None, "ts": 0.0}
 _LIST_TTL_SECONDS = 60.0
+_LIST_LOCK = _threading.Lock()
 
 
 def clear_list_sku_summary_cache() -> None:
     """测试 setUp 调用; 也可生产端点 (cron / 手动) 触发刷新."""
-    _LIST_CACHE["key"] = None
-    _LIST_CACHE["value"] = None
-    _LIST_CACHE["ts"] = 0.0
+    with _LIST_LOCK:
+        _LIST_CACHE["key"] = None
+        _LIST_CACHE["value"] = None
+        _LIST_CACHE["ts"] = 0.0
 
 
 def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
     """聚合所有 active SKU 的销售汇总（dashboard 列表页用）。
 
-    60s 内存缓存: 整表计算 ~2-3s, 货号历史/补货决策每次开页都触发,
-    60s TTL 平衡新鲜度和延迟 (用户感知秒级响应).
+    60s 内存缓存 + 锁防 thundering herd. 冷启动场景: 多 panel 并发命中时
+    只有一个线程算, 其他线程等结果, 避免重复算 N 次.
     """
     import time
     cache_key = (as_of,)
+    # 快速路径: 缓存命中无锁返回 (race 也安全, dict 读单字段是原子的)
     now = time.time()
     if (_LIST_CACHE["key"] == cache_key
             and _LIST_CACHE["value"] is not None
             and now - _LIST_CACHE["ts"] < _LIST_TTL_SECONDS):
         return _LIST_CACHE["value"]
-    result = _list_sku_summary_impl(as_of)
-    _LIST_CACHE["key"] = cache_key
-    _LIST_CACHE["value"] = result
-    _LIST_CACHE["ts"] = now
-    return result
+    # 慢路径: 拿锁. 拿到后再 check 一次 (double-checked locking),
+    # 因为可能在等锁期间另一线程已经填好缓存.
+    with _LIST_LOCK:
+        now = time.time()
+        if (_LIST_CACHE["key"] == cache_key
+                and _LIST_CACHE["value"] is not None
+                and now - _LIST_CACHE["ts"] < _LIST_TTL_SECONDS):
+            return _LIST_CACHE["value"]
+        result = _list_sku_summary_impl(as_of)
+        _LIST_CACHE["key"] = cache_key
+        _LIST_CACHE["value"] = result
+        _LIST_CACHE["ts"] = now
+        return result
 
 
 def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:

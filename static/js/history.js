@@ -453,27 +453,13 @@ function renderRestockSnapshot(it) {
 function renderSLA(data) {
   const s = data.sales || {};
   const cs = data.customer_split || { cn: {}, fo: {} };
-  const autoCat = data.auto_category
-    ? `<span class="cat-badge cat-${escapeHtml(data.auto_category)}">${escapeHtml(AUTO_CATEGORY_CN[data.auto_category] || data.auto_category)}</span>`
-    : '<span class="hist-kv--empty">未计算</span>';
-  const computedAt = data.auto_category_computed_at
-    ? `<span class="hist-sla-time">（${escapeHtml(data.auto_category_computed_at)}）</span>`
-    : "";
-  const dropdown = renderManualDropdown(data.barcode, data.manual_category);
+  // 2026-05-23 移除自动分类 + 人工标签行 (用户: 已无用处). 等级对照保留 (qty 分位仍有意义).
   const gradeRow = renderGradeRow(data.manual_grade, data.qty_percentile);
 
   const dailyAvg = ((s.total_qty || 0) / Math.max(1, s.lifespan_days || 1)).toFixed(2);
 
   $("historyAnalytics").innerHTML = `
     <div class="hist-sla-body">
-      <div class="hist-sla-row">
-        <span class="hist-sla-rowlabel">自动分类</span>
-        ${autoCat}${computedAt}
-      </div>
-      <div class="hist-sla-row">
-        <span class="hist-sla-rowlabel">人工标签</span>
-        ${dropdown}
-      </div>
       ${gradeRow}
 
       <div class="hist-section-label">SALES SIDE · 销售面</div>
@@ -753,10 +739,11 @@ function renderResult(data) {
     const tone = g >= 8 ? "accent" : g >= 4 ? "warn" : g >= 2 ? "info" : "error";
     cells.push(_kv("等级", `<span class="hist-grade-badge" data-tone="${tone}">${escapeHtml(String(c.manual_grade))}</span>`));
   }
-  // 状态 用 pill（active accent / inactive muted）
-  const statusPill = c.is_active
-    ? '<span class="hist-status-pill hist-status-pill--active"><span class="hist-status-dot"></span>在架</span>'
-    : '<span class="hist-status-pill hist-status-pill--inactive"><span class="hist-status-dot"></span>下架</span>';
+  // 状态 用 pill (2026-05-23 改用 is_truly_discontinued 算法判定, 不用
+  // is_active 即 ERP web_status='Y'/'N'). 算法依据: 库存=0 且 无销售采购事件.
+  const statusPill = c.is_truly_discontinued
+    ? '<span class="hist-status-pill hist-status-pill--inactive"><span class="hist-status-dot"></span>已停售</span>'
+    : '<span class="hist-status-pill hist-status-pill--active"><span class="hist-status-dot"></span>在售</span>';
   cells.push(_kv("状态", statusPill));
   cells.push(_kv("来源", escapeHtml(SOURCE_CN[c.source] || c.source), "hist-kv--mono hist-kv--muted"));
   cells.push(_kv("最后更新", escapeHtml(c.updated_at), "hist-kv--mono hist-kv--muted"));
