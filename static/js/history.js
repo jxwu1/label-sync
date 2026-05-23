@@ -262,7 +262,15 @@ function renderTmlSvg(timeline) {
     started = true;
     // 只在原始数据点 (非填充) 上放 dot, 让用户看到"哪周真有进货"
     if (rawPrices[i] !== null && rawPrices[i] !== undefined) {
-      dotParts.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.5" fill="var(--warn)"/>`);
+      const wk = timeline[i];
+      const raw = wk?.raw_unit_price_local;
+      const cur = wk?.currency_local;
+      // CN 货: tooltip 拆解 RMB 单价 + EUR 落地; FOREIGN: 仅 EUR
+      let tip = `${wk?.week_start ?? ''} · €${p.toFixed(4)}`;
+      if (cur === "RMB" && raw != null) {
+        tip = `${wk?.week_start ?? ''}\n€${p.toFixed(4)} (落地)\n← ¥${raw} (RMB 进价) / 7.8 + 海运分摊`;
+      }
+      dotParts.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.5" fill="var(--warn)"><title>${escapeHtml(tip)}</title></circle>`);
     }
   });
   const linePart = pathD

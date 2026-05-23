@@ -207,22 +207,64 @@ def compute_weekly_timeline(
     as_of: date | None = None,
     session: Session | None = None,
 ) -> list[dict[str, Any]]:
-    """每周销量 + 每周采购均价（折后）。Canvas 时间线图用。
+    """每周销量 + 每周采购均价 (折后, EUR 口径).
 
-    最近 `weeks` 周（含 as_of 当周）。每周返回：
-        {week_start: 'YYYY-MM-DD', sale_qty: int, purchase_unit_price: float|None}
+    最近 `weeks` 周 (含 as_of 当周). 每周返回:
+      {week_start, sale_qty, purchase_unit_price (EUR), raw_unit_price_local, currency_local}
 
-    purchase_unit_price 是该周内的折后均价（unit_price × (1-discount/100)）。
-    无销售/采购时对应字段为 0 / None。
+    口径 (2026-05-23): 进价 line 统一 EUR 落地成本.
+      FOREIGN: event.unit_price 直接是 EUR, 沿用现状
+      CN/HZ:   event.unit_price 是 RMB, 套公式
+               (运费 × pack_volume / unit_quantity + RMB) / 汇率
+               每周返回 EUR cost (chart 用) + 原始 RMB 单价 (tooltip 用)
+    无销售/采购时对应字段为 0 / None.
     """
     from datetime import timedelta
+    import json
 
     as_of = as_of or _today()
     rows = _fetch_all_rows(barcode, session)
 
-    # 周右端：as_of 那周。第 i 周（i=0..weeks-1）右端 = as_of - i*7 天
+    # 查 stockpile 主档拿 origin + 包装信息 (CN 公式参数)
+    def _query_stockpile(s: Session) -> tuple[str | None, int | None, float | None]:
+        sp = s.execute(
+            select(Stockpile.supplier_id, Stockpile.product_model, Stockpile.extra)
+            .where(Stockpile.product_barcode == barcode)
+        ).first()
+        if sp is None:
+            return None, None, None
+        sup_id, model, extra = sp
+        origin = classify_origin(sup_id, model)
+        unit_qty: int | None = None
+        pack_vol: float | None = None
+        if extra:
+            try:
+                ex = json.loads(extra) if isinstance(extra, str) else extra
+                uq = ex.get("unit_quantity")
+                if uq is not None:
+                    unit_qty = int(float(uq))
+                pv = ex.get("pack_volume")
+                if pv is not None:
+                    pack_vol = float(pv)
+            except (ValueError, TypeError):
+                pass
+        return origin, unit_qty, pack_vol
+
+    if session is not None:
+        origin, unit_qty, pack_vol = _query_stockpile(session)
+    else:
+        with stockpile_db._session() as s:
+            origin, unit_qty, pack_vol = _query_stockpile(s)
+
+    is_cn = origin in ("CN", "HZ")
+    rate = CONFIG.cn_exchange_rate_rmb_per_eur if is_cn else None
+    shipping_per_unit_rmb = 0.0
+    if is_cn and pack_vol and pack_vol > 0 and unit_qty and unit_qty > 0:
+        shipping_per_unit_rmb = CONFIG.cn_shipping_rate_rmb_per_m3 * pack_vol / unit_qty
+
     sale_buckets = [0] * weeks
-    purchase_prices: list[list[float]] = [[] for _ in range(weeks)]
+    purchase_prices_eur: list[list[float]] = [[] for _ in range(weeks)]
+    purchase_prices_raw: list[list[float]] = [[] for _ in range(weeks)]
 
     for r in rows:
         d = _parse_date(r.event_at)
@@ -234,20 +276,32 @@ def compute_weekly_timeline(
             sale_buckets[idx] += r.qty
         elif r.event_type == "purchase" and r.unit_price:
             net = _net_unit(r.unit_price, r.discount_pct)
-            if net > 0:
-                purchase_prices[idx].append(net)
+            if net <= 0:
+                continue
+            if is_cn and rate and rate > 0:
+                landed_eur = (net + shipping_per_unit_rmb) / rate
+                purchase_prices_eur[idx].append(landed_eur)
+                purchase_prices_raw[idx].append(net)
+            else:
+                purchase_prices_eur[idx].append(net)
+                purchase_prices_raw[idx].append(net)
 
+    currency_local = "RMB" if is_cn else "EUR"
     timeline: list[dict[str, Any]] = []
     for i in range(weeks):
         week_end = as_of - timedelta(days=(weeks - 1 - i) * 7)
         week_start = week_end - timedelta(days=6)
-        prices = purchase_prices[i]
-        avg_price = round(sum(prices) / len(prices), 2) if prices else None
+        eur_prices = purchase_prices_eur[i]
+        raw_prices = purchase_prices_raw[i]
+        avg_eur = round(sum(eur_prices) / len(eur_prices), 4) if eur_prices else None
+        avg_raw = round(sum(raw_prices) / len(raw_prices), 2) if raw_prices else None
         timeline.append(
             {
                 "week_start": week_start.isoformat(),
                 "sale_qty": int(sale_buckets[i]),
-                "purchase_unit_price": avg_price,
+                "purchase_unit_price": avg_eur,
+                "raw_unit_price_local": avg_raw,
+                "currency_local": currency_local,
             }
         )
     return timeline

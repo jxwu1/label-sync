@@ -961,5 +961,71 @@ class LifetimeProfitTests(_Base):
         assert it["realized_profit_eur"] is None
 
 
+class WeeklyTimelineOriginAwareTests(_Base):
+    """compute_weekly_timeline: CN 货按 EUR 落地成本, FOREIGN 沿用 EUR 原价."""
+
+    def _add_sku(self, barcode: str, **fields) -> None:
+        from app.models import Stockpile
+        values = {
+            "product_barcode": barcode,
+            "product_model": barcode,
+            "stockpile_location": "",
+            "is_active": 1,
+        }
+        values.update(fields)
+        with stockpile_db._session() as s:
+            s.execute(insert(Stockpile).values(**values))
+            s.commit()
+
+    def test_cn_purchase_price_converted_to_eur_landed_cost(self) -> None:
+        """CN 货 purchase event unit_price=1.85 RMB, 配 (240 件/箱, 0.115m³)
+        → 应转 (1000×0.115/240 + 1.85)/7.8 = €0.2986 落地价."""
+        import json
+        from app.services.analytics import compute_weekly_timeline
+
+        self._add_sku("WT1", supplier_id="CN0531",
+                      extra=json.dumps({"unit_quantity": "240", "pack_volume": "0.115"}))
+        self._add_event(barcode="WT1", event_type="purchase",
+                        event_at="2026-05-10", qty=240, unit_price=1.85,
+                        supplier_id="CN0531", document_no="P1")
+        tl = compute_weekly_timeline("WT1", weeks=4, as_of=date(2026, 5, 21))
+        priced = [w for w in tl if w["purchase_unit_price"] is not None]
+        assert len(priced) == 1
+        wk = priced[0]
+        assert wk["purchase_unit_price"] == 0.2986  # EUR 落地价
+        assert wk["raw_unit_price_local"] == 1.85    # RMB 原始
+        assert wk["currency_local"] == "RMB"
+
+    def test_foreign_purchase_price_passthrough_eur(self) -> None:
+        """FOREIGN 货 purchase event unit_price=3.5 EUR 直接透传, 不套公式."""
+        from app.services.analytics import compute_weekly_timeline
+
+        self._add_sku("WT2", supplier_id="GR0001")
+        self._add_event(barcode="WT2", event_type="purchase",
+                        event_at="2026-05-10", qty=10, unit_price=3.5,
+                        supplier_id="GR0001", document_no="P2")
+        tl = compute_weekly_timeline("WT2", weeks=4, as_of=date(2026, 5, 21))
+        priced = [w for w in tl if w["purchase_unit_price"] is not None]
+        assert len(priced) == 1
+        wk = priced[0]
+        assert wk["purchase_unit_price"] == 3.5
+        assert wk["currency_local"] == "EUR"
+
+    def test_cn_no_pack_volume_falls_back_to_exchange_only(self) -> None:
+        """CN 货缺 pack_volume → 海运分摊=0, 仅汇率换算 (与 ERP 体积=0 行为一致)."""
+        from app.services.analytics import compute_weekly_timeline
+
+        self._add_sku("WT3", supplier_id="CN0001")  # 无 extra → 无 unit_quantity/pack_volume
+        self._add_event(barcode="WT3", event_type="purchase",
+                        event_at="2026-05-10", qty=10, unit_price=7.8,
+                        supplier_id="CN0001", document_no="P3")
+        tl = compute_weekly_timeline("WT3", weeks=4, as_of=date(2026, 5, 21))
+        priced = [w for w in tl if w["purchase_unit_price"] is not None]
+        assert len(priced) == 1
+        # 7.8 RMB / 7.8 = 1.0 EUR, 无海运
+        assert priced[0]["purchase_unit_price"] == 1.0
+        assert priced[0]["raw_unit_price_local"] == 7.8
+
+
 if __name__ == "__main__":
     unittest.main()

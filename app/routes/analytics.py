@@ -681,6 +681,58 @@ def data_upload():
     })
 
 
+@bp.post("/data/dedup-purchase-events")
+def data_dedup_purchase_events():
+    """清理重复的 purchase inventory_events (2026-05-23).
+
+    规则: 相同 (barcode, event_at, qty, event_type='purchase'), 一行
+    unit_price 为 NULL, 另一行 > 0 → 删 NULL 行 (ERP 内部重复导入).
+
+    Auth: X-Upload-Token. Query: ?execute=true 实际删, 缺省 dry-run.
+    """
+    import os
+    import secrets
+    from flask import request
+    from sqlalchemy import text
+
+    expected = os.environ.get("UPLOAD_TOKEN", "")
+    if not expected:
+        return jsonify({"ok": False, "msg": "服务器 UPLOAD_TOKEN 未配置"}), 500
+    provided = request.headers.get("X-Upload-Token", "")
+    if not secrets.compare_digest(provided, expected):
+        return jsonify({"ok": False, "msg": "鉴权失败"}), 401
+
+    execute = request.args.get("execute", "").lower() == "true"
+    find_sql = text("""
+        SELECT e_null.id
+        FROM inventory_events e_null
+        JOIN inventory_events e_priced
+          ON e_priced.event_type = 'purchase'
+         AND e_priced.product_barcode = e_null.product_barcode
+         AND e_priced.event_at = e_null.event_at
+         AND e_priced.qty = e_null.qty
+         AND e_priced.unit_price IS NOT NULL
+         AND e_priced.id != e_null.id
+        WHERE e_null.event_type = 'purchase'
+          AND e_null.unit_price IS NULL
+    """)
+    with stockpile_db._session() as session:
+        ids = [r[0] for r in session.execute(find_sql).all()]
+        count = len(ids)
+        if not execute:
+            return jsonify({"ok": True, "mode": "dry-run", "deletable_rows": count})
+        # 分批 DELETE
+        BATCH = 500
+        for i in range(0, len(ids), BATCH):
+            chunk = ids[i:i + BATCH]
+            session.execute(
+                text("DELETE FROM inventory_events WHERE id = ANY(:ids)"),
+                {"ids": chunk},
+            )
+        session.commit()
+        return jsonify({"ok": True, "mode": "execute", "deleted": count})
+
+
 @bp.post("/forecast/refresh")
 def forecast_refresh():
     """§3.7 触发 forecast_output 表全量刷新 (供 cron 容器调).
