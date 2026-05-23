@@ -723,21 +723,23 @@ def data_dedup_purchase_events():
         return jsonify({"ok": False, "msg": "鉴权失败"}), 401
 
     execute = request.args.get("execute", "").lower() == "true"
-    # Phase 1: NULL + priced 配对
+    # Phase 1: 无效价 (NULL 或 0) + 有效价 (>0) 配对, 同 (barcode, date, qty) → 删无效价行
+    # 2026-05-23 扩: 之前只查 IS NULL, 漏了 unit_price=0 (ERP bug 价); 38702 案例.
     find_null_sql = text("""
-        SELECT e_null.id
-        FROM inventory_events e_null
+        SELECT e_bad.id
+        FROM inventory_events e_bad
         JOIN inventory_events e_priced
           ON e_priced.event_type = 'purchase'
-         AND e_priced.product_barcode = e_null.product_barcode
-         AND e_priced.event_at = e_null.event_at
-         AND e_priced.qty = e_null.qty
+         AND e_priced.product_barcode = e_bad.product_barcode
+         AND e_priced.event_at = e_bad.event_at
+         AND e_priced.qty = e_bad.qty
          AND e_priced.unit_price IS NOT NULL
-         AND e_priced.id != e_null.id
-        WHERE e_null.event_type = 'purchase'
-          AND e_null.unit_price IS NULL
+         AND e_priced.unit_price > 0
+         AND e_priced.id != e_bad.id
+        WHERE e_bad.event_type = 'purchase'
+          AND (e_bad.unit_price IS NULL OR e_bad.unit_price = 0)
     """)
-    # Phase 2: 同 (barcode, date, qty, price) 多行, 保留 min(id) 删其他
+    # Phase 2: 同 (barcode, date, qty, price) 多行 (含价格都一致), 保留 min(id) 删其他
     find_priced_dup_sql = text("""
         SELECT id FROM (
             SELECT id,
@@ -748,6 +750,7 @@ def data_dedup_purchase_events():
             FROM inventory_events
             WHERE event_type = 'purchase'
               AND unit_price IS NOT NULL
+              AND unit_price > 0
         ) t
         WHERE t.rn > 1
     """)
