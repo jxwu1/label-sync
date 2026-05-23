@@ -127,17 +127,23 @@ function urgencyCell(it) {
   const bd = it.urgency_breakdown;
   let tip = `紧迫分 ${score}`;
   if (bd) {
+    const dv = bd.demand_validity;
     tip += `\n  销额(30): ${bd.velocity}（€/周分位 ${(bd.velocity_pctile * 100).toFixed(0)}%）`;
-    tip += `\n  库存(30): ${bd.cover}（${it.weeks_of_cover === null ? "无库存数据" : it.weeks_of_cover + " 周可撑"}）`;
-    tip += `\n  距进货(10): ${bd.recency}（${fmtDays(it.last_purchase_days_ago)}）`;
+    const dvTag = (dv != null && dv < 1.0) ? ` · 长尾折扣×${dv}` : "";
+    tip += `\n  库存(30): ${bd.cover}（${it.weeks_of_cover === null ? "无库存数据" : it.weeks_of_cover + " 周可撑"}${dvTag}）`;
+    tip += `\n  距进货(10): ${bd.recency}（${fmtDays(it.last_purchase_days_ago)}${dvTag}）`;
     let marginInfo;
     if (bd.margin_missing) {
       marginInfo = "缺进货价";
     } else {
-      const sourceTag = bd.margin_source === "master" ? " · 主档参考价" : "";
-      marginInfo = `毛利 ${it.margin_pct}% / 分位 ${(bd.margin_pctile * 100).toFixed(0)}%${sourceTag}`;
+      const costTag = bd.margin_source === "master" ? " · 主档进价" : "";
+      const priceTag = bd.margin_price_source === "master" ? " · 主档售价" : "";
+      marginInfo = `毛利 ${it.margin_pct}% / 分位 ${(bd.margin_pctile * 100).toFixed(0)}%${costTag}${priceTag}`;
     }
     tip += `\n  毛利(30): ${bd.margin}（${marginInfo}）`;
+    if (it.retail_qty_26w > 0) {
+      tip += `\n  零售(展示): 26 周 ${it.retail_qty_26w} 件 / €${it.retail_revenue_26w}（未进算法）`;
+    }
   }
   return `<span class="rs-urgency ${cls}" title="${escapeHtml(tip)}">${score}</span>`;
 }
@@ -156,20 +162,27 @@ function weeksOfCoverCell(woc) {
 function marginCell(it) {
   const m = it.margin_pct;
   if (m === null || m === undefined) {
-    return '<span class="rs-margin rs-margin--none" title="缺进货价 (待下次进货抓取)">—</span>';
+    return '<span class="rs-margin rs-margin--none" title="缺进货价或售价">—</span>';
   }
   const cls =
     m >= 50 ? "rs-margin--great" :
     m >= 30 ? "rs-margin--good" :
     m >= 10 ? "rs-margin--meh" :
     "rs-margin--bad";
-  // 兜底来源标记: master 表示用 ERP 总档进价 (精度低), purchase 表示实际成交
-  const isMaster = it.margin_source === "master";
-  const cost = isMaster ? it.master_stock_price_eur : it.last_purchase_unit_price;
-  const costLabel = isMaster ? "主档参考进价" : "上次进价";
-  const sp = it.sale_net_avg != null ? `售净 €${it.sale_net_avg}` : "";
-  const tip = `毛利 ${m}%\n${sp}\n${costLabel} €${cost}`;
-  const suffix = isMaster ? '<span class="rs-margin__src" title="ERP 主档参考价, 非实际成交">~</span>' : "";
+  // 兜底来源标记:
+  // cost: master = ERP 总档进价 (精度低), purchase = 实际成交
+  // price: master = 主档售价 (稳定), events = 批发事件均价
+  const costIsMaster = it.margin_source === "master";
+  const priceIsMaster = it.margin_price_source === "master";
+  const cost = costIsMaster ? it.master_stock_price_eur : it.last_purchase_unit_price;
+  const costLabel = costIsMaster ? "主档参考进价" : "上次进价";
+  const salePrice = priceIsMaster ? it.master_sale_price_eur : it.sale_net_avg;
+  const saleLabel = priceIsMaster ? "主档售价" : "批发均价";
+  const tip = `毛利 ${m}%\n${saleLabel} €${salePrice}\n${costLabel} €${cost}`;
+  // 任一端用兜底/参考价就标 ~
+  const suffix = (costIsMaster || priceIsMaster)
+    ? '<span class="rs-margin__src" title="部分使用主档参考价, 非实际成交">~</span>'
+    : "";
   return `<span class="rs-margin ${cls}" title="${escapeHtml(tip)}">${m.toFixed(1)}%${suffix}</span>`;
 }
 

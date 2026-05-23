@@ -310,25 +310,32 @@ class UrgencyScoreTests(unittest.TestCase):
         from app.services.analytics import _compute_urgency_score
 
         out = _compute_urgency_score(0.9, 2.0, 30, margin_pctile=0.5, is_new_item=True)
-        assert out == {"total": None, "velocity": None, "cover": None, "recency": None, "margin": None}
+        assert out == {
+            "total": None, "velocity": None, "cover": None,
+            "recency": None, "margin": None, "demand_validity": None,
+        }
 
     def test_sold_out_top_seller_long_no_purchase_maxes_out(self) -> None:
-        """P2 公式 E: v*30 + c*30 + r*10 + m*30 = 100."""
+        """P2 公式 E: v*30 + c*30 + r*10 + m*30 = 100 (需要 dv=1.0)."""
         from app.services.analytics import _compute_urgency_score
 
         out = _compute_urgency_score(
-            velocity_pctile=1.0, weeks_of_cover=0.0, last_purchase_days=200, margin_pctile=1.0,
+            velocity_pctile=1.0, weeks_of_cover=0.0, last_purchase_days=200,
+            margin_pctile=1.0, n_active_weeks=4,
         )
         assert out["velocity"] == 30.0
         assert out["cover"] == 30.0
         assert out["recency"] == 10.0
         assert out["margin"] == 30.0
         assert out["total"] == 100.0
+        assert out["demand_validity"] == 1.0
 
     def test_just_restocked_low_recency(self) -> None:
         from app.services.analytics import _compute_urgency_score
 
-        out = _compute_urgency_score(velocity_pctile=0.5, weeks_of_cover=10.0, last_purchase_days=0)
+        out = _compute_urgency_score(
+            velocity_pctile=0.5, weeks_of_cover=10.0, last_purchase_days=0, n_active_weeks=4,
+        )
         assert out["velocity"] == 15.0  # 0.5 * 30
         assert out["cover"] == 0.0
         assert out["recency"] == 0.0
@@ -338,14 +345,21 @@ class UrgencyScoreTests(unittest.TestCase):
     def test_no_history_zero_score(self) -> None:
         from app.services.analytics import _compute_urgency_score
 
-        out = _compute_urgency_score(velocity_pctile=0.0, weeks_of_cover=None, last_purchase_days=None)
-        assert out == {"total": 0.0, "velocity": 0.0, "cover": 0.0, "recency": 0.0, "margin": 0.0}
+        out = _compute_urgency_score(
+            velocity_pctile=0.0, weeks_of_cover=None, last_purchase_days=None, n_active_weeks=0,
+        )
+        assert out == {
+            "total": 0.0, "velocity": 0.0, "cover": 0.0,
+            "recency": 0.0, "margin": 0.0, "demand_validity": 0.0,
+        }
 
     def test_negative_weeks_of_cover_caps_at_max_not_overflow(self) -> None:
         """ERP 超卖待到货 → qty_total<0 → weeks_of_cover<0 → cover 项应 cap 30, 总分 ≤100."""
         from app.services.analytics import _compute_urgency_score
 
-        out = _compute_urgency_score(velocity_pctile=0.5, weeks_of_cover=-62.1, last_purchase_days=0)
+        out = _compute_urgency_score(
+            velocity_pctile=0.5, weeks_of_cover=-62.1, last_purchase_days=0, n_active_weeks=4,
+        )
         assert out["cover"] == 30.0
         assert out["total"] <= 100.0
         assert out["total"] == 15.0 + 30.0 + 0.0 + 0.0
@@ -353,7 +367,9 @@ class UrgencyScoreTests(unittest.TestCase):
     def test_cover_clamped_at_zero_when_overstocked(self) -> None:
         from app.services.analytics import _compute_urgency_score
 
-        out = _compute_urgency_score(velocity_pctile=0.8, weeks_of_cover=50.0, last_purchase_days=10)
+        out = _compute_urgency_score(
+            velocity_pctile=0.8, weeks_of_cover=50.0, last_purchase_days=10, n_active_weeks=4,
+        )
         assert out["cover"] == 0.0
 
     def test_margin_pctile_contributes_30_max(self) -> None:
@@ -361,7 +377,8 @@ class UrgencyScoreTests(unittest.TestCase):
         from app.services.analytics import _compute_urgency_score
 
         out = _compute_urgency_score(
-            velocity_pctile=0.0, weeks_of_cover=None, last_purchase_days=None, margin_pctile=1.0,
+            velocity_pctile=0.0, weeks_of_cover=None, last_purchase_days=None,
+            margin_pctile=1.0, n_active_weeks=4,
         )
         assert out["margin"] == 30.0
         assert out["total"] == 30.0
@@ -371,11 +388,46 @@ class UrgencyScoreTests(unittest.TestCase):
         from app.services.analytics import _compute_urgency_score
 
         out = _compute_urgency_score(
-            velocity_pctile=0.8, weeks_of_cover=2.0, last_purchase_days=100, margin_pctile=None,
+            velocity_pctile=0.8, weeks_of_cover=2.0, last_purchase_days=100,
+            margin_pctile=None, n_active_weeks=4,
         )
         # v 24 + c (1-2/8)*30=22.5 + r (100/180)*10≈5.56 + m 0
         assert out["margin"] == 0.0
         assert out["total"] == round(24.0 + 22.5 + 100/180*10, 1)
+
+    def test_demand_validity_long_tail_suppresses_cover_and_recency(self) -> None:
+        """长尾死货 (n_active_weeks=1, dv=0.25) → cover/recency 砍到 1/4.
+        5206753040071 case 回归: 3 年只卖 7 次, 不该靠 cover 满分霸榜."""
+        from app.services.analytics import _compute_urgency_score
+
+        out = _compute_urgency_score(
+            velocity_pctile=0.3, weeks_of_cover=0.0, last_purchase_days=180,
+            margin_pctile=0.2, n_active_weeks=1,
+        )
+        # dv = 1/4 = 0.25; cover 30*0.25=7.5, recency 10*0.25=2.5
+        assert out["demand_validity"] == 0.25
+        assert out["cover"] == 7.5
+        assert out["recency"] == 2.5
+        # velocity 9.0 + margin 6.0 不受 dv 影响
+        assert out["velocity"] == 9.0
+        assert out["margin"] == 6.0
+
+    def test_demand_validity_threshold_at_4_weeks_full(self) -> None:
+        """n_active_weeks >= 4 → dv=1.0 满分卫星分."""
+        from app.services.analytics import _compute_urgency_score
+
+        a = _compute_urgency_score(
+            velocity_pctile=0.5, weeks_of_cover=0.0, last_purchase_days=180,
+            margin_pctile=0.5, n_active_weeks=4,
+        )
+        b = _compute_urgency_score(
+            velocity_pctile=0.5, weeks_of_cover=0.0, last_purchase_days=180,
+            margin_pctile=0.5, n_active_weeks=20,
+        )
+        # >=4 周后 dv=1.0 封顶
+        assert a["demand_validity"] == 1.0
+        assert b["demand_validity"] == 1.0
+        assert a["total"] == b["total"]
 
 
 class ListSkuSummaryRestockFieldsTests(_Base):

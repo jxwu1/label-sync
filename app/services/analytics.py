@@ -52,6 +52,15 @@ def _net_unit(unit_price: float | None, discount_pct: float | None) -> float:
     return (unit_price or 0.0) * (1.0 - (discount_pct or 0.0) / 100.0)
 
 
+def _is_retail(document_no: str | None) -> bool:
+    """ERP 零售单识别: 'MB' 前缀 (店内) 或 '0' (柜台零零)。零售不进批发聚合。"""
+    if document_no is None:
+        return False
+    if document_no == "0":
+        return True
+    return document_no.startswith("MB")
+
+
 def compute_sales_metrics(
     barcode: str,
     as_of: date | None = None,
@@ -295,6 +304,7 @@ def _attach_urgency_scores(items: list[dict[str, Any]]) -> None:
             last_purchase_days=it["last_purchase_days_ago"],
             margin_pctile=m_pctile,
             is_new_item=it["is_new_item"],
+            n_active_weeks=it.get("n_active_weeks_26w", 0),
         )
         it["urgency_score"] = breakdown["total"]
         it["urgency_breakdown"] = (
@@ -308,8 +318,13 @@ def _attach_urgency_scores(items: list[dict[str, Any]]) -> None:
                 "margin_pctile": round(m_pctile, 3),
                 "margin_missing": it["margin_pct"] is None,
                 "margin_source": it.get("margin_source"),
+                "margin_price_source": it.get("margin_price_source"),
+                "demand_validity": breakdown["demand_validity"],
             }
         )
+
+
+_DEMAND_VALIDITY_FULL_WEEKS = 4  # n_active_weeks_26w >= 4 周才认 cover/recency 满分
 
 
 def _compute_urgency_score(
@@ -318,6 +333,7 @@ def _compute_urgency_score(
     last_purchase_days: int | None,
     margin_pctile: float | None = None,
     is_new_item: bool = False,
+    n_active_weeks: int = 0,
 ) -> dict[str, Any]:
     """补货紧迫分（0-100）+ 四项分解。
 
@@ -337,7 +353,15 @@ def _compute_urgency_score(
     新品（lifespan < 28d）数据不足, 整体分置 None, 前端单独 tab 展示。
     """
     if is_new_item:
-        return {"total": None, "velocity": None, "cover": None, "recency": None, "margin": None}
+        return {
+            "total": None, "velocity": None, "cover": None,
+            "recency": None, "margin": None, "demand_validity": None,
+        }
+
+    # demand_validity: 26 周内有销售周数 / 4. 长尾死货 (n_active_weeks=1) → 0.25,
+    # cover/recency 卫星分被压到 1/4. 解决"3 年只卖 7 次的货拿满分 cover"问题.
+    # velocity 和 margin 已经是分位制不需要再 dv 调整 (分位本身就反映了活跃度).
+    dv = min(1.0, n_active_weeks / _DEMAND_VALIDITY_FULL_WEEKS)
 
     v = (velocity_pctile or 0.0) * 30.0
     if weeks_of_cover is None:
@@ -346,11 +370,11 @@ def _compute_urgency_score(
         # weeks_of_cover 可能 < 0 (ERP 超卖待到货, qty_total 负) → 视为 0 库存,
         # cover 满分. clamp 在 [0, 1] 避免分数溢出.
         woc = max(0.0, weeks_of_cover)
-        c = max(0.0, 1.0 - woc / _URGENCY_COVER_TARGET_WEEKS) * 30.0
+        c = max(0.0, 1.0 - woc / _URGENCY_COVER_TARGET_WEEKS) * 30.0 * dv
     if last_purchase_days is None:
         r = 0.0
     else:
-        r = min(1.0, last_purchase_days / _URGENCY_RECENCY_FULL_DAYS) * 10.0
+        r = min(1.0, last_purchase_days / _URGENCY_RECENCY_FULL_DAYS) * 10.0 * dv
     m = (margin_pctile or 0.0) * 30.0
     return {
         "total": round(v + c + r + m, 1),
@@ -358,6 +382,7 @@ def _compute_urgency_score(
         "cover": round(c, 1),
         "recency": round(r, 1),
         "margin": round(m, 1),
+        "demand_validity": round(dv, 3),
     }
 
 
@@ -416,6 +441,7 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
                 Stockpile.supplier_id,
                 Stockpile.last_purchase_unit_price,
                 Stockpile.master_stock_price_eur,
+                Stockpile.sale_price,
             ).where(Stockpile.is_truly_discontinued == False)  # noqa: E712 — SQL eq
         ).all()
         sales_rows = session.execute(
@@ -425,6 +451,7 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
                 InventoryEvent.qty,
                 InventoryEvent.unit_price,
                 InventoryEvent.discount_pct,
+                InventoryEvent.document_no,
                 Customer.customer_type,
             )
             .join(Customer, Customer.customer_id == InventoryEvent.customer_id, isouter=True)
@@ -451,21 +478,26 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
             last_purchase[r.product_barcode] = (r.event_at, r.supplier_id)
 
     items: list[dict[str, Any]] = []
-    for bc, model, name_zh, auto_cat, manual_cat, grade, is_disc, sp_supplier_id, last_pp, master_pp in sp_rows:
+    for bc, model, name_zh, auto_cat, manual_cat, grade, is_disc, sp_supplier_id, last_pp, master_pp, master_sp in sp_rows:
         sales = by_bc.get(bc, [])
-        total_qty = int(sum(r.qty for r in sales))
-        if sales:
-            dates = [_parse_date(r.event_at) for r in sales]
+        # 批发/零售分流: document_no 以 'MB' 开头或 = '0' 算零售, 不进批发聚合.
+        # 零售只做透明展示 (retail_qty_26w / retail_revenue_26w), 不污染 weekly_velocity/sale_net_avg.
+        # 5206753040071 case: 单笔零售 €8.4677 拉爆批发均价 → 这里干掉.
+        wholesale_sales = [r for r in sales if not _is_retail(r.document_no)]
+        retail_sales = [r for r in sales if _is_retail(r.document_no)]
+        total_qty = int(sum(r.qty for r in wholesale_sales))
+        if wholesale_sales:
+            dates = [_parse_date(r.event_at) for r in wholesale_sales]
             lifespan = (max(dates) - min(dates)).days
-            weekly = _weekly_qty_array(dates, [r.qty for r in sales], as_of, _TREND_WEEKS)
+            weekly = _weekly_qty_array(dates, [r.qty for r in wholesale_sales], as_of, _TREND_WEEKS)
             trend = _trend_slope_pct(weekly)
             # weekly 已经是 _TREND_WEEKS=12 周净销量数组 (最近一周在末尾), 直接复用做 sparkline
             weekly_qty_12w = [int(x) for x in weekly]
-            # 26 周窗口净销量 + 净销售额 + 有销售周数 + 销售净加权均价
+            # 26 周窗口净销量 + 净销售额 + 有销售周数 + 销售净加权均价 (仅批发)
             recent_qty = 0
             recent_revenue = 0.0
             recent_weeks: set[tuple[int, int]] = set()
-            for r in sales:
+            for r in wholesale_sales:
                 d = _parse_date(r.event_at)
                 if 0 <= (as_of - d).days < velocity_cutoff_days:
                     recent_qty += r.qty
@@ -475,8 +507,7 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
             n_active_weeks = len(recent_weeks)
             weekly_velocity = (recent_qty / n_active_weeks) if n_active_weeks else 0.0
             weekly_revenue = (recent_revenue / n_active_weeks) if n_active_weeks else 0.0
-            # 销售净加权均价: 26 周窗口内 recent_revenue / recent_qty.
-            # 用作 margin = (sale_net - last_purchase) / sale_net 的分子.
+            # 销售净加权均价: 26 周窗口内 recent_revenue / recent_qty (仅批发).
             sale_net_avg = (recent_revenue / recent_qty) if recent_qty > 0 else None
         else:
             lifespan = 0
@@ -486,8 +517,16 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
             n_active_weeks = 0
             weekly_qty_12w = [0] * _TREND_WEEKS
             sale_net_avg = None
-        cn_qty = int(sum(r.qty for r in sales if r.customer_type == "chinese"))
-        fo_qty = int(sum(r.qty for r in sales if r.customer_type == "foreign"))
+        # 零售透明字段: 26 周窗口内的零售销量/销售额, 不参与算法, 仅前端展示用.
+        retail_qty_26w = 0
+        retail_revenue_26w = 0.0
+        for r in retail_sales:
+            d = _parse_date(r.event_at)
+            if 0 <= (as_of - d).days < velocity_cutoff_days:
+                retail_qty_26w += r.qty
+                retail_revenue_26w += r.qty * _net_unit(r.unit_price, r.discount_pct)
+        cn_qty = int(sum(r.qty for r in wholesale_sales if r.customer_type == "chinese"))
+        fo_qty = int(sum(r.qty for r in wholesale_sales if r.customer_type == "foreign"))
         qty_total = _lookup_qty(qty_by_model, bc, model)
         weeks_of_cover: float | None
         if weekly_velocity > 0 and qty_total is not None:
@@ -507,14 +546,15 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
         supplier_id = sp_supplier_id or last_purchase_supplier
         origin = classify_origin(supplier_id, model)
         is_new_item = bool(sales) and lifespan < _NEW_ITEM_LIFESPAN_DAYS
-        # 毛利率: (sale_net_avg - cost) / sale_net_avg * 100
+        # 毛利率: (sale - cost) / sale * 100
         # cost = COALESCE(last_purchase_unit_price, master_stock_price_eur)
-        # margin_source 标记数据出处, 让前端展示精度提示:
-        #   'purchase' = 实际 purchase event 的折后净价 (准)
-        #   'master'   = ERP 产品总档 stock_price (FOREIGN only, 兜底)
-        #   None       = 两路都缺 → margin_pct=None
+        # sale = COALESCE(stockpile.sale_price, sale_net_avg)  ← A 方案 (2026-05-23)
+        # 原因: sale_net_avg 来自批发事件均价, 单笔异常单 (如 5206753040071 €8.4677)
+        # 会拉爆均价; 主档 sale_price 是 ERP 档案价, 稳定且不受异常单影响.
+        # margin_source 标 cost 来源; margin_price_source 标 sale 来源.
         margin_pct: float | None
         margin_source: str | None
+        margin_price_source: str | None
         cost: float | None = None
         if last_pp is not None and last_pp > 0:
             cost = float(last_pp)
@@ -524,11 +564,21 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
             margin_source = "master"
         else:
             margin_source = None
-        if sale_net_avg is not None and sale_net_avg > 0 and cost is not None:
-            margin_pct = round((sale_net_avg - cost) / sale_net_avg * 100.0, 2)
+        sale: float | None = None
+        if master_sp is not None and master_sp > 0:
+            sale = float(master_sp)
+            margin_price_source = "master"
+        elif sale_net_avg is not None and sale_net_avg > 0:
+            sale = float(sale_net_avg)
+            margin_price_source = "events"
+        else:
+            margin_price_source = None
+        if sale is not None and sale > 0 and cost is not None:
+            margin_pct = round((sale - cost) / sale * 100.0, 2)
         else:
             margin_pct = None
-            margin_source = None  # 没销售净价也算不出, 重置 source
+            margin_source = None
+            margin_price_source = None
         items.append(
             {
                 "barcode": bc,
@@ -550,9 +600,13 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
                 "last_purchase_days_ago": last_purchase_days_ago,
                 "last_purchase_unit_price": (float(last_pp) if last_pp is not None else None),
                 "master_stock_price_eur": (float(master_pp) if master_pp is not None else None),
+                "master_sale_price_eur": (float(master_sp) if master_sp is not None else None),
                 "sale_net_avg": (round(sale_net_avg, 4) if sale_net_avg is not None else None),
                 "margin_pct": margin_pct,
                 "margin_source": margin_source,
+                "margin_price_source": margin_price_source,
+                "retail_qty_26w": retail_qty_26w,
+                "retail_revenue_26w": round(retail_revenue_26w, 2),
                 "lifespan_days": lifespan,
                 "is_new_item": is_new_item,
                 "trend_slope_pct_per_week": (round(trend, 2) if trend is not None else None),
