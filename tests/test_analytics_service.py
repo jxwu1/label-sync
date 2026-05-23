@@ -742,10 +742,10 @@ class RetailPriceAndInventoryValueTests(_Base):
 
         self._add_sku("RP2", supplier_id="GR0001", sale_price=0.50,
                       last_purchase_unit_price=0.20)
-        # 5 笔零售 (MB 前缀) 均价 €0.95
+        # 5 笔零售 (customer_id=0) 均价 €0.95
         for i, dt in enumerate(["2026-04-01","2026-04-10","2026-04-20","2026-05-01","2026-05-10"]):
             self._add_event(barcode="RP2", event_at=dt, qty=2,
-                            unit_price=0.95, document_no=f"MB700{i}")
+                            unit_price=0.95, customer_id="0", document_no=f"MB700{i}")
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "RP2")
         assert it["retail_price_observed"] == 0.95
@@ -780,7 +780,7 @@ class RetailPriceAndInventoryValueTests(_Base):
                         unit_price=0.50, document_no="W1")
         for i, dt in enumerate(["2026-05-02","2026-05-03","2026-05-04"]):
             self._add_event(barcode="INV1", event_at=dt, qty=1,
-                            unit_price=1.0, document_no=f"MB700{i}")
+                            unit_price=1.0, customer_id="0", document_no=f"MB700{i}")
         self._add_snapshot("2026-05-19", "INV1", 20)
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "INV1")
@@ -876,7 +876,7 @@ class LifetimeProfitTests(_Base):
         self._add_event(barcode="LP3", event_at="2025-01-01", qty=5,
                         unit_price=2.0, document_no="W1")
         self._add_event(barcode="LP3", event_at="2025-02-01", qty=3,
-                        unit_price=4.0, document_no="MB7001")
+                        unit_price=4.0, customer_id="0", document_no="MB7001")
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "LP3")
         assert it["lifetime_sale_qty"] == 8  # 5+3
@@ -1129,9 +1129,9 @@ class SkuExtrasTests(_Base):
         for i, p in enumerate([5.0, 6.0, 7.0]):
             self._add_event(barcode="EX2", event_at=f"2026-04-0{i+1}",
                             qty=10, unit_price=p, document_no=f"W{i}")
-        # 1 笔零售 (MB 前缀) - 应被排除
+        # 1 笔零售 (customer_id=0) - 应被排除
         self._add_event(barcode="EX2", event_at="2026-04-10", qty=2,
-                        unit_price=15.0, document_no="MB7001")
+                        unit_price=15.0, customer_id="0", document_no="MB7001")
         # 1 笔退货 - 应被排除
         self._add_event(barcode="EX2", event_at="2026-04-12", qty=-1,
                         unit_price=99.0, document_no="W9")
@@ -1164,44 +1164,38 @@ class SkuExtrasTests(_Base):
         assert len(e["top_customers_foreign"]) == 1
         assert e["top_customers_foreign"][0]["customer_id"] == "C2"
 
-    def test_top10_excludes_retail_and_id_zero(self) -> None:
-        """TOP10 排除零售: MB700 单 + customer_id='0' 都不进客户榜."""
+    def test_top10_excludes_retail_customer_id_zero(self) -> None:
+        """零售识别用 customer_id='0' (2026-05-23 改用客户口径, 弃 document_no 规则)."""
         from app.services.analytics import compute_sku_extras
 
         self._add_sku("EXR")
         self._add_customer("C100", "foreign", "REAL CUSTOMER")
         self._add_customer("0", "foreign", "零售")
-        # 批发: 30 件 (MB900 不算零售)
         self._add_event(barcode="EXR", event_at="2026-04-01", qty=30,
-                        customer_id="C100", document_no="MB900123")
-        # 零售: 5 件 (MB700) 应排除
+                        customer_id="C100", document_no="W1")
         self._add_event(barcode="EXR", event_at="2026-04-10", qty=5,
-                        customer_id="0", document_no="MB700456")
+                        customer_id="0", document_no="W2")
         e = compute_sku_extras("EXR", as_of=date(2026, 5, 1))
-        # 只有 REAL CUSTOMER, 零售 ID=0 不在客户榜里
         assert len(e["top_customers_foreign"]) == 1
         assert e["top_customers_foreign"][0]["customer_id"] == "C100"
         assert e["top_customers_foreign"][0]["qty"] == 30
-        # 零售汇总单独
         assert e["retail_summary"]["qty"] == 5
         assert e["retail_summary"]["n_transactions"] == 1
 
-    def test_mb900_is_wholesale_not_retail(self) -> None:
-        """MB900 是批发, 不是零售 (区别于 MB700)."""
+    def test_top10_excludes_customer_name_contains_lingshou(self) -> None:
+        """名字含"零售"的客户即使有 ID 也归零售, 不进 TOP10."""
         from app.services.analytics import compute_sku_extras
 
-        self._add_sku("EXMB")
-        self._add_customer("C200", "foreign", "WHOLESALE GR")
-        # MB900 prefix - 应算批发
-        self._add_event(barcode="EXMB", event_at="2026-04-01", qty=100,
-                        customer_id="C200", document_no="MB900111")
-        # MB700 prefix - 应算零售
-        self._add_event(barcode="EXMB", event_at="2026-04-02", qty=3,
-                        customer_id="C200", document_no="MB700222")
-        e = compute_sku_extras("EXMB", as_of=date(2026, 5, 1))
-        # 批发客户榜: 100 件 (MB900), 不含 3 件零售
-        assert e["top_customers_foreign"][0]["qty"] == 100
-        # 零售汇总: 3 件
+        self._add_sku("EXR2")
+        self._add_customer("C200", "foreign", "REAL")
+        self._add_customer("C999", "foreign", "零售客户")  # 名字含"零售"
+        self._add_event(barcode="EXR2", event_at="2026-04-01", qty=50,
+                        customer_id="C200", document_no="W1")
+        self._add_event(barcode="EXR2", event_at="2026-04-10", qty=3,
+                        customer_id="C999", document_no="W2")
+        e = compute_sku_extras("EXR2", as_of=date(2026, 5, 1))
+        assert len(e["top_customers_foreign"]) == 1
+        assert e["top_customers_foreign"][0]["customer_id"] == "C200"
         assert e["retail_summary"]["qty"] == 3
 
     def test_top_customers_chinese_name_overrides_stored_type(self) -> None:
@@ -1293,9 +1287,9 @@ class HoldingAndHeatmapTests(_Base):
                         unit_price=2.0, document_no="W1")
         self._add_event(barcode="HM1", event_at="2025-12-10", qty=30,
                         unit_price=2.0, document_no="W2")
-        # 零售不进热力图
+        # 零售不进热力图 (customer_id=0)
         self._add_event(barcode="HM1", event_at="2026-03-20", qty=5,
-                        unit_price=2.0, document_no="MB7001")
+                        unit_price=2.0, customer_id="0", document_no="MB7001")
         h = compute_monthly_heatmap("HM1", years=4, as_of=date(2026, 5, 21))
         assert len(h["years"]) == 4
         assert "2026" in h["years"]

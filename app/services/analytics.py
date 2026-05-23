@@ -53,16 +53,20 @@ def _net_unit(unit_price: float | None, discount_pct: float | None) -> float:
     return (unit_price or 0.0) * (1.0 - (discount_pct or 0.0) / 100.0)
 
 
-def _is_retail(document_no: str | None) -> bool:
-    """ERP 零售单识别 (2026-05-23 修正): 仅 'MB700' 前缀或 '0' 是零售.
-    用户决策: "MB700 开头一般为零售, MB900 基本都是批发". 之前一刀切
-    "MB 前缀全算零售" 把 MB900 批发误归零售, 拉低批发聚合.
+def _is_retail_customer(customer_id: str | None, customer_name: str | None) -> bool:
+    """ERP 零售识别 (2026-05-23 改用客户口径, 弃 document_no 规则).
+
+    用户决策: "只要客户id不是0, 名字不含零售的, 基本上都是批发".
+    MB 前缀分布查实际有 MB6/7/8/9/2/1 多种, 无法用前缀切分零售 vs 批发.
+    改用客户:
+      零售 = customer_id == "0", 或 customer_name 含 "零售"
+      批发 = 其他 (含 customer_id 为空的, 当批发处理 - 罕见, 内部入库等)
     """
-    if document_no is None:
-        return False
-    if document_no == "0":
+    if customer_id == "0":
         return True
-    return document_no.startswith("MB700")
+    if customer_name and "零售" in customer_name:
+        return True
+    return False
 
 
 def compute_sales_metrics(
@@ -393,7 +397,7 @@ def compute_monthly_sales(
         month_key = date(d.year, d.month, 1)
         if month_key not in bucket:
             continue
-        if _is_retail(r.document_no):
+        if _is_retail_customer(r.customer_id, r.customer_name):
             bucket[month_key]["retail_qty"] += r.qty
         else:
             bucket[month_key]["sale_qty"] += r.qty
@@ -444,7 +448,7 @@ def compute_sku_extras(
         if r.event_type == "sale"
         and r.qty > 0
         and r.unit_price
-        and not _is_retail(r.document_no)
+        and not _is_retail_customer(r.customer_id, r.customer_name)
         and _net_unit(r.unit_price, r.discount_pct) > 0
     ]
     if wholesale_prices:
@@ -471,7 +475,7 @@ def compute_sku_extras(
     top_cn, top_foreign = _compute_top_customers_split(barcode, session)
 
     # 4. 零售汇总 (单独显示, 不进 TOP10): MB700 单 + customer_id='0'.
-    retail_events = [r for r in rows if r.event_type == "sale" and _is_retail(r.document_no)]
+    retail_events = [r for r in rows if r.event_type == "sale" and _is_retail_customer(r.customer_id, r.customer_name)]
     retail_qty_lifetime = sum(r.qty for r in retail_events)
     retail_revenue_lifetime = sum(
         r.qty * _net_unit(r.unit_price, r.discount_pct)
@@ -537,9 +541,8 @@ def _compute_top_customers_split(
             InventoryEvent.event_type == "sale",
             InventoryEvent.customer_id.is_not(None),
             InventoryEvent.customer_id != "0",  # 零售客户 ID=0
-            # 排除零售单: 不以 MB700 开头 + 不等于 '0'
-            ~InventoryEvent.document_no.like("MB700%"),
-            InventoryEvent.document_no != "0",
+            # 排除名字含"零售"的客户 (即使有 ID, 用户决策)
+            ~func.coalesce(Customer.customer_name, "").like("%零售%"),
         )
         .group_by(
             InventoryEvent.customer_id,
@@ -659,7 +662,7 @@ def compute_monthly_heatmap(
     year_list = [str(y) for y in range(current_year - years + 1, current_year + 1)]
     matrix: dict[str, list[int]] = {y: [0] * 12 for y in year_list}
     for r in rows:
-        if r.event_type != "sale" or _is_retail(r.document_no):
+        if r.event_type != "sale" or _is_retail_customer(r.customer_id, r.customer_name):
             continue
         d = _parse_date(r.event_at)
         ykey = str(d.year)
@@ -708,15 +711,21 @@ def compute_forecast_snapshot(
 
 
 def _fetch_all_rows_with_doc_no(barcode: str, session: Session | None):
-    """compute_monthly_sales 需要 document_no 判定零售."""
-    stmt = select(
-        InventoryEvent.event_at,
-        InventoryEvent.event_type,
-        InventoryEvent.qty,
-        InventoryEvent.unit_price,
-        InventoryEvent.discount_pct,
-        InventoryEvent.document_no,
-    ).where(InventoryEvent.product_barcode == barcode)
+    """全 events with customer info (零售判定用 customer_id + customer_name)."""
+    stmt = (
+        select(
+            InventoryEvent.event_at,
+            InventoryEvent.event_type,
+            InventoryEvent.qty,
+            InventoryEvent.unit_price,
+            InventoryEvent.discount_pct,
+            InventoryEvent.document_no,
+            InventoryEvent.customer_id,
+            Customer.customer_name,
+        )
+        .join(Customer, Customer.customer_id == InventoryEvent.customer_id, isouter=True)
+        .where(InventoryEvent.product_barcode == barcode)
+    )
     if session is not None:
         return session.execute(stmt).all()
     with stockpile_db._session() as s:
@@ -923,7 +932,9 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
                 InventoryEvent.unit_price,
                 InventoryEvent.discount_pct,
                 InventoryEvent.document_no,
+                InventoryEvent.customer_id,
                 Customer.customer_type,
+                Customer.customer_name,
             )
             .join(Customer, Customer.customer_id == InventoryEvent.customer_id, isouter=True)
             .where(InventoryEvent.event_type == "sale")
@@ -959,8 +970,8 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
         # 批发/零售分流: document_no 以 'MB' 开头或 = '0' 算零售, 不进批发聚合.
         # 零售只做透明展示 (retail_qty_26w / retail_revenue_26w), 不污染 weekly_velocity/sale_net_avg.
         # 5206753040071 case: 单笔零售 €8.4677 拉爆批发均价 → 这里干掉.
-        wholesale_sales = [r for r in sales if not _is_retail(r.document_no)]
-        retail_sales = [r for r in sales if _is_retail(r.document_no)]
+        wholesale_sales = [r for r in sales if not _is_retail_customer(r.customer_id, r.customer_name)]
+        retail_sales = [r for r in sales if _is_retail_customer(r.customer_id, r.customer_name)]
         total_qty = int(sum(r.qty for r in wholesale_sales))
         if wholesale_sales:
             dates = [_parse_date(r.event_at) for r in wholesale_sales]
