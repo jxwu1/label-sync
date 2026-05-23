@@ -462,8 +462,10 @@ def compute_sku_extras(
     else:
         price_stats = {"mean": None, "std": None, "min": None, "max": None, "n": 0}
 
-    # 3. 客户 TOP10 (净 qty, 含退货抵销)
-    top_customers = _compute_top_customers(barcode, session)
+    # 3. 客户 TOP10 拆 CN + 老外两栏 (2026-05-23):
+    #    名字带中文一律 CN (不依赖 customers.customer_type stored 值, 直接看 name)
+    #    中国客户单笔大批量, 不拆栏会霸榜老外完全看不见
+    top_cn, top_foreign = _compute_top_customers_split(barcode, session)
 
     # 4. 首尾日期 + 完整性
     all_dates = [_parse_date(r.event_at) for r in rows]
@@ -476,19 +478,27 @@ def compute_sku_extras(
         "total_sale_qty_gross": int(pos_qty),
         "return_rate_pct": return_rate_pct,
         "price_stats": price_stats,
-        "top_customers": top_customers,
+        "top_customers_cn": top_cn,
+        "top_customers_foreign": top_foreign,
         "first_event_at": first_event_at,
         "last_event_at": last_event_at,
         "is_history_truncated": is_history_truncated,
     }
 
 
-def _compute_top_customers(
+def _compute_top_customers_split(
     barcode: str,
     session: Session | None,
     limit: int = 10,
-) -> list[dict[str, Any]]:
-    """客户 TOP N: 按净 qty (含退货抵销) desc, 返回 customer_id/type/qty/last_at."""
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """客户 TOP N 拆 CN + 老外两栏 (2026-05-23).
+
+    返回 (top_cn, top_foreign), 每栏 limit 个.
+    客户类型判定: 名字含汉字 → CN (不依赖 stored customer_type, 避免漏归类).
+    无名字客户进 foreign 一档 (stored 类型 fallback).
+    """
+    from app.utils.customer_classifier import has_chinese_chars
+
     stmt = (
         select(
             InventoryEvent.customer_id,
@@ -509,19 +519,28 @@ def _compute_top_customers(
             Customer.customer_name,
         )
         .order_by(func.sum(InventoryEvent.qty).desc())
-        .limit(limit)
     )
-    def _q(s: Session):
-        return [
-            {
+
+    def _q(s: Session) -> tuple[list, list]:
+        cn: list[dict[str, Any]] = []
+        fo: list[dict[str, Any]] = []
+        for r in s.execute(stmt).all():
+            is_cn = has_chinese_chars(r.customer_name)
+            effective_type = "chinese" if is_cn else (r.customer_type or "foreign")
+            entry = {
                 "customer_id": r.customer_id,
-                "customer_type": r.customer_type,
+                "customer_type": effective_type,
                 "customer_name": r.customer_name,
                 "qty": int(r.net_qty or 0),
                 "last_at": (r.last_at or "")[:10] if r.last_at else None,
             }
-            for r in s.execute(stmt).all()
-        ]
+            target = cn if is_cn else fo
+            if len(target) < limit:
+                target.append(entry)
+            if len(cn) >= limit and len(fo) >= limit:
+                break
+        return cn, fo
+
     if session is not None:
         return _q(session)
     with stockpile_db._session() as s:

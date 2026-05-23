@@ -1247,6 +1247,24 @@
 .hist-ex-top .hist-ex-mono { color: var(--ink-2); }
 .hist-ex-top .hist-ex-num { text-align: right; font-weight: 600; }
 
+/* TOP 客户 CN/GR 双列拆分 */
+.hist-ex-top-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 800px) { .hist-ex-top-split { grid-template-columns: 1fr; } }
+.hist-ex-top-col { min-width: 0; }
+.hist-ex-top-hd {
+  font-size: 12px;
+  margin-bottom: 6px;
+  color: var(--ink-2);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .hist-ex-type {
   display: inline-block;
   padding: 0 5px;

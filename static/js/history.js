@@ -468,29 +468,34 @@ function renderExtras(data) {
       <div class="hist-ex-row">售价区间 <b>€${ps.min ?? '—'}</b> ~ <b>€${ps.max ?? '—'}</b></div>
     </section>`;
 
-  // 2. 客户 TOP10
-  const topRows = (ex.top_customers || []).map((c, i) => {
-    const typeBadge = c.customer_type === 'chinese'
-      ? '<span class="hist-ex-type hist-ex-type--cn">CN</span>'
-      : c.customer_type === 'foreign'
-      ? '<span class="hist-ex-type hist-ex-type--fo">GR</span>'
-      : '<span class="hist-ex-type hist-ex-type--unk">?</span>';
-    return `<tr>
+  // 2. 客户 TOP10 拆 CN + 老外两栏 (2026-05-23):
+  //    名字带中文一律 CN; 中国客户单笔批量大不拆栏会霸榜.
+  const renderTopTable = (rows) => {
+    const trs = (rows || []).map((c, i) => `<tr>
       <td class="hist-ex-rank">${i + 1}</td>
-      <td>${typeBadge}</td>
       <td class="hist-ex-mono">${escapeHtml(c.customer_id || '')}</td>
       <td>${escapeHtml(c.customer_name || '—')}</td>
       <td class="hist-ex-num">${c.qty}</td>
       <td class="hist-ex-mono">${c.last_at || ''}</td>
-    </tr>`;
-  }).join('') || '<tr><td colspan="6" class="hist-ex-empty">暂无客户记录</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="5" class="hist-ex-empty">—</td></tr>';
+    return `<table class="hist-ex-top">
+      <thead><tr><th>#</th><th>ID</th><th>名字</th><th>件数</th><th>上次</th></tr></thead>
+      <tbody>${trs}</tbody>
+    </table>`;
+  };
   const topCustomersCard = `
     <section class="hist-ex-card hist-ex-card--wide">
-      <h4>👥 客户 TOP 10 (按净 qty)</h4>
-      <table class="hist-ex-top">
-        <thead><tr><th>#</th><th></th><th>客户 ID</th><th>名字</th><th>件数</th><th>上次</th></tr></thead>
-        <tbody>${topRows}</tbody>
-      </table>
+      <h4>👥 客户 TOP 10 (按净 qty, 含退货抵销)</h4>
+      <div class="hist-ex-top-split">
+        <div class="hist-ex-top-col">
+          <div class="hist-ex-top-hd"><span class="hist-ex-type hist-ex-type--cn">CN</span> 中国客户</div>
+          ${renderTopTable(ex.top_customers_cn)}
+        </div>
+        <div class="hist-ex-top-col">
+          <div class="hist-ex-top-hd"><span class="hist-ex-type hist-ex-type--fo">GR</span> 老外客户</div>
+          ${renderTopTable(ex.top_customers_foreign)}
+        </div>
+      </div>
     </section>`;
 
   // 3. 月度热力图 (4 年 × 12 月)

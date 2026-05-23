@@ -1141,13 +1141,14 @@ class SkuExtrasTests(_Base):
         assert e["price_stats"]["min"] == 5.0
         assert e["price_stats"]["max"] == 7.0
 
-    def test_top_customers_sorted_by_net_qty(self) -> None:
-        """TOP 客户按净 qty desc, 含退货抵销."""
+    def test_top_customers_split_cn_and_foreign(self) -> None:
+        """TOP 客户拆 CN + 老外两栏, 按净 qty desc, 含退货抵销.
+        名字含汉字一律 CN (覆盖 stored type)."""
         from app.services.analytics import compute_sku_extras
 
         self._add_sku("EX3")
         self._add_customer("C1", "chinese", "客户1")
-        self._add_customer("C2", "foreign", "客户2")
+        self._add_customer("C2", "foreign", "ANDREOU GR")
         # C1 买 20, 退 5 → 净 15. C2 买 10
         self._add_event(barcode="EX3", event_at="2026-04-01", qty=20,
                         customer_id="C1", document_no="W1")
@@ -1156,11 +1157,29 @@ class SkuExtrasTests(_Base):
         self._add_event(barcode="EX3", event_at="2026-04-10", qty=10,
                         customer_id="C2", document_no="W3")
         e = compute_sku_extras("EX3", as_of=date(2026, 5, 1))
-        assert len(e["top_customers"]) == 2
-        assert e["top_customers"][0]["customer_id"] == "C1"
-        assert e["top_customers"][0]["qty"] == 15
-        assert e["top_customers"][0]["customer_type"] == "chinese"
-        assert e["top_customers"][1]["customer_id"] == "C2"
+        assert len(e["top_customers_cn"]) == 1
+        assert e["top_customers_cn"][0]["customer_id"] == "C1"
+        assert e["top_customers_cn"][0]["qty"] == 15
+        assert e["top_customers_cn"][0]["customer_type"] == "chinese"
+        assert len(e["top_customers_foreign"]) == 1
+        assert e["top_customers_foreign"][0]["customer_id"] == "C2"
+
+    def test_top_customers_chinese_name_overrides_stored_type(self) -> None:
+        """名字带中文 → 强制 CN, 即使 customers.customer_type='foreign' 也覆盖.
+        用户决策: stored 类型有遗漏, 运行时按 name 重判."""
+        from app.services.analytics import compute_sku_extras
+
+        self._add_sku("EX3B")
+        # 故意把"中国老板"标成 foreign (模拟 stored 误归类)
+        self._add_customer("CB", "foreign", "中国老板希腊店面 ΟΕ")
+        self._add_event(barcode="EX3B", event_at="2026-04-01", qty=50,
+                        customer_id="CB", document_no="W1")
+        e = compute_sku_extras("EX3B", as_of=date(2026, 5, 1))
+        # 应该归 CN, 不依赖 stored 'foreign'
+        assert len(e["top_customers_cn"]) == 1
+        assert e["top_customers_cn"][0]["customer_id"] == "CB"
+        assert e["top_customers_cn"][0]["customer_type"] == "chinese"
+        assert len(e["top_customers_foreign"]) == 0
 
     def test_history_truncated_flag(self) -> None:
         """首笔事件 <= 2021-06-01 → is_history_truncated=True."""
@@ -1181,7 +1200,8 @@ class SkuExtrasTests(_Base):
         assert e["return_qty"] == 0
         assert e["return_rate_pct"] is None
         assert e["price_stats"]["n"] == 0
-        assert e["top_customers"] == []
+        assert e["top_customers_cn"] == []
+        assert e["top_customers_foreign"] == []
         assert e["first_event_at"] is None
 
 
