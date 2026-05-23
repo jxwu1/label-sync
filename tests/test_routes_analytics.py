@@ -150,19 +150,24 @@ class ManualCategoryTests(AnalyticsRoutesTests):
 
 
 class TimelineTests(AnalyticsRoutesTests):
-    def test_timeline_returns_52_weeks(self) -> None:
+    def test_timeline_returns_156_weeks_and_36_months(self) -> None:
+        """2026-05-23: timeline 扩 3 年 (156 周) + 月度销量聚合 (36 月) 给前端柱图."""
         self._seed_sku("B1")
         self._seed_sale("B1", "2026-04-15", 5)
         resp = self.client.get("/analytics/sku/B1/timeline")
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         self.assertTrue(data["ok"])
-        self.assertEqual(len(data["timeline"]), 52)
-        # 每周结构
+        self.assertEqual(len(data["timeline"]), 156)
         wk = data["timeline"][0]
         self.assertIn("week_start", wk)
         self.assertIn("sale_qty", wk)
         self.assertIn("purchase_unit_price", wk)
+        self.assertEqual(len(data["monthly_sales"]), 36)
+        mo = data["monthly_sales"][0]
+        self.assertIn("month_start", mo)
+        self.assertIn("sale_qty", mo)
+        self.assertIn("retail_qty", mo)
 
     def test_timeline_aggregates_purchase_price_average(self) -> None:
         from sqlalchemy import insert as sa_insert

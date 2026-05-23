@@ -182,9 +182,21 @@ class PurchaseMetricsTests(_Base):
         assert m["stock_balance"] == -50
 
     def test_avg_margin_pct(self) -> None:
-        """进 6 / 售 10 不打折 → margin (10-6)/10 = 40%."""
+        """origin-aware margin (2026-05-23 重写): cost 走 last_pp (FOREIGN), sale 走 主档 sale_price.
+        进 6 / 售 主档 10 → margin (10-6)/10 = 40%."""
+        from app.models import Stockpile
         from app.services.analytics import compute_purchase_metrics
 
+        # 给 B1 加 stockpile master 数据 (新口径需要)
+        with stockpile_db._session() as s:
+            s.execute(insert(Stockpile).values(
+                product_barcode="B1", product_model="B1",
+                stockpile_location="", is_active=1,
+                supplier_id="GR0001",       # FOREIGN
+                sale_price=10.0,            # 主档售价
+                last_purchase_unit_price=6.0,  # 主档进价
+            ))
+            s.commit()
         self._add_event(event_type="purchase", event_at="2026-01-01", qty=10, unit_price=6.0)
         self._add_event(event_type="sale", event_at="2026-02-01", qty=5, unit_price=10.0)
         m = compute_purchase_metrics("B1", as_of=date(2026, 5, 1))

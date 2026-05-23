@@ -123,7 +123,9 @@ def compute_purchase_metrics(
     sale_qty = sum(r.qty for r in rows if r.event_type == "sale")
     stock_balance = int(purchase_qty - sale_qty)
 
-    avg_margin_pct = _avg_margin_pct(rows)
+    # 毛利率: 走 origin-aware 主档优先, 跟 list_sku_summary 对齐 (2026-05-23).
+    # 旧的 _avg_margin_pct 直接平均事件 unit_price, 对 CN 货 RMB vs EUR 错配 → -115% 假亏损.
+    avg_margin_pct = _origin_aware_margin_pct(barcode, session)
 
     purchase_dates = [_parse_date(r.event_at) for r in rows if r.event_type == "purchase"]
     purchase_freq_365d = sum(
@@ -137,6 +139,48 @@ def compute_purchase_metrics(
         "purchase_freq_365d": purchase_freq_365d,
         "last_purchase_days_ago": last_purchase_days_ago,
     }
+
+
+def _origin_aware_margin_pct(barcode: str, session: Session | None) -> float | None:
+    """Origin-aware margin (与 list_sku_summary 一致):
+      sale: 优先 stockpile.sale_price (主档稳定), 退批发 events 净均价
+      cost: FOREIGN 优先 last_purchase_unit_price (EUR), 退 master_stock_price_eur
+            CN/HZ 仅 master_stock_price_eur (last_purchase 是 RMB, 不可用)
+    """
+    def _query(s: Session) -> float | None:
+        sp = s.execute(
+            select(
+                Stockpile.product_model,
+                Stockpile.supplier_id,
+                Stockpile.sale_price,
+                Stockpile.last_purchase_unit_price,
+                Stockpile.master_stock_price_eur,
+            ).where(Stockpile.product_barcode == barcode)
+        ).first()
+        if sp is None:
+            return None
+        model, sup_id, sale_p, last_pp, master_pp = sp
+        origin = classify_origin(sup_id, model)
+        cost: float | None = None
+        if origin in ("CN", "HZ"):
+            if master_pp is not None and master_pp > 0:
+                cost = float(master_pp)
+        else:
+            if last_pp is not None and last_pp > 0:
+                cost = float(last_pp)
+            elif master_pp is not None and master_pp > 0:
+                cost = float(master_pp)
+        if cost is None:
+            return None
+        sale: float | None = float(sale_p) if sale_p and sale_p > 0 else None
+        if sale is None:
+            return None
+        return round((sale - cost) / sale * 100.0, 2)
+
+    if session is not None:
+        return _query(session)
+    with stockpile_db._session() as s:
+        return _query(s)
 
 
 def compute_customer_split(
@@ -203,7 +247,7 @@ def _run_pct(session, stmt, barcode: str) -> float | None:
 
 def compute_weekly_timeline(
     barcode: str,
-    weeks: int = 52,
+    weeks: int = 156,
     as_of: date | None = None,
     session: Session | None = None,
 ) -> list[dict[str, Any]]:
@@ -305,6 +349,76 @@ def compute_weekly_timeline(
             }
         )
     return timeline
+
+
+def compute_monthly_sales(
+    barcode: str,
+    months: int = 36,
+    as_of: date | None = None,
+    session: Session | None = None,
+) -> list[dict[str, Any]]:
+    """月度销量聚合 (2026-05-23): timeline 扩 3 年后柱状图改月度避免过密.
+
+    最近 `months` 月 (含 as_of 当月). 每月返回:
+      {month_start: 'YYYY-MM-01', sale_qty: int (含退货负数), retail_qty: int}
+
+    按 (year, month) 桶聚合, retail 单独算 (零售=document_no MB* 或 '0').
+    """
+    from datetime import timedelta
+    as_of = as_of or _today()
+    rows = _fetch_all_rows_with_doc_no(barcode, session)
+
+    def _shift_months(d: date, n: int) -> date:
+        y = d.year + (d.month - 1 + n) // 12
+        m = (d.month - 1 + n) % 12 + 1
+        return date(y, m, 1)
+
+    # 计算窗口内每月起点 (months 个), 倒数第 i 月起点 = as_of 月 - i
+    start_months: list[date] = []
+    base = date(as_of.year, as_of.month, 1)
+    for i in range(months - 1, -1, -1):
+        start_months.append(_shift_months(base, -i))
+    bucket: dict[date, dict[str, int]] = {m: {"sale_qty": 0, "retail_qty": 0} for m in start_months}
+    cutoff = start_months[0]  # 最早桶
+
+    for r in rows:
+        if r.event_type != "sale":
+            continue
+        d = _parse_date(r.event_at)
+        if d < cutoff:
+            continue
+        month_key = date(d.year, d.month, 1)
+        if month_key not in bucket:
+            continue
+        if _is_retail(r.document_no):
+            bucket[month_key]["retail_qty"] += r.qty
+        else:
+            bucket[month_key]["sale_qty"] += r.qty
+
+    return [
+        {
+            "month_start": m.isoformat(),
+            "sale_qty": int(bucket[m]["sale_qty"]),
+            "retail_qty": int(bucket[m]["retail_qty"]),
+        }
+        for m in start_months
+    ]
+
+
+def _fetch_all_rows_with_doc_no(barcode: str, session: Session | None):
+    """compute_monthly_sales 需要 document_no 判定零售."""
+    stmt = select(
+        InventoryEvent.event_at,
+        InventoryEvent.event_type,
+        InventoryEvent.qty,
+        InventoryEvent.unit_price,
+        InventoryEvent.discount_pct,
+        InventoryEvent.document_no,
+    ).where(InventoryEvent.product_barcode == barcode)
+    if session is not None:
+        return session.execute(stmt).all()
+    with stockpile_db._session() as s:
+        return s.execute(stmt).all()
 
 
 def _attach_urgency_scores(items: list[dict[str, Any]]) -> None:

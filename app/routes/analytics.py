@@ -26,15 +26,22 @@ _VALID_MANUAL_CATEGORIES = frozenset(
 
 @bp.get("/sku/<barcode>/timeline")
 def sku_timeline(barcode: str):
-    """单 SKU 周聚合时间线（销量 + 进价）。"""
+    """单 SKU 时间线: 156 周进价线 (event 精度) + 36 月销量柱 (聚合).
+
+    2026-05-23 起返回:
+      timeline:        156 周, 每周 {week_start, sale_qty, purchase_unit_price, raw_unit_price_local, currency_local}
+      monthly_sales:   36 月, 每月 {month_start, sale_qty (批发), retail_qty}
+    前端: 销量柱用 monthly_sales (36 根宽柱), 进价线/点用 timeline (event 精度).
+    """
     barcode = barcode.strip()
     if not barcode:
         return jsonify({"ok": False, "msg": "缺少条码"}), 400
     try:
         timeline = analytics_service.compute_weekly_timeline(barcode)
+        monthly = analytics_service.compute_monthly_sales(barcode)
     except Exception as exc:
         return jsonify({"ok": False, "msg": f"时间线失败：{exc}"}), 500
-    return jsonify({"ok": True, "barcode": barcode, "timeline": timeline})
+    return jsonify({"ok": True, "barcode": barcode, "timeline": timeline, "monthly_sales": monthly})
 
 
 @bp.get("/list")
