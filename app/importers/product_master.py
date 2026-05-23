@@ -20,6 +20,7 @@ from sqlalchemy import func, select
 from sqlalchemy import insert as sa_insert
 from sqlalchemy.orm import Session
 
+from app.config import CONFIG
 from app.repositories import stockpile_db
 from app.importers.inventory import (
     _clean_barcode_or_model,
@@ -31,20 +32,43 @@ from app.models import Stockpile, StockpileSnapshot, Supplier
 from app.services.sku_origin import classify_origin
 
 
-def _master_stock_price_to_eur(stock_p: float | None, supplier_id: str | None, model: str | None) -> float | None:
+def _master_stock_price_to_eur(
+    stock_p: float | None,
+    supplier_id: str | None,
+    model: str | None,
+    unit_quantity: int | None = None,
+    pack_volume: float | None = None,
+) -> float | None:
     """ERP 产品总档 stock_price 折算成 EUR 兜底进价.
 
-    规则 (2026-05-22 用户确认, 见 alembic a3c9b7e4d2f1 + classify_origin):
+    规则:
       - FOREIGN (GR/ES/TR/BG/NE/IT): stock_price 已是 EUR, 直接返回
-      - CN/HZ: 一律 None (国内同事把海运费混在 stock_price 里, 不能当纯进价)
-      - stock_price 缺失 / 0 / 负: None
-      - unknown origin: 保守起见也 None (避免脏数据污染毛利计算)
+      - CN/HZ (2026-05-23 国内同事公式):
+            cost_eur = (运费_RMB_per_m³ * pack_volume / unit_quantity + stock_price) / 汇率
+        参数: CONFIG.cn_shipping_rate_rmb_per_m3 (1000), cn_exchange_rate_rmb_per_eur (7.8).
+        体积=0 或 unit_quantity 缺失 → 海运分摊归 0 (与 ERP 截图当体积=0 行为一致).
+        stock_price 缺失 / 0 / 负: None
+      - unknown origin: 保守起见也 None
     """
     if stock_p is None or stock_p <= 0:
         return None
     origin = classify_origin(supplier_id, model)
     if origin == "FOREIGN":
         return float(stock_p)
+    if origin in ("CN", "HZ"):
+        if (
+            pack_volume is not None and pack_volume > 0
+            and unit_quantity is not None and unit_quantity > 0
+        ):
+            shipping_rmb_per_unit = (
+                CONFIG.cn_shipping_rate_rmb_per_m3 * float(pack_volume) / float(unit_quantity)
+            )
+        else:
+            shipping_rmb_per_unit = 0.0
+        rate = CONFIG.cn_exchange_rate_rmb_per_eur
+        if rate <= 0:
+            return None
+        return round((float(stock_p) + shipping_rmb_per_unit) / rate, 4)
     return None
 
 # 默认列映射：product.csv 的列名 → 内部字段。
@@ -222,7 +246,13 @@ def import_product_master(
             if _upsert_supplier_from_product(session, supplier_id, supplier_name or ""):
                 result.new_suppliers += 1
 
-        master_price_eur = _master_stock_price_to_eur(stock_p, supplier_id, model)
+        # CN 公式需要 unit_quantity (装箱数) + pack_volume (m³/箱), 都在 extra 里抓出来
+        unit_qty = _clean_int(extra_dict.get("unit_quantity"))
+        pack_vol = _clean_float(extra_dict.get("pack_volume"))
+        master_price_eur = _master_stock_price_to_eur(
+            stock_p, supplier_id, model,
+            unit_quantity=unit_qty, pack_volume=pack_vol,
+        )
         # 统一走 stockpile_db._upsert：自动维护 stockpile_changes + stockpile_locations 子表
         stockpile_db._upsert(
             session,

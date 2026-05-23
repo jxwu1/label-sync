@@ -42,6 +42,12 @@ class AppConfig:
     web_poll_interval_ms: int = 5000
     enable_transfer: bool = False  # 2026-05-22: 双端互传废弃 (单端线上为主), 蓝图不再注册. 代码留着, 下周确认无人用再删.
 
+    # CN 货 EUR 落地成本公式参数 (2026-05-23 国内同事公式):
+    #   cost_eur = (shipping_rmb_per_m3 * pack_volume_m3 / unit_quantity + stock_price_rmb) / exchange_rate
+    # 参数大约一年调一次, 浮动大时立即调. 浮动场景需手动改这两个常量 + 重跑 product_master importer.
+    cn_shipping_rate_rmb_per_m3: float = 1000.0
+    cn_exchange_rate_rmb_per_eur: float = 7.8
+
     @property
     def input_dir(self) -> Path:
         return self.base_dir / "input"
