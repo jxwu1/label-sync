@@ -404,3 +404,107 @@
   font-family: var(--mono);
   padding: 28px;
 }
+
+/* ============ 行点击 drawer (2026-05-23): barcode 列单独点跳历史,
+   其他列点击向下展开小卡片, 含财务/库存/销售/紧迫分拆解 ============ */
+.rs-row { cursor: pointer; }
+.rs-row:hover { background: var(--surface-1); }
+
+.rs-bc-link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: none;
+  font-family: var(--mono);
+}
+.rs-bc-link:hover { text-decoration: underline; }
+
+.rs-drawer-row { background: var(--surface-1); }
+.rs-drawer-row:hover { background: var(--surface-1); }
+.rs-drawer-cell { padding: 0 !important; cursor: default; }
+
+.rs-drawer {
+  padding: 14px 18px;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-1);
+  animation: rs-drawer-in 0.15s ease-out;
+}
+@keyframes rs-drawer-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.rs-drawer-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+  margin-bottom: 12px;
+}
+@media (max-width: 1200px) {
+  .rs-drawer-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.rs-drawer-sec h4 {
+  margin: 0 0 6px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  letter-spacing: 0.03em;
+}
+.rs-drawer-sec > div {
+  font-size: 12.5px;
+  line-height: 1.7;
+  font-family: var(--mono);
+  color: var(--ink-1);
+}
+.rs-drawer-sec b { color: var(--ink-1); font-weight: 600; }
+.rs-drawer-muted { color: var(--ink-3); font-size: 11.5px; }
+.rs-dv-tag {
+  display: inline-block;
+  padding: 0 4px;
+  background: rgba(255, 165, 0, 0.15);
+  color: #c97a00;
+  border-radius: 3px;
+  font-size: 11px;
+  margin-left: 3px;
+  cursor: help;
+}
+
+.rs-drawer-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-1);
+}
+.rs-btn--ordered-single {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+}
+.rs-btn--skip-single {
+  background: transparent;
+  color: var(--ink-2);
+  border: 1px solid var(--border-1);
+}
+.rs-btn--close-drawer {
+  margin-left: auto;
+  background: transparent;
+  color: var(--ink-3);
+  border: 1px solid var(--border-1);
+}
+.rs-btn--ordered-single,
+.rs-btn--skip-single,
+.rs-btn--close-drawer {
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.rs-btn--ordered-single:hover { filter: brightness(1.05); }
+.rs-btn--skip-single:hover,
+.rs-btn--close-drawer:hover { background: var(--surface-2); }
+.rs-btn--skip-single:disabled { opacity: 0.4; cursor: not-allowed; }

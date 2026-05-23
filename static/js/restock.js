@@ -43,6 +43,7 @@ const state = {
   ordered: {},             // {barcode: {marked_at: ISO}}; 从 localStorage 加载
   orderedHistory: [],      // 撤销栈: 每次「标已下单」推入 [bc1, bc2, ...]
   supplierOverviewExpanded: false, // 概览展开 / 折叠
+  expandedBarcode: null,   // 当前展开 drawer 的 barcode (一次一个)
 };
 
 function loadOrdered() {
@@ -292,7 +293,7 @@ function renderRow(it) {
   return `
     <tr class="rs-row" data-bc="${escapeHtml(it.barcode)}">
       <td class="rs-check-cell">${checkboxCol}</td>
-      <td class="rs-bc">${escapeHtml(it.barcode)}${disc}${newTag}${orderedTag}</td>
+      <td class="rs-bc"><button class="rs-bc-link" data-bc="${escapeHtml(it.barcode)}" title="点开货号历史">${escapeHtml(it.barcode)}</button>${disc}${newTag}${orderedTag}</td>
       <td class="rs-name-cell">${nameCell}</td>
       <td>${originBadge(it.origin)}</td>
       <td>${supplierCell}</td>
@@ -304,6 +305,80 @@ function renderRow(it) {
       <td class="rs-num">${sparkCell}</td>
       <td class="rs-num">${fmtDays(it.last_purchase_days_ago)}</td>
       <td class="rs-num">${urgencyCell(it)}</td>
+    </tr>
+  `;
+}
+
+function fmtEurOrDash(v, d = 2) {
+  return (v === null || v === undefined) ? "—" : `€${fmt(v, d)}`;
+}
+
+// drawer DOM: 财务快照 + 库存 + 销售 26w + 紧迫分四维 + 单条操作按钮.
+function renderDrawer(it) {
+  const bd = it.urgency_breakdown;
+  const dv = bd?.demand_validity;
+  const dvSuffix = (dv != null && dv < 1.0) ? ` <span class="rs-dv-tag" title="长尾活跃度折扣 (n_active_weeks=${it.n_active_weeks_26w}/4)">×${dv}</span>` : "";
+  // 零售价行: observed vs estimate 并排展示, 校对 ×2 假设
+  const rpObs = it.retail_price_observed;
+  const rpEst = it.retail_price_estimate;
+  let retailPriceLine;
+  if (rpObs != null && rpEst != null) {
+    retailPriceLine = `零售价 <b>${fmtEurOrDash(rpObs)}</b> <span class="rs-drawer-muted">(实际 ${it.retail_qty_26w} 笔均价)</span> · 估算 ${fmtEurOrDash(rpEst)} (×2)`;
+  } else if (rpObs != null) {
+    retailPriceLine = `零售价 <b>${fmtEurOrDash(rpObs)}</b> <span class="rs-drawer-muted">(实际)</span>`;
+  } else if (rpEst != null) {
+    retailPriceLine = `零售价 <b>${fmtEurOrDash(rpEst)}</b> <span class="rs-drawer-muted">(批发×2 估算)</span>`;
+  } else {
+    retailPriceLine = `零售价 —`;
+  }
+  // cover/recency 受 dv 折扣的两项, 显示原始值
+  const coverScore = bd ? `${bd.cover}${dvSuffix}` : "—";
+  const recencyScore = bd ? `${bd.recency}${dvSuffix}` : "—";
+  const velocityScore = bd ? `${bd.velocity}` : "—";
+  const marginScore = bd ? `${bd.margin}` : "—";
+  const skipDisabled = it.is_truly_discontinued ? 'disabled' : '';
+  return `
+    <tr class="rs-drawer-row" data-bc="${escapeHtml(it.barcode)}">
+      <td colspan="13" class="rs-drawer-cell">
+        <div class="rs-drawer">
+          <div class="rs-drawer-grid">
+            <section class="rs-drawer-sec">
+              <h4>💰 财务快照</h4>
+              <div>批发价 <b>${fmtEurOrDash(it.master_sale_price_eur ?? it.sale_net_avg)}</b> <span class="rs-drawer-muted">(主档)</span></div>
+              <div>${retailPriceLine}</div>
+              <div>单件进价 <b>${fmtEurOrDash(it.last_purchase_unit_price ?? it.master_stock_price_eur)}</b> <span class="rs-drawer-muted">(${it.margin_source === 'master' ? '主档参考' : it.margin_source === 'purchase' ? '上次成交' : '—'})</span></div>
+              <div>单件毛利率 <b>${it.margin_pct != null ? it.margin_pct + '%' : '—'}</b></div>
+            </section>
+            <section class="rs-drawer-sec">
+              <h4>📦 库存</h4>
+              <div>当前库存 <b>${fmt(it.qty_total)} 件</b></div>
+              <div>库存可销售金额 <b>${fmtEurOrDash(it.inventory_sale_value_eur)}</b></div>
+              <div>库存成本 <b>${fmtEurOrDash(it.inventory_cost_value_eur)}</b></div>
+              <div>压舱率 <b>${it.weeks_of_cover != null ? it.weeks_of_cover.toFixed(1) + ' 周可撑' : '—'}</b></div>
+            </section>
+            <section class="rs-drawer-sec">
+              <h4>📊 销售 (26 周)</h4>
+              <div>批发 <b>${fmt(it.total_qty)} 件</b> / €${fmt(it.weekly_revenue * 26, 0)} <span class="rs-drawer-muted">(${fmt(it.n_active_weeks_26w)} 活跃周)</span></div>
+              <div>零售 <b>${fmt(it.retail_qty_26w)} 件</b> / €${fmt(it.retail_revenue_26w, 0)} <span class="rs-drawer-muted">(不进算法)</span></div>
+              <div>历史零售占比 <b>${(it.retail_share_26w * 100).toFixed(0)}%</b></div>
+              <div>周销速 <b>${fmt(it.weekly_velocity, 2)} 件/周</b> · 周销额 <b>€${fmt(it.weekly_revenue, 2)}/周</b></div>
+            </section>
+            <section class="rs-drawer-sec">
+              <h4>🎯 紧迫分 <b>${it.urgency_score ?? '—'}</b> 拆解</h4>
+              <div>销额(30): <b>${velocityScore}</b></div>
+              <div>库存(30): <b>${coverScore}</b></div>
+              <div>距进货(10): <b>${recencyScore}</b></div>
+              <div>毛利(30): <b>${marginScore}</b></div>
+              <div class="rs-drawer-muted" style="margin-top:6px">距上次进货 ${fmtDays(it.last_purchase_days_ago)}</div>
+            </section>
+          </div>
+          <div class="rs-drawer-actions">
+            <button class="rs-btn rs-btn--ordered-single" data-bc="${escapeHtml(it.barcode)}">✓ 我已下单</button>
+            <button class="rs-btn rs-btn--skip-single" data-bc="${escapeHtml(it.barcode)}" ${skipDisabled}>✗ 跳过</button>
+            <button class="rs-btn rs-btn--close-drawer">收起</button>
+          </div>
+        </div>
+      </td>
     </tr>
   `;
 }
@@ -389,6 +464,28 @@ function markSelectedSkipped() {
   state.selected.clear();
   render();
   if (items.length > 0) recordDecisionsBatch("skipped", items, reason || null);
+}
+
+// 单条 drawer 操作: 直接对当前展开行做记号, 不依赖 selection.
+function markSingleOrdered(bc) {
+  if (bc in state.ordered) return;  // 幂等
+  const it = state.items.find((x) => x.barcode === bc);
+  if (!it) return;
+  state.ordered[bc] = { marked_at: new Date().toISOString() };
+  state.orderedHistory.push([bc]);
+  state.expandedBarcode = null;
+  saveOrdered();
+  render();
+  recordDecisionsBatch("ordered", [it]);
+}
+
+function markSingleSkipped(bc) {
+  const it = state.items.find((x) => x.barcode === bc);
+  if (!it) return;
+  const reason = prompt("跳过原因? (可空, 例: 供应商断货 / 客人未确认 / 等下次活动)") ?? "";
+  state.expandedBarcode = null;
+  render();
+  recordDecisionsBatch("skipped", [it], reason || null);
 }
 
 async function recordDecisionsBatch(decision, items, reason) {
@@ -602,7 +699,15 @@ function render() {
   if (visible.length === 0) {
     tbody.innerHTML = '<tr><td colspan="12" class="empty">无匹配项</td></tr>';
   } else {
-    tbody.innerHTML = visible.map(renderRow).join("");
+    // 渲染所有行; 如果某行 barcode == expandedBarcode, 紧接着插入 drawer
+    const html = [];
+    for (const it of visible) {
+      html.push(renderRow(it));
+      if (state.expandedBarcode === it.barcode) {
+        html.push(renderDrawer(it));
+      }
+    }
+    tbody.innerHTML = html.join("");
     // checkbox 勾选状态
     for (const cb of tbody.querySelectorAll(".rs-check")) {
       cb.addEventListener("click", (e) => {
@@ -614,24 +719,57 @@ function render() {
       });
     }
     // 供应商点击 → 进入"凑单模式": 设供应商筛选 + 自动禁用 cover filter
-    // (凑单时要看全这家所有 SKU, 不只是缺货的; 想再筛缺货自己开滑块)
     for (const sup of tbody.querySelectorAll(".rs-supplier[data-supplier]")) {
       sup.addEventListener("click", (e) => {
         e.stopPropagation();
         state.filter.supplier = sup.dataset.supplier;
-        state.filter.coverMax = null;  // 自动关闭缺货过滤
+        state.filter.coverMax = null;
         render();
       });
     }
-    // 行点击 → 跳货号历史 (排除 checkbox / supplier 子元素)
-    for (const tr of tbody.querySelectorAll(".rs-row")) {
-      tr.addEventListener("click", (e) => {
-        if (e.target.closest(".rs-check, .rs-supplier")) return;
+    // barcode 列点击 → 跳货号历史 (仅此列)
+    for (const link of tbody.querySelectorAll(".rs-bc-link")) {
+      link.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const bc = link.dataset.bc;
         if (typeof window.historySearch === "function") {
           window.Alpine?.store("nav")?.switch("history");
-          setTimeout(() => window.historySearch(tr.dataset.bc), 50);
+          setTimeout(() => window.historySearch(bc), 50);
         }
       });
+    }
+    // 行其他位置点击 → toggle drawer (排除 checkbox / supplier / barcode link)
+    for (const tr of tbody.querySelectorAll(".rs-row")) {
+      tr.addEventListener("click", (e) => {
+        if (e.target.closest(".rs-check, .rs-supplier, .rs-bc-link")) return;
+        const bc = tr.dataset.bc;
+        state.expandedBarcode = (state.expandedBarcode === bc) ? null : bc;
+        render();
+      });
+    }
+    // drawer 内部按钮: 我已下单 / 跳过 / 收起
+    for (const btn of tbody.querySelectorAll(".rs-btn--ordered-single")) {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        markSingleOrdered(btn.dataset.bc);
+      });
+    }
+    for (const btn of tbody.querySelectorAll(".rs-btn--skip-single")) {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        markSingleSkipped(btn.dataset.bc);
+      });
+    }
+    for (const btn of tbody.querySelectorAll(".rs-btn--close-drawer")) {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        state.expandedBarcode = null;
+        render();
+      });
+    }
+    // drawer 自身点击不冒泡 (避免点 drawer 内部触发 row click)
+    for (const dr of tbody.querySelectorAll(".rs-drawer-row")) {
+      dr.addEventListener("click", (e) => e.stopPropagation());
     }
   }
   const baseStat = visible.length < sorted.length
