@@ -876,6 +876,35 @@ class LifetimeProfitTests(_Base):
         assert it["first_event_at"] == "2021-01-01"
         assert it["is_history_truncated"] is True
 
+    def test_lifetime_invested_uses_purchase_qty_times_cost(self) -> None:
+        """累计投入 = 累计 purchase qty × cost (EUR 口径).
+        进 30 件 + 进 20 件 = 50 件 × €5 = €250 投入."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("LP6", supplier_id="GR0001", sale_price=10.0,
+                      last_purchase_unit_price=5.0)
+        self._add_event(barcode="LP6", event_type="purchase",
+                        event_at="2024-01-01", qty=30, supplier_id="GR0001",
+                        document_no="P1")
+        self._add_event(barcode="LP6", event_type="purchase",
+                        event_at="2024-06-01", qty=20, supplier_id="GR0001",
+                        document_no="P2")
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "LP6")
+        assert it["lifetime_purchase_qty"] == 50
+        assert it["lifetime_invested_eur"] == 250.0
+
+    def test_lifetime_invested_none_when_no_purchase_events(self) -> None:
+        """无 purchase 事件 → lifetime_invested=None, lifetime_purchase_qty=0."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("LP7", supplier_id="GR0001", sale_price=2.0,
+                      last_purchase_unit_price=1.0)
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "LP7")
+        assert it["lifetime_purchase_qty"] == 0
+        assert it["lifetime_invested_eur"] is None
+
     def test_no_cost_yields_none_realized_profit(self) -> None:
         """无 cost (purchase/master 都缺) → realized_profit=None, 不显示."""
         from app.services.analytics import list_sku_summary

@@ -381,6 +381,7 @@ function renderDrawer(it) {
             </section>
             <section class="rs-drawer-sec">
               <h4>💵 累计盈亏 ${profitBadge}</h4>
+              <div>累计投入 <b>${fmtEurOrDash(it.lifetime_invested_eur)}</b> <span class="rs-drawer-muted">(${fmt(it.lifetime_purchase_qty)} 件)</span></div>
               <div>累计销售 <b>€${fmt(it.lifetime_sale_revenue_eur, 0)}</b> <span class="rs-drawer-muted">(${fmt(it.lifetime_sale_qty)} 件)</span></div>
               <div>${profitLine}</div>
               ${firstEventLine}

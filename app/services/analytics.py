@@ -463,6 +463,7 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
                 InventoryEvent.product_barcode,
                 InventoryEvent.event_at,
                 InventoryEvent.supplier_id,
+                InventoryEvent.qty,
             ).where(InventoryEvent.event_type == "purchase")
         ).all()
         _, qty_by_model = _snapshot_qty_lookup(session)
@@ -471,12 +472,16 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
     for r in sales_rows:
         by_bc.setdefault(r.product_barcode, []).append(r)
 
-    # 每条码取最近一笔 purchase 的日期 + supplier_id
+    # 每条码取最近一笔 purchase 的日期 + supplier_id + 累计采购总量
     last_purchase: dict[str, tuple[str, str | None]] = {}
+    lifetime_purchase_qty_by_bc: dict[str, int] = {}
     for r in purchase_rows:
         cur = last_purchase.get(r.product_barcode)
         if cur is None or r.event_at > cur[0]:
             last_purchase[r.product_barcode] = (r.event_at, r.supplier_id)
+        lifetime_purchase_qty_by_bc[r.product_barcode] = (
+            lifetime_purchase_qty_by_bc.get(r.product_barcode, 0) + r.qty
+        )
 
     items: list[dict[str, Any]] = []
     for bc, model, name_zh, auto_cat, manual_cat, grade, is_disc, sp_supplier_id, last_pp, master_pp, master_sp in sp_rows:
@@ -641,6 +646,12 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
         if cost is not None and lifetime_sale_qty > 0:
             sold_cost = lifetime_sale_qty * cost
             realized_profit_eur = round(lifetime_sale_revenue - sold_cost, 2)
+        # 累计投入: lifetime_purchase_qty × cost (EUR 口径, 与 realized_profit 一致).
+        # cost 用当前 master/last_purchase 估算; 多批次进价变化不追 (FIFO 简化).
+        lifetime_purchase_qty = lifetime_purchase_qty_by_bc.get(bc, 0)
+        lifetime_invested_eur: float | None = None
+        if cost is not None and lifetime_purchase_qty > 0:
+            lifetime_invested_eur = round(lifetime_purchase_qty * cost, 2)
         # ETL 窗口起点保守取 2021-06-01: 早于此的 first_event 标"数据不全"
         # (运营人员判断"已回本"时心里有数, 窗口外的销售/采购可能没纳入)
         is_history_truncated = (
@@ -683,6 +694,8 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
                 "inventory_cost_value_eur": inventory_cost_value,
                 "lifetime_sale_qty": int(lifetime_sale_qty),
                 "lifetime_sale_revenue_eur": round(lifetime_sale_revenue, 2),
+                "lifetime_purchase_qty": int(lifetime_purchase_qty),
+                "lifetime_invested_eur": lifetime_invested_eur,
                 "realized_profit_eur": realized_profit_eur,
                 "first_event_at": first_event_at,
                 "is_history_truncated": is_history_truncated,
