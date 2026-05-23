@@ -23,6 +23,21 @@ def create_app() -> Flask:
     stockpile_db.ensure_db()
     monthly_summary_service.cleanup_expired()
     register_routes(app)
+
+    # 2026-05-23: 预热 list_sku_summary 缓存避免冷启动首请求 30s+ 等待.
+    # 后台线程跑, 不阻塞 app 启动 (waitress 立即 accept 请求, 几秒后缓存填好).
+    import threading
+
+    def _prewarm_cache():
+        try:
+            from app.services import analytics
+            analytics.list_sku_summary()
+        except Exception:
+            import logging
+            logging.exception("list_sku_summary prewarm 失败")
+
+    threading.Thread(target=_prewarm_cache, daemon=True, name="cache-prewarm").start()
+
     return app
 
 
