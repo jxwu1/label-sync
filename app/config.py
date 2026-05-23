@@ -48,6 +48,15 @@ class AppConfig:
     cn_shipping_rate_rmb_per_m3: float = 1000.0
     cn_exchange_rate_rmb_per_eur: float = 7.8
 
+    # 零售价启发式: 大部分 SKU 零售价 = 批发价 × 2 (用户验证, 例外极少).
+    # ERP product_data_export 只导一个 sale_price tier (批发口径 sale_money_rate_id=103),
+    # 不到拉零售价 tier 的导出端点之前用这个比率派生. 26 周内零售实际成交>=3 笔的 SKU
+    # 优先用 retail_revenue/retail_qty 真实均价覆盖此估算 (analytics 里实现).
+    retail_to_wholesale_ratio: float = 2.0
+    # 用实际观测均价覆盖 ×2 估算的最低样本数. 防止 1-2 笔异常单 (如系统 bug 价 €8.4677)
+    # 错误覆盖, 但样本足够时尊重历史事实.
+    retail_observed_min_qty: int = 3
+
     @property
     def input_dir(self) -> Path:
         return self.base_dir / "input"

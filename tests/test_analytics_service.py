@@ -684,5 +684,121 @@ class ListSkuSummaryRestockFieldsTests(_Base):
         assert expensive["urgency_breakdown"]["velocity_pctile"] > cheap["urgency_breakdown"]["velocity_pctile"]
 
 
+class RetailPriceAndInventoryValueTests(_Base):
+    """零售价派生 + 库存可销售金额 / 库存成本 测试 (2026-05-23 drawer 财务快照用)."""
+
+    def _add_sku(self, barcode: str, **fields) -> None:
+        from app.models import Stockpile
+        values = {
+            "product_barcode": barcode,
+            "product_model": barcode,
+            "stockpile_location": "",
+            "is_active": 1,
+        }
+        values.update(fields)
+        with stockpile_db._session() as s:
+            s.execute(insert(Stockpile).values(**values))
+            s.commit()
+
+    def _add_snapshot(self, snapshot_date: str, model: str, qty: int) -> None:
+        from app.models import StockpileInventorySnapshot
+        with stockpile_db._session() as s:
+            s.execute(insert(StockpileInventorySnapshot).values(
+                snapshot_date=snapshot_date, product_model=model, qty_total=qty,
+            ))
+            s.commit()
+
+    def test_retail_price_uses_x2_estimate_when_no_retail_history(self) -> None:
+        """无零售销售 → retail_price = sale_price × 2, source='estimate'."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("RP1", supplier_id="GR0001", sale_price=0.50,
+                      last_purchase_unit_price=0.20)
+        # 仅批发销售
+        self._add_event(barcode="RP1", event_at="2026-05-01", qty=10,
+                        unit_price=0.50, document_no="W1")
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "RP1")
+        assert it["retail_price_estimate"] == 1.0
+        assert it["retail_price_observed"] is None
+        assert it["retail_price_eur"] == 1.0
+        assert it["retail_price_source"] == "estimate"
+
+    def test_retail_price_uses_observed_when_3_plus_retail_events(self) -> None:
+        """26 周内 ≥3 笔零售 → 用 retail_revenue/retail_qty 实际均价."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("RP2", supplier_id="GR0001", sale_price=0.50,
+                      last_purchase_unit_price=0.20)
+        # 5 笔零售 (MB 前缀) 均价 €0.95
+        for i, dt in enumerate(["2026-04-01","2026-04-10","2026-04-20","2026-05-01","2026-05-10"]):
+            self._add_event(barcode="RP2", event_at=dt, qty=2,
+                            unit_price=0.95, document_no=f"MB{i}")
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "RP2")
+        assert it["retail_price_observed"] == 0.95
+        assert it["retail_price_estimate"] == 1.0
+        assert it["retail_price_eur"] == 0.95  # observed 覆盖 estimate
+        assert it["retail_price_source"] == "observed"
+
+    def test_retail_price_single_outlier_falls_back_to_estimate(self) -> None:
+        """5206753040071 case 回归: 1 笔零售 €8.4677 不够门槛, 不污染零售价.
+        retail_price 应继续用 ×2 估算, observed=None."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("RP3", supplier_id="GR0001", sale_price=0.50,
+                      last_purchase_unit_price=0.20)
+        self._add_event(barcode="RP3", event_at="2026-05-01", qty=1,
+                        unit_price=8.4677, document_no="0")  # 单笔零售异常
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "RP3")
+        assert it["retail_price_observed"] is None
+        assert it["retail_price_eur"] == 1.0  # 仍走 ×2
+        assert it["retail_price_source"] == "estimate"
+
+    def test_inventory_sale_value_split_by_history_share(self) -> None:
+        """库存可销售金额: 历史 retail_share 加权 × 各自价格.
+        20 库存 + 历史 30% 零售 + 批发 0.50 + 零售 1.00 → 6×1.0 + 14×0.5 = 13.0."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("INV1", supplier_id="GR0001", sale_price=0.50,
+                      last_purchase_unit_price=0.20)
+        # 7 件批发 (event 一次 7 件), 3 件零售 (3 笔 × 1 件 = 满足 ≥3 门槛)
+        self._add_event(barcode="INV1", event_at="2026-05-01", qty=7,
+                        unit_price=0.50, document_no="W1")
+        for i, dt in enumerate(["2026-05-02","2026-05-03","2026-05-04"]):
+            self._add_event(barcode="INV1", event_at=dt, qty=1,
+                            unit_price=1.0, document_no=f"MB{i}")
+        self._add_snapshot("2026-05-19", "INV1", 20)
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "INV1")
+        # retail_share = 3/(7+3) = 0.3
+        assert it["retail_share_26w"] == 0.3
+        # 20 × 0.3 × 1.0 + 20 × 0.7 × 0.5 = 6 + 7 = 13.0
+        assert it["inventory_sale_value_eur"] == 13.0
+
+    def test_inventory_cost_value_uses_master_or_purchase(self) -> None:
+        """库存成本 = qty_total × cost (优先 last_purchase, fallback master)."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("INV2", supplier_id="GR0001", sale_price=1.0,
+                      last_purchase_unit_price=0.40)
+        self._add_snapshot("2026-05-19", "INV2", 50)
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "INV2")
+        assert it["inventory_cost_value_eur"] == 20.0  # 50 × 0.40
+
+    def test_inventory_values_none_when_no_stock(self) -> None:
+        """qty_total 缺失 (无 snapshot) → inventory_* 全 None."""
+        from app.services.analytics import list_sku_summary
+
+        self._add_sku("INV3", supplier_id="GR0001", sale_price=1.0,
+                      last_purchase_unit_price=0.40)
+        items = list_sku_summary(as_of=date(2026, 5, 21))
+        it = next(x for x in items if x["barcode"] == "INV3")
+        assert it["inventory_sale_value_eur"] is None
+        assert it["inventory_cost_value_eur"] is None
+
+
 if __name__ == "__main__":
     unittest.main()

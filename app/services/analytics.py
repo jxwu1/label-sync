@@ -25,6 +25,7 @@ import numpy as np
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
+from app.config import CONFIG
 from app.repositories import stockpile_db
 from app.utils.categorizer import classify_from_sales
 from app.models import Customer, InventoryEvent, Stockpile, StockpileInventorySnapshot
@@ -517,6 +518,8 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
             n_active_weeks = 0
             weekly_qty_12w = [0] * _TREND_WEEKS
             sale_net_avg = None
+            recent_qty = 0
+            recent_revenue = 0.0
         # 零售透明字段: 26 周窗口内的零售销量/销售额, 不参与算法, 仅前端展示用.
         retail_qty_26w = 0
         retail_revenue_26w = 0.0
@@ -579,6 +582,47 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
             margin_pct = None
             margin_source = None
             margin_price_source = None
+
+        # 零售价派生 (2026-05-23): ERP 端点只导一个批发 sale_price tier.
+        # 启发式: 大部分 SKU 零售=批发×2 (用户验证).
+        # 优先用历史观测: 26 周内零售实际笔数 >= retail_observed_min_qty 时, 用 retail_revenue/retail_qty.
+        # 单笔异常 (5206753040071 €8.4677) 因门槛 >=3 被剥离.
+        retail_price_observed: float | None = None
+        if retail_qty_26w >= CONFIG.retail_observed_min_qty and retail_revenue_26w > 0:
+            retail_price_observed = round(retail_revenue_26w / retail_qty_26w, 4)
+        retail_price_estimate: float | None = None
+        if sale is not None and sale > 0:
+            retail_price_estimate = round(sale * CONFIG.retail_to_wholesale_ratio, 4)
+        if retail_price_observed is not None:
+            retail_price_eur = retail_price_observed
+            retail_price_source = "observed"
+        elif retail_price_estimate is not None:
+            retail_price_eur = retail_price_estimate
+            retail_price_source = "estimate"
+        else:
+            retail_price_eur = None
+            retail_price_source = None
+
+        # 库存可销售金额 + 库存成本 (drawer 财务快照用).
+        # 用历史 retail/wholesale 比例预测这堆库存会怎么卖出.
+        # 公式: stock × retail_share × retail_price + stock × (1-retail_share) × wholesale_price
+        # 无历史 → retail_share=0, 全按批发口径 (保守).
+        inventory_sale_value: float | None = None
+        inventory_cost_value: float | None = None
+        retail_share_26w: float = 0.0
+        total_26w_qty = recent_qty + retail_qty_26w
+        if total_26w_qty > 0:
+            retail_share_26w = retail_qty_26w / total_26w_qty
+        if qty_total is not None and qty_total > 0 and sale is not None:
+            ws_price = sale  # 批发口径 (主档 sale_price 或 sale_net_avg)
+            rt_price = retail_price_eur if retail_price_eur is not None else ws_price
+            inventory_sale_value = round(
+                qty_total * retail_share_26w * rt_price
+                + qty_total * (1.0 - retail_share_26w) * ws_price,
+                2,
+            )
+        if qty_total is not None and qty_total > 0 and cost is not None:
+            inventory_cost_value = round(qty_total * cost, 2)
         items.append(
             {
                 "barcode": bc,
@@ -607,6 +651,13 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
                 "margin_price_source": margin_price_source,
                 "retail_qty_26w": retail_qty_26w,
                 "retail_revenue_26w": round(retail_revenue_26w, 2),
+                "retail_price_eur": retail_price_eur,
+                "retail_price_source": retail_price_source,
+                "retail_price_observed": retail_price_observed,
+                "retail_price_estimate": retail_price_estimate,
+                "retail_share_26w": round(retail_share_26w, 3),
+                "inventory_sale_value_eur": inventory_sale_value,
+                "inventory_cost_value_eur": inventory_cost_value,
                 "lifespan_days": lifespan,
                 "is_new_item": is_new_item,
                 "trend_slope_pct_per_week": (round(trend, 2) if trend is not None else None),
