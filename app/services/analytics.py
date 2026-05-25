@@ -919,6 +919,51 @@ _LIST_TTL_SECONDS = 60.0
 _LIST_LOCK = _threading.Lock()
 
 
+_RESTOCK_TARGET_WEEKS = _URGENCY_COVER_TARGET_WEEKS  # 默认 8 周
+
+
+def _restock_recommendation(
+    barcode: str,
+    qty_total: int,
+    weekly_velocity: float,
+    forecast_by_bc: dict,
+    last_purchase_qty_by_bc: dict,
+) -> dict:
+    """计算推荐补货量: 优先预测模型 p50/p98, 回退销速, 再回退上次进货量."""
+    import math
+    target = _RESTOCK_TARGET_WEEKS
+    last_pq = last_purchase_qty_by_bc.get(barcode)
+    fc = forecast_by_bc.get(barcode)
+    stock = qty_total or 0
+
+    if fc:
+        p50, p98, model = fc
+        qty_p50 = max(0, math.ceil(p50 * target) - stock)
+        qty_p98 = max(0, math.ceil(p98 * target) - stock)
+        source = f"forecast:{model}"
+    elif weekly_velocity > 0:
+        qty_p50 = max(0, math.ceil(weekly_velocity * target) - stock)
+        qty_p98 = max(0, math.ceil(weekly_velocity * target * 1.5) - stock)
+        source = "velocity"
+    elif last_pq:
+        qty_p50 = last_pq
+        qty_p98 = last_pq
+        source = "last_purchase"
+    else:
+        qty_p50 = None
+        qty_p98 = None
+        source = None
+
+    return {
+        "restock_qty_p50": qty_p50,
+        "restock_qty_p98": qty_p98,
+        "restock_source": source,
+        "last_purchase_qty": last_pq,
+        "forecast_p50": round(fc[0], 2) if fc else None,
+        "forecast_p98": round(fc[1], 2) if fc else None,
+    }
+
+
 def clear_list_sku_summary_cache() -> None:
     """测试 setUp 调用; 也可生产端点 (cron / 手动) 触发刷新."""
     with _LIST_LOCK:
@@ -1006,19 +1051,33 @@ def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
                 InventoryEvent.qty,
             ).where(InventoryEvent.event_type == "purchase")
         ).all()
+        from app.models import ForecastOutput
+        forecast_rows = session.execute(
+            select(
+                ForecastOutput.product_barcode,
+                ForecastOutput.p50,
+                ForecastOutput.p98,
+                ForecastOutput.model_used,
+            )
+        ).all()
         _, qty_by_model = _snapshot_qty_lookup(session)
 
     by_bc: dict[str, list] = {}
     for r in sales_rows:
         by_bc.setdefault(r.product_barcode, []).append(r)
 
-    # 每条码取最近一笔 purchase 的日期 + supplier_id + 累计采购总量
+    forecast_by_bc: dict[str, tuple[float, float, str]] = {}
+    for r in forecast_rows:
+        forecast_by_bc[r.product_barcode] = (r.p50, r.p98, r.model_used)
+
     last_purchase: dict[str, tuple[str, str | None]] = {}
+    last_purchase_qty_by_bc: dict[str, int] = {}
     lifetime_purchase_qty_by_bc: dict[str, int] = {}
     for r in purchase_rows:
         cur = last_purchase.get(r.product_barcode)
         if cur is None or r.event_at > cur[0]:
             last_purchase[r.product_barcode] = (r.event_at, r.supplier_id)
+            last_purchase_qty_by_bc[r.product_barcode] = int(r.qty)
         lifetime_purchase_qty_by_bc[r.product_barcode] = (
             lifetime_purchase_qty_by_bc.get(r.product_barcode, 0) + r.qty
         )
@@ -1282,6 +1341,10 @@ def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
                 "weekly_qty_12w": weekly_qty_12w,
                 "cn_qty": cn_qty,
                 "fo_qty": fo_qty,
+                **_restock_recommendation(
+                    bc, qty_total, weekly_velocity,
+                    forecast_by_bc, last_purchase_qty_by_bc,
+                ),
             }
         )
 

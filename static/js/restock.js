@@ -327,6 +327,9 @@ function renderRow(it) {
       <td class="rs-num">${weeksOfCoverCell(it.weeks_of_cover)}</td>
       <td class="rs-num">${sparkCell}</td>
       <td class="rs-num">${fmtDays(it.last_purchase_days_ago)}</td>
+      <td class="rs-num" title="${it.restock_source || '—'}">${it.restock_qty_p50 != null ? it.restock_qty_p50 : '—'}</td>
+      <td class="rs-num" title="安全量">${it.restock_qty_p98 != null ? it.restock_qty_p98 : '—'}</td>
+      <td class="rs-num" style="color:var(--ink-2)">${it.last_purchase_qty != null ? it.last_purchase_qty : '—'}</td>
       <td class="rs-num">${urgencyCell(it)}</td>
     </tr>
   `;
@@ -473,12 +476,21 @@ function exportSelectedCsv() {
     ["weeks_of_cover", "可撑周数"],
     ["last_purchase_days_ago", "距上次进货 (天)"],
     ["urgency_score", "紧迫分"],
+    ["restock_qty_p50", "推荐补货量 (p50)"],
+    ["restock_qty_p98", "推荐补货量 (p98)"],
+    ["last_purchase_qty", "上次进货量"],
   ];
-  const head = cols.map((c) => c[1]).join(",");
-  const rows = state.items
+  const selected = state.items
     .filter((it) => state.selected.has(it.barcode))
-    .sort((a, b) => (b.urgency_score || 0) - (a.urgency_score || 0))
-    .map((it) => cols.map((c) => csvCell(it[c[0]])).join(","));
+    .sort((a, b) => (b.urgency_score || 0) - (a.urgency_score || 0));
+  const head = cols.map((c) => c[1]).join(",") + ",ERP导入 (型号\\,数量)";
+  const rows = selected
+    .map((it) => {
+      const base = cols.map((c) => csvCell(it[c[0]])).join(",");
+      const qty = it.restock_qty_p50 != null ? it.restock_qty_p50 : "";
+      const erp = it.model && qty ? `"${it.model},${qty}"` : "";
+      return base + "," + erp;
+    });
   const csv = "﻿" + head + "\n" + rows.join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);

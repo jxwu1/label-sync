@@ -208,7 +208,10 @@
 .rs-table th:nth-child(10), .rs-table td:nth-child(10) { width: 78px; }
 .rs-table th:nth-child(11), .rs-table td:nth-child(11) { width: 64px; }
 .rs-table th:nth-child(12), .rs-table td:nth-child(12) { width: 86px; }
-.rs-table th:nth-child(13), .rs-table td:nth-child(13) { width: 110px; }
+.rs-table th:nth-child(13), .rs-table td:nth-child(13) { width: 56px; }
+.rs-table th:nth-child(14), .rs-table td:nth-child(14) { width: 56px; }
+.rs-table th:nth-child(15), .rs-table td:nth-child(15) { width: 56px; }
+.rs-table th:nth-child(16), .rs-table td:nth-child(16) { width: 100px; }
 
 .rs-table thead th {
   position: sticky;
