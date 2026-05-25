@@ -479,6 +479,45 @@ class RestockDecision(Base):
     reason: Mapped[str | None] = mapped_column(Text)
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    display_name: Mapped[str | None] = mapped_column(Text)
+    theme: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'apple-dark'"))
+    created_at: Mapped[str | None] = mapped_column(
+        Text, server_default=func.current_timestamp()
+    )
+
+    @property
+    def is_authenticated(self) -> bool:
+        return True
+
+    @property
+    def is_active(self) -> bool:
+        return True
+
+    @property
+    def is_anonymous(self) -> bool:
+        return False
+
+    def get_id(self) -> str:
+        return str(self.id)
+
+
+class SystemSetting(Base):
+    __tablename__ = "system_settings"
+
+    key: Mapped[str] = mapped_column(Text, primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[str | None] = mapped_column(
+        Text, server_default=func.current_timestamp()
+    )
+    updated_by: Mapped[str | None] = mapped_column(Text)
+
+
 _SessionFactory = sessionmaker(bind=_engine, future=True, expire_on_commit=False)
 
 

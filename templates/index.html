@@ -125,6 +125,10 @@
       </template>
     </nav>
     <div class="app-sidebar__foot">
+      <a href="/logout" class="app-sidebar__collapse" style="text-decoration:none;margin-bottom:4px;">
+        <span>⏻</span>
+        <span x-show="!$store.nav.collapsed">{{ current_user.display_name or current_user.username }} · 登出</span>
+      </a>
       <button class="app-sidebar__collapse" @click="$store.nav.toggleCollapse()">
         <span x-text="$store.nav.collapsed ? '›' : '‹'"></span>
         <span x-show="!$store.nav.collapsed">collapse</span>
@@ -1124,6 +1128,48 @@
           </section>
         </div>
       </div>
+  <!-- ═══ 系统管理 ═══ -->
+      <div class="page" id="pageAdmin" x-data :class="$store.nav.current === 'admin' ? 'active' : ''" style="grid-template-rows:auto auto 1fr;align-content:start;padding:var(--sp-4) var(--sp-6);">
+
+        <!-- 主题选择 -->
+        <div class="panel">
+          <div class="panel-hd">01 · 主题风格</div>
+          <div class="panel-bd">
+            <div id="adminThemePicker" style="display:flex;gap:12px;"></div>
+          </div>
+        </div>
+
+        <!-- 系统参数 -->
+        <div class="panel">
+          <div class="panel-hd">02 · 系统参数</div>
+          <div class="panel-bd">
+            <div id="adminSettings" style="display:grid;grid-template-columns:200px 1fr;gap:8px 12px;align-items:center;font-size:var(--fs-base);"></div>
+            <button id="adminSaveSettings" class="btn-s is-warn" style="margin-top:14px;">保存参数</button>
+          </div>
+        </div>
+
+        <!-- 用户管理 -->
+        <div class="panel">
+          <div class="panel-hd" style="display:flex;align-items:center;justify-content:space-between;">
+            <span>03 · 用户管理</span>
+            <button id="adminAddUser" class="btn-s is-warn">+ 新增</button>
+          </div>
+          <div class="panel-bd" style="padding:0;">
+            <table style="width:100%;border-collapse:collapse;font-size:var(--fs-base);">
+              <thead><tr style="border-bottom:1px solid var(--c-border);color:var(--ink-2);font-size:var(--fs-sm);text-transform:uppercase;">
+                <th style="text-align:left;padding:8px 14px;">ID</th>
+                <th style="text-align:left;padding:8px 14px;">用户名</th>
+                <th style="text-align:left;padding:8px 14px;">显示名</th>
+                <th style="text-align:left;padding:8px 14px;">主题</th>
+                <th style="text-align:left;padding:8px 14px;">创建时间</th>
+                <th style="text-align:right;padding:8px 14px;">操作</th>
+              </tr></thead>
+              <tbody id="adminUserTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
   </div>
 </div>
 
@@ -1139,5 +1185,6 @@
 <script type="module" src="{{ url_for('static', filename='js/foreign-customers.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/restock.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/sales-analytics.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/admin.js') }}"></script>
 </body>
 </html>

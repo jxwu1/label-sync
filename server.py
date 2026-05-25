@@ -22,6 +22,8 @@ def create_app() -> Flask:
     storage_service.startup_cleanup()
     stockpile_db.ensure_db()
     monthly_summary_service.cleanup_expired()
+    from app.auth import init_auth
+    init_auth(app)
     register_routes(app)
 
     # 2026-05-23: 预热 list_sku_summary 缓存避免冷启动首请求 30s+ 等待.

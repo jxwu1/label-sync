@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>登录 - label-sync</title>
+<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-0);
+    font-family: var(--sans);
+    color: var(--ink-0);
+  }
+  .login-card {
+    width: 360px;
+    background: var(--bg-1);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-lg);
+    padding: 40px 32px 32px;
+    box-shadow: var(--sh-lg);
+  }
+  .login-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 28px;
+  }
+  .login-logo__icon {
+    width: 32px; height: 32px;
+    border-radius: var(--r-sm);
+    background: var(--bg-0);
+    border: 1px solid var(--accent-dim);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 12px var(--accent-glow);
+  }
+  .login-logo__prompt {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .login-logo__cursor {
+    display: inline-block;
+    width: 8px; height: 14px;
+    background: var(--accent);
+    margin-left: -1px;
+  }
+  .login-logo__text {
+    font-family: var(--sans);
+    font-size: var(--fs-lg);
+    font-weight: 700;
+    color: var(--ink-0);
+  }
+  .login-field {
+    margin-bottom: 16px;
+  }
+  .login-field label {
+    display: block;
+    font-size: var(--fs-sm);
+    color: var(--ink-2);
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+  .login-field input {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    color: var(--ink-0);
+    font-size: var(--fs-base);
+    font-family: var(--sans);
+    outline: none;
+    transition: border-color .2s;
+  }
+  .login-field input:focus {
+    border-color: var(--accent);
+  }
+  .login-btn {
+    width: 100%;
+    padding: 10px;
+    margin-top: 8px;
+    background: var(--accent);
+    color: var(--on-accent);
+    border: none;
+    border-radius: var(--r-sm);
+    font-size: var(--fs-base);
+    font-weight: 600;
+    font-family: var(--sans);
+    cursor: pointer;
+    transition: background .2s;
+  }
+  .login-btn:hover {
+    background: var(--accent-dim);
+  }
+  .login-error {
+    background: var(--error-subtle);
+    border: 1px solid var(--error-subtle-border);
+    color: var(--error);
+    font-size: var(--fs-sm);
+    padding: 8px 12px;
+    border-radius: var(--r-sm);
+    margin-bottom: 16px;
+    display: none;
+  }
+  .login-error.show { display: block; }
+  .login-btn--loading {
+    pointer-events: none;
+    opacity: .7;
+  }
+  @keyframes login-spin {
+    to { transform: rotate(360deg); }
+  }
+  .login-spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--on-accent);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: login-spin .6s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  .login-card.fade-out {
+    opacity: 0;
+    transform: scale(.96);
+    transition: opacity .35s ease, transform .35s ease;
+  }
+</style>
+<script>
+  (function () {
+    document.documentElement.dataset.theme = 'apple-dark';
+    document.addEventListener('DOMContentLoaded', function () {
+      document.body.dataset.theme = 'apple-dark';
+    });
+  })();
+</script>
+</head>
+<body data-theme="apple-dark">
+  <form class="login-card" id="loginForm">
+    <div class="login-logo">
+      <div class="login-logo__icon">
+        <span class="login-logo__prompt">&gt;</span>
+        <span class="login-logo__cursor"></span>
+      </div>
+      <span class="login-logo__text">LABEL SYNC</span>
+    </div>
+    <div class="login-error" id="loginError"></div>
+    <div class="login-field">
+      <label for="username">用户名</label>
+      <input type="text" id="username" name="username" autocomplete="username" autofocus required>
+    </div>
+    <div class="login-field">
+      <label for="password">密码</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" required>
+    </div>
+    <button type="submit" class="login-btn" id="loginBtn">登录</button>
+  </form>
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var btn = document.getElementById('loginBtn');
+      var err = document.getElementById('loginError');
+      var card = document.getElementById('loginForm');
+      err.classList.remove('show');
+      btn.innerHTML = '<span class="login-spinner"></span>登录中';
+      btn.classList.add('login-btn--loading');
+
+      try {
+        var body = new FormData(card);
+        var r = await fetch(card.action || '/login', { method: 'POST', body: body });
+        var j = await r.json();
+        if (!j.ok) {
+          err.textContent = j.error || '登录失败';
+          err.classList.add('show');
+          btn.textContent = '登录';
+          btn.classList.remove('login-btn--loading');
+          return;
+        }
+        if (j.theme) {
+          try { localStorage.setItem('theme', j.theme); } catch(_) {}
+          document.body.dataset.theme = j.theme;
+          document.documentElement.dataset.theme = j.theme;
+        }
+        card.classList.add('fade-out');
+        setTimeout(function () {
+          window.location.href = j.next || '/';
+        }, 300);
+      } catch (ex) {
+        err.textContent = '网络错误';
+        err.classList.add('show');
+        btn.textContent = '登录';
+        btn.classList.remove('login-btn--loading');
+      }
+    });
+  </script>
+</body>
+</html>

@@ -103,6 +103,11 @@ document.addEventListener("alpine:init", () => {
       this.current = name;
       document.body.dataset.theme = name;
       try { localStorage.setItem("theme", name); } catch (_) {}
+      fetch("/admin/api/theme", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ theme: name }),
+      }).catch(() => {});
     },
   });
 
@@ -159,6 +164,7 @@ document.addEventListener("alpine:init", () => {
       // 页面 DOM (pageSalesAnalytics) 留着备份, 等下周确认无人用再彻底删.
       // { id: "sales_analytics",   label: "销售分析",   icon: "sales",      code: "09", shortcut: "9" },
       { id: "restock",           label: "补货决策",   icon: "sales",      code: "11", shortcut: "" },
+      { id: "admin",             label: "系统管理",   icon: "quality",    code: "00", shortcut: "0" },
     ],
     switch(id) {
       this.current = id;
