@@ -61,10 +61,12 @@
   src: url('/static/vendor/fonts/space-grotesk-700.woff2') format('woff2');
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 }
 
 body {
@@ -93,7 +95,7 @@ body {
 }
 
 /* 暗色专属：32×32 网格背景（带 radial mask 让中央更深四周更柔） */
-body[data-theme="terminal"]::before {
+body[data-theme="dark"]::before {
   content: '';
   position: fixed;
   inset: 0;

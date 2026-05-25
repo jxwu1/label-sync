@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>A端 - 双端处理</title>
 <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-main.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-purchase.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/page-attendance.css') }}">
@@ -25,12 +25,12 @@
 <script defer src="{{ url_for('static', filename='vendor/alpinejs/alpine.min.js') }}"></script>
 <script>
   (function () {
-    var VALID = ['apple-dark', 'apple-light', 'terminal'];
-    var MIGRATE = { dark: 'apple-dark', light: 'apple-light' };
+    var VALID = ['dark', 'light'];
+    var MIGRATE = { 'apple-dark': 'dark', 'apple-light': 'light', 'terminal': 'dark' };
     try {
-      var raw = localStorage.getItem('theme') || 'apple-dark';
+      var raw = localStorage.getItem('theme') || 'dark';
       var t = MIGRATE[raw] || raw;
-      if (VALID.indexOf(t) === -1) t = 'apple-dark';
+      if (VALID.indexOf(t) === -1) t = 'dark';
       if (t !== raw) localStorage.setItem('theme', t);
       document.documentElement.dataset.theme = t;
       document.addEventListener('DOMContentLoaded', function () {
@@ -38,7 +38,7 @@
       });
       if (document.body) document.body.dataset.theme = t;
     } catch (e) {
-      document.documentElement.dataset.theme = 'apple-dark';
+      document.documentElement.dataset.theme = 'dark';
     }
   })();
 </script>
@@ -96,99 +96,101 @@
   </defs>
 </svg>
 
-<div class="app-layout" x-data>
-  <!-- 左侧栏：可折叠 200↔56 -->
-  <aside class="app-sidebar" :class="$store.nav.collapsed && 'is-collapsed'">
-    <div class="app-sidebar__head">
-      <div class="app-sidebar__logo" aria-label="DataOps">
-        <span class="app-sidebar__logo-prompt">&gt;</span>
-        <span class="app-sidebar__logo-cursor" aria-hidden="true"></span>
+<div class="flex flex-row flex-1 overflow-hidden min-h-0" x-data>
+  <!-- Sidebar: 200↔56 collapse -->
+  <aside class="sidebar shrink-0 w-[200px] bg-bg-1 border-r border-line-soft flex flex-col transition-[width] duration-150"
+         :class="$store.nav.collapsed && 'is-collapsed'">
+    <div class="sidebar-head h-[52px] px-3.5 flex items-center gap-2.5 border-b border-line-soft shrink-0">
+      <div class="w-7 h-7 rounded bg-bg-0 border border-accent-dim flex items-center justify-center shrink-0 shadow-[0_0_12px_var(--accent-glow)]" aria-label="DataOps">
+        <span class="font-mono font-bold text-sm text-accent leading-none mr-px">&gt;</span>
+        <span class="sidebar-cursor" aria-hidden="true"></span>
       </div>
-      <div class="app-sidebar__title">
-        <div class="app-sidebar__name">DataOps</div>
-        <div class="app-sidebar__sub">v3.5 · ADMIN</div>
+      <div class="sidebar-title flex flex-col gap-px leading-tight overflow-hidden">
+        <div class="font-sans text-[13px] font-bold text-ink-0">DataOps</div>
+        <div class="font-sans text-[10px] text-ink-3">v3.5 · ADMIN</div>
       </div>
     </div>
-    <nav class="app-sidebar__nav">
-      <div class="app-sidebar__section-label">MODULES · 11</div>
+    <nav class="py-3 px-2 flex-1 overflow-y-auto flex flex-col gap-px">
+      <div class="sidebar-section-label font-sans text-[10px] text-ink-3 font-semibold py-1 px-2 pb-2 uppercase">MODULES · 11</div>
       <template x-for="p in $store.nav.pages" :key="p.id">
-        <button class="app-nav__item"
+        <button class="nav-item w-full flex items-center gap-3 py-2 px-2 bg-transparent border-none rounded text-ink-2 font-sans text-[12px] font-medium cursor-pointer text-left relative transition-colors duration-[.12s]"
                 :class="$store.nav.current === p.id && 'active'"
                 :data-tooltip="p.label"
                 @click="$store.nav.switch(p.id)">
-          <span class="app-nav__icon">
-            <svg><use :href="'#icon-' + p.icon"></use></svg>
+          <span class="nav-icon w-[18px] h-[18px] shrink-0 text-ink-3 inline-flex items-center justify-center transition-colors duration-[.12s]">
+            <svg class="w-[18px] h-[18px] block"><use :href="'#icon-' + p.icon"></use></svg>
           </span>
-          <span class="app-nav__label" x-text="p.label"></span>
-          <span class="app-nav__shortcut" x-text="'⌘' + p.shortcut"></span>
+          <span class="nav-label flex-1" x-text="p.label"></span>
+          <span class="nav-shortcut font-mono text-[9.5px] text-ink-3 py-px px-1.5 border border-line-soft rounded" x-text="'⌘' + p.shortcut"></span>
         </button>
       </template>
     </nav>
-    <div class="app-sidebar__foot">
-      <a href="/logout" class="app-sidebar__collapse" style="text-decoration:none;margin-bottom:4px;">
+    <div class="border-t border-line-soft p-2 shrink-0">
+      <a href="/logout" class="w-full py-1.5 bg-transparent border border-line-soft text-ink-3 rounded font-mono text-[11px] cursor-pointer flex items-center justify-center gap-1.5 transition-all duration-[.12s] no-underline mb-1">
         <span>⏻</span>
-        <span x-show="!$store.nav.collapsed">{{ current_user.display_name or current_user.username }} · 登出</span>
+        <span class="sidebar-btn-label" x-show="!$store.nav.collapsed">{{ current_user.display_name or current_user.username }} · 登出</span>
       </a>
-      <button class="app-sidebar__collapse" @click="$store.nav.toggleCollapse()">
+      <button class="w-full py-1.5 bg-transparent border border-line-soft text-ink-3 rounded font-mono text-[11px] cursor-pointer flex items-center justify-center gap-1.5 transition-all duration-[.12s]"
+              @click="$store.nav.toggleCollapse()">
         <span x-text="$store.nav.collapsed ? '›' : '‹'"></span>
-        <span x-show="!$store.nav.collapsed">collapse</span>
+        <span class="sidebar-btn-label" x-show="!$store.nav.collapsed">collapse</span>
       </button>
     </div>
   </aside>
 
-  <div class="app-main">
-    <!-- header (44px) -->
-    <header class="app-header" x-data x-init="$store.clock.start()">
-      <div class="app-header__crumb">
-        <span class="app-header__crumb-prefix">OPS</span>
-        <span class="app-header__crumb-sep">/</span>
-        <span class="app-header__crumb-title"
+  <div class="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden bg-bg-0">
+    <!-- Header (48px) -->
+    <header class="h-12 shrink-0 bg-bg-1 border-b border-line-soft flex items-center px-4 gap-4" x-data x-init="$store.clock.start()">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="font-sans text-[11px] text-ink-3">OPS</span>
+        <span class="text-ink-3">/</span>
+        <span class="text-[13px] font-semibold text-ink-0"
               x-text="($store.nav.pages.find(p => p.id === $store.nav.current) || {}).label"></span>
-        <span class="app-header__module"
+        <span class="font-sans text-[10px] text-ink-2 bg-bg-2 border border-line-soft rounded py-px px-2 font-medium"
               x-text="'module · ' + (($store.nav.pages.find(p => p.id === $store.nav.current) || {}).code || '00')"></span>
       </div>
-      <div class="app-header__spacer"></div>
-      <div class="app-header__search">
-        <span class="app-header__search-icon">⌕</span>
-        <input id="globalSearch" class="app-header__search-input" placeholder="搜索货号 / 文件 / 异常 ID...">
-        <span class="app-header__search-kbd">⌘K</span>
+      <div class="flex-1"></div>
+      <div class="flex items-center gap-2 bg-bg-2 border border-line-soft rounded py-2 px-3 w-[260px]">
+        <span class="text-ink-3 text-[11px]">⌕</span>
+        <input id="globalSearch" class="flex-1 bg-transparent border-none outline-none text-ink-0 text-[12px] font-sans" placeholder="搜索货号 / 文件 / 异常 ID...">
+        <span class="font-mono text-[10px] text-ink-3 py-px px-1 border border-line-soft rounded">⌘K</span>
       </div>
-      <div class="app-header__status">
+      <div class="flex items-center gap-1.5">
         <span class="dot"
               :class="$store.app.badgeType === 'running' || $store.app.badgeType === 'waiting' ? 'dot--pulse' : ''"
               :style="`color: var(--${$store.app.badgeType === 'running' ? 'accent' : ($store.app.badgeType === 'waiting' ? 'warn' : ($store.app.badgeType === 'done' ? 'accent' : ($store.app.badgeType === 'error' ? 'error' : 'ink-2')))})`"></span>
-        <span class="app-header__status-text"
+        <span class="font-sans text-[11px] font-semibold"
               :style="`color: var(--${$store.app.badgeType === 'running' ? 'accent' : ($store.app.badgeType === 'waiting' ? 'warn' : ($store.app.badgeType === 'done' ? 'accent' : ($store.app.badgeType === 'error' ? 'error' : 'ink-2')))})`"
               x-text="($store.app.badgeText || '').toUpperCase()"></span>
       </div>
-      <span class="app-header__clock" x-text="$store.clock.time"></span>
+      <span class="font-mono text-[11px] text-ink-2 tabular-nums" x-text="$store.clock.time"></span>
       <span class="pill pill--info pill--xs">PROD</span>
-      <button class="app-header__icon-btn"
+      <button class="w-[26px] h-[26px] rounded bg-bg-3 border border-line flex items-center justify-center text-ink-1 text-[13px] cursor-pointer font-mono p-0 transition-all duration-[.12s] hover:bg-bg-4 hover:text-accent"
               :title="$store.theme.isDark() ? '切到浅色' : '切到暗色'"
               @click="$store.theme.toggle()"
               @click.shift="$store.theme.cycle()">
         <span x-text="$store.theme.isDark() ? '☀' : '☾'"></span>
       </button>
-      <span class="app-header__locale">ZH</span>
+      <span class="w-[26px] h-[26px] rounded bg-bg-3 border border-line flex items-center justify-center text-ink-1 text-[11px] font-semibold font-mono">ZH</span>
     </header>
 
-    <!-- sub-strip (28px) -->
-    <div class="app-substrip" x-data>
-      <span class="app-substrip__label">SESSION</span>
-      <span class="app-substrip__value" x-text="$store.substrip.sessionId"></span>
-      <span class="app-substrip__sep">·</span>
-      <span class="app-substrip__label">OPERATOR</span>
-      <span class="app-substrip__value">admin@dataops</span>
-      <span class="app-substrip__sep">·</span>
-      <span class="app-substrip__label">WAREHOUSE</span>
-      <span class="app-substrip__value app-substrip__value--accent">WX-03</span>
-      <div class="app-substrip__spacer"></div>
-      <span class="app-substrip__label">STOCKPILE</span>
-      <span class="app-substrip__value app-substrip__value--accent"
+    <!-- Substrip (28px) -->
+    <div class="h-7 shrink-0 bg-bg-1 border-b border-line-soft px-4 flex items-center gap-4 font-sans text-[10px] text-ink-3" x-data>
+      <span class="font-medium uppercase">SESSION</span>
+      <span class="text-ink-1" x-text="$store.substrip.sessionId"></span>
+      <span>·</span>
+      <span class="font-medium uppercase">OPERATOR</span>
+      <span class="text-ink-1">admin@dataops</span>
+      <span>·</span>
+      <span class="font-medium uppercase">WAREHOUSE</span>
+      <span class="text-accent">WX-03</span>
+      <div class="flex-1"></div>
+      <span class="font-medium uppercase">STOCKPILE</span>
+      <span class="text-accent"
             x-text="$store.substrip.stockpileCount === null ? '—' : $store.substrip.stockpileCount.toLocaleString()"></span>
     </div>
 
-    <div class="app-pages">
+    <div class="flex-1 p-4 overflow-hidden min-h-0 bg-bg-0">
 <div class="page" id="pageMain" x-data :class="$store.nav.current === 'main' ? 'active' : ''">
   <div class="page-main-grid">
 

@@ -1,6 +1,6 @@
 /* ============================================================
  * Design System Tokens
- * 三套主题: terminal (冻结) / apple-dark / apple-light
+ * 双主题: dark / light — Linear App 风格
  * ============================================================ */
 
 /* ============================================================
@@ -30,6 +30,21 @@
   --fs-3xl: 22px;
   --fs-4xl: 28px;
 
+  /* font stacks */
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'Cascadia Code', Consolas, Menlo, monospace;
+  --sans: 'Inter', system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+
+  /* border radius */
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
+  --r-pill: 999px;
+
+  /* transitions */
+  --t-fast: .12s ease;
+  --t-base: .2s ease;
+
   /* z-index */
   --z-base: 0;
   --z-dropdown: 10;
@@ -40,62 +55,49 @@
 }
 
 /* ============================================================
- * Terminal — 冻结，当前 DataOps Terminal 暗色原样保留
+ * Dark (default) — Linear 近纯黑底 + 红色强调色
  * ============================================================ */
-[data-theme="terminal"] {
-  --bg-0: #0a0d12;
-  --bg-1: #0f1319;
-  --bg-2: #151a23;
-  --bg-3: #1c222d;
-  --bg-4: #232a37;
-  --line: #2a3140;
-  --line-soft: #1f2530;
+[data-theme="dark"] {
+  --bg-0: #0A0A0B;
+  --bg-1: #111113;
+  --bg-2: #19191C;
+  --bg-3: #222225;
+  --bg-4: #2C2C30;
+  --line: #2E2E32;
+  --line-soft: #1F1F23;
 
-  --ink-0: #e6ebf2;
-  --ink-1: #b3bcc9;
-  --ink-2: #7a8494;
-  --ink-3: #4d5666;
+  --ink-0: #EDEDEF;
+  --ink-1: #A0A0A6;
+  --ink-2: #6E6E76;
+  --ink-3: #4A4A52;
 
-  --accent: #00ff95;
-  --accent-dim: #00b86d;
-  --accent-glow: rgba(0, 255, 149, .18);
-  --accent-subtle: rgba(0, 255, 149, .08);
-  --accent-subtle-border: rgba(0, 255, 149, .3);
-  --on-accent: #0a0d12;
+  --accent: #E5484D;
+  --accent-dim: #C13B3F;
+  --accent-glow: rgba(229, 72, 77, .15);
+  --accent-subtle: rgba(229, 72, 77, .08);
+  --accent-subtle-border: rgba(229, 72, 77, .25);
+  --on-accent: #FFFFFF;
 
-  --success: #00ff95;
-  --success-subtle: rgba(0, 255, 149, .06);
-  --warn: #ffb627;
-  --warn-dim: #b87f10;
-  --warn-subtle: rgba(255, 182, 39, .08);
-  --warn-subtle-border: rgba(255, 182, 39, .3);
-  --error: #ff3b6b;
-  --error-dim: #b8264a;
-  --error-subtle: rgba(255, 59, 107, .08);
-  --error-subtle-border: rgba(255, 59, 107, .3);
-  --info: #4ea3ff;
-  --info-dim: #1f6fc9;
-  --info-subtle: rgba(78, 163, 255, .08);
-  --info-subtle-border: rgba(78, 163, 255, .3);
+  --success: #46A758;
+  --success-subtle: rgba(70, 167, 88, .08);
+  --warn: #F5A623;
+  --warn-dim: #C4841D;
+  --warn-subtle: rgba(245, 166, 35, .08);
+  --warn-subtle-border: rgba(245, 166, 35, .25);
+  --error: #E5484D;
+  --error-dim: #AA2429;
+  --error-subtle: rgba(229, 72, 77, .08);
+  --error-subtle-border: rgba(229, 72, 77, .25);
+  --info: #3E9DE6;
+  --info-dim: #2B7EC2;
+  --info-subtle: rgba(62, 157, 230, .08);
+  --info-subtle-border: rgba(62, 157, 230, .25);
 
-  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'Cascadia Code', Consolas, Menlo, monospace;
-  --sans: 'Inter', system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  --display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --sh-sm: 0 1px 2px rgba(0,0,0,.5);
+  --sh-md: 0 4px 12px rgba(0,0,0,.6);
+  --sh-lg: 0 8px 24px rgba(0,0,0,.6);
 
-  --r-sm: 4px;
-  --r-md: 6px;
-  --r-lg: 10px;
-  --r-pill: 999px;
-
-  --sh-sm: 0 1px 3px rgba(0, 0, 0, .4);
-  --sh-md: 0 4px 14px rgba(0, 0, 0, .55);
-  --sh-lg: 0 8px 24px rgba(0, 0, 0, .6);
-  --sh-xl: 0 12px 36px rgba(0, 0, 0, .65);
-
-  --t-fast: .12s ease;
-  --t-base: .2s ease;
-
-  --glass-bg: rgba(15, 19, 25, .85);
+  --glass-bg: rgba(17, 17, 19, .85);
   --glass-blur: blur(12px);
   --glass-border: rgba(255, 255, 255, .05);
 
@@ -103,141 +105,51 @@
 }
 
 /* ============================================================
- * Apple Dark
+ * Light — 纯白底 + 红色强调色
  * ============================================================ */
-[data-theme="apple-dark"] {
-  --bg-0: #000000;
-  --bg-1: #1C1C1E;
-  --bg-2: #2C2C2E;
-  --bg-3: #3A3A3C;
-  --bg-4: #48484A;
-  --line: rgba(84, 84, 88, .65);
-  --line-soft: rgba(84, 84, 88, .35);
-
-  --ink-0: rgba(255, 255, 255, .85);
-  --ink-1: rgba(255, 255, 255, .55);
-  --ink-2: rgba(255, 255, 255, .30);
-  --ink-3: rgba(255, 255, 255, .18);
-
-  --accent: #007AFF;
-  --accent-dim: #0062CC;
-  --accent-glow: rgba(0, 122, 255, .18);
-  --accent-subtle: rgba(0, 122, 255, .12);
-  --accent-subtle-border: rgba(0, 122, 255, .3);
-  --on-accent: #FFFFFF;
-
-  --success: #34C759;
-  --success-subtle: rgba(52, 199, 89, .10);
-  --warn: #FF9500;
-  --warn-dim: #CC7700;
-  --warn-subtle: rgba(255, 149, 0, .10);
-  --warn-subtle-border: rgba(255, 149, 0, .3);
-  --error: #FF3B30;
-  --error-dim: #CC2D25;
-  --error-subtle: rgba(255, 59, 48, .10);
-  --error-subtle-border: rgba(255, 59, 48, .3);
-  --info: #5AC8FA;
-  --info-dim: #3EA8D4;
-  --info-subtle: rgba(90, 200, 250, .10);
-  --info-subtle-border: rgba(90, 200, 250, .3);
-
-  --mono: 'SF Mono', 'Fira Code', ui-monospace, 'Cascadia Code', Consolas, monospace;
-  --sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  --display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
-
-  --r-sm: 8px;
-  --r-md: 12px;
-  --r-lg: 16px;
-  --r-pill: 9999px;
-
-  --sh-sm: 0 1px 3px rgba(0, 0, 0, .2), 0 1px 2px rgba(0, 0, 0, .15);
-  --sh-md: 0 2px 8px rgba(0, 0, 0, .3), 0 1px 3px rgba(0, 0, 0, .2);
-  --sh-lg: 0 8px 24px rgba(0, 0, 0, .4), 0 2px 8px rgba(0, 0, 0, .25);
-  --sh-xl: 0 16px 48px rgba(0, 0, 0, .5), 0 4px 12px rgba(0, 0, 0, .3);
-
-  --ease-snappy: cubic-bezier(0.2, 0.9, 0.3, 1.05);
-  --ease-default: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --ease-gentle: cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  --t-fast: .2s cubic-bezier(0.2, 0.9, 0.3, 1.05);
-  --t-base: .35s cubic-bezier(0.2, 0.8, 0.2, 1);
-
-  --glass-bg: rgba(30, 30, 30, .72);
-  --glass-blur: saturate(180%) blur(20px);
-  --glass-border: rgba(255, 255, 255, .08);
-
-  --fill: rgba(120, 120, 128, .36);
-  --fill-secondary: rgba(120, 120, 128, .32);
-  --fill-tertiary: rgba(120, 120, 128, .24);
-
-  color-scheme: dark;
-}
-
-/* ============================================================
- * Apple Light
- * ============================================================ */
-[data-theme="apple-light"] {
+[data-theme="light"] {
   --bg-0: #FFFFFF;
-  --bg-1: #F2F2F7;
-  --bg-2: #E5E5EA;
-  --bg-3: #D1D1D6;
-  --bg-4: #C7C7CC;
-  --line: rgba(60, 60, 67, .36);
-  --line-soft: rgba(60, 60, 67, .18);
+  --bg-1: #F8F8F9;
+  --bg-2: #F0F0F2;
+  --bg-3: #E8E8EB;
+  --bg-4: #DDDDE0;
+  --line: #E0E0E3;
+  --line-soft: #EBEBEE;
 
-  --ink-0: rgba(0, 0, 0, .85);
-  --ink-1: rgba(0, 0, 0, .55);
-  --ink-2: rgba(0, 0, 0, .30);
-  --ink-3: rgba(0, 0, 0, .18);
+  --ink-0: #1A1A1E;
+  --ink-1: #6B6B76;
+  --ink-2: #9B9BA6;
+  --ink-3: #C0C0C8;
 
-  --accent: #007AFF;
-  --accent-dim: #0055D4;
-  --accent-glow: rgba(0, 122, 255, .12);
-  --accent-subtle: rgba(0, 122, 255, .08);
-  --accent-subtle-border: rgba(0, 122, 255, .25);
+  --accent: #DC3545;
+  --accent-dim: #B52A37;
+  --accent-glow: rgba(220, 53, 69, .10);
+  --accent-subtle: rgba(220, 53, 69, .06);
+  --accent-subtle-border: rgba(220, 53, 69, .20);
   --on-accent: #FFFFFF;
 
-  --success: #34C759;
-  --success-subtle: rgba(52, 199, 89, .08);
-  --warn: #FF9500;
-  --warn-dim: #CC7700;
-  --warn-subtle: rgba(255, 149, 0, .08);
-  --warn-subtle-border: rgba(255, 149, 0, .25);
-  --error: #FF3B30;
-  --error-dim: #CC2D25;
-  --error-subtle: rgba(255, 59, 48, .08);
-  --error-subtle-border: rgba(255, 59, 48, .25);
-  --info: #5AC8FA;
-  --info-dim: #3EA8D4;
-  --info-subtle: rgba(90, 200, 250, .10);
-  --info-subtle-border: rgba(90, 200, 250, .25);
+  --success: #2D8A3E;
+  --success-subtle: rgba(45, 138, 62, .06);
+  --warn: #D4850C;
+  --warn-dim: #A66A0A;
+  --warn-subtle: rgba(212, 133, 12, .06);
+  --warn-subtle-border: rgba(212, 133, 12, .20);
+  --error: #DC3545;
+  --error-dim: #9C1E2A;
+  --error-subtle: rgba(220, 53, 69, .06);
+  --error-subtle-border: rgba(220, 53, 69, .20);
+  --info: #2B7EC2;
+  --info-dim: #1A5F9E;
+  --info-subtle: rgba(43, 126, 194, .06);
+  --info-subtle-border: rgba(43, 126, 194, .20);
 
-  --mono: 'SF Mono', 'Fira Code', ui-monospace, 'Cascadia Code', Consolas, monospace;
-  --sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  --display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+  --sh-sm: 0 1px 2px rgba(0,0,0,.05);
+  --sh-md: 0 4px 12px rgba(0,0,0,.08);
+  --sh-lg: 0 8px 24px rgba(0,0,0,.12);
 
-  --r-sm: 8px;
-  --r-md: 12px;
-  --r-lg: 16px;
-  --r-pill: 9999px;
-
-  --sh-sm: 0 1px 3px rgba(0, 0, 0, .06), 0 1px 2px rgba(0, 0, 0, .04);
-  --sh-md: 0 2px 8px rgba(0, 0, 0, .10), 0 1px 3px rgba(0, 0, 0, .06);
-  --sh-lg: 0 8px 24px rgba(0, 0, 0, .12), 0 2px 8px rgba(0, 0, 0, .06);
-  --sh-xl: 0 16px 48px rgba(0, 0, 0, .15), 0 4px 12px rgba(0, 0, 0, .08);
-
-  --ease-snappy: cubic-bezier(0.2, 0.9, 0.3, 1.05);
-  --ease-default: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --ease-gentle: cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  --t-fast: .2s cubic-bezier(0.2, 0.9, 0.3, 1.05);
-  --t-base: .35s cubic-bezier(0.2, 0.8, 0.2, 1);
-
-  --glass-bg: rgba(255, 255, 255, .72);
-  --glass-blur: saturate(180%) blur(20px);
+  --glass-bg: rgba(255, 255, 255, .85);
+  --glass-blur: blur(12px);
   --glass-border: rgba(0, 0, 0, .06);
-
-  --fill: rgba(120, 120, 128, .20);
-  --fill-secondary: rgba(120, 120, 128, .16);
-  --fill-tertiary: rgba(120, 120, 128, .12);
 
   color-scheme: light;
 }
@@ -286,8 +198,3 @@ body {
   --color-surface-soft: var(--bg-2);
   --color-surface-hover: var(--bg-3);
 }
-
-/* 主题切换瞬切 — 之前 `body, body *` 通用过渡导致 bg/color/border 不同步
- * 重绘产生 flash（box-shadow/fill 等没过渡却同步换，造成中间帧错位）。
- * 主题切换改为零延迟，与 Apple 自家应用一致。
- * 局部 hover / state 过渡由各组件自己管。 */

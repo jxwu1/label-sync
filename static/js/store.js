@@ -79,20 +79,16 @@ document.addEventListener("alpine:init", () => {
   });
 
   // ===== 主题 =====
-  // 三套主题: terminal / apple-dark / apple-light
+  // 双主题: dark / light (Linear 风格)
   // FOUC 防御：index.html <head> inline script 已设置 body.dataset.theme
-  const THEMES = ["apple-dark", "apple-light", "terminal"];
+  const THEMES = ["dark", "light"];
   Alpine.store("theme", {
-    current: document.body.dataset.theme || "apple-dark",
+    current: document.body.dataset.theme || "dark",
     isDark() {
-      return this.current !== "apple-light";
+      return this.current === "dark";
     },
     toggle() {
-      if (this.current === "apple-dark") {
-        this.set("apple-light");
-      } else {
-        this.set("apple-dark");
-      }
+      this.set(this.current === "dark" ? "light" : "dark");
     },
     cycle() {
       const i = THEMES.indexOf(this.current);
@@ -101,6 +97,7 @@ document.addEventListener("alpine:init", () => {
     set(name) {
       if (!THEMES.includes(name)) return;
       this.current = name;
+      document.documentElement.dataset.theme = name;
       document.body.dataset.theme = name;
       try { localStorage.setItem("theme", name); } catch (_) {}
       fetch("/admin/api/theme", {

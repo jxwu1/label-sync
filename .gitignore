@@ -77,5 +77,8 @@ monthly_summary/
 data/
 backups/
 
-# Node tooling (only used for eslint, no build step)
+# Tailwind CSS build output
+static/css/output.css
+
+# Node tooling (DaisyUI + eslint)
 node_modules/

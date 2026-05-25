@@ -486,7 +486,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     display_name: Mapped[str | None] = mapped_column(Text)
-    theme: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'apple-dark'"))
+    theme: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'dark'"))
     created_at: Mapped[str | None] = mapped_column(
         Text, server_default=func.current_timestamp()
     )

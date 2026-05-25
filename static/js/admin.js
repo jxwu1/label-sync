@@ -1,9 +1,8 @@
 "use strict";
 
 const THEMES = [
-  { id: "apple-dark",  label: "Apple Dark",  desc: "纯黑底 + 蓝强调",     bg: "#000", accent: "#007AFF", fg: "#fff" },
-  { id: "apple-light", label: "Apple Light", desc: "纯白底 + 蓝强调",     bg: "#F2F2F7", accent: "#007AFF", fg: "#000" },
-  { id: "terminal",    label: "Terminal",     desc: "暗色终端 + 绿强调",   bg: "#0a0d12", accent: "#00ff95", fg: "#e6ebf2" },
+  { id: "dark",  label: "Dark",  desc: "近纯黑底 + 红强调",  bg: "#0A0A0B", accent: "#E5484D", fg: "#EDEDEF" },
+  { id: "light", label: "Light", desc: "纯白底 + 红强调",    bg: "#FFFFFF", accent: "#DC3545", fg: "#1A1A1E" },
 ];
 
 const SETTING_LABELS = {
@@ -25,7 +24,7 @@ async function api(url, opts = {}) {
 function renderThemePicker() {
   const box = $("adminThemePicker");
   if (!box) return;
-  const current = document.body.dataset.theme || "apple-dark";
+  const current = document.body.dataset.theme || "dark";
   box.innerHTML = THEMES.map(t => `
     <button class="adm-theme-card${t.id === current ? ' adm-theme-card--active' : ''}"
             data-theme="${t.id}"

@@ -57,7 +57,7 @@ def _seed_admin():
             username="admin",
             password_hash=hash_password("admin"),
             display_name="管理员",
-            theme="apple-dark",
+            theme="dark",
         )
         s.add(admin)
         defaults = {

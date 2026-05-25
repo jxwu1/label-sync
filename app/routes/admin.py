@@ -104,7 +104,7 @@ def update_settings():
 def update_theme():
     data = request.get_json(silent=True) or {}
     theme = data.get("theme", "")
-    if theme not in ("apple-dark", "apple-light", "terminal"):
+    if theme not in ("dark", "light"):
         return jsonify(ok=False, error="无效主题"), 400
     with get_session() as s:
         u = s.get(User, current_user.id)

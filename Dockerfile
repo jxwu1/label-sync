@@ -22,8 +22,15 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Tailwind CSS v4 standalone CLI
+ADD https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64 /usr/local/bin/tailwindcss
+RUN chmod +x /usr/local/bin/tailwindcss
+
 # 拷代码 (.dockerignore 已剔除 .venv / .git / _scratch / *.db 等)
 COPY . .
+
+# 构建 Tailwind CSS
+RUN tailwindcss -i static/css/input.css -o static/css/output.css --minify
 
 # 运行时数据走 volume (stockpile.db / input / output / archive)
 ENV LABEL_SYNC_DATA_DIR=/data
