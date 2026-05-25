@@ -273,7 +273,7 @@ body {
   --c-warn: var(--warn);
   --c-warn-strong: var(--warn-dim);
   --c-warn-bg: var(--warn-subtle);
-  --c-warn-bg-strong: rgba(255, 182, 39, .14);
+  --c-warn-bg-strong: var(--warn-subtle);
   --c-danger: var(--error);
   --c-danger-bg: var(--error-subtle);
   --c-danger-border: var(--error-dim);
@@ -287,11 +287,7 @@ body {
   --color-surface-hover: var(--bg-3);
 }
 
-/* 主题切换过渡 */
-body,
-body * {
-  transition:
-    background-color var(--t-fast),
-    color var(--t-fast),
-    border-color var(--t-fast);
-}
+/* 主题切换瞬切 — 之前 `body, body *` 通用过渡导致 bg/color/border 不同步
+ * 重绘产生 flash（box-shadow/fill 等没过渡却同步换，造成中间帧错位）。
+ * 主题切换改为零延迟，与 Apple 自家应用一致。
+ * 局部 hover / state 过渡由各组件自己管。 */

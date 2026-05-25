@@ -193,7 +193,22 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 12.5px;
+  table-layout: fixed;
 }
+/* 固定列宽防止切供应商时长品名导致横跳 */
+.rs-table th:nth-child(1),  .rs-table td:nth-child(1)  { width: 32px; }
+.rs-table th:nth-child(2),  .rs-table td:nth-child(2)  { width: 116px; }
+/* 第 3 列 型号/品名 — 不设 width，吃剩余空间 */
+.rs-table th:nth-child(4),  .rs-table td:nth-child(4)  { width: 52px; }
+.rs-table th:nth-child(5),  .rs-table td:nth-child(5)  { width: 130px; }
+.rs-table th:nth-child(6),  .rs-table td:nth-child(6)  { width: 72px; }
+.rs-table th:nth-child(7),  .rs-table td:nth-child(7)  { width: 72px; }
+.rs-table th:nth-child(8),  .rs-table td:nth-child(8)  { width: 82px; }
+.rs-table th:nth-child(9),  .rs-table td:nth-child(9)  { width: 72px; }
+.rs-table th:nth-child(10), .rs-table td:nth-child(10) { width: 78px; }
+.rs-table th:nth-child(11), .rs-table td:nth-child(11) { width: 64px; }
+.rs-table th:nth-child(12), .rs-table td:nth-child(12) { width: 86px; }
+.rs-table th:nth-child(13), .rs-table td:nth-child(13) { width: 110px; }
 
 .rs-table thead th {
   position: sticky;
@@ -233,9 +248,23 @@
   color: var(--ink-2);
   white-space: nowrap;
 }
-.rs-name-cell { max-width: 280px; }
-.rs-model { font-family: var(--mono); color: var(--ink-2); display: block; }
-.rs-name { font-size: 11px; color: var(--ink-3); display: block; }
+.rs-name-cell { overflow: hidden; }
+.rs-model {
+  font-family: var(--mono);
+  color: var(--ink-2);
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rs-name {
+  font-size: 11px;
+  color: var(--ink-3);
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .rs-origin {
   display: inline-block;
@@ -406,6 +435,11 @@
   padding: 1px 6px;
   cursor: pointer;
   transition: border-color 120ms, color 120ms, background 120ms;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
 }
 .rs-supplier:hover {
   border-color: var(--accent);

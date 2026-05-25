@@ -409,3 +409,23 @@
   70%  { box-shadow: 0 0 0 6px transparent; }
   100% { box-shadow: 0 0 0 0 transparent; }
 }
+
+/* ============================================================
+ * Apple 主题覆盖：terminal 不受影响
+ * Logo 在 apple 下保留光标方块, 但不闪烁
+ * ============================================================ */
+[data-theme^="apple"] .app-sidebar__logo-cursor {
+  animation: none;
+  opacity: 1;
+}
+
+[data-theme^="apple"] .pill {
+  border-radius: var(--r-pill);
+  letter-spacing: 0;
+  font-weight: 500;
+}
+
+[data-theme^="apple"] .app-nav__shortcut {
+  border-radius: var(--r-sm);
+  border-color: var(--line-soft);
+}
