@@ -41,7 +41,10 @@ function Run-Step {
     # NOTE: 参数名不能用 $Args, 跟 PowerShell 函数自动变量冲突, 传值会丢
     param([string]$Name, [string]$Script, [string[]]$ScriptArgs = @())
     Log "→ $Name $($ScriptArgs -join ' ')"
-    & $python $Script @ScriptArgs 2>&1 | Tee-Object -FilePath $log -Append
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    & $python $Script @ScriptArgs 2>&1 | ForEach-Object { "$_" } | Tee-Object -FilePath $log -Append
+    $ErrorActionPreference = $prevEAP
     if ($LASTEXITCODE -ne 0) {
         throw "$Name 失败 (exit $LASTEXITCODE)"
     }

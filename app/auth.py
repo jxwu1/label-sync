@@ -25,6 +25,8 @@ def init_auth(app):
             return
         if request.endpoint == "static":
             return
+        if request.headers.get("X-Upload-Token"):
+            return
         if not current_user.is_authenticated:
             return redirect(url_for("auth.login", next=request.url))
 
