@@ -10,5 +10,7 @@ psycopg[binary]>=3.2
 reportlab
 pydantic
 waitress
+flask-login
+bcrypt
 numpy
 statsmodels
