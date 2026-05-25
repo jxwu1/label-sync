@@ -1,7 +1,13 @@
-# 把 boson ERP 的 PHPSESSID 粘贴到 cookie.txt (不带井号, 整个文件就一行)
-# 步骤:
-#   1. 浏览器登录 boson, F12 -> Application -> Cookies -> 复制 PHPSESSID 的值
+# cookie.txt 内容: 单行 PHPSESSID 值, 不带 "PHPSESSID=" 前缀, 不带井号.
+#
+# 推荐: 自动刷新 (Chrome 登过 boson 即可)
+#   python scraper/refresh_cookie.py
+#   → 从本地 Chrome 拿当前 boson session, 写入 cookie.txt
+#   → run_weekly.ps1 已经把这一步集成在抓取前
+#
+# 手动 (备份方案):
+#   1. Chrome 登录 boson, F12 -> Application -> Cookies -> 复制 PHPSESSID 的值
 #   2. cp cookie.txt.example cookie.txt
-#   3. 把 cookie.txt 里这段全部删掉, 只留 PHPSESSID 那串
+#   3. 把整段说明删掉, 只留 PHPSESSID 那串
 #
 # cookie 失效信号: 抓取脚本响应 < 50KB 或返回 "系统已注销"

@@ -64,6 +64,11 @@ try {
     $weekAgo = (Get-Date).AddDays(-7).ToString("yyyy-MM-dd")
     Log "时间窗口: $weekAgo → $today"
 
+    # === 刷 cookie (从 Chrome 取 PHPSESSID 写到 cookie.txt) ===
+    # 前提: 这台机器最近用 Chrome 登过 boson, session 还有效.
+    # 失败 = cookie 过期, 需要手动开 Chrome 重登一次再重跑.
+    Run-Step "refresh_cookie" (Join-Path $PSScriptRoot "refresh_cookie.py")
+
     # === 抓取 ===
     Run-Step "sales_scraper"    (Join-Path $PSScriptRoot "sales_scraper.py")    -ScriptArgs @("--from", $weekAgo, "--to", $today)
     Run-Step "purchase_scraper" (Join-Path $PSScriptRoot "purchase_scraper.py") -ScriptArgs @("--from", $weekAgo, "--to", $today)
