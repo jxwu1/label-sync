@@ -386,10 +386,10 @@ async function refreshHealth() {
           <div>客户 <b>${stats.customers_total.toLocaleString()}</b> · 供应商 <b>${stats.suppliers_total.toLocaleString()}</b></div>
         </div>
         <div class="inv-health-card">
-          <h4>Scraper 最新</h4>
-          <div>销售: ${fmtAgo(stats.latest_sale_at)}</div>
-          <div>采购: ${fmtAgo(stats.latest_purchase_at)}</div>
-          <div>库存快照: ${fmtAgo(stats.latest_inventory_snapshot_at)}</div>
+          <h4>Scraper 状态</h4>
+          <div>销售: ${fmtAgo(stats.last_sale_import)} <span class="inv-health-sub">最新记录 ${fmtAgo(stats.latest_sale_at)}</span></div>
+          <div>采购: ${fmtAgo(stats.last_purchase_import)} <span class="inv-health-sub">最新记录 ${fmtAgo(stats.latest_purchase_at)}</span></div>
+          <div>库存快照: ${fmtAgo(stats.last_inventory_snapshot_import)} <span class="inv-health-sub">最新记录 ${fmtAgo(stats.latest_inventory_snapshot_at)}</span></div>
           <div>产品总档: ${fmtAgo(stats.latest_product_master_at)}</div>
         </div>
       </div>

@@ -434,6 +434,7 @@
 }
 .inv-health-card b { color: var(--ink-1); font-weight: 600; }
 .inv-health-ago { color: var(--ink-3); font-size: 11.5px; margin-left: 4px; }
+.inv-health-sub { color: var(--ink-3); font-size: 11px; margin-left: 8px; opacity: .7; }
 .inv-health-ok    { color: #1f7a3a; }
 .inv-health-warn  { color: #c97a00; }
 .inv-health-stale { color: #b02a37; }
