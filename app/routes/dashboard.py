@@ -3,13 +3,14 @@ import subprocess
 from datetime import datetime
 
 from flask import Blueprint, jsonify
-from sqlalchemy import distinct, func, select
+from sqlalchemy import func, select
 
 from app.models import (
     AttendanceRecord,
     PurchaseOrder,
     PurchaseOrderLine,
     StockpileChange,
+    StockpileSnapshot,
     get_session,
 )
 from app.repositories import stockpile_db
@@ -87,93 +88,88 @@ def _build_dq() -> list[dict]:
 
 def _build_feed() -> list[dict]:
     items: list[dict] = []
-    try:
-        with get_session() as session:
-            _feed_imports(session, items)
-            _feed_changes(session, items)
-            _feed_purchases(session, items)
-    except Exception:
-        pass
+    with get_session() as session:
+        snapshots = (
+            session.execute(
+                select(StockpileSnapshot).order_by(StockpileSnapshot.taken_at.desc()).limit(5)
+            )
+            .scalars()
+            .all()
+        )
+        for snap in snapshots:
+            label = "Stockpile 导入" if snap.trigger == "import" else "Stockpile 比对"
+            meta = [f"{snap.total_local:,} 记录"]
+            if snap.only_in_local_count:
+                meta.append(f"+{snap.only_in_local_count} 新增")
+            if snap.substantive_count:
+                meta.append(f"{snap.substantive_count} 变更")
+            items.append(
+                {
+                    "type": "import",
+                    "title": f"{label} · 批次 <span class='mono'>#{snap.id}</span>",
+                    "meta": meta,
+                    "time": _format_time(snap.taken_at),
+                    "_ts": snap.taken_at,
+                }
+            )
+
+        recent_changes = session.execute(
+            select(
+                func.substr(StockpileChange.created_at, 1, 10).label("day"),
+                func.count(StockpileChange.id),
+            )
+            .where(StockpileChange.change_type == "update")
+            .group_by("day")
+            .order_by(func.substr(StockpileChange.created_at, 1, 10).desc())
+            .limit(3)
+        ).all()
+        for day, cnt in recent_changes:
+            if not day or cnt == 0:
+                continue
+            items.append(
+                {
+                    "type": "change",
+                    "title": f"数据变更 · <span class='mono'>{cnt}</span> 条",
+                    "meta": [f"{cnt} 字段变更"],
+                    "time": _format_time(day),
+                    "_ts": day,
+                }
+            )
+
+        orders = (
+            session.execute(
+                select(PurchaseOrder).order_by(PurchaseOrder.created_at.desc()).limit(5)
+            )
+            .scalars()
+            .all()
+        )
+        for po in orders:
+            ts = po.created_at or po.order_date or ""
+            line_count = (
+                session.execute(
+                    select(func.count(PurchaseOrderLine.id)).where(
+                        PurchaseOrderLine.order_id == po.id
+                    )
+                ).scalar()
+                or 0
+            )
+            meta = [f"{line_count} 行"]
+            if po.total_amount:
+                meta.append(f"€{po.total_amount:,.0f}")
+            items.append(
+                {
+                    "type": "import",
+                    "title": (
+                        f"采购导入 · <span class='mono'>{po.source_file or po.order_date}</span>"
+                    ),
+                    "meta": meta,
+                    "time": _format_time(ts),
+                    "_ts": ts,
+                }
+            )
+
     items.sort(key=lambda x: x.get("_ts", ""), reverse=True)
     return items[:10]
-
-
-def _feed_imports(session, items: list[dict]) -> None:
-    rows = session.execute(
-        select(
-            StockpileChange.created_at,
-            func.count(distinct(StockpileChange.product_barcode)),
-        )
-        .where(StockpileChange.change_type == "insert")
-        .group_by(func.substr(StockpileChange.created_at, 1, 16))
-        .order_by(StockpileChange.created_at.desc())
-        .limit(5)
-    ).all()
-    for ts, cnt in rows:
-        if not ts:
-            continue
-        items.append(
-            {
-                "type": "import",
-                "title": f"Stockpile 导入 · <span class='mono'>+{cnt}</span> 条",
-                "meta": [f"{cnt} 新增"],
-                "time": _format_time(ts),
-                "_ts": ts,
-            }
-        )
-
-
-def _feed_changes(session, items: list[dict]) -> None:
-    rows = session.execute(
-        select(
-            StockpileChange.created_at,
-            func.count(StockpileChange.id),
-        )
-        .where(StockpileChange.change_type == "update")
-        .group_by(func.substr(StockpileChange.created_at, 1, 16))
-        .order_by(StockpileChange.created_at.desc())
-        .limit(5)
-    ).all()
-    for ts, cnt in rows:
-        if not ts:
-            continue
-        items.append(
-            {
-                "type": "change",
-                "title": f"数据变更 · <span class='mono'>{cnt}</span> 条",
-                "meta": [f"{cnt} 字段变更"],
-                "time": _format_time(ts),
-                "_ts": ts,
-            }
-        )
-
-
-def _feed_purchases(session, items: list[dict]) -> None:
-    orders = (
-        session.execute(select(PurchaseOrder).order_by(PurchaseOrder.created_at.desc()).limit(5))
-        .scalars()
-        .all()
-    )
-    for po in orders:
-        ts = po.created_at or po.order_date
-        line_count = (
-            session.execute(
-                select(func.count(PurchaseOrderLine.id)).where(PurchaseOrderLine.order_id == po.id)
-            ).scalar()
-            or 0
-        )
-        meta = [f"{line_count} 行"]
-        if po.total_amount:
-            meta.append(f"€{po.total_amount:,.0f}")
-        items.append(
-            {
-                "type": "import",
-                "title": f"采购导入 · <span class='mono'>{po.source_file or po.order_date}</span>",
-                "meta": meta,
-                "time": _format_time(ts),
-                "_ts": ts or "",
-            }
-        )
 
 
 def _build_sys(stats: dict) -> list[dict]:
@@ -221,16 +217,21 @@ def _build_sys(stats: dict) -> list[dict]:
         with get_session() as session:
             emp_count = (
                 session.execute(
-                    select(func.count(distinct(AttendanceRecord.employee_id))).where(
+                    select(func.count(AttendanceRecord.employee_id.distinct())).where(
                         AttendanceRecord.work_date.like(f"{month}%")
                     )
                 ).scalar()
                 or 0
             )
-        if emp_count:
-            rows.append({"status": "ok", "label": "考勤", "value": f"{month} · {emp_count}人"})
+        rows.append(
+            {
+                "status": "ok" if emp_count else "warn",
+                "label": "考勤",
+                "value": f"{month} · {emp_count}人" if emp_count else f"{month} · 无数据",
+            }
+        )
     except Exception:
-        pass
+        rows.append({"status": "warn", "label": "考勤", "value": "—"})
 
     try:
         rev = subprocess.run(
