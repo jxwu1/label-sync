@@ -142,11 +142,12 @@ document.addEventListener("alpine:init", () => {
   // onFirstActivate(pageId, cb): 首次切到该 page 时触发一次 cb，后续切走再回不重复触发。
   // 用于 sa/dq 等"进页才有数据"页省去用户点刷新一步。
   Alpine.store("nav", {
-    current: "main",
+    current: "dashboard",
     collapsed: false,
     _initedPages: [],
     _callbacks: {},
     pages: [
+      { id: "dashboard",         label: "总览",       icon: "dashboard",  code: "00", shortcut: "`" },
       { id: "main",              label: "标签处理",   icon: "tags",       code: "01", shortcut: "1" },
       { id: "dup",               label: "标签查重",   icon: "dedupe",     code: "02", shortcut: "2" },
       { id: "purchase",          label: "采购导入",   icon: "purchase",   code: "03", shortcut: "3" },
@@ -161,7 +162,7 @@ document.addEventListener("alpine:init", () => {
       // 页面 DOM (pageSalesAnalytics) 留着备份, 等下周确认无人用再彻底删.
       // { id: "sales_analytics",   label: "销售分析",   icon: "sales",      code: "09", shortcut: "9" },
       { id: "restock",           label: "补货决策",   icon: "sales",      code: "11", shortcut: "" },
-      { id: "admin",             label: "系统管理",   icon: "quality",    code: "00", shortcut: "0" },
+      { id: "admin",             label: "系统管理",   icon: "quality",    code: "SYS", shortcut: "0" },
     ],
     switch(id) {
       this.current = id;

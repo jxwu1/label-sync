@@ -27,7 +27,7 @@
   --fs-lg: 15px;
   --fs-xl: 17px;
   --fs-2xl: 20px;
-  --fs-3xl: 22px;
+  --fs-3xl: 24px;
   --fs-4xl: 28px;
 
   /* font stacks */
@@ -80,6 +80,7 @@
 
   --success: #46A758;
   --success-subtle: rgba(70, 167, 88, .08);
+  --success-subtle-border: rgba(70, 167, 88, .25);
   --warn: #F5A623;
   --warn-dim: #C4841D;
   --warn-subtle: rgba(245, 166, 35, .08);
@@ -130,6 +131,7 @@
 
   --success: #2D8A3E;
   --success-subtle: rgba(45, 138, 62, .06);
+  --success-subtle-border: rgba(45, 138, 62, .20);
   --warn: #D4850C;
   --warn-dim: #A66A0A;
   --warn-subtle: rgba(212, 133, 12, .06);

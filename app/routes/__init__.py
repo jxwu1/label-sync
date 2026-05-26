@@ -5,8 +5,10 @@
 """
 
 from app.config import CONFIG
+from app.routes.admin import bp as admin_bp
 from app.routes.analytics import bp as analytics_bp
 from app.routes.attendance import bp as attendance_bp
+from app.routes.dashboard import bp as dashboard_bp
 from app.routes.data_quality import bp as data_quality_bp
 from app.routes.foreign_customers import bp as foreign_customers_bp
 from app.routes.history import bp as history_bp
@@ -16,13 +18,13 @@ from app.routes.pages_tasks import bp as pages_tasks_bp
 from app.routes.purchase import bp as purchase_bp
 from app.routes.query import bp as query_bp
 from app.routes.recent_changes import bp as recent_changes_bp
-from app.routes.admin import bp as admin_bp
 from app.routes.restock import bp as restock_bp
 from app.routes.scan_history import bp as scan_history_bp
 from app.routes.stockpile import bp as stockpile_bp
 
 
 def register_routes(app) -> None:
+    app.register_blueprint(dashboard_bp)
     app.register_blueprint(pages_tasks_bp)
     app.register_blueprint(query_bp)
     app.register_blueprint(history_bp)
