@@ -1,7 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="6" fill="#0a0d12"/>
-  <text x="6" y="22" font-family="JetBrains Mono, monospace" font-weight="700" font-size="16" fill="#00ff95">&gt;</text>
-  <rect x="18" y="9" width="8" height="14" fill="#00ff95">
-    <animate attributeName="opacity" values="1;0;1" dur="1.2s" repeatCount="indefinite"/>
-  </rect>
+  <rect width="32" height="32" rx="7" fill="#fff"/>
+  <rect x="1" y="1" width="30" height="30" rx="6" fill="none" stroke="#E5484D" stroke-width="2.5"/>
+  <text x="5.5" y="23" font-family="ui-monospace,monospace" font-weight="700" font-size="17" fill="#E5484D">&gt;_</text>
 </svg>
