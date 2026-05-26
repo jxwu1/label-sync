@@ -433,6 +433,19 @@
 .page { display: none; height: 100%; }
 .page.active { display: grid; gap: var(--sp-4); overflow-y: auto; min-height: 0; }
 
+/* Per-page display overrides (migrated from page-*.css → F4) */
+#pageMain.active        { display: block; overflow: auto; }
+#pageHistory.active     { display: block; overflow: auto; padding: 14px; }
+#pageDup.active         { display: flex; flex-direction: column; gap: var(--sp-4); overflow: auto; padding: 0 2px var(--sp-6) 2px; }
+#pagePurchase.active    { display: flex; flex-direction: column; gap: var(--sp-4); overflow: auto; padding: 0 2px var(--sp-6) 2px; }
+#pageAttendance.active  { display: flex; flex-direction: column; overflow: hidden; }
+#pageDataQuality.active { display: flex; flex-direction: column; gap: 14px; overflow: auto; padding: 0 2px 24px 2px; }
+#pageForeignCustomers.active { display: flex; flex-direction: column; gap: 14px; overflow: auto; padding: 0 2px 24px 2px; }
+#pageInventory.active   { display: flex; flex-direction: column; gap: 14px; overflow: auto; padding: 0 2px 24px 2px; }
+#pageSalesAnalytics.active { display: block; overflow: auto; }
+#pageRestock.active     { display: block; overflow: auto; padding: 16px 24px; }
+#pageTransfer.active    { display: flex; flex-direction: column; gap: 14px; overflow: auto; padding: 0 2px 24px 2px; }
+
 /* ============================================================
  * Pill / Dot — atomic primitives
  * ============================================================ */

@@ -179,7 +179,7 @@
     </div>
 
     <div class="flex-1 p-4 overflow-hidden min-h-0 bg-bg-0">
-<div class="page !block overflow-auto h-full" id="pageMain" x-data :class="$store.nav.current === 'main' ? 'active' : ''">
+<div class="page" id="pageMain" x-data :class="$store.nav.current === 'main' ? 'active' : ''">
   <div class="grid grid-cols-[1fr_340px] grid-rows-[auto_auto_1fr] gap-4 max-lg:grid-cols-1" style="min-height:calc(100vh - 154px)">
 
   <!-- PR-FE-8a：UploadPanel（DataOps 风 drop zone + 4 角刻线 + 三按钮） -->
@@ -382,7 +382,7 @@
   </div>
   </div>
 </div>
-      <div class="page !flex !flex-col !gap-4 overflow-auto h-full px-0.5 pb-6" id="pageDup" x-data :class="$store.nav.current === 'dup' ? 'active' : ''">
+      <div class="page" id="pageDup" x-data :class="$store.nav.current === 'dup' ? 'active' : ''">
         <!-- 4 列 mini stat 顶部概览 -->
         <div class="dd-stats">
           <div class="dd-stat" id="ddStatWhitespace" data-tone="error">
@@ -481,9 +481,9 @@
           <div class="dd-group-body" id="ddNegStock"></div>
         </section>
       </div>
-      <div class="page !flex !flex-col !gap-4 overflow-auto h-full px-0.5 pb-6" id="pagePurchase" x-data :class="$store.nav.current === 'purchase' ? 'active' : ''"></div>
-      <div class="page !flex !flex-col overflow-hidden h-full" id="pageAttendance" x-data :class="$store.nav.current === 'attendance' ? 'active' : ''"></div>
-      <div class="page !block overflow-auto h-full p-[14px]" id="pageHistory" x-data :class="$store.nav.current === 'history' ? 'active' : ''">
+      <div class="page" id="pagePurchase" x-data :class="$store.nav.current === 'purchase' ? 'active' : ''"></div>
+      <div class="page" id="pageAttendance" x-data :class="$store.nav.current === 'attendance' ? 'active' : ''"></div>
+      <div class="page" id="pageHistory" x-data :class="$store.nav.current === 'history' ? 'active' : ''">
         <!-- 持久顶部大 panel：tabs + QUERY 都包在内（设计 §pages-history.jsx:24-110），3 个子 tab 切换时此 panel 始终可见 -->
         <div class="panel" id="historyTopPanel">
           <div class="tabs hist-tabs" id="historyTabs">
@@ -638,7 +638,7 @@
           </div>
         </div>
       </div>
-      <div class="page !flex !flex-col !gap-[14px] overflow-auto h-full px-0.5 pb-6" id="pageDataQuality" x-data :class="$store.nav.current === 'data_quality' ? 'active' : ''">
+      <div class="page" id="pageDataQuality" x-data :class="$store.nav.current === 'data_quality' ? 'active' : ''">
         <!-- Banner: 只读视图 + READ ONLY pill + 刷新 -->
         <div class="dq-banner">
           <div class="dq-banner-icon">ⓘ</div>
@@ -688,7 +688,7 @@
           <div class="dq-panel-bd" id="dqFlippers"></div>
         </section>
       </div>
-      <div class="page !flex !flex-col !gap-[14px] overflow-auto h-full px-0.5 pb-6" id="pageForeignCustomers" x-data :class="$store.nav.current === 'foreign_customers' ? 'active' : ''">
+      <div class="page" id="pageForeignCustomers" x-data :class="$store.nav.current === 'foreign_customers' ? 'active' : ''">
         <!-- 顶部控制条 -->
         <div class="fc-control">
           <span class="fc-control-code">OVS-MO</span>
@@ -751,7 +751,7 @@
           </div>
         </div>
       </div>
-      <div class="page !flex !flex-col !gap-[14px] overflow-auto h-full px-0.5 pb-6" id="pageInventory" x-data :class="$store.nav.current === 'inventory' ? 'active' : ''">
+      <div class="page" id="pageInventory" x-data :class="$store.nav.current === 'inventory' ? 'active' : ''">
         <!-- 📊 数据健康总览 (2026-05-23: 进销存 import 改名"数据健康", scraper 自动化后这页变成
              看 scraper 跑得怎么样; 手动 import 通道折叠成应急入口在底部) -->
         <section class="inv-panel">
@@ -866,7 +866,7 @@
         </section>
         </details>
       </div>
-      <div class="page !block overflow-auto h-full" id="pageSalesAnalytics" x-data :class="$store.nav.current === 'sales_analytics' ? 'active' : ''">
+      <div class="page" id="pageSalesAnalytics" x-data :class="$store.nav.current === 'sales_analytics' ? 'active' : ''">
         <div class="panel">
           <div class="panel-hd">
             销售分析（全部 SKU）
@@ -940,7 +940,7 @@
         </div>
       </div>
     </div>
-      <div class="page !block overflow-auto h-full p-4 px-6" id="pageRestock" x-data :class="$store.nav.current === 'restock' ? 'active' : ''">
+      <div class="page" id="pageRestock" x-data :class="$store.nav.current === 'restock' ? 'active' : ''">
         <div class="panel">
           <div class="panel-hd">
             补货决策（按紧迫分排序）
@@ -1034,7 +1034,7 @@
           </div>
         </div>
       </div>
-      <div class="page !flex !flex-col !gap-[14px] overflow-auto h-full px-0.5 pb-6" id="pageTransfer" x-data :class="$store.nav.current === 'transfer' ? 'active' : ''">
+      <div class="page" id="pageTransfer" x-data :class="$store.nav.current === 'transfer' ? 'active' : ''">
         <!-- ConnectionBar -->
         <div class="tr-connbar">
           <div class="tr-connbar-icon">⇄</div>
