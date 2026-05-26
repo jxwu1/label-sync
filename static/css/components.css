@@ -7,7 +7,8 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 8px 16px;
+  padding: 5px 12px;
+  min-height: 28px;
   border: 1px solid transparent;
   border-radius: var(--r-sm);
   font-size: var(--fs-base);
@@ -542,34 +543,7 @@
 }
 .theme-switch button.active { background: var(--bg-4); color: var(--ink-0); box-shadow: var(--sh-sm); }
 
-/* Sidebar collapse */
-.sidebar.is-collapsed { width: 56px; }
-.sidebar.is-collapsed .sidebar-head { padding: 0; justify-content: center; }
-.sidebar.is-collapsed .sidebar-brand,
-.sidebar.is-collapsed .sidebar-section,
-.sidebar.is-collapsed .nav-label,
-.sidebar.is-collapsed .nav-kbd,
-.sidebar.is-collapsed .sidebar-foot-label { display: none; }
-.sidebar.is-collapsed .nav-item { padding: 8px 0; justify-content: center; }
-.sidebar.is-collapsed .theme-switch { flex-direction: column; }
 
-.sidebar.is-collapsed .nav-item[data-tooltip]:hover::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  left: calc(100% + 8px);
-  top: 50%;
-  transform: translateY(-50%);
-  background: var(--bg-3);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 4px 10px;
-  font-size: 11px;
-  font-family: var(--sans);
-  color: var(--ink-0);
-  white-space: nowrap;
-  z-index: 100;
-  box-shadow: var(--sh-md);
-}
 
 /* Main area */
 .main {
@@ -726,7 +700,8 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  padding: var(--sp-3) var(--sp-4);
+  padding: 10px 16px;
+  min-height: 40px;
   border-bottom: 1px solid var(--line-soft);
   font-size: var(--fs-base);
 }
@@ -2332,6 +2307,7 @@
   align-items: center;
   gap: 10px;
   padding: 10px 16px;
+  min-height: 40px;
   border-bottom: 1px solid var(--line-soft);
 }
 .pnl-code {
@@ -2383,7 +2359,8 @@
   background: var(--bg-1);
   border: 1px solid var(--line-soft);
   border-radius: var(--r-md);
-  padding: 14px 16px 10px;
+  padding: 14px 16px;
+  min-height: 80px;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -2452,7 +2429,8 @@
 .dash-panel-hd {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
+  padding: 10px 16px;
+  min-height: 40px;
   border-bottom: 1px solid var(--line-soft);
   gap: 10px;
 }
