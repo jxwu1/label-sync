@@ -88,15 +88,25 @@ def _build_dq() -> list[dict]:
 
 def _build_feed() -> list[dict]:
     items: list[dict] = []
+    try:
+        _feed_snapshots(items)
+        _feed_changes(items)
+        _feed_purchases(items)
+    except Exception:
+        pass
+    items.sort(key=lambda x: x.get("_ts", ""), reverse=True)
+    return items[:10]
+
+
+def _feed_snapshots(items: list[dict]) -> None:
     with get_session() as session:
-        snapshots = (
+        for snap in (
             session.execute(
                 select(StockpileSnapshot).order_by(StockpileSnapshot.taken_at.desc()).limit(5)
             )
             .scalars()
             .all()
-        )
-        for snap in snapshots:
+        ):
             label = "Stockpile 导入" if snap.trigger == "import" else "Stockpile 比对"
             meta = [f"{snap.total_local:,} 记录"]
             if snap.only_in_local_count:
@@ -113,7 +123,10 @@ def _build_feed() -> list[dict]:
                 }
             )
 
-        recent_changes = session.execute(
+
+def _feed_changes(items: list[dict]) -> None:
+    with get_session() as session:
+        for day, cnt in session.execute(
             select(
                 func.substr(StockpileChange.created_at, 1, 10).label("day"),
                 func.count(StockpileChange.id),
@@ -122,8 +135,7 @@ def _build_feed() -> list[dict]:
             .group_by("day")
             .order_by(func.substr(StockpileChange.created_at, 1, 10).desc())
             .limit(3)
-        ).all()
-        for day, cnt in recent_changes:
+        ).all():
             if not day or cnt == 0:
                 continue
             items.append(
@@ -136,14 +148,16 @@ def _build_feed() -> list[dict]:
                 }
             )
 
-        orders = (
+
+def _feed_purchases(items: list[dict]) -> None:
+    with get_session() as session:
+        for po in (
             session.execute(
                 select(PurchaseOrder).order_by(PurchaseOrder.created_at.desc()).limit(5)
             )
             .scalars()
             .all()
-        )
-        for po in orders:
+        ):
             ts = po.created_at or po.order_date or ""
             line_count = (
                 session.execute(
@@ -156,20 +170,16 @@ def _build_feed() -> list[dict]:
             meta = [f"{line_count} 行"]
             if po.total_amount:
                 meta.append(f"€{po.total_amount:,.0f}")
+            src = po.source_file or po.order_date
             items.append(
                 {
                     "type": "import",
-                    "title": (
-                        f"采购导入 · <span class='mono'>{po.source_file or po.order_date}</span>"
-                    ),
+                    "title": f"采购导入 · <span class='mono'>{src}</span>",
                     "meta": meta,
                     "time": _format_time(ts),
                     "_ts": ts,
                 }
             )
-
-    items.sort(key=lambda x: x.get("_ts", ""), reverse=True)
-    return items[:10]
 
 
 def _build_sys(stats: dict) -> list[dict]:
