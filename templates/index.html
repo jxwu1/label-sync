@@ -199,46 +199,26 @@
       <div class="dash-stat-label">库存 SKU</div>
       <div class="dash-stat-value" x-text="stats.sku">—</div>
       <div class="dash-stat-note success">活跃</div>
-      <svg class="dash-spark" viewBox="0 0 120 28" preserveAspectRatio="none">
-        <polyline class="spark-area" points="0,20 17,18 34,15 51,16 68,12 85,14 102,10 120,8 120,28 0,28" style="fill:var(--success)"/>
-        <polyline points="0,20 17,18 34,15 51,16 68,12 85,14 102,10 120,8" style="stroke:var(--success)"/>
-      </svg>
     </div>
     <div class="dash-stat">
       <div class="dash-stat-label">停用 SKU</div>
       <div class="dash-stat-value" x-text="stats.inactive">—</div>
       <div class="dash-stat-note">inactive</div>
-      <svg class="dash-spark" viewBox="0 0 120 28" preserveAspectRatio="none">
-        <polyline class="spark-area" points="0,14 17,15 34,14 51,16 68,15 85,16 102,15 120,14 120,28 0,28" style="fill:var(--ink-3)"/>
-        <polyline points="0,14 17,15 34,14 51,16 68,15 85,16 102,15 120,14" style="stroke:var(--ink-3)"/>
-      </svg>
     </div>
     <div class="dash-stat">
       <div class="dash-stat-label">本月扫描</div>
       <div class="dash-stat-value" x-text="stats.scans">—</div>
       <div class="dash-stat-note accent" x-text="stats.scanBatches || ''"></div>
-      <svg class="dash-spark" viewBox="0 0 120 28" preserveAspectRatio="none">
-        <polyline class="spark-area" points="0,24 17,22 34,18 51,20 68,14 85,10 102,12 120,6 120,28 0,28" style="fill:var(--accent)"/>
-        <polyline points="0,24 17,22 34,18 51,20 68,14 85,10 102,12 120,6" style="stroke:var(--accent)"/>
-      </svg>
     </div>
     <div class="dash-stat">
       <div class="dash-stat-label">数据异常</div>
       <div class="dash-stat-value" style="color:var(--warn)" x-text="stats.anomalies">—</div>
       <div class="dash-stat-note warn" x-text="stats.anomalyDetail || ''"></div>
-      <svg class="dash-spark" viewBox="0 0 120 28" preserveAspectRatio="none">
-        <polyline class="spark-area" points="0,6 17,8 34,10 51,8 68,12 85,14 102,16 120,18 120,28 0,28" style="fill:var(--warn)"/>
-        <polyline points="0,6 17,8 34,10 51,8 68,12 85,14 102,16 120,18" style="stroke:var(--warn)"/>
-      </svg>
     </div>
     <div class="dash-stat">
       <div class="dash-stat-label">上次导入</div>
-      <div class="dash-stat-value mono" style="font-size:17px" x-text="stats.lastImport">—</div>
+      <div class="dash-stat-value mono" style="font-size:var(--fs-xl)" x-text="stats.lastImport">—</div>
       <div class="dash-stat-note" x-text="stats.lastImportDetail || ''"></div>
-      <svg class="dash-spark" viewBox="0 0 120 28" preserveAspectRatio="none">
-        <polyline class="spark-area" points="0,20 17,22 34,18 51,24 68,16 85,20 102,14 120,12 120,28 0,28" style="fill:var(--info)"/>
-        <polyline points="0,20 17,22 34,18 51,24 68,16 85,20 102,14 120,12" style="stroke:var(--info)"/>
-      </svg>
     </div>
   </div>
 
