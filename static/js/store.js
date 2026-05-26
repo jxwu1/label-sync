@@ -22,7 +22,7 @@ document.addEventListener("alpine:init", () => {
   // ===== 全局 badge / status =====
   Alpine.store("app", {
     badgeType: "idle",
-    badgeText: "空闲",
+    badgeText: "在线",
     statusText: "请先上传文件",
     statusCls: "",
     setBadge(type, text) {

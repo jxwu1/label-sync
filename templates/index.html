@@ -128,31 +128,23 @@
     <!-- Header -->
     <header class="header" x-data x-init="$store.clock.start()">
       <div class="header-crumb">
-        <span class="header-crumb-prefix">OPS</span>
+        <span class="header-crumb-prefix">DataOps</span>
         <span class="header-crumb-sep">/</span>
         <span class="header-crumb-title"
               x-text="($store.nav.pages.find(p => p.id === $store.nav.current) || {}).label"></span>
-        <span class="header-module-tag"
-              x-text="'module · ' + (($store.nav.pages.find(p => p.id === $store.nav.current) || {}).code || '00')"></span>
       </div>
       <div class="header-spacer"></div>
-      <div class="header-search">
-        <span style="color:var(--ink-3);font-size:11px">⌕</span>
-        <input id="globalSearch" placeholder="搜索货号 / 文件 / 异常 ID...">
-        <span class="nav-kbd">⌘K</span>
-      </div>
       <div class="header-badge"
-           :style="`color: var(--${$store.app.badgeType === 'running' ? 'accent' : ($store.app.badgeType === 'waiting' ? 'warn' : ($store.app.badgeType === 'done' ? 'accent' : ($store.app.badgeType === 'error' ? 'error' : 'ink-2')))})`">
+           :style="`color: var(--${$store.app.badgeType === 'running' ? 'accent' : ($store.app.badgeType === 'waiting' ? 'warn' : ($store.app.badgeType === 'error' ? 'error' : 'success'))})`">
         <span class="dot"
               :class="$store.app.badgeType === 'running' || $store.app.badgeType === 'waiting' ? 'dot--pulse' : ''"></span>
         <span x-text="($store.app.badgeText || '').toUpperCase()"></span>
       </div>
       <span class="header-clock" x-text="$store.clock.time"></span>
-      <span class="pill pill--info pill--xs">PROD</span>
     </header>
 
-    <!-- Substrip -->
-    <div class="substrip" x-data>
+    <!-- Substrip (hidden on dashboard) -->
+    <div class="substrip" x-data x-show="$store.nav.current !== 'dashboard'">
       <span class="substrip-label">SESSION</span>
       <span class="substrip-val" x-text="$store.substrip.sessionId"></span>
       <span>·</span>
