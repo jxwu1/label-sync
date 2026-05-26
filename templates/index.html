@@ -9,18 +9,6 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/page-main.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/page-purchase.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/page-attendance.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/page-history.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/page-scan-history.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/page-data-quality.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/page-dedupe.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/page-inventory.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/page-foreign-customers.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/page-sales-analytics.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/page-restock.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/page-transfer.css') }}">
 <script defer src="{{ url_for('static', filename='js/store.js') }}"></script>
 <script defer src="{{ url_for('static', filename='vendor/alpinejs/alpine.min.js') }}"></script>
 <script>
@@ -191,53 +179,49 @@
     </div>
 
     <div class="flex-1 p-4 overflow-hidden min-h-0 bg-bg-0">
-<div class="page" id="pageMain" x-data :class="$store.nav.current === 'main' ? 'active' : ''">
-  <div class="page-main-grid">
+<div class="page !block overflow-auto h-full" id="pageMain" x-data :class="$store.nav.current === 'main' ? 'active' : ''">
+  <div class="grid grid-cols-[1fr_340px] grid-rows-[auto_auto_1fr] gap-4 max-lg:grid-cols-1" style="min-height:calc(100vh - 154px)">
 
   <!-- PR-FE-8a：UploadPanel（DataOps 风 drop zone + 4 角刻线 + 三按钮） -->
-  <section class="up-panel">
+  <section class="up-panel col-span-1 row-span-1">
     <div class="up-panel-hd">
       <span class="up-panel-code">01</span>
       <span class="up-panel-title">文件投递</span>
       <span class="up-panel-sub">ingestion · drop zone</span>
-      <span class="up-panel-spacer"></span>
+      <span class="flex-1"></span>
       <span class="up-panel-pill">.xlsx</span>
       <span class="up-panel-pill">.csv</span>
       <span class="up-panel-pill">stockpile</span>
     </div>
-    <div class="up-panel-bd">
+    <div class="p-4 flex gap-3 items-stretch">
       <div class="drop up-drop" id="drop">
         <input type="file" id="fileInput" multiple accept=".xlsx,.csv">
-        <span class="up-corner up-corner--tl"></span>
-        <span class="up-corner up-corner--tr"></span>
-        <span class="up-corner up-corner--bl"></span>
-        <span class="up-corner up-corner--br"></span>
-        <div class="up-icon">⇣</div>
-        <div class="up-text">
-          <div class="up-text-main"><b>拖拽文件到此区域</b> 或 <span class="up-link">浏览本地文件</span></div>
-          <div class="up-text-sub">扫描 .xlsx · stockpile .csv · 模板 .csv</div>
+        <div class="w-12 h-12 shrink-0 bg-accent-subtle rounded-md flex items-center justify-center text-accent text-2xl">⇣</div>
+        <div class="flex-1 min-w-0">
+          <div class="text-lg text-ink-1 mb-1"><b class="text-ink-0 font-semibold">拖拽文件到此区域</b> 或 <span class="text-accent font-semibold hover:underline">浏览本地文件</span></div>
+          <div class="text-sm text-ink-2">扫描 .xlsx · stockpile .csv · 模板 .csv</div>
         </div>
       </div>
-      <div class="up-actions">
-        <button class="btn btn-primary up-btn-go" id="run" disabled>▶ 开始处理</button>
-        <button class="btn btn-ghost up-btn-mini" id="upRules" type="button">⚙ 配置规则</button>
-        <button class="btn btn-ghost up-btn-mini" id="upReplay" type="button">↺ 重放上次</button>
+      <div class="flex flex-col gap-2 w-40 shrink-0">
+        <button class="btn btn-primary text-base py-3 px-4 font-semibold" id="run" disabled>▶ 开始处理</button>
+        <button class="btn btn-ghost text-sm py-2 px-3" id="upRules" type="button">⚙ 配置规则</button>
+        <button class="btn btn-ghost text-sm py-2 px-3" id="upReplay" type="button">↺ 重放上次</button>
       </div>
     </div>
   </section>
 
   <!-- PR-FE-8a：PipelinePanel（5 阶段假壳：B 选项） -->
-  <section class="pl-panel" id="pipelinePanel">
+  <section class="pl-panel col-span-1 row-span-1" id="pipelinePanel">
     <div class="up-panel-hd">
       <span class="up-panel-code">02</span>
       <span class="up-panel-title">处理管线</span>
       <span class="up-panel-sub">pipeline · 5 stages</span>
-      <span class="up-panel-spacer"></span>
+      <span class="flex-1"></span>
       <span class="pl-pct" id="plPct">0%</span>
     </div>
     <div class="up-panel-bd">
       <div class="pl-bar"><div class="pl-bar-fill" id="plBarFill"></div></div>
-      <div class="pl-stages" id="plStages">
+      <div class="grid grid-cols-5 gap-2" id="plStages">
         <div class="pl-stage" data-stage="parse"><span class="pl-stage-num">01</span><span class="pl-stage-label">PARSE</span><span class="pl-stage-desc">解析文件结构</span></div>
         <div class="pl-stage" data-stage="norm"><span class="pl-stage-num">02</span><span class="pl-stage-label">NORMALIZE</span><span class="pl-stage-desc">字段标准化</span></div>
         <div class="pl-stage" data-stage="match"><span class="pl-stage-num">03</span><span class="pl-stage-label">MATCH</span><span class="pl-stage-desc">匹配数据库</span></div>
@@ -248,12 +232,12 @@
   </section>
 
   <!-- PR-FE-8b：ExceptionsPanel 视觉换皮 -->
-  <section class="up-panel" id="warnPanel">
+  <section class="up-panel col-span-1 row-span-1" id="warnPanel">
     <div class="up-panel-hd">
       <span class="up-panel-code">03</span>
       <span class="up-panel-title">异常处理</span>
       <span class="up-panel-sub">exceptions · review queue</span>
-      <span class="up-panel-spacer"></span>
+      <span class="flex-1"></span>
       <span class="up-panel-pill ex-sev-pill ex-sev-pill--high">HIGH</span>
       <span class="up-panel-pill ex-sev-pill ex-sev-pill--med">MED</span>
       <span class="up-panel-pill ex-sev-pill ex-sev-pill--low">LOW</span>
@@ -263,19 +247,19 @@
     </div>
   </section>
 
-  <div class="right-stack">
+  <div class="col-start-2 row-span-full flex flex-col gap-4 min-h-0 max-lg:col-start-1 max-lg:row-span-1">
 
     <!-- PR-FE-8c：FilesPanel 视觉换皮（按 panels2.jsx FilesPanel 设计稿重做） -->
-    <section class="up-panel" id="filesPanel">
+    <section class="up-panel shrink-0" id="filesPanel">
       <div class="up-panel-hd">
         <span class="up-panel-code">04</span>
         <span class="up-panel-title">文件队列</span>
         <span class="up-panel-sub" x-data x-text="`${$store.upload.selected.length} files`">0 files</span>
-        <span class="up-panel-spacer"></span>
+        <span class="flex-1"></span>
         <button class="fq-add-btn" id="fqAddBtn" type="button">+ 添加</button>
       </div>
-      <div class="up-panel-bd files-bd">
-        <div class="files" id="files" x-data>
+      <div class="block p-0">
+        <div class="max-h-[220px] overflow-y-auto" id="files" x-data>
           <template x-for="(f, i) in $store.upload.selected" :key="i">
             <div class="file fl-row">
               <span class="fl-type" x-text="(f.name.split('.').pop() || '').toUpperCase().slice(0,4)"></span>
@@ -299,7 +283,7 @@
             </div>
           </template>
         </div>
-        <div class="files-actions">
+        <div class="flex flex-wrap gap-2 py-3 px-4 border-t border-line-soft">
           <button class="btn btn-secondary" id="upload" x-data :disabled="$store.upload.selected.length === 0">上传文件</button>
           <button class="btn btn-warning" id="cont">继续处理</button>
           <button class="btn btn-success" id="download">下载结果</button>
@@ -307,22 +291,22 @@
           <button class="btn btn-info" id="copyModelsAll">复制所有型号（含重复）</button>
           <button class="btn btn-ghost" id="reset">清空界面，准备下一批</button>
         </div>
-        <div id="status" x-data
+        <div id="status" class="py-2 px-4 border-t border-line-soft text-sm" x-data
      :class="$store.app.statusCls ? `status ${$store.app.statusCls}` : 'status'"
      x-html="$store.app.statusText">请先上传文件</div>
       </div>
     </section>
 
     <!-- PR-FE-8c：StockpilePanel 视觉换皮 -->
-    <section class="up-panel" id="stockpilePanel">
+    <section class="up-panel flex-1 min-h-0" id="stockpilePanel">
       <div class="up-panel-hd">
         <span class="up-panel-code">05</span>
         <span class="up-panel-title">STOCKPILE</span>
         <span class="up-panel-sub">数据仓库</span>
-        <span class="up-panel-spacer"></span>
+        <span class="flex-1"></span>
         <span class="sp-online"><span class="sp-online-dot"></span>ONLINE</span>
       </div>
-      <div class="up-panel-bd sp-bd">
+      <div class="block p-0">
         <div class="tabs sp-tabs" id="spTabs">
           <button class="tabs__tab active" data-tab="status" type="button">状态</button>
           <button class="tabs__tab" data-tab="init" type="button">初始化</button>
@@ -330,8 +314,7 @@
           <button class="tabs__tab" data-tab="search" type="button">搜索</button>
         </div>
 
-        <div class="tabs__panel active" data-tab-panel="status">
-          <!-- 4 数字 mini stats（initialized 时显示） -->
+        <div class="tabs__panel active p-3" data-tab-panel="status">
           <div class="sp-stats" id="spStats" hidden>
             <div class="sp-stat">
               <div class="sp-stat-num" id="spStatTotal">—</div>
@@ -354,7 +337,7 @@
           <div class="stockpile-status" id="spStatus">检查中...</div>
         </div>
 
-        <div class="tabs__panel" data-tab-panel="init">
+        <div class="tabs__panel p-3" data-tab-panel="init">
           <div class="drop" id="spInitDrop">
             <input type="file" id="spInitInput" accept=".xlsx,.csv">
             <div>拖入系统导出文件初始化数据库</div>
@@ -363,7 +346,7 @@
           <div id="spInitMsg" class="hint"></div>
         </div>
 
-        <div class="tabs__panel" data-tab-panel="cmp">
+        <div class="tabs__panel p-3" data-tab-panel="cmp">
           <div class="drop" id="spCmpDrop">
             <input type="file" id="spCmpInput" accept=".xlsx,.csv">
             <div>拖入系统导出文件进行月度比对</div>
@@ -372,24 +355,23 @@
           <div id="spCmpRes" class="hint"></div>
         </div>
 
-        <div class="tabs__panel" data-tab-panel="search">
+        <div class="tabs__panel p-3" data-tab-panel="search">
           <input type="text" id="spSearchInput" class="form-input-text" placeholder="搜索条码或型号（至少2个字符）">
-          <div id="spSearchRes" class="hint stockpile-search-results"></div>
+          <div id="spSearchRes" class="hint max-h-[200px] overflow-y-auto mt-2"></div>
         </div>
       </div>
     </section>
 
-    <!-- PR-FE-8e：ActivityLog inline（plan §3.1 收口）— 复用 Alpine.store('term').logs -->
     <section class="up-panel" id="activityPanel">
       <div class="up-panel-hd">
         <span class="up-panel-code">06</span>
         <span class="up-panel-title">活动日志</span>
         <span class="up-panel-sub">tail · live</span>
-        <span class="up-panel-spacer"></span>
+        <span class="flex-1"></span>
         <span class="al-live" x-data><span class="al-live-dot"></span>LIVE</span>
         <button class="up-panel-pill al-clear" type="button" x-data @click="$store.term.clear()">清空</button>
       </div>
-      <div class="up-panel-bd al-bd" id="activityBox" x-data>
+      <div class="al-bd" id="activityBox" x-data>
         <template x-for="(item, i) in $store.term.logs.slice(-200)" :key="i">
           <div class="al-row" :class="`${item.src === 'dc' ? 'log-dc' : 'log-lp'} ${item.cls}`" x-text="item.text"></div>
         </template>
@@ -400,7 +382,7 @@
   </div>
   </div>
 </div>
-      <div class="page" id="pageDup" x-data :class="$store.nav.current === 'dup' ? 'active' : ''">
+      <div class="page !flex !flex-col !gap-4 overflow-auto h-full px-0.5 pb-6" id="pageDup" x-data :class="$store.nav.current === 'dup' ? 'active' : ''">
         <!-- 4 列 mini stat 顶部概览 -->
         <div class="dd-stats">
           <div class="dd-stat" id="ddStatWhitespace" data-tone="error">
@@ -499,9 +481,9 @@
           <div class="dd-group-body" id="ddNegStock"></div>
         </section>
       </div>
-      <div class="page" id="pagePurchase" x-data :class="$store.nav.current === 'purchase' ? 'active' : ''"></div>
-      <div class="page" id="pageAttendance" x-data :class="$store.nav.current === 'attendance' ? 'active' : ''"></div>
-      <div class="page" id="pageHistory" x-data :class="$store.nav.current === 'history' ? 'active' : ''">
+      <div class="page !flex !flex-col !gap-4 overflow-auto h-full px-0.5 pb-6" id="pagePurchase" x-data :class="$store.nav.current === 'purchase' ? 'active' : ''"></div>
+      <div class="page !flex !flex-col overflow-hidden h-full" id="pageAttendance" x-data :class="$store.nav.current === 'attendance' ? 'active' : ''"></div>
+      <div class="page !block overflow-auto h-full p-[14px]" id="pageHistory" x-data :class="$store.nav.current === 'history' ? 'active' : ''">
         <!-- 持久顶部大 panel：tabs + QUERY 都包在内（设计 §pages-history.jsx:24-110），3 个子 tab 切换时此 panel 始终可见 -->
         <div class="panel" id="historyTopPanel">
           <div class="tabs hist-tabs" id="historyTabs">
@@ -656,7 +638,7 @@
           </div>
         </div>
       </div>
-      <div class="page" id="pageDataQuality" x-data :class="$store.nav.current === 'data_quality' ? 'active' : ''">
+      <div class="page !flex !flex-col !gap-[14px] overflow-auto h-full px-0.5 pb-6" id="pageDataQuality" x-data :class="$store.nav.current === 'data_quality' ? 'active' : ''">
         <!-- Banner: 只读视图 + READ ONLY pill + 刷新 -->
         <div class="dq-banner">
           <div class="dq-banner-icon">ⓘ</div>
@@ -706,7 +688,7 @@
           <div class="dq-panel-bd" id="dqFlippers"></div>
         </section>
       </div>
-      <div class="page" id="pageForeignCustomers" x-data :class="$store.nav.current === 'foreign_customers' ? 'active' : ''">
+      <div class="page !flex !flex-col !gap-[14px] overflow-auto h-full px-0.5 pb-6" id="pageForeignCustomers" x-data :class="$store.nav.current === 'foreign_customers' ? 'active' : ''">
         <!-- 顶部控制条 -->
         <div class="fc-control">
           <span class="fc-control-code">OVS-MO</span>
@@ -769,7 +751,7 @@
           </div>
         </div>
       </div>
-      <div class="page" id="pageInventory" x-data :class="$store.nav.current === 'inventory' ? 'active' : ''">
+      <div class="page !flex !flex-col !gap-[14px] overflow-auto h-full px-0.5 pb-6" id="pageInventory" x-data :class="$store.nav.current === 'inventory' ? 'active' : ''">
         <!-- 📊 数据健康总览 (2026-05-23: 进销存 import 改名"数据健康", scraper 自动化后这页变成
              看 scraper 跑得怎么样; 手动 import 通道折叠成应急入口在底部) -->
         <section class="inv-panel">
@@ -884,7 +866,7 @@
         </section>
         </details>
       </div>
-      <div class="page" id="pageSalesAnalytics" x-data :class="$store.nav.current === 'sales_analytics' ? 'active' : ''">
+      <div class="page !block overflow-auto h-full" id="pageSalesAnalytics" x-data :class="$store.nav.current === 'sales_analytics' ? 'active' : ''">
         <div class="panel">
           <div class="panel-hd">
             销售分析（全部 SKU）
@@ -958,7 +940,7 @@
         </div>
       </div>
     </div>
-      <div class="page" id="pageRestock" x-data :class="$store.nav.current === 'restock' ? 'active' : ''">
+      <div class="page !block overflow-auto h-full p-4 px-6" id="pageRestock" x-data :class="$store.nav.current === 'restock' ? 'active' : ''">
         <div class="panel">
           <div class="panel-hd">
             补货决策（按紧迫分排序）
@@ -1052,7 +1034,7 @@
           </div>
         </div>
       </div>
-      <div class="page" id="pageTransfer" x-data :class="$store.nav.current === 'transfer' ? 'active' : ''">
+      <div class="page !flex !flex-col !gap-[14px] overflow-auto h-full px-0.5 pb-6" id="pageTransfer" x-data :class="$store.nav.current === 'transfer' ? 'active' : ''">
         <!-- ConnectionBar -->
         <div class="tr-connbar">
           <div class="tr-connbar-icon">⇄</div>
