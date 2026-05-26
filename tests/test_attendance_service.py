@@ -1,25 +1,82 @@
-import shutil
 import unittest
-from pathlib import Path
 from unittest import mock
 
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import sessionmaker
+
+from app.models import Base, Employee
 from app.services import attendance as svc
 
-_TEST_ROOT = Path(__file__).resolve().parent
+
+def _make_test_db():
+    """Create an in-memory SQLite engine with FK enforcement and all tables.
+
+    Uses StaticPool so all connections share the same in-memory DB.
+    """
+    from sqlalchemy.pool import StaticPool
+
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+
+    @event.listens_for(engine, "connect")
+    def _enable_fk(dbapi_conn, _):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine, future=True, expire_on_commit=False)
+    return engine, Session
 
 
-class TestEmployeeCrud(unittest.TestCase):
+class _DBTestCase(unittest.TestCase):
+    """Base class that patches app.models to use an in-memory SQLite DB."""
+
     def setUp(self):
-        self.test_dir = _TEST_ROOT / f"_test_attendance_{self._testMethodName}"
-        shutil.rmtree(self.test_dir, ignore_errors=True)
-        self.test_dir.mkdir(parents=True, exist_ok=True)
-        self.patch_dir = mock.patch.object(svc, "_ATTENDANCE_DIR", self.test_dir)
-        self.patch_dir.start()
-        self.addCleanup(self.patch_dir.stop)
+        import app.models as models_mod
+
+        self.engine, self.Session = _make_test_db()
+        self.patch_engine = mock.patch.object(models_mod, "_engine", self.engine)
+        self.patch_session = mock.patch.object(models_mod, "_SessionFactory", self.Session)
+        self.patch_engine.start()
+        self.patch_session.start()
 
     def tearDown(self):
-        shutil.rmtree(self.test_dir, ignore_errors=True)
+        self.patch_session.stop()
+        self.patch_engine.stop()
+        Base.metadata.drop_all(self.engine)
+        self.engine.dispose()
 
+    def _ensure_employee(self, emp_id: str, name: str = "test",
+                         start_date: str | None = None) -> None:
+        """Insert or update an employee directly via ORM (bypasses service ID generation)."""
+        from datetime import datetime
+        session = self.Session()
+        try:
+            existing = session.get(Employee, emp_id)
+            if existing:
+                existing.name = name
+                existing.start_date = start_date
+            else:
+                session.add(Employee(
+                    employee_id=emp_id,
+                    name=name,
+                    created_at=datetime.now().isoformat(timespec="seconds"),
+                    start_date=start_date,
+                    active=1,
+                ))
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+
+class TestEmployeeCrud(_DBTestCase):
     def test_list_empty_initially(self):
         self.assertEqual(svc.list_employees(), [])
 
@@ -67,17 +124,11 @@ class TestDayFraction(unittest.TestCase):
             svc.day_fraction("09:30", "09:30")
 
 
-class TestDayCrud(unittest.TestCase):
+class TestDayCrud(_DBTestCase):
     def setUp(self):
-        self.test_dir = _TEST_ROOT / f"_test_attendance_{self._testMethodName}"
-        shutil.rmtree(self.test_dir, ignore_errors=True)
-        self.test_dir.mkdir(parents=True, exist_ok=True)
-        self.patch_dir = mock.patch.object(svc, "_ATTENDANCE_DIR", self.test_dir)
-        self.patch_dir.start()
-        self.addCleanup(self.patch_dir.stop)
-
-    def tearDown(self):
-        shutil.rmtree(self.test_dir, ignore_errors=True)
+        super().setUp()
+        # FK constraint requires employee to exist before inserting attendance records
+        self._ensure_employee("e001")
 
     def test_set_day_creates_entry(self):
         svc.set_day("e001", "2026-04-01", {"start": "09:30", "end": "20:00"})
@@ -100,17 +151,11 @@ class TestDayCrud(unittest.TestCase):
         self.assertEqual(svc.load_month("2099-01"), {})
 
 
-class TestComputeSummary(unittest.TestCase):
+class TestComputeSummary(_DBTestCase):
     def setUp(self):
-        self.test_dir = _TEST_ROOT / f"_test_attendance_{self._testMethodName}"
-        shutil.rmtree(self.test_dir, ignore_errors=True)
-        self.test_dir.mkdir(parents=True, exist_ok=True)
-        self.patch_dir = mock.patch.object(svc, "_ATTENDANCE_DIR", self.test_dir)
-        self.patch_dir.start()
-        self.addCleanup(self.patch_dir.stop)
-
-    def tearDown(self):
-        shutil.rmtree(self.test_dir, ignore_errors=True)
+        super().setUp()
+        # Most tests use e001 without a start_date; create it here.
+        self._ensure_employee("e001")
 
     def test_sunday_auto_one(self):
         # 2026-04 有 4 个周日: 5, 12, 19, 26
@@ -145,15 +190,8 @@ class TestComputeSummary(unittest.TestCase):
         self.assertEqual(len(result["detail"]), 30)
 
     def _seed_employee(self, emp_id: str, name: str, start_date: str = "") -> None:
-        import json
-
-        path = self.test_dir / "employees.json"
-        existing = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
-        rec: dict = {"id": emp_id, "name": name, "created_at": "2024-01-01T00:00:00"}
-        if start_date:
-            rec["start_date"] = start_date
-        existing.append(rec)
-        path.write_text(json.dumps(existing), encoding="utf-8")
+        """Create an employee via ORM for compute_summary tests."""
+        self._ensure_employee(emp_id, name=name, start_date=start_date or None)
 
     def test_mid_month_hire_excludes_pre_join_sundays_and_absences(self):
         """月底新来员工：入职日之前的天不算（包括周日 / 缺勤）。"""
@@ -235,17 +273,11 @@ class TestComputeSummary(unittest.TestCase):
             svc.add_inactive_period("notexist", "2026-04-01", "2026-04-15")
 
 
-class TestHolidays(unittest.TestCase):
+class TestHolidays(_DBTestCase):
     def setUp(self):
-        self.test_dir = _TEST_ROOT / f"_test_attendance_{self._testMethodName}"
-        shutil.rmtree(self.test_dir, ignore_errors=True)
-        self.test_dir.mkdir(parents=True, exist_ok=True)
-        self.patch_dir = mock.patch.object(svc, "_ATTENDANCE_DIR", self.test_dir)
-        self.patch_dir.start()
-        self.addCleanup(self.patch_dir.stop)
-
-    def tearDown(self):
-        shutil.rmtree(self.test_dir, ignore_errors=True)
+        super().setUp()
+        # compute_summary tests in this class use e001
+        self._ensure_employee("e001")
 
     def test_empty_holidays_initially(self):
         self.assertEqual(svc.list_holidays(), [])
@@ -360,17 +392,11 @@ class TestHolidays(unittest.TestCase):
         self.assertEqual(result["absent_days"], 25)
 
 
-class TestSpecialDays(unittest.TestCase):
+class TestSpecialDays(_DBTestCase):
     def setUp(self):
-        self.test_dir = _TEST_ROOT / f"_test_attendance_{self._testMethodName}"
-        shutil.rmtree(self.test_dir, ignore_errors=True)
-        self.test_dir.mkdir(parents=True, exist_ok=True)
-        self.patch_dir = mock.patch.object(svc, "_ATTENDANCE_DIR", self.test_dir)
-        self.patch_dir.start()
-        self.addCleanup(self.patch_dir.stop)
-
-    def tearDown(self):
-        shutil.rmtree(self.test_dir, ignore_errors=True)
+        super().setUp()
+        # compute_summary tests in this class use e001
+        self._ensure_employee("e001")
 
     def test_list_empty_initially(self):
         self.assertEqual(svc.list_special_days(), {})
@@ -424,17 +450,11 @@ class TestSpecialDays(unittest.TestCase):
         self.assertAlmostEqual(svc.day_fraction("09:00", "19:00", standard_hours=5.0), 1.0)
 
 
-class TestLeaves(unittest.TestCase):
+class TestLeaves(_DBTestCase):
     def setUp(self):
-        self.test_dir = _TEST_ROOT / f"_test_attendance_{self._testMethodName}"
-        shutil.rmtree(self.test_dir, ignore_errors=True)
-        self.test_dir.mkdir(parents=True, exist_ok=True)
-        self.patch_dir = mock.patch.object(svc, "_ATTENDANCE_DIR", self.test_dir)
-        self.patch_dir.start()
-        self.addCleanup(self.patch_dir.stop)
-
-    def tearDown(self):
-        shutil.rmtree(self.test_dir, ignore_errors=True)
+        super().setUp()
+        # Most leave tests use e001
+        self._ensure_employee("e001")
 
     def test_list_empty_initially(self):
         self.assertEqual(svc.list_leaves("2026-04"), {})

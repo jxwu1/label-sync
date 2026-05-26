@@ -518,6 +518,85 @@ class SystemSetting(Base):
     updated_by: Mapped[str | None] = mapped_column(Text)
 
 
+# ── Attendance ──────────────────────────────────────────────────────
+
+class Employee(Base):
+    __tablename__ = "employees"
+    employee_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[str | None] = mapped_column(Text)
+    start_date: Mapped[str | None] = mapped_column(Text)
+    active: Mapped[int] = mapped_column(Integer, default=1)
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    attendance_records = relationship("AttendanceRecord", back_populates="employee", cascade="all, delete-orphan")
+    leave_records = relationship("LeaveRecord", back_populates="employee", cascade="all, delete-orphan")
+    inactive_periods = relationship("InactivePeriod", back_populates="employee", cascade="all, delete-orphan")
+
+
+class AttendanceRecord(Base):
+    __tablename__ = "attendance_records"
+    __table_args__ = (
+        UniqueConstraint("employee_id", "work_date"),
+        Index("idx_attendance_date", "work_date"),
+        Index("idx_attendance_emp_month", "employee_id", "work_date"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    employee_id: Mapped[str] = mapped_column(Text, ForeignKey("employees.employee_id"), nullable=False)
+    work_date: Mapped[str] = mapped_column(Text, nullable=False)
+    start_time: Mapped[str | None] = mapped_column(Text)
+    end_time: Mapped[str | None] = mapped_column(Text)
+    work_hours: Mapped[float | None] = mapped_column()
+    day_fraction: Mapped[float | None] = mapped_column()
+    status: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    employee = relationship("Employee", back_populates="attendance_records")
+
+
+class LeaveRecord(Base):
+    __tablename__ = "leave_records"
+    __table_args__ = (
+        Index("idx_leave_emp", "employee_id"),
+        Index("idx_leave_date", "start_date"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    employee_id: Mapped[str] = mapped_column(Text, ForeignKey("employees.employee_id"), nullable=False)
+    start_date: Mapped[str] = mapped_column(Text, nullable=False)
+    end_date: Mapped[str | None] = mapped_column(Text)
+    leave_type: Mapped[str] = mapped_column(Text, nullable=False, server_default="full")
+    hours: Mapped[float | None] = mapped_column()
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    employee = relationship("Employee", back_populates="leave_records")
+
+
+class InactivePeriod(Base):
+    __tablename__ = "inactive_periods"
+    __table_args__ = (Index("idx_inactive_emp", "employee_id"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    employee_id: Mapped[str] = mapped_column(Text, ForeignKey("employees.employee_id"), nullable=False)
+    start_date: Mapped[str] = mapped_column(Text, nullable=False)
+    end_date: Mapped[str | None] = mapped_column(Text)
+    reason: Mapped[str | None] = mapped_column(Text)
+
+    employee = relationship("Employee", back_populates="inactive_periods")
+
+
+class PublicHoliday(Base):
+    __tablename__ = "public_holidays"
+    holiday_date: Mapped[str] = mapped_column(Text, primary_key=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    is_paid: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class SpecialDay(Base):
+    __tablename__ = "special_days"
+    special_date: Mapped[str] = mapped_column(Text, primary_key=True)
+    label: Mapped[str | None] = mapped_column(Text)
+    end_time: Mapped[str | None] = mapped_column(Text)
+
+
 _SessionFactory = sessionmaker(bind=_engine, future=True, expire_on_commit=False)
 
 

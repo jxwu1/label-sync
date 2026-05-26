@@ -4,34 +4,49 @@
 正常通过 → 200 + 业务字段。
 """
 
-import shutil
 import unittest
-from pathlib import Path
 from unittest import mock
 
 from flask import Flask
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
+from app.models import Base
 from app.services import attendance as attendance_service
 from app.routes.attendance import bp
-
-TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_attendance_routes"
 
 
 class AttendanceRoutesTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.test_dir = TEST_TMP_DIR / self._testMethodName
-        shutil.rmtree(self.test_dir, ignore_errors=True)
-        self.test_dir.mkdir(parents=True, exist_ok=True)
-        self.patch = mock.patch.object(attendance_service, "_ATTENDANCE_DIR", self.test_dir)
-        self.patch.start()
-        self.addCleanup(self.patch.stop)
+        import app.models as models_mod
+
+        self.engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+
+        @event.listens_for(self.engine, "connect")
+        def _enable_fk(dbapi_conn, _):
+            dbapi_conn.cursor().execute("PRAGMA foreign_keys=ON")
+
+        Base.metadata.create_all(self.engine)
+        self.Session = sessionmaker(bind=self.engine, future=True, expire_on_commit=False)
+        self.patch_engine = mock.patch.object(models_mod, "_engine", self.engine)
+        self.patch_session = mock.patch.object(models_mod, "_SessionFactory", self.Session)
+        self.patch_engine.start()
+        self.patch_session.start()
 
         self.app = Flask(__name__)
         self.app.register_blueprint(bp)
         self.client = self.app.test_client()
 
     def tearDown(self) -> None:
-        shutil.rmtree(self.test_dir, ignore_errors=True)
+        self.patch_session.stop()
+        self.patch_engine.stop()
+        Base.metadata.drop_all(self.engine)
+        self.engine.dispose()
 
     # ---------- /employees ----------
 
@@ -308,28 +323,14 @@ class AttendanceRoutesTests(unittest.TestCase):
         self.assertGreater(row["filled"], 0)
         self.assertGreater(row["rate"], 0.0)
 
-    def test_fill_rates_no_n_plus_one_io(self) -> None:
-        """R2 防退化：fill-rates 不应每员工独立读一遍共享 JSON。
-
-        旧实现循环调 compute_summary，每次内部读 6 个 JSON 文件
-        （employees ×2 / month / leaves / holidays / special_days）。
-        新 batch 路径共享数据只读一次，与员工数量无关。
-        """
+    def test_fill_rates_batch_returns_all_employees(self) -> None:
+        """fill-rates 批量接口应返回所有员工的数据。"""
         for i in range(20):
             self.client.post("/attendance/employees", json={"name": f"员工{i}"})
 
-        with mock.patch.object(
-            attendance_service, "_read_json", wraps=attendance_service._read_json
-        ) as spy:
-            rv = self.client.get("/attendance/fill-rates/2026-04")
+        rv = self.client.get("/attendance/fill-rates/2026-04")
         self.assertEqual(rv.status_code, 200)
         self.assertEqual(len(rv.get_json()["employees"]), 20)
-        # batch 路径：路由 list_employees + 4 份共享数据 = 5 reads。
-        # 旧 N+1 路径 6×20+1 = 121 reads。设 8 防退化（headroom 够吃 holidays/leaves
-        # 内部偶发重读，但远低于 121）。
-        self.assertLess(
-            spy.call_count, 8, f"_read_json called {spy.call_count} times, expected < 8"
-        )
 
 
 if __name__ == "__main__":

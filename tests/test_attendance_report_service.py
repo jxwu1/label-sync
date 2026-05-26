@@ -1,26 +1,44 @@
-import shutil
 import unittest
-from pathlib import Path
 from unittest import mock
 
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from app.models import Base
 from app.services import attendance_report as rpt
 from app.services import attendance as svc
 
-_TEST_ROOT = Path(__file__).resolve().parent
 
-
-class TestBuildPayrollPdf(unittest.TestCase):
+class _DBTestCase(unittest.TestCase):
     def setUp(self):
-        self.test_dir = _TEST_ROOT / f"_test_attendance_rpt_{self._testMethodName}"
-        shutil.rmtree(self.test_dir, ignore_errors=True)
-        self.test_dir.mkdir(parents=True, exist_ok=True)
-        self.patch_dir = mock.patch.object(svc, "_ATTENDANCE_DIR", self.test_dir)
-        self.patch_dir.start()
-        self.addCleanup(self.patch_dir.stop)
+        import app.models as models_mod
+
+        self.engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+
+        @event.listens_for(self.engine, "connect")
+        def _enable_fk(dbapi_conn, _):
+            dbapi_conn.cursor().execute("PRAGMA foreign_keys=ON")
+
+        Base.metadata.create_all(self.engine)
+        self.Session = sessionmaker(bind=self.engine, future=True, expire_on_commit=False)
+        self.patch_engine = mock.patch.object(models_mod, "_engine", self.engine)
+        self.patch_session = mock.patch.object(models_mod, "_SessionFactory", self.Session)
+        self.patch_engine.start()
+        self.patch_session.start()
 
     def tearDown(self):
-        shutil.rmtree(self.test_dir, ignore_errors=True)
+        self.patch_session.stop()
+        self.patch_engine.stop()
+        Base.metadata.drop_all(self.engine)
+        self.engine.dispose()
 
+
+class TestBuildPayrollPdf(_DBTestCase):
     def test_returns_pdf_bytes(self):
         svc.create_employee("小王")
         data = rpt.build_payroll_pdf("2026-04")
@@ -32,18 +50,7 @@ class TestBuildPayrollPdf(unittest.TestCase):
         self.assertTrue(data.startswith(b"%PDF"))
 
 
-class TestBuildPdf(unittest.TestCase):
-    def setUp(self):
-        self.test_dir = _TEST_ROOT / f"_test_attendance_rpt_{self._testMethodName}"
-        shutil.rmtree(self.test_dir, ignore_errors=True)
-        self.test_dir.mkdir(parents=True, exist_ok=True)
-        self.patch_dir = mock.patch.object(svc, "_ATTENDANCE_DIR", self.test_dir)
-        self.patch_dir.start()
-        self.addCleanup(self.patch_dir.stop)
-
-    def tearDown(self):
-        shutil.rmtree(self.test_dir, ignore_errors=True)
-
+class TestBuildPdf(_DBTestCase):
     def test_pdf_returns_non_empty_bytes(self):
         svc.create_employee("小王")
         svc.set_day("e001", "2026-04-01", {"start": "09:30", "end": "20:00"})

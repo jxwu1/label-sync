@@ -1,118 +1,163 @@
-"""考勤服务：员工 CRUD、月度 CRUD、summary 计算。"""
+"""考勤服务：员工 CRUD、月度 CRUD、summary 计算。
 
-import json
-import os
-import time
+存储层：SQLAlchemy ORM（app.models 中的 Attendance 相关表）。
+所有公共函数签名和返回值结构与旧 JSON 版本完全一致。
+"""
+
 from calendar import monthrange
 from datetime import date as date_cls
 from datetime import datetime, timedelta
-from pathlib import Path
 
-from app.config import CONFIG
+from sqlalchemy import select, delete, func
 
-_ATTENDANCE_DIR = CONFIG.base_dir / "attendance"
-_EMPLOYEES_FILE = "employees.json"
-_HOLIDAYS_FILE = "holidays.json"
-_SPECIAL_DAYS_FILE = "special_days.json"
-_METADATA_FILE = "metadata.json"
-_IO_RETRY_COUNT = 5
-_IO_RETRY_DELAY_SEC = 0.02
-
-
-def _employees_path() -> Path:
-    return _ATTENDANCE_DIR / _EMPLOYEES_FILE
+from app.models import (
+    AttendanceRecord,
+    Employee,
+    InactivePeriod,
+    LeaveRecord,
+    PublicHoliday,
+    SpecialDay,
+    SystemSetting,
+    get_session,
+)
 
 
-def _metadata_path() -> Path:
-    return _ATTENDANCE_DIR / _METADATA_FILE
+STANDARD_HOURS = 10.5
+STANDARD_END = "20:00"
 
 
-def _read_json(path: Path, default):
-    if not path.exists():
-        return default
-    last_error = None
-    for _ in range(_IO_RETRY_COUNT):
-        try:
-            return json.loads(path.read_text(encoding="utf-8"))
-        except PermissionError as exc:
-            last_error = exc
-            time.sleep(_IO_RETRY_DELAY_SEC)
-    raise last_error
+def _parse_hm(hm: str) -> int:
+    """HH:MM -> 分钟总数"""
+    h, m = hm.split(":")
+    return int(h) * 60 + int(m)
 
 
-def _write_json(path: Path, data) -> None:
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-    except FileExistsError:
-        pass
-    payload = json.dumps(data, ensure_ascii=False, indent=2)
-    temp_path = path.with_name(f"{path.name}.tmp")
-    last_error = None
-    for _ in range(_IO_RETRY_COUNT):
-        try:
-            temp_path.write_text(payload, encoding="utf-8")
-            os.replace(temp_path, path)
-            return
-        except (FileNotFoundError, PermissionError) as exc:
-            last_error = exc
-            try:
-                path.parent.mkdir(parents=True, exist_ok=True)
-            except FileExistsError:
-                pass
-            time.sleep(_IO_RETRY_DELAY_SEC)
-        finally:
-            if temp_path.exists():
-                try:
-                    temp_path.unlink()
-                except PermissionError:
-                    pass
-    raise last_error
+def day_fraction(start: str, end: str, standard_hours: float = STANDARD_HOURS) -> float:
+    """计算工作日占比（纯函数）。
+
+    Args:
+        start: 上班时间，格式 "HH:MM"
+        end: 下班时间，格式 "HH:MM"
+        standard_hours: 这一天的标准工时（小时）；默认 10.5。特殊日可传入缩短值。
+
+    Returns:
+        [0.0, 1.0] 范围内的占比，超过标准工作时间封顶为 1.0
+
+    Raises:
+        ValueError: 若 end <= start 或 standard_hours <= 0
+    """
+    if standard_hours <= 0:
+        raise ValueError(f"standard_hours 必须 > 0：{standard_hours}")
+    start_min = _parse_hm(start)
+    end_min = _parse_hm(end)
+    if end_min <= start_min:
+        raise ValueError(f"下班时间必须晚于上班时间：start={start} end={end}")
+    hours = (end_min - start_min) / 60
+    return min(hours / standard_hours, 1.0)
+
+
+# ── Employee CRUD ─────────────────────────────────────────────────────
 
 
 def list_employees() -> list[dict]:
-    return _read_json(_employees_path(), [])
+    with get_session() as s:
+        emps = s.execute(
+            select(Employee).order_by(Employee.employee_id)
+        ).scalars().all()
+        result = []
+        for emp in emps:
+            d = {
+                "id": emp.employee_id,
+                "name": emp.name,
+                "created_at": emp.created_at,
+            }
+            if emp.start_date:
+                d["start_date"] = emp.start_date
+            periods = [
+                _inactive_period_to_dict(ip)
+                for ip in emp.inactive_periods
+            ]
+            if periods:
+                d["inactive_periods"] = periods
+            result.append(d)
+        return result
+
+
+def _inactive_period_to_dict(ip: InactivePeriod) -> dict:
+    d = {"from": ip.start_date, "to": ip.end_date}
+    if ip.reason:
+        d["reason"] = ip.reason
+    return d
 
 
 def _next_employee_id() -> str:
-    metadata = _read_json(_metadata_path(), {"next_id_num": 0})
-    next_num = metadata.get("next_id_num", 0) + 1
-    metadata["next_id_num"] = next_num
-    _write_json(_metadata_path(), metadata)
-    return f"e{next_num:03d}"
+    with get_session() as s:
+        setting = s.get(SystemSetting, "employee_next_id")
+        max_id = s.execute(select(func.max(Employee.employee_id))).scalar()
+        counter = 0
+        if setting and setting.value:
+            try:
+                counter = int(setting.value)
+            except ValueError:
+                pass
+        if max_id and max_id.startswith("e"):
+            try:
+                counter = max(counter, int(max_id[1:]))
+            except ValueError:
+                pass
+        counter += 1
+        if setting:
+            setting.value = str(counter)
+        else:
+            s.add(SystemSetting(key="employee_next_id", value=str(counter)))
+    return f"e{counter:03d}"
 
 
 def create_employee(name: str, *, start_date: str | None = None) -> dict:
     """新建员工。可选 start_date 决定入职日（之前的天 compute_summary 标 pre_join）。"""
-    employees = list_employees()
-    emp = {
-        "id": _next_employee_id(),
-        "name": name,
-        "created_at": datetime.now().isoformat(timespec="seconds"),
-    }
+    emp_id = _next_employee_id()
+    created_at = datetime.now().isoformat(timespec="seconds")
+    emp = Employee(
+        employee_id=emp_id,
+        name=name,
+        created_at=created_at,
+        start_date=start_date,
+        active=1,
+    )
+    with get_session() as s:
+        s.add(emp)
+    result = {"id": emp_id, "name": name, "created_at": created_at}
     if start_date:
-        emp["start_date"] = start_date
-    employees.append(emp)
-    _write_json(_employees_path(), employees)
-    return emp
+        result["start_date"] = start_date
+    return result
 
 
-def _holidays_path() -> Path:
-    return _ATTENDANCE_DIR / _HOLIDAYS_FILE
+def delete_employee(employee_id: str) -> None:
+    with get_session() as s:
+        s.execute(delete(Employee).where(Employee.employee_id == employee_id))
+
+
+# ── Holidays ──────────────────────────────────────────────────────────
 
 
 def list_holidays() -> list[str]:
-    return sorted(_read_json(_holidays_path(), []))
+    with get_session() as s:
+        rows = s.execute(
+            select(PublicHoliday.holiday_date).order_by(PublicHoliday.holiday_date)
+        ).scalars().all()
+        return list(rows)
 
 
 def add_holiday(date: str) -> None:
-    holidays = set(list_holidays())
-    holidays.add(date)
-    _write_json(_holidays_path(), sorted(holidays))
+    with get_session() as s:
+        existing = s.get(PublicHoliday, date)
+        if not existing:
+            s.add(PublicHoliday(holiday_date=date, name="希腊法定节假日", is_paid=1))
 
 
 def remove_holiday(date: str) -> None:
-    holidays = [d for d in list_holidays() if d != date]
-    _write_json(_holidays_path(), holidays)
+    with get_session() as s:
+        s.execute(delete(PublicHoliday).where(PublicHoliday.holiday_date == date))
 
 
 # 希腊法定节假日 = 8 个固定日 + 4 个 Orthodox Easter 衍生浮动日。
@@ -174,88 +219,120 @@ def import_holidays_for_year(year: int) -> dict:
     existing = set(list_holidays())
     new_dates = [d for d in target if d not in existing]
     if new_dates:
-        merged = sorted(existing.union(new_dates))
-        _write_json(_holidays_path(), merged)
+        with get_session() as s:
+            for d in new_dates:
+                s.add(PublicHoliday(holiday_date=d, name="希腊法定节假日", is_paid=1))
     return {"added": len(new_dates), "holidays": list_holidays()}
 
 
-def _special_days_path() -> Path:
-    return _ATTENDANCE_DIR / _SPECIAL_DAYS_FILE
+# ── Special Days ──────────────────────────────────────────────────────
 
 
 def list_special_days() -> dict:
-    return _read_json(_special_days_path(), {})
+    with get_session() as s:
+        rows = s.execute(
+            select(SpecialDay).order_by(SpecialDay.special_date)
+        ).scalars().all()
+        return {
+            sd.special_date: {"start": sd.label or "", "end": sd.end_time or ""}
+            for sd in rows
+        }
 
 
 def set_special_day(date: str, start: str, end: str) -> None:
     # 校验时段合法
     day_fraction(start, end, standard_hours=1.0)  # 仅触发 end>start 校验
-    data = list_special_days()
-    data[date] = {"start": start, "end": end}
-    _write_json(_special_days_path(), dict(sorted(data.items())))
+    with get_session() as s:
+        existing = s.get(SpecialDay, date)
+        if existing:
+            existing.label = start
+            existing.end_time = end
+        else:
+            s.add(SpecialDay(special_date=date, label=start, end_time=end))
 
 
 def remove_special_day(date: str) -> None:
-    data = list_special_days()
-    if date in data:
-        del data[date]
-        _write_json(_special_days_path(), data)
+    with get_session() as s:
+        s.execute(delete(SpecialDay).where(SpecialDay.special_date == date))
 
 
-def delete_employee(employee_id: str) -> None:
-    employees = [e for e in list_employees() if e["id"] != employee_id]
-    _write_json(_employees_path(), employees)
-
-
-STANDARD_HOURS = 10.5
-STANDARD_END = "20:00"
-
-
-def _parse_hm(hm: str) -> int:
-    """HH:MM -> 分钟总数"""
-    h, m = hm.split(":")
-    return int(h) * 60 + int(m)
-
-
-def day_fraction(start: str, end: str, standard_hours: float = STANDARD_HOURS) -> float:
-    """计算工作日占比（纯函数）。
-
-    Args:
-        start: 上班时间，格式 "HH:MM"
-        end: 下班时间，格式 "HH:MM"
-        standard_hours: 这一天的标准工时（小时）；默认 10.5。特殊日可传入缩短值。
-
-    Returns:
-        [0.0, 1.0] 范围内的占比，超过标准工作时间封顶为 1.0
-
-    Raises:
-        ValueError: 若 end <= start 或 standard_hours <= 0
-    """
-    if standard_hours <= 0:
-        raise ValueError(f"standard_hours 必须 > 0：{standard_hours}")
-    start_min = _parse_hm(start)
-    end_min = _parse_hm(end)
-    if end_min <= start_min:
-        raise ValueError(f"下班时间必须晚于上班时间：start={start} end={end}")
-    hours = (end_min - start_min) / 60
-    return min(hours / standard_hours, 1.0)
-
-
-def _month_path(month: str) -> Path:
-    return _ATTENDANCE_DIR / f"{month}.json"
-
-
-def _leaves_path(month: str) -> Path:
-    return _ATTENDANCE_DIR / f"{month}.leaves.json"
+# ── Attendance records (month data) ──────────────────────────────────
 
 
 def load_month(month: str) -> dict:
-    return _read_json(_month_path(month), {})
+    """返回 {emp_id: {date: {"start": "HH:MM", "end": "HH:MM"}}}"""
+    date_prefix = month  # "YYYY-MM"
+    with get_session() as s:
+        rows = s.execute(
+            select(AttendanceRecord).where(
+                AttendanceRecord.work_date.like(f"{date_prefix}%")
+            )
+        ).scalars().all()
+        result: dict[str, dict[str, dict]] = {}
+        for r in rows:
+            emp_data = result.setdefault(r.employee_id, {})
+            emp_data[r.work_date] = {
+                "start": r.start_time or "",
+                "end": r.end_time or "",
+            }
+        return result
+
+
+def set_day(employee_id: str, date: str, times: dict) -> None:
+    with get_session() as s:
+        existing = s.execute(
+            select(AttendanceRecord).where(
+                AttendanceRecord.employee_id == employee_id,
+                AttendanceRecord.work_date == date,
+            )
+        ).scalar_one_or_none()
+        if existing:
+            existing.start_time = times["start"]
+            existing.end_time = times["end"]
+        else:
+            s.add(AttendanceRecord(
+                employee_id=employee_id,
+                work_date=date,
+                start_time=times["start"],
+                end_time=times["end"],
+            ))
+
+
+def clear_day(employee_id: str, date: str) -> None:
+    with get_session() as s:
+        s.execute(
+            delete(AttendanceRecord).where(
+                AttendanceRecord.employee_id == employee_id,
+                AttendanceRecord.work_date == date,
+            )
+        )
+
+
+# ── Leave records ────────────────────────────────────────────────────
 
 
 def list_leaves(month: str) -> dict:
     """{employee_id: {date: {type, start?, end?, hours}}}"""
-    return _read_json(_leaves_path(month), {})
+    date_prefix = month  # "YYYY-MM"
+    with get_session() as s:
+        rows = s.execute(
+            select(LeaveRecord).where(
+                LeaveRecord.start_date.like(f"{date_prefix}%")
+            )
+        ).scalars().all()
+        result: dict[str, dict[str, dict]] = {}
+        for r in rows:
+            entry: dict = {"type": r.leave_type, "hours": r.hours or 0.0}
+            # notes 格式: "start=HH:MM end=HH:MM" 或 "start=HH:MM"
+            if r.notes:
+                for part in r.notes.split():
+                    if part.startswith("start="):
+                        entry["start"] = part[6:]
+                    elif part.startswith("end="):
+                        entry["end"] = part[4:]
+            emp_data = result.setdefault(r.employee_id, {})
+            emp_data[r.start_date] = entry
+        return result
 
 
 def _compute_leave_hours(
@@ -304,21 +381,42 @@ def set_leave(employee_id: str, date: str, leave_type: str, start: str = "", end
         entry["start"] = start
     if end:
         entry["end"] = end
-    month = date[:7]
-    data = list_leaves(month)
-    data.setdefault(employee_id, {})[date] = entry
-    _write_json(_leaves_path(month), data)
+    # Build notes from start/end
+    notes = None
+    if start:
+        notes = f"start={start}"
+        if end:
+            notes += f" end={end}"
+    with get_session() as s:
+        existing = s.execute(
+            select(LeaveRecord).where(
+                LeaveRecord.employee_id == employee_id,
+                LeaveRecord.start_date == date,
+            )
+        ).scalar_one_or_none()
+        if existing:
+            existing.leave_type = leave_type
+            existing.hours = round(hours, 3)
+            existing.notes = notes
+        else:
+            s.add(LeaveRecord(
+                employee_id=employee_id,
+                start_date=date,
+                leave_type=leave_type,
+                hours=round(hours, 3),
+                notes=notes,
+            ))
     return entry
 
 
 def clear_leave(employee_id: str, date: str) -> None:
-    month = date[:7]
-    data = list_leaves(month)
-    if employee_id in data and date in data[employee_id]:
-        del data[employee_id][date]
-        if not data[employee_id]:
-            del data[employee_id]
-        _write_json(_leaves_path(month), data)
+    with get_session() as s:
+        s.execute(
+            delete(LeaveRecord).where(
+                LeaveRecord.employee_id == employee_id,
+                LeaveRecord.start_date == date,
+            )
+        )
 
 
 def set_leave_range(
@@ -356,25 +454,63 @@ def set_leave_range(
     return {"days_set": days_set, "days_skipped_sunday": days_skipped_sunday}
 
 
-def set_day(employee_id: str, date: str, times: dict) -> None:
-    month = date[:7]
-    data = load_month(month)
-    data.setdefault(employee_id, {})[date] = {
-        "start": times["start"],
-        "end": times["end"],
-    }
-    _write_json(_month_path(month), data)
+# ── Inactive Periods ─────────────────────────────────────────────────
 
 
-def clear_day(employee_id: str, date: str) -> None:
-    month = date[:7]
-    data = load_month(month)
-    if employee_id in data and date in data[employee_id]:
-        del data[employee_id][date]
-        if not data[employee_id]:
-            del data[employee_id]
-        _write_json(_month_path(month), data)
+def list_inactive_periods(employee_id: str) -> list[dict]:
+    """读员工的不在职区间列表（长期休假/产假/停薪留职等）。"""
+    with get_session() as s:
+        emp = s.get(Employee, employee_id)
+        if not emp:
+            return []
+        return [_inactive_period_to_dict(ip) for ip in emp.inactive_periods]
 
+
+def add_inactive_period(employee_id: str, from_date: str, to_date: str, reason: str = "") -> dict:
+    """添加一个不在职区间。这段期间内每天都不计入考勤（包括周日 / 节假日）。
+
+    适用场景：长期病假回归后回到本月、产假、停薪留职等。
+    与单日 set_leave 区别：本接口的天完全不计任何数字（pre_join 状态）；
+    leave 的天周日仍算 1.0、accumulated leave_hours_total 也会算。
+    """
+    f = date_cls.fromisoformat(from_date)
+    t = date_cls.fromisoformat(to_date)
+    if f > t:
+        raise ValueError(f"from {from_date} 不能晚于 to {to_date}")
+    with get_session() as s:
+        emp = s.get(Employee, employee_id)
+        if not emp:
+            raise ValueError(f"员工不存在：{employee_id}")
+        ip = InactivePeriod(
+            employee_id=employee_id,
+            start_date=from_date,
+            end_date=to_date,
+            reason=reason or None,
+        )
+        s.add(ip)
+    period = {"from": from_date, "to": to_date}
+    if reason:
+        period["reason"] = reason
+    return period
+
+
+def remove_inactive_period(employee_id: str, from_date: str, to_date: str) -> bool:
+    """按 from+to 精确匹配删除一个不在职区间。返回 True 如果删了一条。"""
+    with get_session() as s:
+        row = s.execute(
+            select(InactivePeriod).where(
+                InactivePeriod.employee_id == employee_id,
+                InactivePeriod.start_date == from_date,
+                InactivePeriod.end_date == to_date,
+            )
+        ).scalar_one_or_none()
+        if row:
+            s.delete(row)
+            return True
+        return False
+
+
+# ── Summary computation ──────────────────────────────────────────────
 
 _WEEKDAY_CN = ["一", "二", "三", "四", "五", "六", "日"]
 
@@ -398,68 +534,14 @@ def _employee_start_date(employee_id: str) -> date_cls | None:
     缺 start_date / 解析失败 → None → 全月正常显示，无 pre_join 过滤。
     新员工想用 pre_join 时手动加 start_date 字段（或将来 UI 加入职日 field）。
     """
-    for emp in list_employees():
-        if emp.get("id") != employee_id:
-            continue
-        s = emp.get("start_date")
-        if not s:
+    with get_session() as s:
+        emp = s.get(Employee, employee_id)
+        if not emp or not emp.start_date:
             return None
         try:
-            return datetime.fromisoformat(s).date()
+            return datetime.fromisoformat(emp.start_date).date()
         except (ValueError, TypeError):
             return None
-    return None
-
-
-def list_inactive_periods(employee_id: str) -> list[dict]:
-    """读员工的不在职区间列表（长期休假/产假/停薪留职等）。"""
-    for emp in list_employees():
-        if emp.get("id") == employee_id:
-            return emp.get("inactive_periods", [])
-    return []
-
-
-def add_inactive_period(employee_id: str, from_date: str, to_date: str, reason: str = "") -> dict:
-    """添加一个不在职区间。这段期间内每天都不计入考勤（包括周日 / 节假日）。
-
-    适用场景：长期病假回归后回到本月、产假、停薪留职等。
-    与单日 set_leave 区别：本接口的天完全不计任何数字（pre_join 状态）；
-    leave 的天周日仍算 1.0、accumulated leave_hours_total 也会算。
-    """
-    f = date_cls.fromisoformat(from_date)
-    t = date_cls.fromisoformat(to_date)
-    if f > t:
-        raise ValueError(f"from {from_date} 不能晚于 to {to_date}")
-    employees = list_employees()
-    for emp in employees:
-        if emp.get("id") != employee_id:
-            continue
-        periods = emp.setdefault("inactive_periods", [])
-        period = {"from": from_date, "to": to_date}
-        if reason:
-            period["reason"] = reason
-        periods.append(period)
-        _write_json(_employees_path(), employees)
-        return period
-    raise ValueError(f"员工不存在：{employee_id}")
-
-
-def remove_inactive_period(employee_id: str, from_date: str, to_date: str) -> bool:
-    """按 from+to 精确匹配删除一个不在职区间。返回 True 如果删了一条。"""
-    employees = list_employees()
-    for emp in employees:
-        if emp.get("id") != employee_id:
-            continue
-        periods = emp.get("inactive_periods", [])
-        for i, p in enumerate(periods):
-            if p.get("from") == from_date and p.get("to") == to_date:
-                periods.pop(i)
-                if not periods:
-                    emp.pop("inactive_periods", None)
-                _write_json(_employees_path(), employees)
-                return True
-        return False
-    return False
 
 
 def _date_in_inactive_periods(d: date_cls, periods: list[dict]) -> bool:
@@ -529,7 +611,7 @@ def compute_summary(employee_id: str, month: str) -> dict:
             ]
         }
     """
-    employees_by_id = {emp.get("id"): emp for emp in list_employees()}
+    employees_by_id = {emp["id"]: emp for emp in list_employees()}
     return _compute_one_summary(
         employee_id,
         month,
@@ -544,12 +626,9 @@ def compute_summary(employee_id: str, month: str) -> dict:
 def compute_summaries_batch(employees: list[dict], month: str) -> dict[str, dict]:
     """批量算多员工月度总结，共享数据只读一次。
 
-    与循环调 compute_summary 行为完全一致；省的是 6 倍磁盘 JSON 读
-    （employees / month / holidays / special_days / leaves，外加 _employee_start_date /
-    list_inactive_periods 共用 employees）。调用方传入已读的 employees 列表
-    复用，避免本函数再读一次。fill_rates 跑 N=20 员工时实测 _read_json 从
-    6N+1=121 次降到 5 次（month / leaves / holidays / special_days + 路由层
-    list_employees）。
+    与循环调 compute_summary 行为完全一致；省的是 N 倍数据库查询
+    （employees / month / holidays / special_days / leaves）。调用方传入已读
+    的 employees 列表复用，避免本函数再读一次。
     """
     employees_by_id = {emp.get("id"): emp for emp in employees}
     month_data = load_month(month)
