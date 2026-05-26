@@ -159,7 +159,7 @@
             x-text="$store.substrip.stockpileCount === null ? '—' : $store.substrip.stockpileCount.toLocaleString()"></span>
     </div>
 
-    <div class="flex-1 p-4 overflow-hidden min-h-0 bg-bg-0">
+    <div class="content">
 
 <!-- ═══ Dashboard ═══ -->
 <div class="page" id="pageDashboard" x-data="{
@@ -217,7 +217,7 @@
     </div>
     <div class="dash-stat">
       <div class="dash-stat-label">上次导入</div>
-      <div class="dash-stat-value mono" style="font-size:var(--fs-xl)" x-text="stats.lastImport">—</div>
+      <div class="dash-stat-value mono" style="font-size:17px" x-text="stats.lastImport">—</div>
       <div class="dash-stat-note" x-text="stats.lastImportDetail || ''"></div>
     </div>
   </div>

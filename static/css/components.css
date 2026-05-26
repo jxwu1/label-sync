@@ -630,6 +630,8 @@
 .substrip-val { color: var(--ink-1); font-family: var(--mono); }
 .substrip-val--accent { color: var(--accent); font-weight: 600; font-family: var(--mono); }
 
+.content { flex: 1; overflow: hidden; min-height: 0; }
+
 /* ============================================================
  * Shell — page show/hide
  * ============================================================ */
@@ -656,14 +658,13 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 7px;
+  padding: 2px 8px;
   border-radius: 2px;
-  font-size: 9.5px;
-  font-weight: 700;
+  font-size: 10.5px;
+  font-weight: 600;
   letter-spacing: 0.03em;
   border: 1px solid;
   white-space: nowrap;
-  text-transform: uppercase;
 }
 .pill--xs { font-size: 9px; padding: 1px 6px; }
 .pill--ghost  { background: var(--bg-3); border-color: var(--line-soft); color: var(--ink-2); }
@@ -2347,7 +2348,7 @@
 /* ============================================================
  * Dashboard page (design-pack 01-dashboard-v2)
  * ============================================================ */
-#pageDashboard.active { display: flex; flex-direction: column; gap: 16px; overflow: auto; height: calc(100vh - 96px); padding: 16px 20px; }
+#pageDashboard.active { display: flex; flex-direction: column; gap: 16px; overflow: auto; height: calc(100vh - 48px); padding: 20px 24px; }
 
 .dash-greeting { display: flex; align-items: baseline; gap: 12px; }
 .dash-greeting-text { font-family: var(--display); font-size: var(--fs-3xl); font-weight: 700; color: var(--ink-0); letter-spacing: -0.02em; }
@@ -2359,8 +2360,7 @@
   background: var(--bg-1);
   border: 1px solid var(--line-soft);
   border-radius: var(--r-md);
-  padding: 14px 16px;
-  min-height: 80px;
+  padding: 14px 16px 10px;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -2379,7 +2379,7 @@
 }
 .dash-stat-value {
   font-family: var(--display);
-  font-size: var(--fs-2xl);
+  font-size: 22px;
   font-weight: 700;
   color: var(--ink-0);
   letter-spacing: -0.02em;
@@ -2425,8 +2425,7 @@
 .dash-panel-hd {
   display: flex;
   align-items: center;
-  padding: 10px 16px;
-  min-height: 40px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--line-soft);
   gap: 10px;
 }
@@ -2446,7 +2445,7 @@
 }
 .dash-feed:last-child { border-bottom: none; }
 .dash-feed:hover { background: var(--bg-2); }
-.dash-feed-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+.dash-feed-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
 .dash-feed-dot.scan { background: var(--accent); }
 .dash-feed-dot.import { background: var(--info); }
 .dash-feed-dot.change { background: var(--warn); }
@@ -2454,7 +2453,7 @@
 .dash-feed-content { flex: 1; min-width: 0; }
 .dash-feed-title { font-size: var(--fs-md); color: var(--ink-0); font-weight: 500; }
 .dash-feed-title .hl { color: var(--accent); font-weight: 600; }
-.dash-feed-meta { font-size: var(--fs-xs); color: var(--ink-3); font-family: var(--mono); display: flex; gap: 8px; margin-top: 4px; }
+.dash-feed-meta { font-size: var(--fs-xs); color: var(--ink-3); font-family: var(--mono); display: flex; gap: 8px; margin-top: 2px; }
 .dash-feed-time { font-size: var(--fs-xs); color: var(--ink-3); font-family: var(--mono); white-space: nowrap; margin-top: 1px; }
 
 .dash-dq-row {
@@ -2475,7 +2474,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 16px;
+  padding: 7px 16px;
   border-bottom: 1px solid var(--line-soft);
   font-size: var(--fs-sm);
 }

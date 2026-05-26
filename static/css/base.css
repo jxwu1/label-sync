@@ -75,12 +75,9 @@ body {
   line-height: 1.5;
   background: var(--bg-0);
   color: var(--ink-0);
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  height: 100vh;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 /* mono 工具类（设计里大量用 .mono 给数字 / 标签 / ID 等量字体） */
@@ -110,17 +107,6 @@ body[data-theme="dark"]::before {
 }
 body[data-grid="off"]::before { display: none; }
 
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--line);
-  border-radius: var(--r-sm);
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--ink-3);
-}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg-4); border-radius: 3px; }
