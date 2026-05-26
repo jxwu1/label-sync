@@ -232,6 +232,42 @@ class Supplier(Base):
     last_seen_at: Mapped[str | None] = mapped_column(Text)
 
 
+class PurchaseOrder(Base):
+    __tablename__ = "purchase_orders"
+    __table_args__ = (
+        Index("idx_po_supplier", "supplier_id"),
+        Index("idx_po_order_date", "order_date"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    supplier_id: Mapped[str | None] = mapped_column(Text, ForeignKey("suppliers.supplier_id"))
+    order_date: Mapped[str] = mapped_column(Text, nullable=False)
+    arrival_date: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, server_default="placed")
+    source_file: Mapped[str | None] = mapped_column(Text)
+    total_qty: Mapped[int] = mapped_column(Integer, default=0)
+    total_amount: Mapped[float | None] = mapped_column()
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[str | None] = mapped_column(Text, server_default=text("CURRENT_TIMESTAMP"))
+
+    lines = relationship("PurchaseOrderLine", back_populates="order", cascade="all, delete-orphan")
+
+
+class PurchaseOrderLine(Base):
+    __tablename__ = "purchase_order_lines"
+    __table_args__ = (
+        Index("idx_pol_order", "order_id"),
+        Index("idx_pol_barcode", "product_barcode"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    order_id: Mapped[int] = mapped_column(Integer, ForeignKey("purchase_orders.id"), nullable=False)
+    product_barcode: Mapped[str] = mapped_column(Text, nullable=False)
+    qty_ordered: Mapped[int] = mapped_column(Integer, nullable=False)
+    qty_arrived: Mapped[int] = mapped_column(Integer, default=0)
+    unit_price: Mapped[float | None] = mapped_column()
+
+    order = relationship("PurchaseOrder", back_populates="lines")
+
+
 class InventoryEvent(Base):
     """进销存事件（采购 + 销售统一一张表，event_type 区分）。
 

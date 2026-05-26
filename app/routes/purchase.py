@@ -39,6 +39,16 @@ def process():
         suggested_supplier = purchase_service.lookup_dominant_supplier([r.barcode for r in rows])
     except Exception as exc:
         return jsonify({"ok": False, "msg": f"解析失败：{exc}"}), 500
+    order_info = None
+    try:
+        order_info = purchase_service.create_order(
+            rows,
+            supplier_id=suggested_supplier["supplier_id"] if suggested_supplier else None,
+            source_file=supplier.filename,
+        )
+    except Exception:
+        pass
+
     return jsonify(
         {
             "ok": True,
@@ -47,6 +57,7 @@ def process():
             "new_barcodes": new_bcs,
             "inactive_barcodes": parsed_inactive,
             "suggested_supplier": suggested_supplier,
+            "order": order_info,
         }
     )
 
@@ -61,6 +72,27 @@ def import_to_stockpile():
     except Exception as exc:
         return jsonify({"ok": False, "msg": f"入库失败：{exc}"}), 500
     return jsonify({"ok": True, "count": count})
+
+
+@bp.get("/orders")
+def get_orders():
+    return jsonify({"ok": True, "orders": purchase_service.list_orders()})
+
+
+@bp.post("/orders/<int:order_id>/arrival")
+def mark_arrival(order_id: int):
+    data = request.get_json(silent=True) or {}
+    arrival_date = data.get("arrival_date", date.today().isoformat())
+    try:
+        result = purchase_service.record_arrival(order_id, arrival_date)
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 404
+    return jsonify({"ok": True, **result})
+
+
+@bp.get("/lead-times")
+def get_lead_times():
+    return jsonify({"ok": True, "lead_times": purchase_service.compute_supplier_lead_times()})
 
 
 @bp.post("/export")

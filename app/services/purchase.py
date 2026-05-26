@@ -225,3 +225,128 @@ def build_zip(purchase_xlsx: bytes, template_csv: bytes | None, date_str: str) -
         if template_csv is not None:
             zf.writestr("产品信息导入模板.csv", template_csv)
     return buf.getvalue()
+
+
+# ── Purchase Order tracking ─────────────────────────────────────────
+
+def create_order(
+    rows: list[PurchaseRow],
+    *,
+    supplier_id: str | None = None,
+    source_file: str | None = None,
+) -> dict:
+    from datetime import date as date_cls
+    from app.models import PurchaseOrder, PurchaseOrderLine, get_session
+
+    total_qty = sum(r.quantity for r in rows)
+    total_amount = sum(r.price * r.quantity for r in rows)
+
+    with get_session() as s:
+        order = PurchaseOrder(
+            supplier_id=supplier_id,
+            order_date=date_cls.today().isoformat(),
+            status="placed",
+            source_file=source_file,
+            total_qty=total_qty,
+            total_amount=round(total_amount, 2),
+        )
+        s.add(order)
+        s.flush()
+        for r in rows:
+            s.add(PurchaseOrderLine(
+                order_id=order.id,
+                product_barcode=r.barcode,
+                qty_ordered=r.quantity,
+                unit_price=r.price,
+            ))
+        order_id = order.id
+
+    return {"order_id": order_id, "total_qty": total_qty, "total_amount": round(total_amount, 2)}
+
+
+def list_orders(limit: int = 50) -> list[dict]:
+    from sqlalchemy import select
+    from app.models import PurchaseOrder, Supplier, get_session
+
+    with get_session() as s:
+        rows = s.execute(
+            select(PurchaseOrder, Supplier.supplier_name)
+            .outerjoin(Supplier, Supplier.supplier_id == PurchaseOrder.supplier_id)
+            .order_by(PurchaseOrder.id.desc())
+            .limit(limit)
+        ).all()
+        return [
+            {
+                "id": po.id,
+                "supplier_id": po.supplier_id,
+                "supplier_name": sname or "",
+                "order_date": po.order_date,
+                "arrival_date": po.arrival_date,
+                "status": po.status,
+                "source_file": po.source_file,
+                "total_qty": po.total_qty,
+                "total_amount": po.total_amount,
+            }
+            for po, sname in rows
+        ]
+
+
+def record_arrival(order_id: int, arrival_date: str) -> dict:
+    from sqlalchemy import select
+    from app.models import PurchaseOrder, PurchaseOrderLine, get_session
+
+    with get_session() as s:
+        order = s.get(PurchaseOrder, order_id)
+        if not order:
+            raise ValueError(f"订单不存在：{order_id}")
+        order.arrival_date = arrival_date
+        order.status = "arrived"
+        lines = s.execute(
+            select(PurchaseOrderLine).where(PurchaseOrderLine.order_id == order_id)
+        ).scalars().all()
+        for line in lines:
+            line.qty_arrived = line.qty_ordered
+
+    return {"order_id": order_id, "arrival_date": arrival_date, "status": "arrived"}
+
+
+def compute_supplier_lead_times(limit: int = 50) -> list[dict]:
+    from statistics import median
+    from sqlalchemy import select
+    from datetime import date as date_cls
+    from app.models import PurchaseOrder, Supplier, get_session
+
+    with get_session() as s:
+        suppliers = s.execute(
+            select(PurchaseOrder.supplier_id, Supplier.supplier_name)
+            .join(Supplier, Supplier.supplier_id == PurchaseOrder.supplier_id)
+            .where(PurchaseOrder.arrival_date.isnot(None))
+            .group_by(PurchaseOrder.supplier_id)
+        ).all()
+
+        results = []
+        for sid, sname in suppliers:
+            orders = s.execute(
+                select(PurchaseOrder.order_date, PurchaseOrder.arrival_date)
+                .where(PurchaseOrder.supplier_id == sid, PurchaseOrder.arrival_date.isnot(None))
+                .order_by(PurchaseOrder.order_date.desc())
+                .limit(limit)
+            ).all()
+            lts = []
+            for o_date, a_date in orders:
+                try:
+                    d = (date_cls.fromisoformat(a_date) - date_cls.fromisoformat(o_date)).days
+                    if d >= 0:
+                        lts.append(d)
+                except (ValueError, TypeError):
+                    continue
+            if lts:
+                results.append({
+                    "supplier_id": sid,
+                    "supplier_name": sname,
+                    "n_samples": len(lts),
+                    "median_days": median(lts),
+                    "min_days": min(lts),
+                    "max_days": max(lts),
+                })
+        return results
