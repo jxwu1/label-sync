@@ -15,6 +15,7 @@ from app.models import (
 )
 from app.repositories import stockpile_db
 from app.services import data_quality as dq_service
+from app.services import scan_history as scan_history_service
 
 bp = Blueprint("dashboard", __name__)
 
@@ -60,10 +61,14 @@ def _build_stats() -> dict:
         active = stockpile_db.count_records()
         inactive = stockpile_db.count_inactive_records()
         last_import = stockpile_db.last_import_at()
+
+        scans_total, scan_batches = _count_monthly_scans()
+
         return {
             "sku": f"{active:,}",
             "inactive": f"{inactive:,}",
-            "scans": "—",
+            "scans": f"{scans_total:,}" if scans_total else "0",
+            "scanBatches": f"{scan_batches} 批次" if scan_batches else "",
             "lastImport": last_import[:10] if last_import else "—",
             "lastImportDetail": (
                 last_import[11:16] if last_import and len(last_import) > 16 else ""
@@ -71,6 +76,18 @@ def _build_stats() -> dict:
         }
     except Exception:
         return {"sku": "—", "inactive": "—", "scans": "—", "lastImport": "—"}
+
+
+def _count_monthly_scans() -> tuple[int, int]:
+    """Return (total_csv_rows, batch_count) for the current month."""
+    try:
+        month_prefix = datetime.now().strftime("%Y-%m")
+        batches = scan_history_service.list_batches()
+        monthly = [b for b in batches if b["scanned_at"][:7] == month_prefix]
+        total_rows = sum(b.get("csv_rows") or 0 for b in monthly)
+        return total_rows, len(monthly)
+    except Exception:
+        return 0, 0
 
 
 def _build_dq() -> list[dict]:
@@ -92,6 +109,7 @@ def _build_feed() -> list[dict]:
         _feed_snapshots(items)
         _feed_changes(items)
         _feed_purchases(items)
+        _feed_scans(items)
     except Exception:
         pass
     items.sort(key=lambda x: x.get("_ts", ""), reverse=True)
@@ -180,6 +198,25 @@ def _feed_purchases(items: list[dict]) -> None:
                     "_ts": ts,
                 }
             )
+
+
+def _feed_scans(items: list[dict]) -> None:
+    try:
+        batches = scan_history_service.list_batches(limit=10)
+    except Exception:
+        return
+    for b in batches:
+        rows = b.get("csv_rows") or 0
+        meta = [f"{rows} 条码"] if rows else []
+        items.append(
+            {
+                "type": "scan",
+                "title": f"<span class='hl'>{b['employee']}</span> · 价格标扫描完成",
+                "meta": meta,
+                "time": _format_time(b["scanned_at"]),
+                "_ts": b["scanned_at"],
+            }
+        )
 
 
 def _build_sys(stats: dict) -> list[dict]:
