@@ -286,3 +286,16 @@ async function restore() {
 setupTransferZone(); loadTransferUI(); loadMsgsUI(); restore();
 setInterval(loadTransferUI, 5000); setInterval(loadMsgsUI, 5000);
 initStockpile();
+
+async function loadLastBatch() {
+  try {
+    const r = await fetch("/scan_history/batches");
+    const d = await r.json();
+    if (!d.ok || !d.batches || !d.batches.length) return;
+    const b = d.batches[0];
+    const s = $("#exIdleSession"); if (s) s.textContent = b.employee + " · 价格标";
+    const c = $("#exIdleCount"); if (c) c.textContent = (b.csv_rows || 0) + " 条码";
+    const t = $("#exIdleTime"); if (t) t.textContent = (b.scanned_at || "").slice(5, 16);
+  } catch (_) {}
+}
+loadLastBatch();
