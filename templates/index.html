@@ -346,34 +346,94 @@
     </div>
   </section>
 
-  <!-- 03: Exceptions -->
-  <section class="pnl" id="warnPanel" style="min-height:0">
-    <div class="pnl-hd">
-      <span class="pnl-code">03</span>
-      <span class="pnl-title">异常处理</span>
-      <span class="pnl-sub">exceptions</span>
-      <span class="pnl-spacer"></span>
-      <span class="pnl-pill">0 待处理</span>
-    </div>
-    <div id="warnBox">
-      <div class="empty">暂无需要人工处理的异常</div>
-    </div>
-  </section>
+<!-- 03: Exceptions (3-state: idle / active / done) -->
+      <section class="pnl" id="warnPanel" style="min-height:0;align-self:start">
+        <!-- Idle state — last batch summary -->
+        <div id="exIdle">
+          <div class="pnl-hd">
+            <span class="pnl-code">03</span>
+            <span class="pnl-title">异常处理</span>
+            <span class="pnl-sub">exceptions</span>
+            <span class="pnl-spacer"></span>
+            <span class="pnl-pill" id="exIdlePill">0 待处理</span>
+          </div>
+          <div class="lb-strip">
+            <span class="lb-strip-label">上一批次</span>
+            <span class="lb-strip-val mono" id="exIdleSession">—</span>
+            <span class="lb-strip-sep">·</span>
+            <span class="lb-strip-val mono" id="exIdleCount">0 条码</span>
+            <span class="lb-strip-sep">·</span>
+            <span class="lb-strip-val mono" id="exIdleMatch" style="color:var(--success)">—</span>
+            <span class="lb-strip-sep">·</span>
+            <span class="lb-strip-val mono" id="exIdleAnomaly" style="color:var(--warn)">0 异常</span>
+            <span class="lb-strip-sep">·</span>
+            <span class="lb-strip-val mono" id="exIdleNew" style="color:var(--info)">0 新品</span>
+            <span class="lb-strip-sep">·</span>
+            <span class="lb-strip-val mono" id="exIdleTime">—</span>
+          </div>
+          <div class="lb-detail">
+            <div class="lb-detail-item"><span class="ex-done-dot" style="background:var(--error)"></span><span>修正 <b class="mono" id="exIdleFixed">0</b></span></div>
+            <span class="lb-strip-sep">·</span>
+            <div class="lb-detail-item"><span class="ex-done-dot" style="background:var(--warn)"></span><span>确认 <b class="mono" id="exIdleConfirmed">0</b></span></div>
+            <span class="lb-strip-sep">·</span>
+            <div class="lb-detail-item"><span class="ex-done-dot" style="background:var(--info)"></span><span>忽略 <b class="mono" id="exIdleIgnored">0</b></span></div>
+            <span style="flex:1"></span>
+            <span style="font-size:var(--fs-xs);color:var(--ink-3)">拖入文件开始下一批次</span>
+          </div>
+        </div>
+        <!-- Active state — exception list -->
+        <div id="exActive" style="display:none;flex-direction:column;flex:1;min-height:0">
+          <div class="pnl-hd">
+            <span class="pnl-code">03</span>
+            <span class="pnl-title">异常处理</span>
+            <span class="pnl-sub">exceptions</span>
+            <span class="pnl-spacer"></span>
+            <span class="ex-sev-v2 high" id="exSevHigh">HIGH 0</span>
+            <span class="ex-sev-v2 med" id="exSevMed" style="margin-left:4px">MED 0</span>
+            <span class="ex-sev-v2 low" id="exSevLow" style="margin-left:4px">LOW 0</span>
+          </div>
+          <div id="warnBox" class="ex-list">
+            <div class="empty">暂无需要人工处理的异常</div>
+          </div>
+        </div>
+        <!-- Done state — completion summary -->
+        <div id="exDone" style="display:none;flex-direction:column;flex:1;min-height:0;">
+          <div class="pnl-hd">
+            <span class="pnl-code">03</span>
+            <span class="pnl-title">异常处理</span>
+            <span class="pnl-sub">exceptions</span>
+            <span class="pnl-spacer"></span>
+            <span class="ex-sev-done">✓ 全部完成</span>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;">
+            <div class="ex-done-icon">✓</div>
+            <div style="text-align:center">
+              <div style="font-size:var(--fs-lg);font-weight:600;color:var(--ink-0)">异常全部处理完毕</div>
+              <div style="font-size:var(--fs-sm);color:var(--ink-2);margin-top:4px">自动继续下一阶段</div>
+            </div>
+            <div class="ex-done-summary">
+              <div class="ex-done-row"><span class="ex-done-dot" style="background:var(--error)"></span><span class="ex-done-label">已修正</span><span class="ex-done-count mono" id="exDoneFixed">0</span></div>
+              <div class="ex-done-row"><span class="ex-done-dot" style="background:var(--warn)"></span><span class="ex-done-label">已确认</span><span class="ex-done-count mono" id="exDoneConfirmed">0</span></div>
+              <div class="ex-done-row"><span class="ex-done-dot" style="background:var(--info)"></span><span class="ex-done-label">已忽略</span><span class="ex-done-count mono" id="exDoneIgnored">0</span></div>
+              <div class="ex-done-divider"></div>
+              <div class="ex-done-row"><span class="ex-done-dot" style="background:var(--ink-3)"></span><span class="ex-done-label" style="font-weight:600;color:var(--ink-0)">合计处理</span><span class="ex-done-count mono" style="color:var(--ink-0)" id="exDoneTotal">0</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
 
   <!-- Right column -->
   <div style="grid-column:2;grid-row:1/-1;display:flex;flex-direction:column;gap:12px;min-height:0">
 
-    <!-- 04: File queue — height locked to ~3 items -->
+    <!-- 04: File queue -->
     <section class="pnl" style="flex-shrink:0" id="filesPanel">
       <div class="pnl-hd">
         <span class="pnl-code">04</span>
         <span class="pnl-title">文件队列</span>
         <span class="pnl-sub" x-data x-text="($store.upload.selected.length + $store.upload.batches.reduce((s,b) => s+b.files.length, 0)) + ' files'">0 files</span>
         <span class="pnl-spacer"></span>
-        <button class="pnl-pill" style="cursor:pointer" id="fqAddBtn" type="button">+ 添加</button>
       </div>
-      <div style="height:148px;overflow-y:auto" id="files" x-data>
-        <!-- Current batch (uploading/processing) -->
+      <div class="fq-list" id="files" x-data>
         <template x-for="(f, i) in $store.upload.selected" :key="'cur-'+i">
           <div class="fq-item">
             <span class="fq-ext" x-text="(f.name.split('.').pop() || '').toUpperCase().slice(0,4)"></span>
@@ -381,7 +441,7 @@
               <div class="fq-name" :title="f.name" x-text="f.name"></div>
               <div class="fq-size" x-text="`${(f.size/1024).toFixed(1)} KB`"></div>
             </div>
-            <span class="fq-status-v2" :class="
+            <span class="fq-status" :class="
               $store.app.badgeType === 'running' ? 'run' :
               $store.app.badgeType === 'done' ? 'done' : 'queue'
             ">
@@ -391,27 +451,30 @@
                 $store.app.badgeType === 'done' ? 'DONE' : 'QUEUE'
               "></span>
             </span>
-            <button class="fq-rm-v2" @click="$store.upload.remove(i)">×</button>
+            <button class="fq-rm" @click="$store.upload.remove(i)">×</button>
           </div>
         </template>
-        <!-- Completed batches -->
         <template x-for="(b, bi) in $store.upload.batches" :key="'b-'+b.id">
-          <div class="fq-item" style="gap:8px">
-            <span class="fq-status-v2 done"><span class="dot"></span>DONE</span>
+          <div class="fq-item">
+            <span class="fq-ext">DONE</span>
             <div class="fq-info">
-              <div class="fq-name" x-text="b.id" style="font-size:var(--fs-xs)"></div>
+              <div class="fq-name" x-text="b.id"></div>
               <div class="fq-size" x-text="b.files.length + ' 文件'"></div>
             </div>
-            <button class="ex-action" @click="__batchDownload(b.id)">下载</button>
-            <button class="ex-action" @click="__batchCopyModels(b.id)">复制型号</button>
+            <span class="fq-status done"><span class="dot"></span>DONE</span>
           </div>
         </template>
-        <!-- Empty state -->
-        <div class="empty" x-data x-show="$store.upload.selected.length === 0 && $store.upload.batches.length === 0">拖入文件开始下一批次</div>
+        <div class="empty" x-data x-show="$store.upload.selected.length === 0 && $store.upload.batches.length === 0" style="padding:20px">拖入文件开始下一批次</div>
       </div>
-      <div class="fq-actions-v2" x-data x-show="$store.upload.batches.length > 0">
-        <button class="btn btn-ghost" id="reset" style="font-size:var(--fs-sm)">清空全部</button>
+      <div class="fq-actions" x-data x-show="$store.upload.batches.length > 0">
+        <button class="btn btn-success" style="font-size:var(--fs-sm)" x-data @click="__batchDownload($store.upload.batches[0]?.id)">下载结果</button>
+        <button class="btn btn-info" style="font-size:var(--fs-sm)" x-data @click="__batchCopyModels($store.upload.batches[0]?.id)">复制型号</button>
+        <button class="btn btn-ghost" id="reset" style="font-size:var(--fs-sm)">清空</button>
       </div>
+      <div id="status" class="fq-status-bar" x-data
+           x-show="$store.app.badgeType !== 'idle'"
+           :class="$store.app.statusCls ? `fq-status-bar ${$store.app.statusCls}` : 'fq-status-bar'"
+           x-html="$store.app.statusText"></div>
       <!-- Hidden buttons for JS compatibility -->
       <div style="display:none">
         <button id="upload"></button>
@@ -420,10 +483,8 @@
         <button id="download"></button>
         <button id="copyModels"></button>
         <button id="copyModelsAll"></button>
+        <button id="fqAddBtn"></button>
       </div>
-      <div id="status" class="fq-status-bar" x-data
-           :class="$store.app.statusCls ? `fq-status-bar ${$store.app.statusCls}` : 'fq-status-bar'"
-           x-html="$store.app.statusText">就绪 · 拖入文件开始处理</div>
     </section>
 
     <!-- 05: Scan stats -->
@@ -434,10 +495,14 @@
         <span class="pnl-sub">当前批次</span>
         <span class="pnl-spacer"></span>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 16px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 16px;">
         <div class="sc-card">
           <div class="sc-label">总条码</div>
           <div class="sc-value" id="scTotal">—</div>
+          <svg class="sc-spark" id="scSparkline" viewBox="0 0 80 24" preserveAspectRatio="none" style="height:20px;width:100%;margin-top:2px;">
+            <polyline class="sc-area" points="0,20 13,16 26,18 40,12 53,14 66,8 80,6 80,24 0,24" style="fill:var(--accent);opacity:0.15;"></polyline>
+            <polyline points="0,20 13,16 26,18 40,12 53,14 66,8 80,6" style="stroke:var(--accent);fill:none;stroke-width:1.5;stroke-linecap:round;"></polyline>
+          </svg>
         </div>
         <div class="sc-card">
           <div class="sc-label">匹配率</div>
@@ -447,6 +512,11 @@
         <div class="sc-card">
           <div class="sc-label">异常</div>
           <div class="sc-value" style="color:var(--warn)" id="scAnomalies">—</div>
+          <div class="sc-breakdown" id="scBreakdown">
+            <span class="sc-tag high" id="scSevHigh">HIGH 0</span>
+            <span class="sc-tag med" id="scSevMed">MED 0</span>
+            <span class="sc-tag low" id="scSevLow">LOW 0</span>
+          </div>
         </div>
         <div class="sc-card">
           <div class="sc-label">新品</div>
@@ -454,15 +524,15 @@
           <div class="sc-note">待确认入库</div>
         </div>
       </div>
-      <div style="border-top:1px solid var(--line-soft);padding:10px 16px;display:flex;flex-direction:column;gap:6px">
-        <div style="font-size:var(--fs-xs);font-weight:600;color:var(--ink-2);text-transform:uppercase">最近新品</div>
-        <div style="display:flex;flex-wrap:wrap;gap:4px" id="scNewList">
-          <span style="font-size:var(--fs-xs);color:var(--ink-3);padding:3px 6px">暂无新品数据</span>
+      <div style="border-top:1px solid var(--line-soft);padding:10px 16px;display:flex;flex-direction:column;gap:6px;">
+        <div style="font-size:var(--fs-xs);font-weight:600;color:var(--ink-2);text-transform:uppercase;">最近新品</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;" id="scNewList">
+          <span style="font-size:var(--fs-xs);color:var(--ink-3);padding:3px 6px;">暂无新品数据</span>
         </div>
       </div>
     </section>
 
-    <!-- 06: Activity log — height locked -->
+    <!-- 06: Activity log -->
     <section class="pnl" style="flex-shrink:0" id="activityPanel">
       <div class="pnl-hd">
         <span class="pnl-code">06</span>
@@ -472,7 +542,7 @@
         <div class="al-live" x-data><span class="al-live-dot"></span>LIVE</div>
         <button class="pnl-pill" style="cursor:pointer" x-data @click="$store.term.clear()">清空</button>
       </div>
-      <div class="al-bd" id="activityBox" x-data style="height:180px">
+      <div class="al-bd" id="activityBox" x-data>
         <template x-for="(item, i) in $store.term.logs.slice(-200)" :key="i">
           <div class="al-row" :class="`${item.src === 'dc' ? 'log-dc' : 'log-lp'} ${item.cls}`" x-text="item.text"></div>
         </template>
