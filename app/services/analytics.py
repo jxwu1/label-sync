@@ -922,14 +922,24 @@ _LIST_LOCK = _threading.Lock()
 _RESTOCK_TARGET_WEEKS = _URGENCY_COVER_TARGET_WEEKS  # 默认 8 周
 
 
+def _round_up_to_pack(qty: int | None, pack: int | None) -> int | None:
+    """向上凑整到 pack 的倍数。qty=0 或 pack 无效时原样返回。"""
+    if qty is None or qty <= 0 or not pack or pack <= 1:
+        return qty
+    import math
+    return math.ceil(qty / pack) * pack
+
+
 def _restock_recommendation(
     barcode: str,
     qty_total: int,
     weekly_velocity: float,
     forecast_by_bc: dict,
     last_purchase_qty_by_bc: dict,
+    middle_qty: int | None = None,
 ) -> dict:
-    """计算推荐补货量: 优先预测模型 p50/p98, 回退销速, 再回退上次进货量."""
+    """计算推荐补货量: 优先预测模型 p50/p98, 回退销速, 再回退上次进货量.
+    结果向上凑整到中包倍数 (middle_qty)。"""
     import math
     target = _RESTOCK_TARGET_WEEKS
     last_pq = last_purchase_qty_by_bc.get(barcode)
@@ -953,6 +963,9 @@ def _restock_recommendation(
         qty_p50 = None
         qty_p98 = None
         source = None
+
+    qty_p50 = _round_up_to_pack(qty_p50, middle_qty)
+    qty_p98 = _round_up_to_pack(qty_p98, middle_qty)
 
     return {
         "restock_qty_p50": qty_p50,
@@ -1026,6 +1039,7 @@ def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
                 Stockpile.last_purchase_unit_price,
                 Stockpile.master_stock_price_eur,
                 Stockpile.sale_price,
+                Stockpile.extra,
             ).where(Stockpile.is_truly_discontinued == False)  # noqa: E712 — SQL eq
         ).all()
         sales_rows = session.execute(
@@ -1082,8 +1096,20 @@ def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
             lifetime_purchase_qty_by_bc.get(r.product_barcode, 0) + r.qty
         )
 
+    import json as _json
+    mid_qty_by_bc: dict[str, int] = {}
+    for _r in sp_rows:
+        if _r.extra:
+            try:
+                _ex = _json.loads(_r.extra) if isinstance(_r.extra, str) else _r.extra
+                _mq = _ex.get("middle_quantity")
+                if _mq is not None and str(_mq).strip() not in ("", "0"):
+                    mid_qty_by_bc[_r.product_barcode] = int(float(_mq))
+            except (ValueError, TypeError):
+                pass
+
     items: list[dict[str, Any]] = []
-    for bc, model, name_zh, auto_cat, manual_cat, grade, is_disc, sp_supplier_id, last_pp, master_pp, master_sp in sp_rows:
+    for bc, model, name_zh, auto_cat, manual_cat, grade, is_disc, sp_supplier_id, last_pp, master_pp, master_sp, _extra in sp_rows:
         sales = by_bc.get(bc, [])
         # 批发/零售分流: document_no 以 'MB' 开头或 = '0' 算零售, 不进批发聚合.
         # 零售只做透明展示 (retail_qty_26w / retail_revenue_26w), 不污染 weekly_velocity/sale_net_avg.
@@ -1344,6 +1370,7 @@ def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
                 **_restock_recommendation(
                     bc, qty_total, weekly_velocity,
                     forecast_by_bc, last_purchase_qty_by_bc,
+                    middle_qty=mid_qty_by_bc.get(bc),
                 ),
             }
         )
