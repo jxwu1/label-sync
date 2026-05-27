@@ -639,7 +639,7 @@
 .substrip-val { color: var(--ink-1); font-family: var(--mono); }
 .substrip-val--accent { color: var(--accent); font-weight: 600; font-family: var(--mono); }
 
-.content { flex: 1; padding: 16px; overflow-y: auto; min-height: 0; }
+.content { flex: 1; overflow-y: auto; min-height: 0; }
 
 /* ============================================================
  * Shell — page show/hide
@@ -648,7 +648,7 @@
 .page.active { display: grid; gap: var(--sp-4); overflow-y: auto; min-height: 0; }
 
 /* Per-page display overrides (migrated from page-*.css → F4) */
-#pageMain.active        { display: block; }
+#pageMain.active        { display: block; padding: 16px; }
 #pageHistory.active     { display: block; overflow: auto; height: calc(100vh - 122px); padding: 14px; }
 #pageDup.active         { display: flex; flex-direction: column; gap: var(--sp-4); overflow: auto; height: calc(100vh - 122px); padding: 0 2px var(--sp-6) 2px; }
 #pagePurchase.active    { display: flex; flex-direction: column; gap: var(--sp-4); overflow: auto; height: calc(100vh - 122px); padding: 0 2px var(--sp-6) 2px; }
