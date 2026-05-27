@@ -116,6 +116,35 @@ function _autoReset(batchId) {
   }, 3000);
 }
 
+function _updateScanStats(data) {
+  const bw = data.barcode_warnings || [];
+  const lw = data.location_warnings || [];
+  const nb = data.new_barcodes || [];
+  const pw = data.phase2_warnings || [];
+  const totalAnomalies = bw.filter(w => !w.deleted && !w.corrected).length
+    + lw.filter(w => !w.corrected).length
+    + pw.filter(w => !w.resolved).length;
+  const totalNew = nb.length;
+
+  const log = data.log || [];
+  let totalBarcodes = 0;
+  for (const line of log) {
+    const m = line.match(/解析\s*(\d+)\s*条码/);
+    if (m) totalBarcodes = parseInt(m[1]);
+  }
+
+  const el = (id, v) => { const e = $("#" + id); if (e) e.textContent = v; };
+  if (totalBarcodes) {
+    el("scTotal", totalBarcodes.toLocaleString());
+    const matched = totalBarcodes - totalAnomalies - totalNew;
+    const rate = totalBarcodes > 0 ? (matched / totalBarcodes * 100).toFixed(1) + "%" : "—";
+    el("scMatchRate", rate);
+    const bar = $("#scMatchBar"); if (bar) bar.style.width = (matched / totalBarcodes * 100) + "%";
+  }
+  el("scAnomalies", totalAnomalies || "0");
+  el("scNewItems", totalNew || "0");
+}
+
 function handleStatus(data) {
   if (data.log && data.log.length > Alpine.store('term').lastLog) {
     const last = Alpine.store('term').lastLog;
@@ -123,6 +152,7 @@ function handleStatus(data) {
     Alpine.store('term').setLastLog(data.log.length);
   }
   renderReview(data);
+  _updateScanStats(data);
   const cont = $("#cont");
   if (data.waiting) {
     clearInterval(poll);

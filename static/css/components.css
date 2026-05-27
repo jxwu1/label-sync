@@ -397,7 +397,7 @@
 .sp-edit-btn.sp-saving { background: var(--info-subtle); border-color: var(--info); color: var(--info); }
 
 /* ========== Warning card ========== */
-.warn { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.ex-bd .warn { padding: 10px 0; border-bottom: 1px solid var(--line); }
 .warn:last-child { border-bottom: none; }
 
 /* ============================================================
