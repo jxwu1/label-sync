@@ -363,17 +363,18 @@
   <!-- Right column -->
   <div style="grid-column:2;grid-row:1/-1;display:flex;flex-direction:column;gap:12px;min-height:0">
 
-    <!-- 04: File queue -->
+    <!-- 04: File queue — height locked to ~3 items -->
     <section class="pnl" style="flex-shrink:0" id="filesPanel">
       <div class="pnl-hd">
         <span class="pnl-code">04</span>
         <span class="pnl-title">文件队列</span>
-        <span class="pnl-sub" x-text="`${$store.upload.selected.length} files`">0 files</span>
+        <span class="pnl-sub" x-data x-text="($store.upload.selected.length + $store.upload.batches.reduce((s,b) => s+b.files.length, 0)) + ' files'">0 files</span>
         <span class="pnl-spacer"></span>
         <button class="pnl-pill" style="cursor:pointer" id="fqAddBtn" type="button">+ 添加</button>
       </div>
-      <div class="fq-list-v2" id="files" x-data>
-        <template x-for="(f, i) in $store.upload.selected" :key="i">
+      <div style="height:148px;overflow-y:auto" id="files" x-data>
+        <!-- Current batch (uploading/processing) -->
+        <template x-for="(f, i) in $store.upload.selected" :key="'cur-'+i">
           <div class="fq-item">
             <span class="fq-ext" x-text="(f.name.split('.').pop() || '').toUpperCase().slice(0,4)"></span>
             <div class="fq-info">
@@ -393,10 +394,8 @@
             <button class="fq-rm-v2" @click="$store.upload.remove(i)">×</button>
           </div>
         </template>
-      </div>
-      <!-- Completed batches -->
-      <div x-data x-show="$store.upload.batches.length > 0" style="border-top:1px solid var(--line-soft)">
-        <template x-for="(b, bi) in $store.upload.batches" :key="b.id">
+        <!-- Completed batches -->
+        <template x-for="(b, bi) in $store.upload.batches" :key="'b-'+b.id">
           <div class="fq-item" style="gap:8px">
             <span class="fq-status-v2 done"><span class="dot"></span>DONE</span>
             <div class="fq-info">
@@ -407,19 +406,24 @@
             <button class="ex-action" @click="__batchCopyModels(b.id)">复制型号</button>
           </div>
         </template>
+        <!-- Empty state -->
+        <div class="empty" x-data x-show="$store.upload.selected.length === 0 && $store.upload.batches.length === 0">拖入文件开始下一批次</div>
       </div>
-      <div class="fq-actions-v2">
-        <button class="btn btn-primary" id="upload" x-data :disabled="$store.upload.selected.length === 0" style="font-size:var(--fs-sm)">上传文件</button>
-        <button class="btn btn-primary" id="run" disabled style="font-size:var(--fs-sm)">▶ 开始处理</button>
-        <button class="btn btn-success" id="cont" style="display:none;font-size:var(--fs-sm)">继续处理</button>
-        <button class="btn btn-success" id="download" style="display:none;font-size:var(--fs-sm)">下载结果</button>
-        <button class="btn btn-info" id="copyModels" style="display:none;font-size:var(--fs-sm)">复制型号</button>
-        <button class="btn btn-info" id="copyModelsAll" style="display:none;font-size:var(--fs-sm)">复制型号(含重复)</button>
-        <button class="btn btn-ghost" id="reset" style="font-size:var(--fs-sm)" x-data x-show="$store.upload.batches.length > 0">清空</button>
+      <div class="fq-actions-v2" x-data x-show="$store.upload.batches.length > 0">
+        <button class="btn btn-ghost" id="reset" style="font-size:var(--fs-sm)">清空全部</button>
+      </div>
+      <!-- Hidden buttons for JS compatibility -->
+      <div style="display:none">
+        <button id="upload"></button>
+        <button id="run"></button>
+        <button id="cont"></button>
+        <button id="download"></button>
+        <button id="copyModels"></button>
+        <button id="copyModelsAll"></button>
       </div>
       <div id="status" class="fq-status-bar" x-data
            :class="$store.app.statusCls ? `fq-status-bar ${$store.app.statusCls}` : 'fq-status-bar'"
-           x-html="$store.app.statusText">请先上传文件</div>
+           x-html="$store.app.statusText">就绪 · 拖入文件开始处理</div>
     </section>
 
     <!-- 05: Scan stats -->
@@ -450,9 +454,15 @@
           <div class="sc-note">待确认入库</div>
         </div>
       </div>
+      <div style="border-top:1px solid var(--line-soft);padding:10px 16px;display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:var(--fs-xs);font-weight:600;color:var(--ink-2);text-transform:uppercase">最近新品</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px" id="scNewList">
+          <span style="font-size:var(--fs-xs);color:var(--ink-3);padding:3px 6px">暂无新品数据</span>
+        </div>
+      </div>
     </section>
 
-    <!-- 06: Activity log -->
+    <!-- 06: Activity log — height locked -->
     <section class="pnl" style="flex-shrink:0" id="activityPanel">
       <div class="pnl-hd">
         <span class="pnl-code">06</span>
@@ -462,7 +472,7 @@
         <div class="al-live" x-data><span class="al-live-dot"></span>LIVE</div>
         <button class="pnl-pill" style="cursor:pointer" x-data @click="$store.term.clear()">清空</button>
       </div>
-      <div class="al-bd" id="activityBox" x-data>
+      <div class="al-bd" id="activityBox" x-data style="height:180px">
         <template x-for="(item, i) in $store.term.logs.slice(-200)" :key="i">
           <div class="al-row" :class="`${item.src === 'dc' ? 'log-dc' : 'log-lp'} ${item.cls}`" x-text="item.text"></div>
         </template>
