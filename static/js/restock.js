@@ -487,7 +487,7 @@ function exportSelectedCsv() {
   const rows = selected
     .map((it) => {
       const base = cols.map((c) => csvCell(it[c[0]])).join(",");
-      const qty = it.restock_qty_p50 != null ? it.restock_qty_p50 : "";
+      const qty = it.restock_qty_p98 != null ? it.restock_qty_p98 : "";
       const erp = it.model && qty ? `"${it.model},${qty}"` : "";
       return base + "," + erp;
     });
