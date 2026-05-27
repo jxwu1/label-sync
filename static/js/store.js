@@ -35,17 +35,25 @@ document.addEventListener("alpine:init", () => {
     },
   });
 
-  // ===== 待上传文件 =====
+  // ===== 文件队列（按批次追踪） =====
   Alpine.store("upload", {
     selected: [],
+    batches: [],
     add(files) {
       this.selected.push(...files);
     },
     remove(i) {
       this.selected.splice(i, 1);
     },
+    markDone(batchId) {
+      if (!batchId) return;
+      const names = this.selected.map(f => f.name);
+      this.batches.unshift({ id: batchId, files: names, status: "done", ts: Date.now() });
+      this.selected = [];
+    },
     clear() {
       this.selected = [];
+      this.batches = [];
     },
   });
 

@@ -49,8 +49,13 @@ def read_barcode_list() -> dict:
     return {"ok": True, "barcodes": all_barcodes, "models": all_models}
 
 
-def read_model_list() -> dict:
-    csv_path = latest_output_csv()
+def read_model_list(batch_id: str | None = None) -> dict:
+    if batch_id:
+        from app.services.scan_history import get_batch_csv_path
+
+        csv_path = get_batch_csv_path(batch_id)
+    else:
+        csv_path = latest_output_csv()
     if csv_path is None:
         return {"ok": False, "msg": "找不到输出 CSV 文件"}
 

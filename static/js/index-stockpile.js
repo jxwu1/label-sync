@@ -13,6 +13,7 @@ function initTabs() {
 }
 
 export function initStockpile() {
+  if (!document.getElementById('spTabs')) return;
   initTabs();
 
   const spStatus = document.getElementById('spStatus');

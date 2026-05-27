@@ -16,7 +16,10 @@ def barcodes():
 
 @bp.get("/models")
 def models():
-    payload = query_service.read_model_list()
+    from flask import request
+
+    batch_id = request.args.get("batch_id")
+    payload = query_service.read_model_list(batch_id=batch_id)
     if not payload["ok"]:
         status_code = 404 if "找不到" in payload["msg"] else 500
         return jsonify(payload), status_code

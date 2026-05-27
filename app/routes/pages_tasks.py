@@ -76,15 +76,22 @@ def continue_processing():
 @bp.get("/status")
 def status():
     snapshot = task_state.snapshot()
+    done = (
+        not snapshot.running
+        and not snapshot.waiting
+        and snapshot.result_zip is not None
+    )
+    batch_id = ""
+    if done and snapshot.result_zip:
+        batch_id = os.path.splitext(os.path.basename(snapshot.result_zip))[0]
     return jsonify(
         {
             "running": snapshot.running,
             "waiting": snapshot.waiting,
             "waiting_stage": snapshot.waiting_stage,
             "log": snapshot.log,
-            "done": not snapshot.running
-            and not snapshot.waiting
-            and snapshot.result_zip is not None,
+            "done": done,
+            "batch_id": batch_id,
             "error": snapshot.error,
             "barcode_warnings": [warning.to_dict() for warning in snapshot.barcode_warnings],
             "location_warnings": [warning.to_dict() for warning in snapshot.location_warnings],

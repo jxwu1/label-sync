@@ -9,12 +9,16 @@ let poll = null;
 
 initWarnings();
 
-setupDropZone($("#drop"), $("#fileInput"), (files) => { Alpine.store('upload').add([...files]); });
+setupDropZone($("#drop"), $("#fileInput"), (files) => {
+  Alpine.store('upload').add([...files]);
+  autoUploadAndRun();
+});
 
-$("#upload").onclick = async () => {
+async function autoUploadAndRun() {
   const sel = Alpine.store('upload').selected;
   if (!sel.length) return;
   Alpine.store('app').setStatus('<span class="spin"></span>正在上传文件...');
+  Alpine.store('app').setBadge("running", "上传中");
   try {
     const formData = new FormData();
     sel.forEach((f) => formData.append("files", f));
@@ -22,16 +26,95 @@ $("#upload").onclick = async () => {
     if (!data.ok) {
       Alpine.store('app').setStatus("上传失败：" + data.msg, "error");
       Alpine.store('term').push("上传失败：" + data.msg, "log-err");
+      Alpine.store('app').setBadge("error", "出错");
       return;
     }
-    Alpine.store('app').setStatus("上传成功，共 " + data.saved.length + " 个文件", "success");
     Alpine.store('term').push("上传完成：" + data.saved.join(", "), "log-ok");
-    $("#run").disabled = false;
+    autoRun();
   } catch (e) {
     Alpine.store('app').setStatus("上传失败：" + e, "error");
     Alpine.store('term').push("上传失败：" + e, "log-err");
+    Alpine.store('app').setBadge("error", "出错");
   }
-};
+}
+
+async function autoRun() {
+  Alpine.store('app').setStatus('<span class="spin"></span>正在启动处理流程...');
+  Alpine.store('app').setBadge("running", "处理中");
+  Alpine.store('term').push("自动开始处理");
+  plStart();
+  try {
+    const data = await (await fetch("/run", { method: "POST" })).json();
+    if (!data.ok) {
+      Alpine.store('app').setStatus(data.msg, "error");
+      Alpine.store('app').setBadge("error", "出错");
+      Alpine.store('term').push("启动失败：" + data.msg, "log-err");
+      plReset();
+      return;
+    }
+    startPoll();
+  } catch (e) {
+    Alpine.store('app').setStatus("启动失败：" + e, "error");
+    Alpine.store('app').setBadge("error", "出错");
+    Alpine.store('term').push("启动失败：" + e, "log-err");
+    plReset();
+  }
+}
+
+$("#upload").onclick = () => autoUploadAndRun();
+
+let _autoContinuing = false;
+
+function _hasUnresolved(data) {
+  const bw = data.barcode_warnings || [];
+  const lw = data.location_warnings || [];
+  const nb = data.new_barcodes || [];
+  const pw = data.phase2_warnings || [];
+  if (bw.some(w => !w.deleted && !w.corrected)) return true;
+  if (lw.some(w => !w.corrected)) return true;
+  if (nb.length > 0) return true;
+  if (pw.some(w => !w.resolved)) return true;
+  return false;
+}
+
+async function _autoContinue() {
+  if (_autoContinuing) return;
+  _autoContinuing = true;
+  Alpine.store('app').setBadge("running", "处理中");
+  Alpine.store('app').setStatus('<span class="spin"></span>异常已处理完毕，自动继续...');
+  Alpine.store('term').push("异常全部处理完毕，自动继续", "log-ok");
+  try {
+    const data = await (await fetch("/continue", { method: "POST" })).json();
+    if (!data.ok) {
+      Alpine.store('app').setStatus(data.msg, "error");
+      Alpine.store('term').push("继续失败：" + data.msg, "log-err");
+      _autoContinuing = false;
+      return;
+    }
+    startPoll();
+  } catch (e) {
+    Alpine.store('app').setStatus("请求失败：" + e, "error");
+    Alpine.store('term').push("请求失败：" + e, "log-err");
+  }
+  _autoContinuing = false;
+}
+
+let _lastBatchId = "";
+
+function _autoReset(batchId) {
+  _lastBatchId = batchId || "";
+  plFinish();
+  Alpine.store('app').setStatus("处理完成", "success");
+  Alpine.store('app').setBadge("done", "完成");
+  Alpine.store('term').push("处理完成 · 批次 " + (_lastBatchId || "unknown"), "log-ok");
+  Alpine.store('upload').markDone(_lastBatchId);
+  $("#warnBox").innerHTML = '<div class="empty">暂无需要人工处理的异常</div>';
+  setTimeout(() => {
+    plReset();
+    Alpine.store('app').setBadge("idle", "空闲");
+    Alpine.store('app').setStatus("就绪 · 拖入文件开始下一批");
+  }, 3000);
+}
 
 function handleStatus(data) {
   if (data.log && data.log.length > Alpine.store('term').lastLog) {
@@ -42,19 +125,17 @@ function handleStatus(data) {
   renderReview(data);
   const cont = $("#cont");
   if (data.waiting) {
-    clearInterval(poll); Alpine.store('app').setBadge("waiting", "等待处理"); Alpine.store('app').setStatus(waitMsg(data.waiting_stage));
+    clearInterval(poll);
+    if (!_hasUnresolved(data)) { _autoContinue(); return; }
+    Alpine.store('app').setBadge("waiting", "等待处理");
+    Alpine.store('app').setStatus(waitMsg(data.waiting_stage));
     cont.style.display = "block"; cont.disabled = false; cont.textContent = "继续处理";
-    Alpine.store('term').push(waitMsg(data.waiting_stage), "log-warn"); return;
+    return;
   }
   if (data.running) { Alpine.store('app').setBadge("running", "处理中"); Alpine.store('app').setStatus('<span class="spin"></span>处理中，请稍候...'); return; }
   clearInterval(poll); cont.style.display = "none";
-  if (data.error) { Alpine.store('app').setStatus("处理失败，请查看日志", "error"); Alpine.store('app').setBadge("error", "出错"); $("#run").disabled = false; plReset(); return; }
-  if (data.done) {
-    Alpine.store('app').setStatus("处理完成，可下载结果", "success"); Alpine.store('app').setBadge("done", "完成");
-    plFinish();
-    $("#download").style.display = "block"; $("#copyModels").style.display = "block";
-    $("#copyModelsAll").style.display = "block"; $("#reset").style.display = "block"; return;
-  }
+  if (data.error) { Alpine.store('app').setStatus("处理失败，请查看日志", "error"); Alpine.store('app').setBadge("error", "出错"); plReset(); return; }
+  if (data.done) { _autoReset(data.batch_id); return; }
   Alpine.store('app').setBadge("idle", "空闲");
 }
 
@@ -69,7 +150,7 @@ let _plTimer = null;
 function plReset() {
   clearInterval(_plTimer); _plTimer = null;
   $("#plBarFill").style.width = "0%"; $("#plPct").textContent = "0%";
-  document.querySelectorAll(".pl-stage").forEach(el => el.classList.remove("is-current", "is-done"));
+  document.querySelectorAll(".pl-stage-v2").forEach(el => el.classList.remove("is-current", "is-done"));
 }
 function plStart() {
   plReset();
@@ -90,7 +171,7 @@ function plRender(pct) {
   $("#plPct").textContent = Math.round(pct) + "%";
   // 当前阶段：每 20% 一段
   const idx = Math.min(PL_STAGES.length - 1, Math.floor(pct / 20));
-  document.querySelectorAll(".pl-stage").forEach((el, i) => {
+  document.querySelectorAll(".pl-stage-v2").forEach((el, i) => {
     el.classList.toggle("is-current", i === idx && pct < 100);
     el.classList.toggle("is-done", i < idx || pct >= 100);
   });
@@ -106,16 +187,7 @@ const _upReplay = $("#upReplay"); if (_upReplay) _upReplay.onclick = () => alert
 // 文件队列 panel header 的「+ 添加」按钮 → 触发隐藏 fileInput
 const _fqAdd = $("#fqAddBtn"); if (_fqAdd) _fqAdd.onclick = () => $("#fileInput").click();
 
-$("#run").onclick = async () => {
-  const run = $("#run"); run.disabled = true; $("#cont").style.display = "none";
-  Alpine.store('app').setStatus('<span class="spin"></span>正在启动处理流程...'); Alpine.store('app').setBadge("running", "处理中"); Alpine.store('term').push("开始处理");
-  plStart();
-  try {
-    const data = await (await fetch("/run", { method: "POST" })).json();
-    if (!data.ok) { Alpine.store('app').setStatus(data.msg, "error"); Alpine.store('app').setBadge("error", "出错"); Alpine.store('term').push("启动失败：" + data.msg, "log-err"); run.disabled = false; plReset(); return; }
-    startPoll();
-  } catch (e) { Alpine.store('app').setStatus("启动失败：" + e, "error"); Alpine.store('app').setBadge("error", "出错"); Alpine.store('term').push("启动失败：" + e, "log-err"); run.disabled = false; plReset(); }
-};
+$("#run").onclick = () => autoRun();
 
 $("#cont").onclick = async () => {
   const cont = $("#cont"); cont.disabled = true; cont.textContent = "处理中...";
@@ -127,25 +199,34 @@ $("#cont").onclick = async () => {
   } catch (e) { Alpine.store('app').setStatus("请求失败：" + e, "error"); cont.disabled = false; cont.textContent = "继续处理"; Alpine.store('term').push("请求失败：" + e, "log-err"); }
 };
 
-$("#download").onclick = () => { location.href = "/download"; Alpine.store('term').push("下载结果文件"); };
+$("#download").onclick = () => {
+  const bid = _lastBatchId;
+  if (bid) {
+    location.href = "/scan_history/batches/" + encodeURIComponent(bid) + "/download/csv";
+  } else {
+    location.href = "/download";
+  }
+  Alpine.store('term').push("下载结果文件" + (bid ? " · " + bid : ""));
+};
 
 $("#reset").onclick = () => {
   Alpine.store('upload').clear();
   $("#fileInput").value = "";
-  $("#run").disabled = true;
   const c = $("#cont"); c.style.display = "none"; c.disabled = false; c.textContent = "继续处理";
   $("#download").style.display = "none"; $("#copyModels").style.display = "none";
-  $("#copyModelsAll").style.display = "none"; $("#reset").style.display = "none";
+  $("#copyModelsAll").style.display = "none";
   $("#warnBox").innerHTML = '<div class="empty">暂无需要人工处理的异常</div>';
-  Alpine.store('app').setBadge("idle", "空闲"); Alpine.store('app').setStatus("请先上传文件"); clearInterval(poll); Alpine.store('term').setLastLog(0);
-  Alpine.store('term').push("已清空界面，准备下一批", "log-dim");
+  plReset();
+  Alpine.store('app').setBadge("idle", "空闲"); Alpine.store('app').setStatus("就绪 · 拖入文件开始下一批"); clearInterval(poll); Alpine.store('term').setLastLog(0);
+  Alpine.store('term').push("已清空文件队列", "log-dim");
 };
 
-async function copyModelsAndDisplay(isUnique) {
-  const cm = isUnique ? $("#copyModels") : $("#copyModelsAll"); const label = isUnique ? "复制所有型号" : "复制所有型号（含重复）";
+async function copyModelsAndDisplay(isUnique, batchId) {
+  const cm = isUnique ? $("#copyModels") : $("#copyModelsAll"); const label = isUnique ? "复制型号" : "复制型号(含重复)";
   cm.disabled = true; cm.textContent = "复制中...";
   try {
-    const data = await (await fetch("/models")).json();
+    const url = batchId ? "/models?batch_id=" + encodeURIComponent(batchId) : "/models";
+    const data = await (await fetch(url)).json();
     if (!data.ok) { alert("获取失败：" + data.msg); cm.disabled = false; cm.textContent = label; return; }
     const models = isUnique ? [...new Set(data.models)] : data.models;
     await copyToClip(models.join("\n")); const l = isUnique ? "个型号（去重）" : "个型号（含重复）";
@@ -153,8 +234,8 @@ async function copyModelsAndDisplay(isUnique) {
     setTimeout(() => { cm.textContent = label; cm.disabled = false; }, 2500);
   } catch (e) { alert("复制失败：" + e); cm.textContent = label; cm.disabled = false; }
 }
-$("#copyModels").onclick = () => copyModelsAndDisplay(true);
-$("#copyModelsAll").onclick = () => copyModelsAndDisplay(false);
+$("#copyModels").onclick = () => copyModelsAndDisplay(true, _lastBatchId);
+$("#copyModelsAll").onclick = () => copyModelsAndDisplay(false, _lastBatchId);
 
 function setupTransferZone() { setupDropZone($("#tDrop"), $("#tInput"), async (files) => { await uploadTransferFiles(files, $("#tMsg")); loadTransferUI(); }); }
 
@@ -186,6 +267,8 @@ async function loadMsgsUI() {
 
 async function __delMsg(id) { await deleteMessage(id); loadMsgsUI(); }
 window.__delMsg = __delMsg;
+window.__batchDownload = (bid) => { location.href = "/scan_history/batches/" + encodeURIComponent(bid) + "/download/csv"; };
+window.__batchCopyModels = (bid) => copyModelsAndDisplay(true, bid);
 
 async function restore() {
   try {

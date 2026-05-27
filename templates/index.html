@@ -301,196 +301,166 @@
 </div>
 
 <div class="page" id="pageMain" x-data :class="$store.nav.current === 'main' ? 'active' : ''">
-  <div class="grid grid-cols-[1fr_340px] grid-rows-[auto_auto_1fr] gap-4 max-lg:grid-cols-1" style="min-height:calc(100vh - 154px)">
+  <div class="page-grid">
 
-  <!-- PR-FE-8a：UploadPanel（DataOps 风 drop zone + 4 角刻线 + 三按钮） -->
-  <section class="up-panel col-span-1 row-span-1">
-    <div class="up-panel-hd">
-      <span class="up-panel-code">01</span>
-      <span class="up-panel-title">文件投递</span>
-      <span class="up-panel-sub">ingestion · drop zone</span>
-      <span class="flex-1"></span>
-      <span class="up-panel-pill">.xlsx</span>
-      <span class="up-panel-pill">.csv</span>
-      <span class="up-panel-pill">stockpile</span>
+  <!-- 01: File Upload -->
+  <section class="pnl">
+    <div class="pnl-hd">
+      <span class="pnl-code">01</span>
+      <span class="pnl-title">文件投递</span>
+      <span class="pnl-sub">拖入即处理</span>
+      <span class="pnl-spacer"></span>
+      <span class="pnl-pill">.xlsx</span>
+      <span class="pnl-pill">.csv</span>
     </div>
-    <div class="p-4 flex gap-3 items-stretch">
-      <div class="drop up-drop" id="drop">
-        <input type="file" id="fileInput" multiple accept=".xlsx,.csv">
-        <div class="w-12 h-12 shrink-0 bg-accent-subtle rounded-md flex items-center justify-center text-accent text-2xl">⇣</div>
-        <div class="flex-1 min-w-0">
-          <div class="text-lg text-ink-1 mb-1"><b class="text-ink-0 font-semibold">拖拽文件到此区域</b> 或 <span class="text-accent font-semibold hover:underline">浏览本地文件</span></div>
-          <div class="text-sm text-ink-2">扫描 .xlsx · stockpile .csv · 模板 .csv</div>
+    <div class="pnl-bd">
+      <div class="drop-zone" id="drop">
+        <input type="file" id="fileInput" multiple accept=".xlsx,.csv" style="display:none">
+        <div class="drop-icon">⇣</div>
+        <div class="drop-text">
+          <div class="drop-main">拖拽扫描文件到此区域</div>
+          <div class="drop-hint">支持 .xlsx / .csv · 投入后自动上传并开始处理</div>
         </div>
       </div>
-      <div class="flex flex-col gap-2 w-40 shrink-0">
-        <button class="btn btn-primary text-base py-3 px-4 font-semibold" id="run" disabled>▶ 开始处理</button>
-        <button class="btn btn-ghost text-sm py-2 px-3" id="upRules" type="button">⚙ 配置规则</button>
-        <button class="btn btn-ghost text-sm py-2 px-3" id="upReplay" type="button">↺ 重放上次</button>
+    </div>
+  </section>
+
+  <!-- 02: Pipeline -->
+  <section class="pnl" id="pipelinePanel">
+    <div class="pnl-hd">
+      <span class="pnl-code">02</span>
+      <span class="pnl-title">处理管线</span>
+      <span class="pnl-sub">pipeline</span>
+      <span class="pnl-spacer"></span>
+      <span class="mono" style="font-size:var(--fs-lg);font-weight:700;color:var(--accent)" id="plPct">0%</span>
+    </div>
+    <div class="pnl-bd">
+      <div class="pl-progress"><div class="pl-progress-fill" id="plBarFill"></div></div>
+      <div class="pl-stages" id="plStages">
+        <div class="pl-stage-v2"><span class="pl-num">01</span><span class="pl-name">Parse</span><span class="pl-desc">解析文件</span></div>
+        <div class="pl-stage-v2"><span class="pl-num">02</span><span class="pl-name">Norm</span><span class="pl-desc">标准化</span></div>
+        <div class="pl-stage-v2"><span class="pl-num">03</span><span class="pl-name">Match</span><span class="pl-desc">匹配库存</span></div>
+        <div class="pl-stage-v2"><span class="pl-num">04</span><span class="pl-name">Audit</span><span class="pl-desc">异常检测</span></div>
+        <div class="pl-stage-v2"><span class="pl-num">05</span><span class="pl-name">Commit</span><span class="pl-desc">写入仓库</span></div>
       </div>
     </div>
   </section>
 
-  <!-- PR-FE-8a：PipelinePanel（5 阶段假壳：B 选项） -->
-  <section class="pl-panel col-span-1 row-span-1" id="pipelinePanel">
-    <div class="up-panel-hd">
-      <span class="up-panel-code">02</span>
-      <span class="up-panel-title">处理管线</span>
-      <span class="up-panel-sub">pipeline · 5 stages</span>
-      <span class="flex-1"></span>
-      <span class="pl-pct" id="plPct">0%</span>
+  <!-- 03: Exceptions -->
+  <section class="pnl" id="warnPanel" style="min-height:0">
+    <div class="pnl-hd">
+      <span class="pnl-code">03</span>
+      <span class="pnl-title">异常处理</span>
+      <span class="pnl-sub">exceptions</span>
+      <span class="pnl-spacer"></span>
+      <span class="pnl-pill">0 待处理</span>
     </div>
-    <div class="up-panel-bd">
-      <div class="pl-bar"><div class="pl-bar-fill" id="plBarFill"></div></div>
-      <div class="grid grid-cols-5 gap-2" id="plStages">
-        <div class="pl-stage" data-stage="parse"><span class="pl-stage-num">01</span><span class="pl-stage-label">PARSE</span><span class="pl-stage-desc">解析文件结构</span></div>
-        <div class="pl-stage" data-stage="norm"><span class="pl-stage-num">02</span><span class="pl-stage-label">NORMALIZE</span><span class="pl-stage-desc">字段标准化</span></div>
-        <div class="pl-stage" data-stage="match"><span class="pl-stage-num">03</span><span class="pl-stage-label">MATCH</span><span class="pl-stage-desc">匹配数据库</span></div>
-        <div class="pl-stage" data-stage="audit"><span class="pl-stage-num">04</span><span class="pl-stage-label">AUDIT</span><span class="pl-stage-desc">异常检测</span></div>
-        <div class="pl-stage" data-stage="commit"><span class="pl-stage-num">05</span><span class="pl-stage-label">COMMIT</span><span class="pl-stage-desc">写入仓库</span></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- PR-FE-8b：ExceptionsPanel 视觉换皮 -->
-  <section class="up-panel col-span-1 row-span-1" id="warnPanel">
-    <div class="up-panel-hd">
-      <span class="up-panel-code">03</span>
-      <span class="up-panel-title">异常处理</span>
-      <span class="up-panel-sub">exceptions · review queue</span>
-      <span class="flex-1"></span>
-      <span class="up-panel-pill ex-sev-pill ex-sev-pill--high">HIGH</span>
-      <span class="up-panel-pill ex-sev-pill ex-sev-pill--med">MED</span>
-      <span class="up-panel-pill ex-sev-pill ex-sev-pill--low">LOW</span>
-    </div>
-    <div class="up-panel-bd ex-bd" id="warnBox">
+    <div id="warnBox">
       <div class="empty">暂无需要人工处理的异常</div>
     </div>
   </section>
 
-  <div class="col-start-2 row-span-full flex flex-col gap-4 min-h-0 max-lg:col-start-1 max-lg:row-span-1">
+  <!-- Right column -->
+  <div style="grid-column:2;grid-row:1/-1;display:flex;flex-direction:column;gap:12px;min-height:0">
 
-    <!-- PR-FE-8c：FilesPanel 视觉换皮（按 panels2.jsx FilesPanel 设计稿重做） -->
-    <section class="up-panel shrink-0" id="filesPanel">
-      <div class="up-panel-hd">
-        <span class="up-panel-code">04</span>
-        <span class="up-panel-title">文件队列</span>
-        <span class="up-panel-sub" x-data x-text="`${$store.upload.selected.length} files`">0 files</span>
-        <span class="flex-1"></span>
-        <button class="fq-add-btn" id="fqAddBtn" type="button">+ 添加</button>
+    <!-- 04: File queue -->
+    <section class="pnl" style="flex-shrink:0" id="filesPanel">
+      <div class="pnl-hd">
+        <span class="pnl-code">04</span>
+        <span class="pnl-title">文件队列</span>
+        <span class="pnl-sub" x-text="`${$store.upload.selected.length} files`">0 files</span>
+        <span class="pnl-spacer"></span>
+        <button class="pnl-pill" style="cursor:pointer" id="fqAddBtn" type="button">+ 添加</button>
       </div>
-      <div class="block p-0">
-        <div class="max-h-[220px] overflow-y-auto" id="files" x-data>
-          <template x-for="(f, i) in $store.upload.selected" :key="i">
-            <div class="file fl-row">
-              <span class="fl-type" x-text="(f.name.split('.').pop() || '').toUpperCase().slice(0,4)"></span>
-              <div class="fl-info">
-                <div class="fl-name" :title="f.name" x-text="f.name"></div>
-                <div class="fl-meta" x-text="`${(f.size/1024).toFixed(1)} KB`"></div>
-              </div>
-              <span class="fq-pill" :class="`fq-pill--${
-                $store.app.badgeType === 'running' ? 'run' :
-                $store.app.badgeType === 'done' ? 'done' :
-                $store.app.badgeType === 'error' ? 'fail' : 'queue'
-              }`">
-                <span class="fq-pill-dot"></span>
-                <span x-text="
-                  $store.app.badgeType === 'running' ? 'RUN' :
-                  $store.app.badgeType === 'done' ? 'DONE' :
-                  $store.app.badgeType === 'error' ? 'FAIL' : 'QUEUE'
-                "></span>
-              </span>
-              <span class="rm fl-rm" @click="$store.upload.remove(i)">×</span>
+      <div class="fq-list-v2" id="files" x-data>
+        <template x-for="(f, i) in $store.upload.selected" :key="i">
+          <div class="fq-item">
+            <span class="fq-ext" x-text="(f.name.split('.').pop() || '').toUpperCase().slice(0,4)"></span>
+            <div class="fq-info">
+              <div class="fq-name" :title="f.name" x-text="f.name"></div>
+              <div class="fq-size" x-text="`${(f.size/1024).toFixed(1)} KB`"></div>
             </div>
-          </template>
-        </div>
-        <div class="flex flex-wrap gap-2 py-3 px-4 border-t border-line-soft">
-          <button class="btn btn-secondary" id="upload" x-data :disabled="$store.upload.selected.length === 0">上传文件</button>
-          <button class="btn btn-warning" id="cont">继续处理</button>
-          <button class="btn btn-success" id="download">下载结果</button>
-          <button class="btn btn-info" id="copyModels">复制所有型号</button>
-          <button class="btn btn-info" id="copyModelsAll">复制所有型号（含重复）</button>
-          <button class="btn btn-ghost" id="reset">清空界面，准备下一批</button>
-        </div>
-        <div id="status" class="py-2 px-4 border-t border-line-soft text-sm" x-data
-     :class="$store.app.statusCls ? `status ${$store.app.statusCls}` : 'status'"
-     x-html="$store.app.statusText">请先上传文件</div>
+            <span class="fq-status-v2" :class="
+              $store.app.badgeType === 'running' ? 'run' :
+              $store.app.badgeType === 'done' ? 'done' : 'queue'
+            ">
+              <span class="dot"></span>
+              <span x-text="
+                $store.app.badgeType === 'running' ? 'RUN' :
+                $store.app.badgeType === 'done' ? 'DONE' : 'QUEUE'
+              "></span>
+            </span>
+            <button class="fq-rm-v2" @click="$store.upload.remove(i)">×</button>
+          </div>
+        </template>
       </div>
+      <!-- Completed batches -->
+      <div x-data x-show="$store.upload.batches.length > 0" style="border-top:1px solid var(--line-soft)">
+        <template x-for="(b, bi) in $store.upload.batches" :key="b.id">
+          <div class="fq-item" style="gap:8px">
+            <span class="fq-status-v2 done"><span class="dot"></span>DONE</span>
+            <div class="fq-info">
+              <div class="fq-name" x-text="b.id" style="font-size:var(--fs-xs)"></div>
+              <div class="fq-size" x-text="b.files.length + ' 文件'"></div>
+            </div>
+            <button class="ex-action" @click="__batchDownload(b.id)">下载</button>
+            <button class="ex-action" @click="__batchCopyModels(b.id)">复制型号</button>
+          </div>
+        </template>
+      </div>
+      <div class="fq-actions-v2">
+        <button class="btn btn-primary" id="upload" x-data :disabled="$store.upload.selected.length === 0" style="font-size:var(--fs-sm)">上传文件</button>
+        <button class="btn btn-primary" id="run" disabled style="font-size:var(--fs-sm)">▶ 开始处理</button>
+        <button class="btn btn-success" id="cont" style="display:none;font-size:var(--fs-sm)">继续处理</button>
+        <button class="btn btn-success" id="download" style="display:none;font-size:var(--fs-sm)">下载结果</button>
+        <button class="btn btn-info" id="copyModels" style="display:none;font-size:var(--fs-sm)">复制型号</button>
+        <button class="btn btn-info" id="copyModelsAll" style="display:none;font-size:var(--fs-sm)">复制型号(含重复)</button>
+        <button class="btn btn-ghost" id="reset" style="font-size:var(--fs-sm)" x-data x-show="$store.upload.batches.length > 0">清空</button>
+      </div>
+      <div id="status" class="fq-status-bar" x-data
+           :class="$store.app.statusCls ? `fq-status-bar ${$store.app.statusCls}` : 'fq-status-bar'"
+           x-html="$store.app.statusText">请先上传文件</div>
     </section>
 
-    <!-- PR-FE-8c：StockpilePanel 视觉换皮 -->
-    <section class="up-panel flex-1 min-h-0" id="stockpilePanel">
-      <div class="up-panel-hd">
-        <span class="up-panel-code">05</span>
-        <span class="up-panel-title">STOCKPILE</span>
-        <span class="up-panel-sub">数据仓库</span>
-        <span class="flex-1"></span>
-        <span class="sp-online"><span class="sp-online-dot"></span>ONLINE</span>
+    <!-- 05: Scan stats -->
+    <section class="pnl" style="flex:1;min-height:0" id="scanStatsPanel">
+      <div class="pnl-hd">
+        <span class="pnl-code">05</span>
+        <span class="pnl-title">扫描统计</span>
+        <span class="pnl-sub">当前批次</span>
+        <span class="pnl-spacer"></span>
       </div>
-      <div class="block p-0">
-        <div class="tabs sp-tabs" id="spTabs">
-          <button class="tabs__tab active" data-tab="status" type="button">状态</button>
-          <button class="tabs__tab" data-tab="init" type="button">初始化</button>
-          <button class="tabs__tab" data-tab="cmp" type="button">月度比对</button>
-          <button class="tabs__tab" data-tab="search" type="button">搜索</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 16px">
+        <div class="sc-card">
+          <div class="sc-label">总条码</div>
+          <div class="sc-value" id="scTotal">—</div>
         </div>
-
-        <div class="tabs__panel active p-3" data-tab-panel="status">
-          <div class="sp-stats" id="spStats" hidden>
-            <div class="sp-stat">
-              <div class="sp-stat-num" id="spStatTotal">—</div>
-              <div class="sp-stat-label">总条数</div>
-            </div>
-            <div class="sp-stat">
-              <div class="sp-stat-num" id="spStatLastImport">—</div>
-              <div class="sp-stat-label">上次 import</div>
-            </div>
-            <div class="sp-stat">
-              <div class="sp-stat-num" id="spStatActive">—</div>
-              <div class="sp-stat-label">活跃</div>
-            </div>
-            <div class="sp-stat">
-              <div class="sp-stat-num" id="spStatInactive">—</div>
-              <div class="sp-stat-label">失效</div>
-            </div>
-          </div>
-          <!-- uninitialized / 检查失败 提示（默认显示） -->
-          <div class="stockpile-status" id="spStatus">检查中...</div>
+        <div class="sc-card">
+          <div class="sc-label">匹配率</div>
+          <div class="sc-value" style="color:var(--success)" id="scMatchRate">—</div>
+          <div class="sc-bar"><div class="sc-bar-fill" id="scMatchBar" style="width:0;background:var(--success)"></div></div>
         </div>
-
-        <div class="tabs__panel p-3" data-tab-panel="init">
-          <div class="drop" id="spInitDrop">
-            <input type="file" id="spInitInput" accept=".xlsx,.csv">
-            <div>拖入系统导出文件初始化数据库</div>
-          </div>
-          <button class="btn btn-secondary" id="spInitBtn" disabled>初始化</button>
-          <div id="spInitMsg" class="hint"></div>
+        <div class="sc-card">
+          <div class="sc-label">异常</div>
+          <div class="sc-value" style="color:var(--warn)" id="scAnomalies">—</div>
         </div>
-
-        <div class="tabs__panel p-3" data-tab-panel="cmp">
-          <div class="drop" id="spCmpDrop">
-            <input type="file" id="spCmpInput" accept=".xlsx,.csv">
-            <div>拖入系统导出文件进行月度比对</div>
-          </div>
-          <button class="btn btn-secondary" id="spCmpBtn" disabled>比对</button>
-          <div id="spCmpRes" class="hint"></div>
-        </div>
-
-        <div class="tabs__panel p-3" data-tab-panel="search">
-          <input type="text" id="spSearchInput" class="form-input-text" placeholder="搜索条码或型号（至少2个字符）">
-          <div id="spSearchRes" class="hint max-h-[200px] overflow-y-auto mt-2"></div>
+        <div class="sc-card">
+          <div class="sc-label">新品</div>
+          <div class="sc-value" style="color:var(--info)" id="scNewItems">—</div>
+          <div class="sc-note">待确认入库</div>
         </div>
       </div>
     </section>
 
-    <section class="up-panel" id="activityPanel">
-      <div class="up-panel-hd">
-        <span class="up-panel-code">06</span>
-        <span class="up-panel-title">活动日志</span>
-        <span class="up-panel-sub">tail · live</span>
-        <span class="flex-1"></span>
-        <span class="al-live" x-data><span class="al-live-dot"></span>LIVE</span>
-        <button class="up-panel-pill al-clear" type="button" x-data @click="$store.term.clear()">清空</button>
+    <!-- 06: Activity log -->
+    <section class="pnl" style="flex-shrink:0" id="activityPanel">
+      <div class="pnl-hd">
+        <span class="pnl-code">06</span>
+        <span class="pnl-title">活动日志</span>
+        <span class="pnl-sub">tail · live</span>
+        <span class="pnl-spacer"></span>
+        <div class="al-live" x-data><span class="al-live-dot"></span>LIVE</div>
+        <button class="pnl-pill" style="cursor:pointer" x-data @click="$store.term.clear()">清空</button>
       </div>
       <div class="al-bd" id="activityBox" x-data>
         <template x-for="(item, i) in $store.term.logs.slice(-200)" :key="i">
