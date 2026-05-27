@@ -292,7 +292,7 @@ def _build_sys(stats: dict) -> list[dict]:
             total = latest_run.n_skus_total
             if total and scored < total:
                 pct = int(scored / total * 100)
-                rows.append({"status": "warn", "label": "Backtest", "value": f"运行中 {pct}%"})
+                rows.append({"status": "running", "label": "Backtest", "value": f"运行中 {pct}%"})
             else:
                 ts = (latest_run.created_at or "")[:10]
                 rows.append({"status": "ok", "label": "Backtest", "value": f"{latest_run.model_name} · {ts}"})
