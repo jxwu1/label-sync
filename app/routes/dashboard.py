@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 
 from app.models import (
     AttendanceRecord,
+    BacktestRun,
     PurchaseOrder,
     PurchaseOrderLine,
     StockpileChange,
@@ -105,13 +106,11 @@ def _build_dq() -> list[dict]:
 
 def _build_feed() -> list[dict]:
     items: list[dict] = []
-    try:
-        _feed_snapshots(items)
-        _feed_changes(items)
-        _feed_purchases(items)
-        _feed_scans(items)
-    except Exception:
-        pass
+    for fn in (_feed_snapshots, _feed_changes, _feed_purchases, _feed_scans):
+        try:
+            fn(items)
+        except Exception:
+            pass
     items.sort(key=lambda x: x.get("_ts", ""), reverse=True)
     return items[:10]
 
@@ -279,6 +278,26 @@ def _build_sys(stats: dict) -> list[dict]:
         )
     except Exception:
         rows.append({"status": "warn", "label": "考勤", "value": "—"})
+
+    try:
+        with get_session() as session:
+            latest_run = (
+                session.execute(
+                    select(BacktestRun).order_by(BacktestRun.id.desc()).limit(1)
+                )
+                .scalar()
+            )
+        if latest_run:
+            scored = latest_run.n_skus_scored
+            total = latest_run.n_skus_total
+            if total and scored < total:
+                pct = int(scored / total * 100)
+                rows.append({"status": "warn", "label": "Backtest", "value": f"运行中 {pct}%"})
+            else:
+                ts = (latest_run.created_at or "")[:10]
+                rows.append({"status": "ok", "label": "Backtest", "value": f"{latest_run.model_name} · {ts}"})
+    except Exception:
+        pass
 
     try:
         rev = subprocess.run(
