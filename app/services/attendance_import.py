@@ -10,6 +10,7 @@ import openpyxl
 from sqlalchemy import select, update
 
 from app.models import Employee, SystemSetting, get_session
+from app.services import attendance as attendance_service
 
 _TIME_RE = re.compile(r"(?<!\d)(\d{1,2}):(\d{2})")
 _PAREN_RE = re.compile(r"[(（][^)）]*[)）]")
@@ -148,3 +149,107 @@ def ignore_account(account: str) -> None:
             st.value = payload
         else:
             s.add(SystemSetting(key=_IGNORE_KEY, value=payload))
+
+
+def _build_plan_core(rows, month, *, account_map, ignored, name_by_id, month_data, leaves_by_emp):
+    """纯计算计划核心。共享数据由调用方注入(便于测试)。"""
+    # 姓名 -> employee_id 建议(仅唯一姓名才建议,重名留空)
+    name_counts = {}
+    for nm in name_by_id.values():
+        name_counts[nm] = name_counts.get(nm, 0) + 1
+    id_by_name = {nm: eid for eid, nm in name_by_id.items() if name_counts[nm] == 1}
+
+    matched = []
+    unbound = []
+    needs_manual = []
+    for row in rows:
+        acc = row["account"]
+        nm = row["name"]
+        if acc in ignored:
+            continue
+        eid = account_map.get(acc)
+        if not eid:
+            unbound.append(
+                {"account": acc, "name": nm, "suggested_employee_id": id_by_name.get(nm)}
+            )
+            continue
+        disp = name_by_id.get(eid, nm)
+        existing = month_data.get(eid, {})
+        leaves = leaves_by_emp.get(eid, {})
+        to_write = []
+        skip_existing = 0
+        skip_single = 0
+        for day_int in sorted(row["days"]):
+            parsed = row["days"][day_int]
+            date = f"{month}-{day_int:02d}"
+            if date in existing or date in leaves:
+                skip_existing += 1
+                continue
+            if parsed[0] == "single":
+                skip_single += 1
+                needs_manual.append(
+                    {"employee_id": eid, "name": disp, "date": date, "time": parsed[1]}
+                )
+                continue
+            _, start, end = parsed
+            if start >= end:  # 异常时段,转手动
+                skip_single += 1
+                needs_manual.append(
+                    {"employee_id": eid, "name": disp, "date": date, "time": f"{start}-{end}"}
+                )
+                continue
+            to_write.append({"date": date, "start": start, "end": end})
+        matched.append(
+            {
+                "employee_id": eid,
+                "name": disp,
+                "to_write": to_write,
+                "skip_existing": skip_existing,
+                "skip_single": skip_single,
+            }
+        )
+    return {
+        "month": month,
+        "matched": matched,
+        "unbound": unbound,
+        "needs_manual": needs_manual,
+        "counts": {
+            "matched": len(matched),
+            "unbound": len(unbound),
+            "needs_manual": len(needs_manual),
+            "to_write": sum(len(m["to_write"]) for m in matched),
+        },
+    }
+
+
+def build_plan(rows, month):
+    """读 DB(绑定/忽略/已有考勤/请假)并产出导入计划。"""
+    employees = attendance_service.list_employees()
+    name_by_id = {e["id"]: e["name"] for e in employees}
+    return _build_plan_core(
+        rows,
+        month,
+        account_map=get_account_map(),
+        ignored=list_ignored(),
+        name_by_id=name_by_id,
+        month_data=attendance_service.load_month(month),
+        leaves_by_emp=attendance_service.list_leaves(month),
+    )
+
+
+def apply_plan(rows, month):
+    """对计划里的 to_write 天调 set_day 写入。返回写入/跳过计数。"""
+    plan = build_plan(rows, month)
+    written = 0
+    for m in plan["matched"]:
+        for d in m["to_write"]:
+            attendance_service.set_day(
+                m["employee_id"], d["date"], {"start": d["start"], "end": d["end"]}
+            )
+            written += 1
+    return {
+        "written": written,
+        "skipped_existing": sum(m["skip_existing"] for m in plan["matched"]),
+        "skipped_single": sum(m["skip_single"] for m in plan["matched"]),
+        "unbound": len(plan["unbound"]),
+    }
