@@ -659,160 +659,117 @@
       </div>
       <div class="page" id="pagePurchase" x-data :class="$store.nav.current === 'purchase' ? 'active' : ''"></div>
       <div class="page" id="pageAttendance" x-data :class="$store.nav.current === 'attendance' ? 'active' : ''"></div>
-      <div class="page" id="pageHistory" x-data :class="$store.nav.current === 'history' ? 'active' : ''">
-        <!-- 持久顶部大 panel：tabs + QUERY 都包在内（设计 §pages-history.jsx:24-110），3 个子 tab 切换时此 panel 始终可见 -->
-        <div class="panel" id="historyTopPanel">
-          <div class="tabs hist-tabs" id="historyTabs">
-            <button class="tabs__tab active" data-history-tab="search" type="button">
-              <span class="hist-tab-glyph">⌕</span><span class="hist-tab-label">货号查询</span>
-            </button>
-            <button class="tabs__tab" data-history-tab="recent" type="button">
-              <span class="hist-tab-glyph">◷</span><span class="hist-tab-label">最近改动</span>
-            </button>
-            <button class="tabs__tab" data-history-tab="scan" type="button">
-              <span class="hist-tab-glyph">⊞</span><span class="hist-tab-label">扫描批次</span>
-            </button>
+      <div class="page hist-v2" id="pageHistory" x-data :class="$store.nav.current === 'history' ? 'active' : ''">
+       <div class="content-fill">
+        <!-- top: tabs + QUERY -->
+        <div class="top-pnl">
+          <div class="tab-row" id="historyTabs">
+            <button class="tab-btn active" data-history-tab="search" type="button"><span class="tab-glyph">⌕</span> 货号查询</button>
+            <button class="tab-btn" data-history-tab="batch" type="button"><span class="tab-glyph">◷</span> 批次记录</button>
           </div>
-          <div class="hist-search-block" id="historySearchPanel">
-            <div class="hist-search-codeline">
-              <span class="hist-search-code">QUERY · 输入条码 / 货号 / 型号</span>
-            </div>
-            <div class="hist-search-row">
-              <div class="hist-search-wrap">
-                <span class="hist-search-prefix">⌕</span>
-                <input type="text" id="historyInput" placeholder="例如 8299979002791 或型号" autocomplete="off">
-                <span class="hist-search-kbd">↵</span>
+          <div class="search-block" id="historySearchPanel">
+            <span class="search-code">QUERY · 输入条码 / 货号 / 型号</span>
+            <div class="search-row">
+              <div class="search-wrap">
+                <span class="search-prefix">⌕</span>
+                <input class="search-inp" type="text" id="historyInput" placeholder="例如 8299979002791 或型号" autocomplete="off">
+                <span class="search-kbd">↵</span>
               </div>
-              <button class="hist-cta hist-cta--primary" id="historySearch">⌕ 查询</button>
-              <button class="hist-cta hist-cta--ghost" id="historyClear">↺ 重置</button>
+              <button class="btn btn--primary" id="historySearch">⌕ 查询</button>
+              <button class="btn btn--ghost" id="historyClear">↺ 重置</button>
             </div>
-            <div class="hist-recent-row" id="historyRecentRow" hidden>
-              <span class="hist-recent-label">RECENT</span>
-              <div class="hist-recent-chips" id="historyRecentChips"></div>
+            <div class="recent-row" id="historyRecentRow" hidden>
+              <span class="recent-label">RECENT</span>
+              <div class="hist-recent-chips" id="historyRecentChips" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"></div>
             </div>
-            <div class="history-hint" id="historyHint">输入条码或型号后查询历史</div>
+            <div class="history-hint" id="historyHint" style="font-size:var(--fs-xs);color:var(--ink-3);margin-top:8px;">输入条码或型号后查询历史</div>
           </div>
         </div>
 
-        <div class="tabs__panel active" data-history-tab-panel="search">
-          <div class="panel" id="historyFuzzyPanel" hidden>
-            <div class="panel-hd">候选匹配（精确未命中，请选择一项）</div>
-            <div class="panel-bd" id="historyFuzzyList"></div>
-          </div>
-          <div class="panel" id="historyCurrentPanel" hidden>
-            <div class="panel-hd">
-              <span class="hist-phd-code">CUR</span>
-              <span class="hist-phd-title">当前状态</span>
-              <span class="hist-phd-sub">snapshot · 实时同步</span>
-              <div class="hist-actions">
-                <button class="hist-cta hist-cta--ghost hist-cta--sm" id="historyCopyBarcodeBtn" type="button" hidden>⎘ 复制货号</button>
+        <div class="tab-panels">
+        <!-- ═══ SEARCH tab: 双列 ═══ -->
+        <div class="tab-panel active" data-history-tab-panel="search">
+          <div class="search-cols">
+
+            <!-- 左：CUR 列（hero + 概况/深度 子tab） -->
+            <div class="cur-col" id="historyCurCol">
+              <div id="historyFuzzyPanel" hidden style="margin-bottom:12px;">
+                <div class="cur-sub" style="margin-bottom:6px;">候选匹配（精确未命中，请选择）</div>
+                <div id="historyFuzzyList"></div>
+              </div>
+              <!-- hero（history.js 填充：型号/条码/状态/grade/复制） -->
+              <div id="historyHeroWrap"></div>
+              <!-- 左子 tab -->
+              <div class="left-tabs" id="historyLeftTabs" hidden>
+                <button class="left-tab active" data-ltab="overview" type="button">概况</button>
+                <button class="left-tab" data-ltab="deep" type="button">深度</button>
+              </div>
+              <div class="left-panel active" data-lpanel="overview" id="historyCurrent"></div>
+              <div class="left-panel" data-lpanel="deep" id="historyExtras"></div>
+              <button class="btn btn--ghost" id="historyCopyBarcodeBtn" type="button" hidden style="display:none;">⎘ 复制货号</button>
+            </div>
+
+            <!-- 右：可折叠区段 -->
+            <div class="detail-col" id="historyDetailCol" hidden>
+              <div class="sec open" id="historyAnalyticsPanel">
+                <div class="sec-hd" onclick="this.parentElement.classList.toggle('open')"><span class="sec-code">SLA</span><span class="sec-title">销售分析</span><span class="sec-sub">auto-class · 客户拆分</span><span class="sec-spacer"></span><span class="sec-chevron">▶</span></div>
+                <div class="sec-bd"><div id="historyAnalytics"></div></div>
+              </div>
+              <div class="sec open" id="historyPurchasePanel">
+                <div class="sec-hd" onclick="this.parentElement.classList.toggle('open')"><span class="sec-code">PUR</span><span class="sec-title">采购面</span><span class="sec-sub">stock estimate</span><span class="sec-spacer"></span><span class="sec-chevron">▶</span></div>
+                <div class="sec-bd"><div id="historyPurchase"></div></div>
+              </div>
+              <div class="sec" id="historyRestockPanel">
+                <div class="sec-hd" onclick="this.parentElement.classList.toggle('open')"><span class="sec-code">RST</span><span class="sec-title">补货决策快照</span><span class="sec-sub">财务 · 库存 · 盈亏 · 紧迫分</span><span class="sec-spacer"></span><span class="sec-chevron">▶</span></div>
+                <div class="sec-bd"><div id="historyRestock"></div></div>
+              </div>
+              <div class="sec" id="historyTimelineChartPanel">
+                <div class="sec-hd" onclick="this.parentElement.classList.toggle('open')"><span class="sec-code">TML</span><span class="sec-title">销售 / 进价时间线</span><span class="sec-sub">3 年 · 月柱 + 折线</span><span class="sec-spacer"></span><span class="sec-chevron">▶</span></div>
+                <div class="sec-bd">
+                  <div class="hist-tml-wrap">
+                    <div class="hist-tml-yaxis hist-tml-yaxis--left"  id="historyTimelineYLeft"></div>
+                    <div class="hist-tml-chart" id="historyTimelineChart"></div>
+                    <div class="hist-tml-yaxis hist-tml-yaxis--right" id="historyTimelineYRight"></div>
+                  </div>
+                  <div class="hist-tml-xaxis" id="historyTimelineXAxis"></div>
+                </div>
+              </div>
+              <div class="sec" id="historyTimelinePanel">
+                <div class="sec-hd" onclick="this.parentElement.classList.toggle('open')"><span class="sec-code">HIS</span><span class="sec-title">历史时间线</span><span class="sec-sub">events · 时间倒序</span><span class="sec-spacer"></span><span class="sec-chevron">▶</span></div>
+                <div class="sec-bd"><div id="historyTimeline"></div></div>
               </div>
             </div>
-            <div class="panel-bd" id="historyCurrent"></div>
-          </div>
-          <div class="panel" id="historyAnalyticsPanel" hidden>
-            <div class="panel-hd">
-              <span class="hist-phd-code">SLA</span>
-              <span class="hist-phd-title">销售分析</span>
-              <span class="hist-phd-sub">auto-class · ERP 等级对照</span>
-            </div>
-            <div class="panel-bd" id="historyAnalytics"></div>
-          </div>
-          <div class="panel" id="historyPurchasePanel" hidden>
-            <div class="panel-hd">
-              <span class="hist-phd-code">PUR</span>
-              <span class="hist-phd-title">采购面</span>
-              <span class="hist-phd-sub">purchase · stock estimate</span>
-            </div>
-            <div class="panel-bd" id="historyPurchase"></div>
-          </div>
-          <div class="panel" id="historyExtrasPanel" hidden>
-            <div class="panel-hd">
-              <span class="hist-phd-code">EXT</span>
-              <span class="hist-phd-title">扩展指标</span>
-              <span class="hist-phd-sub">退货 · 价格波动 · 客户 · 热力图 · 持仓 · 预测</span>
-            </div>
-            <div class="panel-bd" id="historyExtras"></div>
-          </div>
-          <div class="panel" id="historyRestockPanel" hidden>
-            <div class="panel-hd">
-              <span class="hist-phd-code">RST</span>
-              <span class="hist-phd-title">补货决策快照</span>
-              <span class="hist-phd-sub">财务 · 库存 · 累计盈亏 · 销售 26w · 紧迫分</span>
-            </div>
-            <div class="panel-bd" id="historyRestock"></div>
-          </div>
-          <div class="panel" id="historyTimelineChartPanel" hidden>
-            <div class="panel-hd">
-              <span class="hist-phd-code">TML</span>
-              <span class="hist-phd-title">销售 / 进价时间线</span>
-              <span class="hist-phd-sub">3 年: 销量月柱 + 进价点线</span>
-              <div class="hist-actions hist-actions--inline">
-                <span class="hist-tml-pill hist-tml-pill--accent"><span class="hist-tml-swatch hist-tml-swatch--bar"></span>销量 (柱)</span>
-                <span class="hist-tml-pill hist-tml-pill--warn"><span class="hist-tml-swatch hist-tml-swatch--line"></span>进价 (折线 €)</span>
-              </div>
-            </div>
-            <div class="panel-bd">
-              <div class="hist-tml-wrap">
-                <div class="hist-tml-yaxis hist-tml-yaxis--left"  id="historyTimelineYLeft"></div>
-                <div class="hist-tml-chart" id="historyTimelineChart"></div>
-                <div class="hist-tml-yaxis hist-tml-yaxis--right" id="historyTimelineYRight"></div>
-              </div>
-              <div class="hist-tml-xaxis" id="historyTimelineXAxis"></div>
-            </div>
-          </div>
-          <div class="panel" id="historyTimelinePanel" hidden>
-            <div class="panel-hd">
-              <span class="hist-phd-code">HIS</span>
-              <span class="hist-phd-title">历史时间线</span>
-              <span class="hist-phd-sub">events · 时间倒序</span>
-            </div>
-            <div class="panel-bd" id="historyTimeline"></div>
           </div>
         </div>
 
-        <div class="tabs__panel" data-history-tab-panel="recent">
-          <!-- BATCH · 批次选择 -->
-          <div class="panel" id="rcBatchPanel">
-            <div class="panel-hd">
-              <span class="hist-phd-code">BATCH</span>
-              <span class="hist-phd-title">最近改动</span>
-              <span class="hist-phd-sub">选择一次 import 批次</span>
-              <div class="hist-actions hist-actions--inline">
-                <button class="hist-cta hist-cta--ghost hist-cta--sm" id="rcModeToggle" data-mode="collapsed">展开 raw 事件</button>
+        <!-- ═══ BATCH tab: 最近改动 + 扫描批次 并排两列 ═══ -->
+        <div class="tab-panel" data-history-tab-panel="batch">
+          <div class="batch-cols">
+            <!-- 左：最近改动 -->
+            <div class="batch-col batch-col--left">
+              <div class="batch-col-title">
+                <span class="cur-code">BATCH</span> 最近改动
+                <span class="pnl-spacer" style="flex:1"></span>
+                <button class="btn btn--ghost" id="rcModeToggle" data-mode="collapsed" style="font-size:var(--fs-xs);padding:3px 8px;">展开 raw 事件</button>
               </div>
+              <select class="rc-sel" id="rcBatchSelect"></select>
+              <div id="rcSummary"></div>
+              <div class="rc-chips" id="rcChips"></div>
+              <div id="rcList"></div>
             </div>
-            <div class="panel-bd rc-batch-bd">
-              <select class="rc-batch-select" id="rcBatchSelect"></select>
-            </div>
-          </div>
-
-          <!-- STATS · 5 stat box grid + roundtrip note -->
-          <div id="rcSummary"></div>
-
-          <!-- LIST · filter chips + 改动表 -->
-          <div class="panel" id="rcListPanel">
-            <div class="rc-chips" id="rcChips"></div>
-            <div class="rc-list" id="rcList"></div>
-          </div>
-        </div>
-
-        <div class="tabs__panel" data-history-tab-panel="scan">
-          <div class="panel">
-            <div class="panel-hd">
-              扫描批次
-              <div class="sh-bar" style="margin-left:auto;">
-                <select id="scanHistoryEmployee">
-                  <option value="">全部员工</option>
-                </select>
-                <span>显示最近 100 条</span>
+            <!-- 右：扫描批次 -->
+            <div class="batch-col">
+              <div class="batch-col-title">
+                <span class="cur-code">SCN</span> 扫描批次
+                <span class="pnl-spacer" style="flex:1"></span>
+                <select id="scanHistoryEmployee" class="rc-sel" style="width:auto;min-width:120px;"><option value="">全部员工</option></select>
               </div>
-            </div>
-            <div class="panel-bd" id="scanHistoryList">
-              <div class="sh-empty">加载中...</div>
+              <div id="scanHistoryList"><div class="sh-empty">加载中...</div></div>
             </div>
           </div>
         </div>
+        </div>
+       </div>
       </div>
       <div class="page" id="pageDataQuality" x-data :class="$store.nav.current === 'data_quality' ? 'active' : ''">
         <!-- Banner: 只读视图 + READ ONLY pill + 刷新 -->

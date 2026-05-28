@@ -41,7 +41,9 @@ function escapeHtml(s) {
 function renderEmpty(msg) {
   $("historyHint").textContent = msg;
   $("historyHint").style.display = "";
-  $("historyCurrentPanel").hidden = true;
+  if ($("historyLeftTabs")) $("historyLeftTabs").hidden = true;
+  if ($("historyDetailCol")) $("historyDetailCol").hidden = true;
+  if ($("historyHeroWrap")) $("historyHeroWrap").innerHTML = "";
   $("historyTimelinePanel").hidden = true;
   $("historyFuzzyPanel").hidden = true;
   $("historyAnalyticsPanel").hidden = true;
@@ -54,7 +56,9 @@ function renderEmpty(msg) {
 function renderFuzzyMatches(matches, originalQuery) {
   $("historyHint").textContent = `"${originalQuery}" 没有精确匹配，找到 ${matches.length} 条候选`;
   $("historyHint").style.display = "";
-  $("historyCurrentPanel").hidden = true;
+  if ($("historyLeftTabs")) $("historyLeftTabs").hidden = true;
+  if ($("historyDetailCol")) $("historyDetailCol").hidden = true;
+  if ($("historyHeroWrap")) $("historyHeroWrap").innerHTML = "";
   $("historyTimelinePanel").hidden = true;
   $("historyFuzzyPanel").hidden = false;
   $("historyAnalyticsPanel").hidden = true;
@@ -419,43 +423,41 @@ function renderRestockSnapshot(it) {
   const marginScore = bd ? bd.margin : "—";
 
   root.innerHTML = `
-    <div class="rs-drawer">
-      <div class="rs-drawer-grid">
-        <section class="rs-drawer-sec">
-          <h4>💰 财务快照</h4>
-          <div>批发价 <b>${fmtEur(it.master_sale_price_eur ?? it.sale_net_avg)}</b> <span class="rs-drawer-muted">(主档)</span></div>
-          <div>${retailLine}</div>
-          <div>单件进价 <b>${fmtEur(it.last_purchase_unit_price ?? it.master_stock_price_eur)}</b> <span class="rs-drawer-muted">(${it.margin_source === 'master' ? '主档参考' : it.margin_source === 'purchase' ? '上次成交' : '—'})</span></div>
-          <div>单件毛利率 <b>${it.margin_pct != null ? it.margin_pct + '%' : '—'}</b></div>
-        </section>
-        <section class="rs-drawer-sec">
-          <h4>📦 库存</h4>
-          <div>当前库存 <b>${fmtInt(it.qty_total)} 件</b></div>
-          <div>库存可销售金额 <b>${fmtEur(it.inventory_sale_value_eur)}</b></div>
-          <div>库存成本 <b>${fmtEur(it.inventory_cost_value_eur)}</b></div>
-          <div>压舱率 <b>${it.weeks_of_cover != null ? it.weeks_of_cover.toFixed(1) + ' 周可撑' : '—'}</b></div>
-        </section>
-        <section class="rs-drawer-sec">
-          <h4>💵 累计盈亏 ${badge}</h4>
-          <div>累计投入 <b>${fmtEur(it.lifetime_invested_eur)}</b> <span class="rs-drawer-muted">(${fmtInt(it.lifetime_purchase_qty)} 件)</span></div>
-          <div>累计销售 <b>${fmtEurInt(it.lifetime_sale_revenue_eur)}</b> <span class="rs-drawer-muted">(${fmtInt(it.lifetime_sale_qty)} 件)</span></div>
-          <div>${line}</div>
-          ${cashflowLine}
-        </section>
-        <section class="rs-drawer-sec">
-          <h4>📊 销售 (26 周)</h4>
-          <div>周销速 <b>${fmtNum2(it.weekly_velocity, 2)} 件/周</b></div>
-          <div>周销额 <b>€${fmtNum2(it.weekly_revenue, 2)}/周</b></div>
-          <div>26 周活跃 <b>${fmtInt(it.n_active_weeks_26w)} 周</b></div>
-          <div>距上次进货 <b>${it.last_purchase_days_ago != null ? it.last_purchase_days_ago + ' 天' : '—'}</b></div>
-        </section>
-        <section class="rs-drawer-sec">
-          <h4>🎯 紧迫分 <b>${it.urgency_score ?? '—'}</b> 拆解</h4>
-          <div>销额(30): <b>${velocityScore}</b></div>
-          <div>库存(30): <b>${coverScore}</b></div>
-          <div>距进货(10): <b>${recencyScore}</b></div>
-          <div>毛利(30): <b>${marginScore}</b></div>
-        </section>
+    <div class="rst-grid">
+      <div class="rst-sec">
+        <h4>💰 财务</h4>
+        <div class="rst-row">批发 <b>${fmtEur(it.master_sale_price_eur ?? it.sale_net_avg)}</b> <span class="rst-muted">(主档)</span></div>
+        <div class="rst-row">${retailLine}</div>
+        <div class="rst-row">进价 <b>${fmtEur(it.last_purchase_unit_price ?? it.master_stock_price_eur)}</b></div>
+        <div class="rst-row">毛利 <b>${it.margin_pct != null ? it.margin_pct + '%' : '—'}</b></div>
+      </div>
+      <div class="rst-sec">
+        <h4>📦 库存</h4>
+        <div class="rst-row">库存 <b>${fmtInt(it.qty_total)} 件</b></div>
+        <div class="rst-row">可销额 <b>${fmtEur(it.inventory_sale_value_eur)}</b></div>
+        <div class="rst-row">成本 <b>${fmtEur(it.inventory_cost_value_eur)}</b></div>
+        <div class="rst-row">可撑 <b>${it.weeks_of_cover != null ? it.weeks_of_cover.toFixed(1) + ' 周' : '—'}</b></div>
+      </div>
+      <div class="rst-sec">
+        <h4>💵 累计盈亏 ${badge}</h4>
+        <div class="rst-row">投入 <b>${fmtEur(it.lifetime_invested_eur)}</b> <span class="rst-muted">(${fmtInt(it.lifetime_purchase_qty)} 件)</span></div>
+        <div class="rst-row">销售 <b>${fmtEurInt(it.lifetime_sale_revenue_eur)}</b> <span class="rst-muted">(${fmtInt(it.lifetime_sale_qty)} 件)</span></div>
+        <div class="rst-row">${line}</div>
+        ${cashflowLine}
+      </div>
+      <div class="rst-sec">
+        <h4>📊 销售 26 周</h4>
+        <div class="rst-row">周销 <b>${fmtNum2(it.weekly_velocity, 2)} 件/周</b></div>
+        <div class="rst-row">周额 <b>€${fmtNum2(it.weekly_revenue, 2)}/周</b></div>
+        <div class="rst-row">活跃 <b>${fmtInt(it.n_active_weeks_26w)} 周</b></div>
+        <div class="rst-row">距进货 <b>${it.last_purchase_days_ago != null ? it.last_purchase_days_ago + ' 天' : '—'}</b></div>
+      </div>
+      <div class="rst-sec">
+        <h4>🎯 紧迫 ${it.urgency_score ?? '—'}</h4>
+        <div class="rst-row">销额 <b>${velocityScore}</b>/30</div>
+        <div class="rst-row">库存 <b>${coverScore}</b>/30</div>
+        <div class="rst-row">距进货 <b>${recencyScore}</b>/10</div>
+        <div class="rst-row">毛利 <b>${marginScore}</b>/30</div>
       </div>
     </div>
   `;
@@ -465,59 +467,23 @@ function renderSLA(data) {
   const s = data.sales || {};
   const cs = data.customer_split || { cn: {}, fo: {} };
   // 2026-05-23 移除自动分类 + 人工标签行 (用户: 已无用处). 等级对照保留 (qty 分位仍有意义).
-  const gradeRow = renderGradeRow(data.manual_grade, data.qty_percentile);
-
   const dailyAvg = ((s.total_qty || 0) / Math.max(1, s.lifespan_days || 1)).toFixed(2);
 
   $("historyAnalytics").innerHTML = `
-    <div class="hist-sla-body">
-      ${gradeRow}
-
-      <div class="hist-section-label">SALES SIDE · 销售面</div>
-      <div class="hist-sla-grid">
-        ${_kv("总销量",   fmtNum(s.total_qty),                                  "hist-kv--num hist-kv--accent")}
-        ${_kv("总营收",   `€${(s.total_revenue || 0).toFixed(2)}`,              "hist-kv--num hist-kv--accent")}
-        ${_kv("独立客户", fmtNum(s.unique_customers),                           "hist-kv--num")}
-        ${_kv("寿命",     `${s.lifespan_days || 0} 天`,                         "hist-kv--num")}
-        ${_kv("日均件数", dailyAvg,                                             "hist-kv--num")}
-        ${_kv("12 周趋势", `${fmtPct(s.trend_slope_pct_per_week)} / 周`,         "hist-kv--num")}
-      </div>
-
-      <div class="hist-section-label">CLIENT SPLIT · 客户端拆分</div>
-      <div class="hist-cust-split">
-        ${renderClientCard("CN", "中国端", cs.cn || {})}
-        ${renderClientCard("GR", "老外端", cs.fo || {})}
-      </div>
+    <div class="sla-grid">
+      ${_seckv("总销量", fmtNum(s.total_qty), "kv-val--mono kv-val--accent")}
+      ${_seckv("总营收", `€${(s.total_revenue || 0).toFixed(2)}`, "kv-val--mono kv-val--accent")}
+      ${_seckv("独立客户", fmtNum(s.unique_customers), "kv-val--mono")}
+      ${_seckv("寿命", `${s.lifespan_days || 0} 天`, "kv-val--mono")}
+      ${_seckv("日均件数", dailyAvg, "kv-val--mono")}
+      ${_seckv("12 周趋势", `${fmtPct(s.trend_slope_pct_per_week)} / 周`, "kv-val--mono")}
+    </div>
+    <div class="s-label">CLIENT SPLIT · 客户端拆分</div>
+    <div class="cust-split">
+      ${renderClientCard("cn", "中国", cs.cn || {})}
+      ${renderClientCard("gr", "老外", cs.fo || {})}
     </div>
   `;
-
-  // 绑下拉 change → POST
-  const sel = $("manualCategorySelect");
-  if (sel) {
-    sel.addEventListener("change", async () => {
-      const val = sel.value;
-      try {
-        const resp = await fetch(
-          `/analytics/sku/${encodeURIComponent(data.barcode)}/manual-category`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ category: val }),
-          },
-        );
-        const r = await resp.json();
-        if (!r.ok) {
-          alert(`保存失败：${r.msg}`);
-          sel.value = data.manual_category || "";
-        } else {
-          data.manual_category = r.manual_category;
-        }
-      } catch (err) {
-        alert(`网络错误：${err.message}`);
-        sel.value = data.manual_category || "";
-      }
-    });
-  }
 }
 
 function renderPUR(p) {
@@ -526,18 +492,14 @@ function renderPUR(p) {
   const stockBalance = p.stock_balance;
   const stockNegative = typeof stockBalance === "number" && stockBalance < 0;
   const warnBox = stockNegative
-    ? `<div class="hist-warn-box">
-         <span class="hist-warn-icon">⚠</span>
-         库存推算结果为负值 — 历史采购数据缺失或未导入。建议在
-         <span class="hist-warn-link">进销存导入</span> 模块补录。
-       </div>`
+    ? `<div style="margin-top:8px;padding:6px 10px;border-left:2px solid var(--warn);background:var(--warn-subtle);border-radius:var(--r-sm);font-size:var(--fs-sm);color:var(--ink-1);">⚠ 库存推算为负 — 历史采购数据缺失或未导入，建议在「进销存导入」补录。</div>`
     : "";
   purBody.innerHTML = `
-    <div class="hist-pur-grid">
-      ${_kv("库存推算",      fmtNum(stockBalance),                "hist-kv--num")}
-      ${_kv("毛利率",        fmtPct(p.avg_margin_pct),            "hist-kv--num")}
-      ${_kv("365 天采购笔数", fmtNum(p.purchase_freq_365d),        "hist-kv--num")}
-      ${_kv("上次采购",      fmtDays(p.last_purchase_days_ago),    "hist-kv--num")}
+    <div class="sla-grid" style="grid-template-columns:repeat(4,1fr);">
+      ${_seckv("库存推算", fmtNum(stockBalance), "kv-val--mono")}
+      ${_seckv("毛利率", fmtPct(p.avg_margin_pct), "kv-val--mono")}
+      ${_seckv("365 天采购", fmtNum(p.purchase_freq_365d), "kv-val--mono")}
+      ${_seckv("上次采购", fmtDays(p.last_purchase_days_ago), "kv-val--mono")}
     </div>
     ${warnBox}
   `;
@@ -553,109 +515,69 @@ function renderExtras(data) {
   const heat = data.heatmap || {};
   const fc = data.forecast;
 
-  // 1. 退货 + 价格波动 卡片
+  // 退货率 + 价格波动
   const ps = ex.price_stats || {};
-  const returnCard = `
-    <section class="hist-ex-card">
-      <h4>📊 退货率 + 价格波动</h4>
-      <div class="hist-ex-row">退货率 <b>${ex.return_rate_pct != null ? ex.return_rate_pct + '%' : '—'}</b>
-        <span class="hist-ex-muted">(${ex.return_qty ?? 0} / ${(ex.total_sale_qty_gross ?? 0) + (ex.return_qty ?? 0)} 件)</span></div>
-      <div class="hist-ex-row">批发售价均 <b>€${ps.mean ?? '—'}</b> ± ${ps.std ?? '—'} <span class="hist-ex-muted">(${ps.n} 笔)</span></div>
-      <div class="hist-ex-row">售价区间 <b>€${ps.min ?? '—'}</b> ~ <b>€${ps.max ?? '—'}</b></div>
-    </section>`;
+  const returnSec = `
+    <div class="ext-section">
+      <div class="ext-section-label">退货率 + 价格波动</div>
+      ${_curkv("退货率", `${ex.return_rate_pct != null ? ex.return_rate_pct + '%' : '—'} <span class="ext-muted">(${ex.return_qty ?? 0}/${(ex.total_sale_qty_gross ?? 0) + (ex.return_qty ?? 0)})</span>`)}
+      ${_curkv("批发售价均", `€${ps.mean ?? '—'} ±${ps.std ?? '—'}`, "cur-kv-val--mono")}
+      ${_curkv("售价区间", `€${ps.min ?? '—'} ~ €${ps.max ?? '—'}`, "cur-kv-val--mono")}
+    </div>`;
 
-  // 2. 客户 TOP10 拆 CN + 老外两栏 (2026-05-23):
-  //    名字带中文一律 CN; 中国客户单笔批量大不拆栏会霸榜.
-  const renderTopTable = (rows) => {
-    const trs = (rows || []).map((c, i) => `<tr>
-      <td class="hist-ex-rank">${i + 1}</td>
-      <td class="hist-ex-mono">${escapeHtml(c.customer_id || '')}</td>
+  // 零售汇总 (MB700 + customer_id='0')
+  const rs = ex.retail_summary || {};
+  const retailSec = rs.n_transactions > 0
+    ? `<div class="ext-section">
+        <div class="ext-section-label">零售汇总 (MB700 + ID=0)</div>
+        ${_curkv("件数 / 营收", `${rs.qty} · €${rs.revenue}`, "cur-kv-val--mono")}
+        ${_curkv("笔数 / 件均", `${rs.n_transactions} 笔 · ${rs.avg_ticket_qty ?? '—'}`, "cur-kv-val--mono")}
+        ${_curkv("最近零售", escapeHtml(String(rs.last_at ?? '—')), "cur-kv-val--mono cur-kv-val--muted")}
+      </div>`
+    : `<div class="ext-section"><div class="ext-section-label">零售汇总</div><div class="ext-muted">暂无零售记录 (MB700 / ID=0)</div></div>`;
+
+  // 客户 TOP — CN / GR 各一个 mini-tbl（名字带中文一律 CN）
+  const miniTbl = (rows) => {
+    const trs = (rows || []).map((c) => `<tr>
+      <td class="id">${escapeHtml(c.customer_id || '')}</td>
       <td>${escapeHtml(c.customer_name || '—')}</td>
-      <td class="hist-ex-num">${c.qty}</td>
-      <td class="hist-ex-mono">${c.last_at || ''}</td>
-    </tr>`).join('') || '<tr><td colspan="5" class="hist-ex-empty">—</td></tr>';
-    return `<table class="hist-ex-top">
-      <thead><tr><th>#</th><th>ID</th><th>名字</th><th>件数</th><th>上次</th></tr></thead>
-      <tbody>${trs}</tbody>
-    </table>`;
+      <td class="r">${c.qty}</td>
+      <td class="r">${escapeHtml(String(c.last_at || ''))}</td>
+    </tr>`).join('') || '<tr><td colspan="4" class="ext-muted">—</td></tr>';
+    return `<table class="ext-mini-tbl"><thead><tr><th>ID</th><th>名字</th><th class="r">件</th><th class="r">上次</th></tr></thead><tbody>${trs}</tbody></table>`;
   };
-  const topCustomersCard = `
-    <section class="hist-ex-card hist-ex-card--wide">
-      <h4>👥 客户 TOP 10 (按净 qty, 含退货抵销)</h4>
-      <div class="hist-ex-top-split">
-        <div class="hist-ex-top-col">
-          <div class="hist-ex-top-hd"><span class="hist-ex-type hist-ex-type--cn">CN</span> 中国客户</div>
-          ${renderTopTable(ex.top_customers_cn)}
-        </div>
-        <div class="hist-ex-top-col">
-          <div class="hist-ex-top-hd"><span class="hist-ex-type hist-ex-type--fo">GR</span> 老外客户</div>
-          ${renderTopTable(ex.top_customers_foreign)}
-        </div>
-      </div>
-    </section>`;
+  const cnSec = `<div class="ext-section"><div class="ext-section-label"><span class="cust-tag cust-tag--cn">CN</span> 中国客户 TOP</div>${miniTbl(ex.top_customers_cn)}</div>`;
+  const grSec = `<div class="ext-section"><div class="ext-section-label"><span class="cust-tag cust-tag--gr">GR</span> 老外客户 TOP</div>${miniTbl(ex.top_customers_foreign)}</div>`;
 
-  // 3. 月度热力图 (4 年 × 12 月)
-  const monthNames = ['1','2','3','4','5','6','7','8','9','10','11','12'];
+  // 月度热力图 (4 年 × 12 月) — heat-mini
+  const monthTh = ['1','2','3','4','5','6','7','8','9','10','11','12'].map(m => `<th>${m}</th>`).join('');
   const heatMax = heat.max_qty || 1;
   const heatRows = (heat.years || []).slice().reverse().map(y => {
-    const row = heat.matrix[y] || [0]*12;
+    const row = heat.matrix[y] || new Array(12).fill(0);
     const cells = row.map((q, mi) => {
-      const intensity = q > 0 ? Math.max(0.15, q / heatMax) : 0;
-      const bg = intensity > 0
-        ? `background: rgba(46, 160, 67, ${intensity.toFixed(2)});`
-        : 'background: var(--surface-2);';
-      const label = q > 0 ? q : '';
-      const title = `${y}-${(mi+1).toString().padStart(2,'0')}: ${q} 件`;
-      return `<td class="hist-ex-heat-cell" style="${bg}" title="${title}">${label}</td>`;
+      const isPeak = q === heatMax && q > 0;
+      const intensity = q > 0 ? Math.max(0.12, q / heatMax) : 0;
+      const cls = isPeak ? 'hc hc--peak' : 'hc';
+      const style = (q > 0 && !isPeak) ? ` style="background:rgba(46,160,67,${intensity.toFixed(2)});color:var(--ink-0);"` : '';
+      return `<td class="${cls}"${style} title="${y}-${(mi+1).toString().padStart(2,'0')}: ${q} 件">${q > 0 ? q : '—'}</td>`;
     }).join('');
-    return `<tr><th class="hist-ex-heat-year">${y}</th>${cells}</tr>`;
+    return `<tr><td class="hy">${String(y).slice(2)}</td>${cells}</tr>`;
   }).join('');
-  const heatmapCard = `
-    <section class="hist-ex-card hist-ex-card--wide">
-      <h4>🌡 月度销量热力图 (4 年)</h4>
-      <table class="hist-ex-heat">
-        <thead><tr><th></th>${monthNames.map(m => `<th>${m}月</th>`).join('')}</tr></thead>
-        <tbody>${heatRows}</tbody>
-      </table>
-    </section>`;
+  const heatSec = `<div class="ext-section"><div class="ext-section-label">🌡 月度热力图 (4 年)</div>
+    <table class="heat-mini"><thead><tr><th></th>${monthTh}</tr></thead><tbody>${heatRows}</tbody></table></div>`;
 
-  // 4. 零售汇总 (单独显示, 不进 TOP10): MB700 + customer_id='0'
-  const rs = ex.retail_summary || {};
-  const retailCard = rs.n_transactions > 0
-    ? `<section class="hist-ex-card">
-        <h4>🛒 零售汇总 (MB700 + ID=0)</h4>
-        <div class="hist-ex-row">零售件数 <b>${rs.qty}</b> · 营收 <b>€${rs.revenue}</b></div>
-        <div class="hist-ex-row">交易笔数 <b>${rs.n_transactions}</b> · 平均件数/单 <b>${rs.avg_ticket_qty ?? '—'}</b></div>
-        <div class="hist-ex-row hist-ex-muted">最近零售 ${rs.last_at ?? '—'}</div>
-      </section>`
-    : `<section class="hist-ex-card">
-        <h4>🛒 零售汇总</h4>
-        <div class="hist-ex-row hist-ex-muted">暂无零售记录 (MB700 / ID=0)</div>
-      </section>`;
+  // 持仓 / 预测 / 数据范围
+  const truncWarn = ex.is_history_truncated ? ' <span class="ext-warn">⚠ 不全</span>' : '';
+  const holdRows = [];
+  if (h.avg_days != null) holdRows.push(_curkv("平均持仓", `${h.avg_days} 天 <span class="ext-muted">(${h.n_pairs} 件)</span>`, "cur-kv-val--mono"));
+  if (h.oldest_held_days != null) holdRows.push(_curkv("当前压最久", `${h.oldest_held_days} 天`, "cur-kv-val--mono"));
+  holdRows.push(fc
+    ? _curkv("下季度预测", `${fc.quarter_mu} 件 <span class="ext-muted">(p98 ${fc.quarter_p98})</span>`, "cur-kv-val--mono")
+    : _curkv("预测", `<span class="ext-muted">序列太短未训出</span>`));
+  holdRows.push(_curkv("数据范围", `${escapeHtml(String(ex.first_event_at ?? '—'))} ~ ${escapeHtml(String(ex.last_event_at ?? '—'))}${truncWarn}`, "cur-kv-val--muted"));
+  const miscSec = `<div class="ext-section"><div class="ext-section-label">🔮 持仓 / 预测</div>${holdRows.join("")}</div>`;
 
-  // 5. 持仓 + 预测 + 数据范围 卡片
-  const truncWarn = ex.is_history_truncated
-    ? '<span class="hist-ex-warn" title="首笔事件早于 ETL 窗口起点 2021-06-01, 更早期事件未纳入">⚠️ 历史可能不全</span>'
-    : '';
-  const fcLine = fc
-    ? `<div class="hist-ex-row">下季度预测 <b>${fc.quarter_mu}</b> 件 <span class="hist-ex-muted">(p98 ${fc.quarter_p98}, 模型 ${fc.model_used})</span></div>`
-    : '<div class="hist-ex-row">预测 <span class="hist-ex-muted">序列太短未训出</span></div>';
-  const oldestLine = h.oldest_held_days != null
-    ? `<div class="hist-ex-row">当前压最久 <b>${h.oldest_held_days} 天</b> <span class="hist-ex-muted">(库存最早进的那批)</span></div>`
-    : '';
-  const avgHoldLine = h.avg_days != null
-    ? `<div class="hist-ex-row">平均持仓 <b>${h.avg_days} 天</b> <span class="hist-ex-muted">(${h.n_pairs} 件配对)</span></div>`
-    : '';
-  const miscCard = `
-    <section class="hist-ex-card">
-      <h4>🔮 持仓 / 预测 / 数据范围</h4>
-      ${avgHoldLine}
-      ${oldestLine}
-      ${fcLine}
-      <div class="hist-ex-row hist-ex-muted">首笔 ${ex.first_event_at ?? '—'} · 末笔 ${ex.last_event_at ?? '—'} ${truncWarn}</div>
-    </section>`;
-
-  root.innerHTML = returnCard + retailCard + topCustomersCard + heatmapCard + miscCard;
+  root.innerHTML = returnSec + retailSec + cnSec + grSec + heatSec + miscSec;
 }
 
 function renderManualDropdown(barcode, current) {
@@ -673,20 +595,13 @@ function renderManualDropdown(barcode, current) {
 // PR 8a · ClientCard 风：CN/GR 两列，border-left 2px 标签色
 function renderClientCard(tag, name, m) {
   const last = m.last_at ? escapeHtml(m.last_at) : "—";
-  const rows = [
-    ["销量", fmtNum(m.qty)],
-    ["客户数", fmtNum(m.unique_customers)],
-    ["单笔最大", fmtNum(m.max_single_qty)],
-    ["月均频次", fmtNum(m.avg_freq_per_month)],
-    ["上次购买", last],
-  ].map(([k, v]) => `<div class="hist-client-row"><span class="k">${k}</span><span class="v">${v}</span></div>`).join("");
+  const TAG = String(tag).toUpperCase();
   return `
-    <div class="hist-client-card" data-tag="${tag}">
-      <div class="hist-client-hd">
-        <span class="hist-client-tag">${tag}</span>
-        <span class="hist-client-name">${escapeHtml(name)}</span>
-      </div>
-      <div class="hist-client-grid">${rows}</div>
+    <div class="cust-card">
+      <div class="cust-hd"><span class="cust-tag cust-tag--${tag}">${TAG}</span> ${escapeHtml(name)}</div>
+      <div class="cust-row">销量 <b>${fmtNum(m.qty)}</b> · 客户 <b>${fmtNum(m.unique_customers)}</b></div>
+      <div class="cust-row">单笔最大 <b>${fmtNum(m.max_single_qty)}</b> · 月频 <b>${fmtNum(m.avg_freq_per_month)}</b></div>
+      <div class="cust-row">上次 <b>${last}</b></div>
     </div>
   `;
 }
@@ -719,89 +634,101 @@ function _kv(k, v, mods = "") {
   return `<div class="${cls}"><span class="hist-kv-k">${escapeHtml(k)}</span><span class="hist-kv-v">${v}</span></div>`;
 }
 
+// v2 设计: 左列概况 KV 行（label 左 / value 右）
+function _curkv(k, v, valMods = "") {
+  return `<div class="cur-kv"><span class="cur-kv-label">${escapeHtml(k)}</span><span class="cur-kv-val ${valMods}">${v}</span></div>`;
+}
+// v2 设计: 右列 sec 内 KV box（label 上 / value 下）
+function _seckv(k, v, valMods = "") {
+  return `<div class="kv"><div class="kv-label">${escapeHtml(k)}</div><div class="kv-val ${valMods}">${v}</div></div>`;
+}
+
 function renderResult(data) {
   $("historyHint").style.display = "none";
-  $("historyCurrentPanel").hidden = false;
+  if ($("historyLeftTabs")) $("historyLeftTabs").hidden = false;
+  if ($("historyDetailCol")) $("historyDetailCol").hidden = false;
   $("historyTimelinePanel").hidden = false;
   $("historyFuzzyPanel").hidden = true;
 
   const c = data.current;
   _currentBarcode = c.barcode;
-  $("historyCopyBarcodeBtn").hidden = false;
+
+  // hero: 型号 + 条码 + 状态 pill + grade badge + 复制按钮（复用已绑 handler 的静态按钮）
+  const statusPill = c.is_truly_discontinued
+    ? '<span class="status-pill status-pill--inactive"><span class="status-dot"></span>已停售</span>'
+    : '<span class="status-pill status-pill--active"><span class="status-dot"></span>在售</span>';
+  const gradeBadge = (c.manual_grade !== null && c.manual_grade !== undefined)
+    ? `<span class="grade-badge">${escapeHtml(String(c.manual_grade))}</span>` : "";
+  $("historyHeroWrap").innerHTML = `
+    <div class="cur-hero">
+      <div class="cur-model">${escapeHtml(c.model || "—")}</div>
+      <div class="cur-barcode">${escapeHtml(c.barcode)}</div>
+      <div class="cur-status" id="historyHeroStatus">${statusPill}${gradeBadge}<span style="flex:1"></span></div>
+    </div>`;
+  // 把已在 init 绑好 click 的复制按钮移进 hero（避免重建丢 handler）
+  const copyBtn = $("historyCopyBarcodeBtn");
+  if (copyBtn) {
+    copyBtn.hidden = false;
+    copyBtn.removeAttribute("style");
+    copyBtn.className = "btn btn--ghost";
+    copyBtn.style.fontSize = "var(--fs-xs)";
+    copyBtn.style.padding = "3px 8px";
+    copyBtn.textContent = "⎘ 复制";
+    document.getElementById("historyHeroStatus").appendChild(copyBtn);
+  }
+
+  // 概况（左列 overview）：品名 / 位置 / 售价 / 来源 / 更新
+  // 注意：分类/进价不展示（源 ERP 分类只参考；进价 CNY/EUR 混无币种字段会误导）
   const storesText = (c.store_locations || []).map(escapeHtml).join(", ");
   const warehousesText = (c.warehouse_locations || []).map(escapeHtml).join(", ");
   const unknownText = (c.unknown_locations || []).map(escapeHtml).join(", ");
-  // 新加字段（来自 product.csv 主档）—— 有值才显示，避免老数据下空白行
-  // 注意：分类不展示（roadmap 决策：源 ERP 分类只参考不照抄）
-  // 进价不展示（源数据 CNY/EUR 混，无币种字段，会误导）
-  const cells = [];
-  cells.push(_kv("型号", escapeHtml(c.model), "hist-kv--mono hist-kv--accent"));
-  cells.push(_kv("条码", escapeHtml(c.barcode), "hist-kv--mono"));
-  if (c.product_name_zh) cells.push(_kv("品名", escapeHtml(c.product_name_zh)));
-  if (c.product_name_local) cells.push(_kv("本地品名", escapeHtml(c.product_name_local), "hist-kv--mono hist-kv--muted"));
-  cells.push(_kv("店面位置", storesText || "—", storesText ? "hist-kv--mono" : "hist-kv--empty"));
-  cells.push(_kv("仓库位置", warehousesText || "—", warehousesText ? "hist-kv--mono" : "hist-kv--empty"));
-  if (unknownText) cells.push(_kv("其他位置", unknownText, "hist-kv--mono"));
+  const ov = [];
+  if (c.product_name_zh) ov.push(_curkv("品名", escapeHtml(c.product_name_zh)));
+  if (c.product_name_local) ov.push(_curkv("本地品名", escapeHtml(c.product_name_local), "cur-kv-val--mono cur-kv-val--muted"));
+  ov.push(_curkv("店面位置", storesText || "—", storesText ? "cur-kv-val--mono" : "cur-kv-val--muted"));
+  ov.push(_curkv("仓库位置", warehousesText || "—", warehousesText ? "cur-kv-val--mono" : "cur-kv-val--muted"));
+  if (unknownText) ov.push(_curkv("其他位置", unknownText, "cur-kv-val--mono"));
   if (c.sale_price !== null && c.sale_price !== undefined) {
-    cells.push(_kv("售价", `€${Number(c.sale_price).toFixed(2)}`, "hist-kv--mono"));
+    ov.push(_curkv("售价", `€${Number(c.sale_price).toFixed(2)}`, "cur-kv-val--mono"));
   }
-  if (c.manual_grade !== null && c.manual_grade !== undefined) {
-    const g = Number(c.manual_grade);
-    const tone = g >= 8 ? "accent" : g >= 4 ? "warn" : g >= 2 ? "info" : "error";
-    cells.push(_kv("等级", `<span class="hist-grade-badge" data-tone="${tone}">${escapeHtml(String(c.manual_grade))}</span>`));
-  }
-  // 状态 用 pill (2026-05-23 改用 is_truly_discontinued 算法判定, 不用
-  // is_active 即 ERP web_status='Y'/'N'). 算法依据: 库存=0 且 无销售采购事件.
-  const statusPill = c.is_truly_discontinued
-    ? '<span class="hist-status-pill hist-status-pill--inactive"><span class="hist-status-dot"></span>已停售</span>'
-    : '<span class="hist-status-pill hist-status-pill--active"><span class="hist-status-dot"></span>在售</span>';
-  cells.push(_kv("状态", statusPill));
-  cells.push(_kv("来源", escapeHtml(SOURCE_CN[c.source] || c.source), "hist-kv--mono hist-kv--muted"));
-  cells.push(_kv("最后更新", escapeHtml(c.updated_at), "hist-kv--mono hist-kv--muted"));
-
-  $("historyCurrent").innerHTML = `<div class="hist-cur-grid">${cells.join("")}</div>`;
+  ov.push(_curkv("来源", escapeHtml(SOURCE_CN[c.source] || c.source), "cur-kv-val--mono cur-kv-val--muted"));
+  ov.push(_curkv("最后更新", escapeHtml(c.updated_at), "cur-kv-val--mono cur-kv-val--muted"));
+  $("historyCurrent").innerHTML = ov.join("");
 
   const events = data.events || [];
   if (events.length === 0) {
-    $("historyTimeline").innerHTML = '<div class="empty">暂无历史变更</div>';
+    $("historyTimeline").innerHTML = '<div class="ext-muted" style="padding:4px 0;">暂无历史变更</div>';
     return;
   }
 
-  // PR 8a · TimelineEvent 风：左侧 dot + 1px 竖线，按事件类型上色
+  // v2 evt 时间线：左侧 dot + 1px 竖线，按事件类型上色
   const items = events.map((ev, i) => {
     const isLast = i === events.length - 1;
     const detail = ev.summary
-      ? `<div class="hist-tle-detail">${escapeHtml(ev.summary)}</div>`
+      ? `<div class="evt-detail">${escapeHtml(ev.summary)}</div>`
       : (ev.changes && ev.changes.length
-          ? `<div class="hist-tle-changes">${ev.changes.map((ch) => {
+          ? `<div class="evt-detail">${ev.changes.map((ch) => {
               const fieldCn = FIELD_CN[ch.field] || ch.field;
-              const oldDisp = ch.old ? escapeHtml(ch.old) : '<span class="hist-kv--empty">空</span>';
-              const newDisp = ch.new ? escapeHtml(ch.new) : '<span class="hist-kv--empty">空</span>';
-              return `<div><span style="color:var(--ink-3)">${escapeHtml(fieldCn)}</span> <span>${oldDisp}</span><span class="hist-tle-change-arrow">→</span><span>${newDisp}</span></div>`;
+              const oldDisp = ch.old ? `<code>${escapeHtml(ch.old)}</code>` : '<span class="ext-muted">空</span>';
+              const newDisp = ch.new ? `<code>${escapeHtml(ch.new)}</code>` : '<span class="ext-muted">空</span>';
+              return `<div><span style="color:var(--ink-3)">${escapeHtml(fieldCn)}</span> ${oldDisp}<span class="evt-arrow">→</span>${newDisp}</div>`;
             }).join("")}</div>`
           : "");
     return `
-      <div class="hist-tle" data-type="${escapeHtml(ev.change_type)}">
-        <div class="hist-tle-rail">
-          <div class="hist-tle-dot"></div>
-          ${isLast ? "" : '<div class="hist-tle-line"></div>'}
-        </div>
-        <div class="hist-tle-body">
-          <div class="hist-tle-head">
-            <span class="hist-tle-type">${escapeHtml(CHANGE_TYPE_CN[ev.change_type] || ev.change_type)}</span>
-            <span class="hist-tle-title">${escapeHtml(SOURCE_CN[ev.source] || ev.source || "")}</span>
-            <span class="hist-tle-spacer"></span>
-            <span class="hist-tle-time">${escapeHtml(ev.at)}</span>
+      <div class="evt" data-type="${escapeHtml(ev.change_type)}">
+        <div class="evt-rail"><div class="evt-dot"></div>${isLast ? "" : '<div class="evt-line"></div>'}</div>
+        <div class="evt-body">
+          <div class="evt-head">
+            <span class="evt-type">${escapeHtml(CHANGE_TYPE_CN[ev.change_type] || ev.change_type)}</span>
+            <span class="evt-src">${escapeHtml(SOURCE_CN[ev.source] || ev.source || "")}</span>
+            <span class="evt-time">${escapeHtml(ev.at)}</span>
           </div>
           ${detail}
         </div>
       </div>
     `;
   });
-  $("historyTimeline").innerHTML = `
-    <div class="hist-tle-count">共 ${events.length} 次操作</div>
-    <div class="hist-timeline-list">${items.join("")}</div>
-  `;
+  $("historyTimeline").innerHTML = `<div class="ext-muted" style="margin-bottom:8px;">共 ${events.length} 次操作</div>${items.join("")}`;
 }
 
 async function doSearch() {
@@ -939,6 +866,20 @@ function init() {
   $("historyCopyBarcodeBtn").addEventListener("click", (e) =>
     copyCurrentBarcode(e.currentTarget),
   );
+
+  // v2 左列子 tab（概况 / 深度）切换
+  const leftTabs = $("historyLeftTabs");
+  if (leftTabs) {
+    leftTabs.addEventListener("click", (e) => {
+      const btn = e.target.closest(".left-tab");
+      if (!btn) return;
+      const t = btn.dataset.ltab;
+      leftTabs.querySelectorAll(".left-tab").forEach((b) => b.classList.toggle("active", b === btn));
+      document.querySelectorAll("#historyCurCol .left-panel").forEach((p) => {
+        p.classList.toggle("active", p.dataset.lpanel === t);
+      });
+    });
+  }
 
   // 暴露给最近改动模块下钻调用
   window.historySearch = (q) => {

@@ -48,7 +48,10 @@ function setupTabs() {
       document.querySelectorAll('[data-history-tab-panel]').forEach((p) => {
         p.classList.toggle("active", p.dataset.historyTabPanel === target);
       });
-      if (target === "recent" && !_isInitialized) {
+      // QUERY 搜索块仅在「货号查询」tab 显示（设计稿行为）
+      const sb = document.getElementById("historySearchPanel");
+      if (sb) sb.style.display = target === "search" ? "" : "none";
+      if (target === "batch" && !_isInitialized) {
         loadInitial();
         _isInitialized = true;
       }
@@ -105,14 +108,14 @@ function renderSummary(s) {
   const cell = (label, n, filterKey, filterValue, baseTone) => {
     const tone = n > 0 ? baseTone : "default";
     return `
-      <button class="rc-summary-cell" data-tone="${tone}"
+      <button class="rc-stat" data-tone="${tone}"
               data-filter-key="${filterKey || ""}" data-filter-value="${filterValue || ""}">
-        <div class="rc-summary-num">${n}</div>
-        <div class="rc-summary-label">${label}</div>
+        <div class="rc-stat-num">${n}</div>
+        <div class="rc-stat-label">${label}</div>
       </button>`;
   };
   $("rcSummary").innerHTML = `
-    <div class="rc-summary-grid">
+    <div class="rc-stats">
       ${cell("库位变更", s.location_changes, "field", "stockpile_location", "default")}
       ${cell("型号变更", s.model_changes,    "field", "product_model",      "info")}
       ${cell("新增",     s.inserts,          "change_type", "insert",       "accent")}
@@ -122,7 +125,7 @@ function renderSummary(s) {
     <div class="rc-roundtrip-note">
       来回波动 <b>${s.roundtrip_count}</b> 组 · 同 barcode + 字段终态==起始态的折叠剔除噪音
     </div>`;
-  document.querySelectorAll(".rc-summary-cell").forEach((cell) => {
+  document.querySelectorAll(".rc-stat").forEach((cell) => {
     cell.addEventListener("click", () => {
       const k = cell.dataset.filterKey, v = cell.dataset.filterValue;
       if (!k || !v) return;
@@ -199,12 +202,21 @@ async function loadChanges() {
   }
 }
 
+// 海量批次（动辄数万行）只渲染前 N 行，避免 DOM 卡死；超出用筛选缩小
+const RENDER_CAP = 300;
+
+function renderCapNote(total) {
+  return total > RENDER_CAP
+    ? `<div class="rc-roundtrip-note">仅显示前 ${RENDER_CAP} / 共 ${total.toLocaleString()} 条 · 用上方筛选缩小范围</div>`
+    : "";
+}
+
 function renderCollapsedList(rows) {
   if (rows.length === 0) {
     $("rcList").innerHTML = '<div class="rc-empty">该批次无实质变更</div>';
     return;
   }
-  const body = rows.map((r) => {
+  const body = rows.slice(0, RENDER_CAP).map((r) => {
     const changeText = renderChangeCell(r);
     return `
       <tr class="rc-row" data-barcode="${escapeHtml(r.barcode)}">
@@ -215,10 +227,10 @@ function renderCollapsedList(rows) {
       </tr>`;
   }).join("");
   $("rcList").innerHTML = `
-    <table class="rc-table">
+    <table class="rc-tbl">
       <thead><tr><th>货号</th><th>型号</th><th>变化</th><th>时间</th></tr></thead>
       <tbody>${body}</tbody>
-    </table>`;
+    </table>${renderCapNote(rows.length)}`;
   document.querySelectorAll(".rc-row").forEach((tr) => {
     tr.addEventListener("click", () => drillToBarcode(tr.dataset.barcode));
   });
@@ -229,7 +241,7 @@ function renderRawList(rows) {
     $("rcList").innerHTML = '<div class="rc-empty">该批次无变更事件</div>';
     return;
   }
-  const body = rows.map((r) => {
+  const body = rows.slice(0, RENDER_CAP).map((r) => {
     const fieldCn = FIELD_CN[r.field] || r.field;
     const typeCn = CHANGE_TYPE_CN[r.change_type] || r.change_type;
     return `
@@ -244,10 +256,10 @@ function renderRawList(rows) {
       </tr>`;
   }).join("");
   $("rcList").innerHTML = `
-    <table class="rc-table">
+    <table class="rc-tbl">
       <thead><tr><th>货号</th><th>型号</th><th>字段</th><th>旧值</th><th>新值</th><th>类型</th><th>时间</th></tr></thead>
       <tbody>${body}</tbody>
-    </table>`;
+    </table>${renderCapNote(rows.length)}`;
   document.querySelectorAll(".rc-row").forEach((tr) => {
     tr.addEventListener("click", () => drillToBarcode(tr.dataset.barcode));
   });

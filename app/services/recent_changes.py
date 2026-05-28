@@ -201,13 +201,14 @@ def get_batch_changes(
             .order_by(StockpileChange.created_at)
         ).all()
 
-        # 关联 model（一次查询，避免 N+1）
-        barcodes = {r.product_barcode for r in rows}
+        # 关联 model（分块查询，避免 N+1 + 规避 SQLite 999/32766 变量上限）
+        barcodes = list({r.product_barcode for r in rows})
         models: dict[str, str] = {}
-        if barcodes:
+        for i in range(0, len(barcodes), 900):
+            chunk = barcodes[i:i + 900]
             for bc, m in session.execute(
                 select(Stockpile.product_barcode, Stockpile.product_model).where(
-                    Stockpile.product_barcode.in_(barcodes)
+                    Stockpile.product_barcode.in_(chunk)
                 )
             ).all():
                 models[bc] = m

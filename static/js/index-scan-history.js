@@ -31,7 +31,7 @@ async function fetchJson(url) {
 // 注：sub-tab 的 active class 切换由 index-recent-changes.js 的 setupTabs 统一处理；
 // 这里只挂载"首次激活时拉数据"的 hook。
 function setupTabHook() {
-  document.querySelectorAll('#historyTabs [data-history-tab="scan"]').forEach((btn) => {
+  document.querySelectorAll('#historyTabs [data-history-tab="batch"]').forEach((btn) => {
     btn.addEventListener("click", () => {
       if (!_isInitialized) {
         _isInitialized = true;
@@ -83,20 +83,14 @@ function renderList() {
 
 function renderRow(b) {
   const csvLine = b.csv_filename
-    ? `<div class="sh-file">
-         <span class="sh-file__icon">📄</span>
-         <span class="sh-file__name">${escapeHtml(b.csv_filename)}</span>
-         <span class="sh-file__size">${b.csv_rows} 行 · ${formatBytes(b.csv_size_bytes)}</span>
-         <a class="pur-btn-dl" href="/scan_history/batches/${encodeURIComponent(b.batch_id)}/download/csv">下载</a>
+    ? `<div class="sh-file">📄 ${escapeHtml(b.csv_filename)} · ${b.csv_rows} 行 · ${formatBytes(b.csv_size_bytes)}
+         <a class="sh-file-dl" href="/scan_history/batches/${encodeURIComponent(b.batch_id)}/download/csv">下载</a>
        </div>`
-    : `<div class="sh-file"><span class="sh-file__icon">📄</span><span class="sh-file__name" style="color:var(--c-text-muted);">CSV 缺失</span></div>`;
+    : `<div class="sh-file" style="color:var(--ink-3);">📄 CSV 缺失</div>`;
 
   const xlsxLines = (b.xlsx_files || []).map((f) =>
-    `<div class="sh-file">
-       <span class="sh-file__icon">📊</span>
-       <span class="sh-file__name">${escapeHtml(f.name)}</span>
-       <span class="sh-file__size">${formatBytes(f.size_bytes)}</span>
-       <a class="pur-btn-dl" href="/scan_history/batches/${encodeURIComponent(b.batch_id)}/files/${encodeURIComponent(f.name)}">下载</a>
+    `<div class="sh-file">📊 ${escapeHtml(f.name)} · ${formatBytes(f.size_bytes)}
+       <a class="sh-file-dl" href="/scan_history/batches/${encodeURIComponent(b.batch_id)}/files/${encodeURIComponent(f.name)}">下载</a>
      </div>`
   ).join("");
 
@@ -107,13 +101,13 @@ function renderRow(b) {
 
   return `
     <div class="sh-row" data-batch-id="${escapeHtml(b.batch_id)}">
-      <div class="sh-row__head">
-        <span class="sh-row__time">${escapeHtml(b.scanned_at)}</span>
-        <span class="sh-row__employee">${escapeHtml(b.employee)}</span>
-        <span class="sh-row__meta">${escapeHtml(meta)}</span>
-        <span class="sh-row__chevron">▶</span>
+      <div class="sh-row-head">
+        <span class="sh-time">${escapeHtml(b.scanned_at)}</span>
+        <span class="sh-emp">${escapeHtml(b.employee)}</span>
+        <span class="sh-meta">${escapeHtml(meta)}</span>
+        <span class="sh-chevron">▶</span>
       </div>
-      <div class="sh-row__detail">
+      <div class="sh-detail">
         ${csvLine}
         ${xlsxLines}
       </div>
@@ -122,9 +116,9 @@ function renderRow(b) {
 }
 
 function attachRowToggleHandlers() {
-  document.querySelectorAll("#scanHistoryList .sh-row__head").forEach((head) => {
+  document.querySelectorAll("#scanHistoryList .sh-row-head").forEach((head) => {
     head.addEventListener("click", () => {
-      head.parentElement.classList.toggle("is-open");
+      head.parentElement.classList.toggle("open");
     });
   });
 }
