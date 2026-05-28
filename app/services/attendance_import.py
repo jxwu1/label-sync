@@ -2,10 +2,14 @@
 
 解析层为纯函数(无 DB);计划层只读 DB,核心逻辑 _build_plan_core 接受注入数据以便测试。
 """
+import json
 import re
 from io import BytesIO
 
 import openpyxl
+from sqlalchemy import select, update
+
+from app.models import Employee, SystemSetting, get_session
 
 _TIME_RE = re.compile(r"(?<!\d)(\d{1,2}):(\d{2})")
 _PAREN_RE = re.compile(r"[(（][^)）]*[)）]")
@@ -91,3 +95,56 @@ def parse_workbook(xlsx_bytes: bytes, filename: str = "") -> dict:
     finally:
         wb.close()
     return {"detected_month": detect_month(filename), "rows": rows}
+
+
+_IGNORE_KEY = "wecom_ignored_accounts"
+
+
+def get_account_map() -> dict:
+    """account -> employee_id(仅取已设 wecom_account 的员工)。"""
+    with get_session() as s:
+        rows = s.execute(
+            select(Employee.wecom_account, Employee.employee_id).where(
+                Employee.wecom_account.isnot(None)
+            )
+        ).all()
+    return {acc: eid for acc, eid in rows if acc}
+
+
+def bind_account(account: str, employee_id: str) -> None:
+    """把账号绑到员工(1:1:先把该账号从其他员工清掉)。员工不存在 → ValueError。"""
+    with get_session() as s:
+        emp = s.get(Employee, employee_id)
+        if not emp:
+            raise ValueError(f"员工不存在：{employee_id}")
+        s.execute(
+            update(Employee)
+            .where(Employee.wecom_account == account)
+            .values(wecom_account=None)
+        )
+        emp.wecom_account = account
+
+
+def list_ignored() -> set:
+    """忽略账号集合(存在 SystemSetting 的 JSON list)。"""
+    with get_session() as s:
+        st = s.get(SystemSetting, _IGNORE_KEY)
+        if not st or not st.value:
+            return set()
+        try:
+            return set(json.loads(st.value))
+        except (ValueError, TypeError):
+            return set()
+
+
+def ignore_account(account: str) -> None:
+    """把账号加入忽略清单。"""
+    accs = list_ignored()
+    accs.add(account)
+    payload = json.dumps(sorted(accs), ensure_ascii=False)
+    with get_session() as s:
+        st = s.get(SystemSetting, _IGNORE_KEY)
+        if st:
+            st.value = payload
+        else:
+            s.add(SystemSetting(key=_IGNORE_KEY, value=payload))

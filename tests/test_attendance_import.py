@@ -2,6 +2,7 @@
 import io
 import os
 import unittest
+from unittest import mock
 
 import openpyxl
 
@@ -9,7 +10,8 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.models import Base, Employee
+import app.models as models_mod
+from app.models import Base, Employee, SystemSetting
 from app.services import attendance_import as imp
 
 
@@ -97,3 +99,37 @@ class ParseWorkbookTests(unittest.TestCase):
         self.assertIn("WengFuYuan", accts)
         # 翁福源 2 号(周六)单元格 "09:29、20:03" → ok
         self.assertEqual(accts["WengFuYuan"]["days"][2], ("ok", "09:29", "20:03"))
+
+
+class BindIgnoreTests(unittest.TestCase):
+    def setUp(self):
+        self.engine, self.Session = _make_memory_db()
+        self.p1 = mock.patch.object(models_mod, "_engine", self.engine)
+        self.p2 = mock.patch.object(models_mod, "_SessionFactory", self.Session)
+        self.p1.start(); self.p2.start()
+        with self.Session() as s:
+            s.add(Employee(employee_id="e001", name="翁福源"))
+            s.add(Employee(employee_id="e002", name="陈建华"))
+            s.commit()
+
+    def tearDown(self):
+        self.p2.stop(); self.p1.stop()
+        Base.metadata.drop_all(self.engine); self.engine.dispose()
+
+    def test_bind_then_map(self):
+        imp.bind_account("WengFuYuan", "e001")
+        self.assertEqual(imp.get_account_map(), {"WengFuYuan": "e001"})
+
+    def test_bind_is_one_to_one(self):
+        imp.bind_account("WengFuYuan", "e001")
+        imp.bind_account("WengFuYuan", "e002")  # 改绑到 e002
+        self.assertEqual(imp.get_account_map(), {"WengFuYuan": "e002"})
+
+    def test_bind_unknown_employee_raises(self):
+        with self.assertRaises(ValueError):
+            imp.bind_account("X", "e999")
+
+    def test_ignore_list_roundtrip(self):
+        imp.ignore_account("ZhangYuePing")
+        imp.ignore_account("ChenRong")
+        self.assertEqual(imp.list_ignored(), {"ZhangYuePing", "ChenRong"})
