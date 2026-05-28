@@ -804,6 +804,24 @@ def forecast_refresh():
     return jsonify({"ok": True, **stats})
 
 
+@bp.post("/categories/recompute")
+def categories_recompute():
+    """触发 stockpile.auto_category 全量重算 (供 cron 容器 / 手动调).
+
+    生命周期分类按**全量**销售历史判 (回填后这里才吃到新数据,
+    与 forecast 的 156 周窗口不同). 无 query/body, 同步执行.
+    鉴权同 /forecast/refresh: 走 before_request (登录 session 或 X-Upload-Token).
+    返回 {ok, computed, by_category, duration_s}.
+    """
+    from app.services.analytics import recompute_categories
+
+    try:
+        stats = recompute_categories()
+    except Exception as exc:
+        return jsonify({"ok": False, "msg": f"重算失败：{exc}"}), 500
+    return jsonify({"ok": True, **stats})
+
+
 @bp.get("/backtest/results")
 def backtest_results():
     """单个 run 的 per-SKU 分数 (query param run_id)."""

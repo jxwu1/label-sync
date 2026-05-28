@@ -655,6 +655,24 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
         self.assertEqual(body["n_total"], 0)
         self.assertEqual(body["n_written"], 0)
 
+    def test_categories_recompute_returns_stats(self) -> None:
+        """POST /categories/recompute: 空库返回 computed=0."""
+        resp = self.client.post("/analytics/categories/recompute")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["computed"], 0)
+        self.assertIn("by_category", body)
+
+    def test_categories_recompute_counts_seeded_sku(self) -> None:
+        """有 active SKU 时 computed 计入该 SKU。"""
+        self._seed_sku("B1")
+        resp = self.client.post("/analytics/categories/recompute")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["computed"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
