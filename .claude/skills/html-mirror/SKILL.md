@@ -49,15 +49,24 @@ The #1 failure mode is skipping this step and "winging it" based on a glance at 
 
 ## Phase 2: Implementation
 
-### The CSS Copy Strategy
+### The CSS Extraction Rule (Most Important Rule in This Skill)
 
 The demo HTML contains a `<style>` block with the complete design system. Your implementation strategy:
 
-1. **Extract the `<style>` block** into `static/css/design-system.css` — nearly verbatim
-2. **Shared shell** (sidebar, header, theme switch) goes into `base.html`
-3. **Page content** goes into `{% block content %}` per page
+1. **Literally copy the `<style>` block** from the demo HTML into `static/css/design-system.css`
+2. Run the extraction once from the most complete demo (usually labeling or dashboard)
+3. **Do not rewrite, refactor, translate to Tailwind, or "clean up" the CSS**
+4. Shared shell (sidebar, header, theme switch) goes into `base.html`
+5. Page content goes into `{% block content %}` per page
+6. Every Jinja template links `<link rel="stylesheet" href="/static/css/design-system.css">`
 
-The CSS file should be recognizably the same code as the demo's style block, not a "translation" or "adaptation".
+Why this is the #1 rule: The failure that has repeatedly happened is that Claude Code reads `.btn { padding: 5px 12px; font-size: 11px }` in the demo, then writes `class="px-2 py-1 text-xs"` in the template, which computes to `padding: 4px 8px; font-size: 12px` — close but wrong. Every component, every property, every pixel is off by a little, and it adds up to "everything looks smaller".
+
+The fix is to not translate at all. The demo CSS IS the production CSS. Extract it as-is. If you need to split it into multiple files for organization (base.css, components.css, pages/), that's fine, but every class definition must contain the same property values as the demo, character for character.
+
+**Self-check before committing CSS**: open the demo HTML and your CSS file side by side. Every `.btn`, `.pill`, `.pnl`, `.tbl th`, `.nav-item` etc. should have identical property values. If any value differs, it's a bug.
+
+**NEVER translate demo CSS to Tailwind utility classes.** The demo CSS is the source of truth. Tailwind utilities are approximations. Approximations accumulate error.
 
 ### Values You Must Copy Exactly
 
@@ -88,16 +97,6 @@ gap: 1rem             →  use --sp-* variables (which are px)
 
 The reason they're banned isn't that they're bad CSS — it's that they give Claude Code room to guess, and Claude Code's guesses don't match the demo.
 
-### Isolation Rule: Never Modify Shared CSS for a Single Page
-
-When the project has multiple pages sharing parent containers (`.content`, `.page`, `.shell`), **NEVER modify shared CSS to fix a single page's layout**. Instead:
-
-1. Use page-specific CSS overrides: `#pageXxx.active { ... }`
-2. If a shared class needs different behavior on one page, add a page-scoped selector
-3. Before editing any shared CSS rule, grep for all pages that use it and verify the change won't break them
-
-Why: modifying `.content { padding }` to fix the labeling page will break every other page's padding. This has happened — don't repeat it.
-
 ---
 
 ## Phase 3: Visual Verification Loop
@@ -106,48 +105,37 @@ This is the critical phase. You've written code — now prove it matches.
 
 ### Setup: Screenshot Script
 
-Create `tools/compare_screenshots.py` if it doesn't exist:
-
-```python
-"""Take screenshots of design HTML and actual site for comparison."""
-from playwright.sync_api import sync_playwright
-
-def screenshot_both(design_url, live_url, nav_action=None, width=1500, height=900):
-    with sync_playwright() as p:
-        browser = p.chromium.launch()
-        page = browser.new_page(viewport={"width": width, "height": height})
-
-        # Screenshot design HTML
-        page.goto(design_url)
-        page.wait_for_timeout(500)
-        page.screenshot(path="tools/screenshot_design.png", full_page=False)
-
-        # Screenshot live site (login if needed)
-        page.goto(live_url + "/login")
-        page.fill('input[name="username"]', "admin")
-        page.fill('input[name="password"]', "admin")
-        page.click('button[type="submit"]')
-        page.wait_for_timeout(1000)
-
-        if nav_action:
-            nav_action(page)
-            page.wait_for_timeout(500)
-
-        page.screenshot(path="tools/screenshot_actual.png", full_page=False)
-        browser.close()
-```
+The project should have `scripts/screenshot.py`. If it doesn't exist, create it — see `references/screenshot-script.md` for the full code.
 
 ### The Loop
 
-**Step 1 — Screenshot both versions at the same viewport**
+**Step 1 — Screenshot both versions at the same viewport:**
 
-**Step 2 — Read both screenshots and visually compare:**
-- Overall layout proportions (sidebar width, column widths, panel heights)
-- Component sizing (padding, font size, gap)
-- Color matching between themes
-- Element positioning (does the right column reach the bottom?)
+```bash
+# Reference (demo HTML file)
+python scripts/screenshot.py docs/design-demos/01-dashboard.html screenshots/ref.png --width=1440 --theme=dark
 
-**Step 3 — List every mismatch**, no matter how small:
+# Live (your implementation)  
+python scripts/screenshot.py http://localhost:5000/ screenshots/live.png --width=1440 --theme=dark
+```
+
+**Step 2 — Generate a pixel diff:**
+
+```bash
+python scripts/screenshot.py --diff screenshots/ref.png screenshots/live.png screenshots/diff.png
+```
+
+This overlays red on every pixel that differs. The output tells you the mismatch percentage.
+
+**Step 3 — Also run a numerical audit** (zero image cost):
+
+Use Playwright to extract `getComputedStyle` from key elements on the live page and compare against the values in the demo CSS. This catches differences that are hard to see in screenshots (1-2px padding, slightly wrong font-weight).
+
+```bash
+python scripts/screenshot.py --audit http://localhost:5000/ --selectors ".sidebar,.header,.pnl,.btn,.tbl th,.tbl td"
+```
+
+**Step 4 — List every mismatch**, no matter how small:
 
 ```
 MISMATCHES FOUND:
@@ -157,13 +145,13 @@ MISMATCHES FOUND:
 - .btn border-radius: expected 4px, got 6px
 ```
 
-**Step 4 — Fix all mismatches by copying the exact value from the demo CSS**, then go back to Step 1.
+**Step 5 — Fix all mismatches**, then go back to Step 1.
 
 ### Exit condition
 
-- Visual comparison: no visible differences at 1:1 zoom
+- Pixel diff < 0.5% (remaining noise is anti-aliasing)
+- Numerical audit: zero value mismatches
 - Both dark AND light themes pass
-- **Regression check: switch to every other page in the app and confirm none are broken by the changes**
 
 "Close enough" is not an exit condition. The user has explicitly said they want identical output. 2px off is a bug.
 
@@ -194,6 +182,13 @@ For each page, run the full Phase 3 loop before moving to the next.
 
 **Fonts look different**: Missing Google Fonts `<link>` tag. Copy it from the demo's `<head>`. The demo uses Inter, JetBrains Mono, and Space Grotesk.
 
-**Page container height mismatch between pages**: Each page has its own `#pageXxx.active` override with explicit `height: calc(100vh - Npx)`. The `N` depends on how many shell elements (header, substrip) are visible. Don't use the same `N` for pages with different shell configurations. Calculate: `N = header(48) + substrip(28 if shown) + borders`.
+---
 
-**Modifying shared CSS breaks other pages**: Before editing `.content`, `.page`, `.shell`, or any non-page-scoped class, grep for every page that uses it. If more than one page is affected, use a page-specific override instead.
+## Reference Files
+
+For implementation details that would bloat this skill, read these on demand:
+
+- `references/screenshot-script.md` — Full screenshot.py with diff and audit modes
+- `references/css-variable-catalog.md` — Complete list of all design system variables and their values
+
+Create these reference files in the skill directory when setting up the project.
