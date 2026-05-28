@@ -1,0 +1,5 @@
+{
+  "name": "html-mirror",
+  "version": "1.0.0",
+  "description": "Pixel-perfect HTML demo to Flask/Jinja implementation with Playwright-based screenshot verification loop."
+}
