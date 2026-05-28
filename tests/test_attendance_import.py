@@ -1,6 +1,5 @@
 """企业微信考勤导入：解析层 + 服务 + 计划层单测。"""
 import unittest
-from unittest import mock
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
