@@ -387,6 +387,15 @@ def import_ignore():
     return jsonify({"ok": True})
 
 
+@bp.post("/import/unignore")
+def import_unignore():
+    body, err = parse_body(_IgnoreUpsert)
+    if err:
+        return err
+    attendance_import_service.unignore_account(body.account)
+    return jsonify({"ok": True})
+
+
 @bp.post("/import/apply")
 def import_apply():
     f = request.files.get("file")

@@ -134,6 +134,17 @@ class BindIgnoreTests(unittest.TestCase):
         imp.ignore_account("ChenRong")
         self.assertEqual(imp.list_ignored(), {"ZhangYuePing", "ChenRong"})
 
+    def test_unignore_removes_account(self):
+        imp.ignore_account("ZhangYuePing")
+        imp.ignore_account("ChenRong")
+        imp.unignore_account("ZhangYuePing")
+        self.assertEqual(imp.list_ignored(), {"ChenRong"})
+
+    def test_unignore_missing_is_noop(self):
+        imp.ignore_account("ChenRong")
+        imp.unignore_account("NotThere")  # 不存在不报错
+        self.assertEqual(imp.list_ignored(), {"ChenRong"})
+
 
 class BuildPlanCoreTests(unittest.TestCase):
     def test_matched_to_write_and_single(self):
@@ -162,6 +173,9 @@ class BuildPlanCoreTests(unittest.TestCase):
                          [{"employee_id": "e001", "name": "翁福源", "date": "2026-05-02", "time": "09:40"}])
         self.assertEqual(plan["unbound"],
                          [{"account": "NewGuy", "name": "新人", "suggested_employee_id": None}])
+        self.assertEqual(plan["ignored"],
+                         [{"account": "ZhangYuePing", "name": "张月萍"}])
+        self.assertEqual(plan["counts"]["ignored"], 1)
 
     def test_fill_blank_only_skips_existing(self):
         plan = imp._build_plan_core(

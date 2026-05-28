@@ -151,6 +151,19 @@ def ignore_account(account: str) -> None:
             s.add(SystemSetting(key=_IGNORE_KEY, value=payload))
 
 
+def unignore_account(account: str) -> None:
+    """从忽略清单移除一个账号(不存在则 no-op)。"""
+    accs = list_ignored()
+    accs.discard(account)
+    payload = json.dumps(sorted(accs), ensure_ascii=False)
+    with get_session() as s:
+        st = s.get(SystemSetting, _IGNORE_KEY)
+        if st:
+            st.value = payload
+        else:
+            s.add(SystemSetting(key=_IGNORE_KEY, value=payload))
+
+
 def _build_plan_core(rows, month, *, account_map, ignored, name_by_id, month_data, leaves_by_emp):
     """纯计算计划核心。共享数据由调用方注入(便于测试)。"""
     # 姓名 -> employee_id 建议(仅唯一姓名才建议,重名留空)
@@ -162,10 +175,12 @@ def _build_plan_core(rows, month, *, account_map, ignored, name_by_id, month_dat
     matched = []
     unbound = []
     needs_manual = []
+    ignored_rows = []
     for row in rows:
         acc = row["account"]
         nm = row["name"]
         if acc in ignored:
+            ignored_rows.append({"account": acc, "name": nm})
             continue
         eid = account_map.get(acc)
         if not eid:
@@ -213,11 +228,13 @@ def _build_plan_core(rows, month, *, account_map, ignored, name_by_id, month_dat
         "matched": matched,
         "unbound": unbound,
         "needs_manual": needs_manual,
+        "ignored": ignored_rows,
         "counts": {
             "matched": len(matched),
             "unbound": len(unbound),
             "needs_manual": len(needs_manual),
             "to_write": sum(len(m["to_write"]) for m in matched),
+            "ignored": len(ignored_rows),
         },
     }
 
