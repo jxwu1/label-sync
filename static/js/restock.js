@@ -483,13 +483,13 @@ function exportSelectedCsv() {
   const selected = state.items
     .filter((it) => state.selected.has(it.barcode))
     .sort((a, b) => (b.urgency_score || 0) - (a.urgency_score || 0));
-  const head = cols.map((c) => c[1]).join(",") + ",ERP导入 (条码\\,数量)";
+  const head = cols.map((c) => c[1]).join(",") + ",ERP导入 (型号\\,数量)";
   const rows = selected
     .map((it) => {
       const base = cols.map((c) => csvCell(it[c[0]])).join(",");
       const qty = it.restock_qty_p98 != null ? it.restock_qty_p98 : "";
-      const bc = String(it.barcode || "");
-      const erp = bc && qty ? `"=""${bc},${qty}"""` : "";
+      const mdl = String(it.model || "");
+      const erp = mdl && qty ? `"=""${mdl},${qty}"""` : "";
       return base + "," + erp;
     });
   const csv = "﻿" + head + "\n" + rows.join("\n");
