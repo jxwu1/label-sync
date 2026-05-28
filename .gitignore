@@ -90,3 +90,4 @@ static/css/output.css
 
 # Node tooling (DaisyUI + eslint)
 node_modules/
+.playwright-mcp/
