@@ -65,6 +65,14 @@ data/scrape_staging/
 .claude/settings.local.json
 .superpowers/
 .gitnexus/
+.agents/
+.codegraph/
+.codex/
+
+# Local throwaway artifacts
+*.tmp
+server_debug.log
+tools/screenshot_*.png
 
 # Test temp dirs
 .test_tmp/
