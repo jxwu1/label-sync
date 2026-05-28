@@ -11,7 +11,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.models as models_mod
-from app.models import Base, Employee, SystemSetting
+from app.models import Base, Employee
 from app.services import attendance_import as imp
 
 
