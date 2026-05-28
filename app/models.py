@@ -564,6 +564,7 @@ class Employee(Base):
     start_date: Mapped[str | None] = mapped_column(Text)
     active: Mapped[int] = mapped_column(Integer, default=1)
     notes: Mapped[str | None] = mapped_column(Text)
+    wecom_account: Mapped[str | None] = mapped_column(Text)
 
     attendance_records = relationship("AttendanceRecord", back_populates="employee", cascade="all, delete-orphan")
     leave_records = relationship("LeaveRecord", back_populates="employee", cascade="all, delete-orphan")
