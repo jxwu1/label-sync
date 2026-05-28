@@ -7,7 +7,7 @@ from io import BytesIO
 
 import openpyxl
 
-_TIME_RE = re.compile(r"(\d{1,2}):(\d{2})")
+_TIME_RE = re.compile(r"(?<!\d)(\d{1,2}):(\d{2})")
 _PAREN_RE = re.compile(r"[(（][^)）]*[)）]")
 _SPLIT_RE = re.compile(r"[、,，]")
 _DAY_HEADER_RE = re.compile(r"^(\d{1,2})")
@@ -18,7 +18,7 @@ _NAME_COL = 0
 _ACCOUNT_COL = 1
 
 
-def parse_cell(text):
+def parse_cell(text: object) -> tuple:
     """单元格 → ('ok', start, end) | ('single', t) | ('empty',)。
 
     去注释 → 按 、/, 拆 → 抓 HH:MM → 去重排序;0 个 empty,1 个 single,≥2 个 min/max。
@@ -42,7 +42,7 @@ def parse_cell(text):
     return ("ok", uniq[0], uniq[-1])
 
 
-def detect_month(filename):
+def detect_month(filename: str | None) -> str | None:
     """从文件名 (..._20260501-...) 推 'YYYY-MM';推不出返回 None。"""
     if not filename:
         return None
@@ -52,38 +52,42 @@ def detect_month(filename):
     return None
 
 
-def parse_workbook(xlsx_bytes, filename=""):
+def parse_workbook(xlsx_bytes: bytes, filename: str = "") -> dict:
     """xlsx bytes → {'detected_month': 'YYYY-MM'|None, 'rows': [...]}。
 
     每行:{'account', 'name', 'days': {day_int: ('ok',s,e)|('single',t)}}。
     days 只含非空单元格;不计算日期(留给计划层按确认月份算)。
     """
     wb = openpyxl.load_workbook(BytesIO(xlsx_bytes), read_only=True, data_only=True)
-    ws = wb.worksheets[0]
-    grid = list(ws.iter_rows(values_only=True))
-    header = grid[_HEADER_ROW] if len(grid) > _HEADER_ROW else ()
-    day_cols = {}
-    for ci, cell in enumerate(header):
-        if cell is None:
-            continue
-        txt = str(cell).strip()
-        if "星期" in txt:
-            m = _DAY_HEADER_RE.match(txt)
-            if m:
-                day_cols[ci] = int(m.group(1))
-    rows = []
-    for r in grid[_HEADER_ROW + 1:]:
-        if not r:
-            continue
-        account = str(r[_ACCOUNT_COL]).strip() if len(r) > _ACCOUNT_COL and r[_ACCOUNT_COL] is not None else ""
-        if not account:
-            continue
-        name = str(r[_NAME_COL]).strip() if len(r) > _NAME_COL and r[_NAME_COL] is not None else ""
-        days = {}
-        for ci, day in day_cols.items():
-            parsed = parse_cell(r[ci] if ci < len(r) else None)
-            if parsed[0] != "empty":
-                days[day] = parsed
-        rows.append({"account": account, "name": name, "days": days})
-    wb.close()
+    try:
+        ws = wb.worksheets[0]
+        grid = list(ws.iter_rows(values_only=True))
+        header = grid[_HEADER_ROW] if len(grid) > _HEADER_ROW else ()
+        day_cols = {}
+        for ci, cell in enumerate(header):
+            if cell is None:
+                continue
+            txt = str(cell).strip()
+            if "星期" in txt:
+                m = _DAY_HEADER_RE.match(txt)
+                if m:
+                    day_cols[ci] = int(m.group(1))
+        rows = []
+        for r in grid[_HEADER_ROW + 1:]:
+            if not r:
+                continue
+            raw_acct = r[_ACCOUNT_COL] if len(r) > _ACCOUNT_COL else None
+            account = str(raw_acct).strip() if raw_acct is not None else ""
+            if not account:
+                continue
+            raw_name = r[_NAME_COL] if len(r) > _NAME_COL else None
+            name = str(raw_name).strip() if raw_name is not None else ""
+            days = {}
+            for ci, day in day_cols.items():
+                parsed = parse_cell(r[ci] if ci < len(r) else None)
+                if parsed[0] != "empty":
+                    days[day] = parsed
+            rows.append({"account": account, "name": name, "days": days})
+    finally:
+        wb.close()
     return {"detected_month": detect_month(filename), "rows": rows}

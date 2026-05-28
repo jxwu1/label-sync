@@ -1,6 +1,9 @@
 """企业微信考勤导入：解析层 + 服务 + 计划层单测。"""
+import io
 import os
 import unittest
+
+import openpyxl
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
@@ -65,6 +68,25 @@ _REAL_FILE = r"C:\Users\64474\Downloads\上下班打卡_打卡时间记录_20260
 
 
 class ParseWorkbookTests(unittest.TestCase):
+    def test_parses_synthetic_workbook(self):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "打卡时间记录"
+        ws.append(["打卡时间记录"])
+        ws.append(["统计时间:05-01 ～ 05-02"])
+        ws.append(["姓名", "账号", "基础信息", "", "", "打卡时间记录"])
+        ws.append(["", "", "部门", "职务", "工号", "1\n星期五", "2\n星期六"])
+        ws.append(["翁福源", "WengFuYuan", "希腊销售部", "--", "--", "09:25、20:00", "09:40"])
+        ws.append(["", "", "", "", "", "--", "--"])  # 空账号行应被跳过
+        buf = io.BytesIO()
+        wb.save(buf)
+        out = imp.parse_workbook(buf.getvalue(), "wecom_20260501-20260502.xlsx")
+        self.assertEqual(out["detected_month"], "2026-05")
+        rows = {row["account"]: row for row in out["rows"]}
+        self.assertEqual(list(rows), ["WengFuYuan"])  # 空账号行被跳过
+        self.assertEqual(rows["WengFuYuan"]["days"][1], ("ok", "09:25", "20:00"))
+        self.assertEqual(rows["WengFuYuan"]["days"][2], ("single", "09:40"))
+
     @unittest.skipUnless(os.path.exists(_REAL_FILE), "需要真实导出文件")
     def test_parses_real_file(self):
         with open(_REAL_FILE, "rb") as f:
