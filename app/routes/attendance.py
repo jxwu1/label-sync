@@ -4,11 +4,12 @@ import io
 from datetime import date as date_cls
 from typing import Literal
 
-from flask import Blueprint, jsonify, send_file
+from flask import Blueprint, jsonify, request, send_file
 from pydantic import BaseModel, field_validator
 
-from app.services import attendance_report as attendance_report_service
 from app.services import attendance as attendance_service
+from app.services import attendance_import as attendance_import_service
+from app.services import attendance_report as attendance_report_service
 from app.utils.route_helpers import NonEmptyStr, OptionalStr, parse_body
 
 bp = Blueprint("attendance", __name__, url_prefix="/attendance")
@@ -74,6 +75,15 @@ class _InactivePeriodDelete(BaseModel):
 
     from_date: NonEmptyStr
     to_date: NonEmptyStr
+
+
+class _BindUpsert(BaseModel):
+    account: NonEmptyStr
+    employee_id: NonEmptyStr
+
+
+class _IgnoreUpsert(BaseModel):
+    account: NonEmptyStr
 
 
 @bp.get("/employees")
@@ -338,3 +348,56 @@ def download_payroll_pdf(month: str):
         as_attachment=True,
         download_name=f"月度工资单_{month}.pdf",
     )
+
+
+@bp.post("/import/preview")
+def import_preview():
+    f = request.files.get("file")
+    if f is None:
+        return jsonify({"ok": False, "msg": "缺少文件"}), 400
+    try:
+        parsed = attendance_import_service.parse_workbook(f.read(), f.filename or "")
+    except Exception as exc:
+        return jsonify({"ok": False, "msg": f"解析失败：{exc}"}), 400
+    month = request.form.get("month") or parsed["detected_month"]
+    if not month:
+        return jsonify({"ok": False, "msg": "无法判定月份,请手动选择目标月"}), 400
+    plan = attendance_import_service.build_plan(parsed["rows"], month)
+    return jsonify({"ok": True, **plan})
+
+
+@bp.post("/import/bind")
+def import_bind():
+    body, err = parse_body(_BindUpsert)
+    if err:
+        return err
+    try:
+        attendance_import_service.bind_account(body.account, body.employee_id)
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
+    return jsonify({"ok": True})
+
+
+@bp.post("/import/ignore")
+def import_ignore():
+    body, err = parse_body(_IgnoreUpsert)
+    if err:
+        return err
+    attendance_import_service.ignore_account(body.account)
+    return jsonify({"ok": True})
+
+
+@bp.post("/import/apply")
+def import_apply():
+    f = request.files.get("file")
+    if f is None:
+        return jsonify({"ok": False, "msg": "缺少文件"}), 400
+    try:
+        parsed = attendance_import_service.parse_workbook(f.read(), f.filename or "")
+    except Exception as exc:
+        return jsonify({"ok": False, "msg": f"解析失败：{exc}"}), 400
+    month = request.form.get("month") or parsed["detected_month"]
+    if not month:
+        return jsonify({"ok": False, "msg": "无法判定月份,请手动选择目标月"}), 400
+    result = attendance_import_service.apply_plan(parsed["rows"], month)
+    return jsonify({"ok": True, **result})

@@ -38,6 +38,7 @@
           <span class="attn-spacer"></span>
           <button class="attn-btn" id="attnFillAll">一键填全月正常</button>
           <button class="attn-btn" id="attnLeaveRange">区间请假</button>
+          <button class="attn-btn" id="attnWecomImport">导入企业微信</button>
           <button class="attn-btn attn-btn-dl" id="attnPdf">下载 PDF</button>
           <button class="attn-btn attn-btn-dl" id="attnPayrollPdf">工资单 PDF</button>
         </div>
@@ -243,6 +244,7 @@
     });
     document.getElementById('attnFillAll').addEventListener('click', fillAllNormal);
     document.getElementById('attnLeaveRange').addEventListener('click', openLeaveRange);
+    document.getElementById('attnWecomImport').addEventListener('click', openWecomImport);
     document.getElementById('attnLeaveRangeSubmit').addEventListener('click', submitLeaveRange);
     document.getElementById('attnLeaveRangeCancel').addEventListener('click', () => {
       document.getElementById('attnLeaveRangeOverlay').style.display = 'none';
@@ -1229,6 +1231,147 @@
     return String(s ?? '').replace(/[&<>"']/g, c => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     }[c]));
+  }
+
+  // ===== 企业微信考勤导入 =====
+
+  let _wecomFile = null;
+  let _wecomMonth = '';
+
+  function _wecomOverlay() {
+    let ov = document.getElementById('wecomImportOverlay');
+    if (ov) return ov;
+    ov = document.createElement('div');
+    ov.id = 'wecomImportOverlay';
+    ov.className = 'pur-modal-overlay';
+    ov.innerHTML = `
+      <div class="pur-modal" style="max-width:680px">
+        <div class="pur-modal-hd">导入企业微信考勤</div>
+        <div id="wecomBody">
+          <p>选择企业微信导出的「打卡时间记录」xlsx：</p>
+          <input type="file" id="wecomFileInput" accept=".xlsx">
+        </div>
+        <div class="pur-modal-actions">
+          <button class="attn-btn" id="wecomClose">关闭</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('click', (e) => { if (e.target === ov) ov.remove(); });
+    ov.querySelector('#wecomClose').addEventListener('click', () => ov.remove());
+    ov.querySelector('#wecomFileInput').addEventListener('change', _wecomOnFile);
+    return ov;
+  }
+
+  function openWecomImport() {
+    _wecomFile = null;
+    _wecomMonth = '';
+    // 每次打开重建 body（避免残留上次预览）
+    const existing = document.getElementById('wecomImportOverlay');
+    if (existing) existing.remove();
+    _wecomOverlay().style.display = 'flex';
+  }
+
+  async function _wecomOnFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    _wecomFile = file;
+    await _wecomPreview();
+  }
+
+  async function _wecomPreview() {
+    if (!_wecomFile) return;
+    const fd = new FormData();
+    fd.append('file', _wecomFile);
+    if (_wecomMonth) fd.append('month', _wecomMonth);
+    let body;
+    try {
+      const res = await fetch('/attendance/import/preview', { method: 'POST', body: fd });
+      body = await res.json();
+    } catch (err) { alert('预览失败：' + err.message); return; }
+    if (!body.ok) { alert(body.msg); return; }
+    _wecomMonth = body.month;
+    _wecomRender(body);
+  }
+
+  function _wecomRender(plan) {
+    const empOpts = employees.map(e => `<option value="${escapeHtml(e.id)}">${escapeHtml(e.name)}</option>`).join('');
+    const unboundHtml = plan.unbound.length === 0
+      ? '<p class="attn-muted">无待绑定账号 ✓</p>'
+      : plan.unbound.map(u => `
+          <div class="wecom-bind-row" data-account="${escapeHtml(u.account)}">
+            <span class="wecom-bind-name">${escapeHtml(u.name) || '(无名)'}</span>
+            <select class="attn-inp wecom-bind-sel">
+              <option value="">— 选择员工 —</option>${empOpts}
+            </select>
+            <button class="attn-btn wecom-bind-go">绑定</button>
+            <button class="attn-btn wecom-ignore-go">忽略</button>
+          </div>`).join('');
+    const manualHtml = plan.needs_manual.length === 0
+      ? ''
+      : `<details><summary>需手动补 ${plan.needs_manual.length} 天(单次打卡)</summary>
+           <ul>${plan.needs_manual.map(m => `<li>${escapeHtml(m.name)} ${escapeHtml(m.date)} ${escapeHtml(m.time)}</li>`).join('')}</ul>
+         </details>`;
+    document.getElementById('wecomBody').innerHTML = `
+      <div class="wecom-summary">
+        目标月 <b>${escapeHtml(plan.month)}</b> ·
+        已匹配 <b>${plan.counts.matched}</b> 人 ·
+        待写 <b>${plan.counts.to_write}</b> 天 ·
+        待绑定 <b>${plan.counts.unbound}</b> ·
+        需手动 <b>${plan.counts.needs_manual}</b>
+      </div>
+      <h4>待绑定账号</h4>
+      ${unboundHtml}
+      ${manualHtml}
+      <div class="wecom-actions">
+        <button class="attn-btn" id="wecomApply">写入 ${plan.counts.to_write} 天</button>
+      </div>`;
+    plan.unbound.forEach(u => {
+      if (u.suggested_employee_id) {
+        const sel = document.querySelector(`.wecom-bind-row[data-account="${CSS.escape(u.account)}"] .wecom-bind-sel`);
+        if (sel) sel.value = u.suggested_employee_id;
+      }
+    });
+    document.querySelectorAll('.wecom-bind-go').forEach(btn => btn.addEventListener('click', _wecomBind));
+    document.querySelectorAll('.wecom-ignore-go').forEach(btn => btn.addEventListener('click', _wecomIgnore));
+    document.getElementById('wecomApply').addEventListener('click', _wecomApply);
+  }
+
+  async function _wecomBind(e) {
+    const row = e.target.closest('.wecom-bind-row');
+    const account = row.dataset.account;
+    const employee_id = row.querySelector('.wecom-bind-sel').value;
+    if (!employee_id) { alert('请先选择员工'); return; }
+    const res = await fetch('/attendance/import/bind', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ account, employee_id }),
+    });
+    const body = await res.json();
+    if (!body.ok) { alert(body.msg); return; }
+    await _wecomPreview();
+  }
+
+  async function _wecomIgnore(e) {
+    const account = e.target.closest('.wecom-bind-row').dataset.account;
+    const res = await fetch('/attendance/import/ignore', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ account }),
+    });
+    const body = await res.json();
+    if (!body.ok) { alert(body.msg); return; }
+    await _wecomPreview();
+  }
+
+  async function _wecomApply() {
+    if (!_wecomFile || !confirm('确认写入?只填空白天,不覆盖已有考勤。')) return;
+    const fd = new FormData();
+    fd.append('file', _wecomFile);
+    fd.append('month', _wecomMonth);
+    const res = await fetch('/attendance/import/apply', { method: 'POST', body: fd });
+    const body = await res.json();
+    if (!body.ok) { alert(body.msg); return; }
+    alert(`写入 ${body.written} 天,跳过已有 ${body.skipped_existing}、单次 ${body.skipped_single}。`);
+    document.getElementById('wecomImportOverlay').remove();
+    await loadMonth();
   }
 
   document.addEventListener('DOMContentLoaded', function () {
