@@ -37,6 +37,22 @@ function Read-EnvVar {
     return ($match -split "=", 2)[1].Trim()
 }
 
+function Invoke-Refresh {
+    # 上传完后触发服务器端重算. 读 script 作用域的 $uploadToken (同 Run-Step 读 $python).
+    param([string]$Name, [string]$Url)
+    Log "→ 刷新 $Name"
+    $resp = curl.exe --silent --show-error --max-time 600 -X POST `
+        -H "X-Upload-Token: $uploadToken" `
+        $Url 2>&1
+    Log "← $resp"
+    if ($LASTEXITCODE -ne 0) {
+        throw "$Name 刷新失败 (curl 退出 $LASTEXITCODE)"
+    }
+    if ($resp -notmatch '"ok":\s*true') {
+        throw "$Name 刷新返回非 ok: $resp"
+    }
+}
+
 function Run-Step {
     # NOTE: 参数名不能用 $Args, 跟 PowerShell 函数自动变量冲突, 传值会丢
     param([string]$Name, [string]$Script, [string[]]$ScriptArgs = @())
@@ -118,6 +134,16 @@ try {
     }
 
     Log "=== 完成: $($files.Count) 文件上传, 挪到 $thisRunDir ==="
+
+    # === 触发服务器重算 (数据已入库, 让分类 + 预测跟上新数据) ===
+    # 先分类 (生命周期 auto_category, 吃全量历史), 再预测 (sku_type + p50/p98, 仍 156 周窗口).
+    # 失败 → throw → exit 1; 此时文件已上传入库, 不会丢数据 / 不会重传, 仅提示手动重刷.
+    $refreshBase = $uploadUrl -replace '/data/upload/?$', ''
+    Log "=== 触发分类 + 预测刷新 (base: $refreshBase) ==="
+    Invoke-Refresh "categories/recompute" "$refreshBase/categories/recompute"
+    Invoke-Refresh "forecast/refresh"     "$refreshBase/forecast/refresh"
+    Log "=== 刷新完成 ==="
+
     exit 0
 }
 catch {
