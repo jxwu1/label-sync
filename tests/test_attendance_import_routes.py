@@ -89,6 +89,18 @@ class WecomImportRoutesTests(unittest.TestCase):
         accs = {u["account"] for u in body["unbound"]}
         self.assertNotIn("NewGuy", accs)
 
+    def test_unignore_restores_account(self):
+        self.client.post("/attendance/import/ignore", json={"account": "NewGuy"})
+        # ignored: NewGuy no longer in unbound
+        body = self._upload("/attendance/import/preview").get_json()
+        self.assertNotIn("NewGuy", {u["account"] for u in body["unbound"]})
+        self.assertIn("NewGuy", {i["account"] for i in body["ignored"]})
+        # un-ignore: back in unbound, gone from ignored
+        self.client.post("/attendance/import/unignore", json={"account": "NewGuy"})
+        body2 = self._upload("/attendance/import/preview").get_json()
+        self.assertIn("NewGuy", {u["account"] for u in body2["unbound"]})
+        self.assertEqual(body2["ignored"], [])
+
     def test_apply_writes_only_ok_days(self):
         self.client.post("/attendance/import/bind",
                          json={"account": "WengFuYuan", "employee_id": "e001"})

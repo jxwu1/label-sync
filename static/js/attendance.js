@@ -1311,17 +1311,29 @@
       : `<details><summary>需手动补 ${plan.needs_manual.length} 天(单次打卡)</summary>
            <ul>${plan.needs_manual.map(m => `<li>${escapeHtml(m.name)} ${escapeHtml(m.date)} ${escapeHtml(m.time)}</li>`).join('')}</ul>
          </details>`;
+    const ignored = plan.ignored || [];
+    const ignoredHtml = ignored.length === 0
+      ? ''
+      : `<details><summary>已忽略 ${ignored.length} 人(点错可在此恢复)</summary>
+           ${ignored.map(i => `
+             <div class="wecom-ignored-row" data-account="${escapeHtml(i.account)}">
+               <span class="wecom-bind-name">${escapeHtml(i.name) || '(无名)'}</span>
+               <button class="attn-btn wecom-unignore-go">取消忽略</button>
+             </div>`).join('')}
+         </details>`;
     document.getElementById('wecomBody').innerHTML = `
       <div class="wecom-summary">
         目标月 <b>${escapeHtml(plan.month)}</b> ·
         已匹配 <b>${plan.counts.matched}</b> 人 ·
         待写 <b>${plan.counts.to_write}</b> 天 ·
         待绑定 <b>${plan.counts.unbound}</b> ·
-        需手动 <b>${plan.counts.needs_manual}</b>
+        需手动 <b>${plan.counts.needs_manual}</b> ·
+        已忽略 <b>${plan.counts.ignored || 0}</b>
       </div>
       <h4>待绑定账号</h4>
       ${unboundHtml}
       ${manualHtml}
+      ${ignoredHtml}
       <div class="wecom-actions">
         <button class="attn-btn" id="wecomApply">写入 ${plan.counts.to_write} 天</button>
       </div>`;
@@ -1333,6 +1345,7 @@
     });
     document.querySelectorAll('.wecom-bind-go').forEach(btn => btn.addEventListener('click', _wecomBind));
     document.querySelectorAll('.wecom-ignore-go').forEach(btn => btn.addEventListener('click', _wecomIgnore));
+    document.querySelectorAll('.wecom-unignore-go').forEach(btn => btn.addEventListener('click', _wecomUnignore));
     document.getElementById('wecomApply').addEventListener('click', _wecomApply);
   }
 
@@ -1353,6 +1366,17 @@
   async function _wecomIgnore(e) {
     const account = e.target.closest('.wecom-bind-row').dataset.account;
     const res = await fetch('/attendance/import/ignore', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ account }),
+    });
+    const body = await res.json();
+    if (!body.ok) { alert(body.msg); return; }
+    await _wecomPreview();
+  }
+
+  async function _wecomUnignore(e) {
+    const account = e.target.closest('.wecom-ignored-row').dataset.account;
+    const res = await fetch('/attendance/import/unignore', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ account }),
     });
