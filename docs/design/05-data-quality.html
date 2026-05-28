@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DataOps — 数据质量</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-7:32px;--sp-8:40px;--fs-xs:10px;--fs-sm:11px;--fs-md:12px;--fs-base:13px;--fs-lg:15px;--fs-xl:17px;--fs-2xl:20px;--fs-3xl:24px;--fs-4xl:28px;--r-sm:4px;--r-md:6px;--r-lg:8px;--mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Consolas,monospace;--sans:'Inter',system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;--display:'Space Grotesk','Inter',system-ui,sans-serif;--t-fast:.12s ease;--t-base:.2s ease;}
+  [data-theme="dark"]{--bg-0:#0A0A0B;--bg-1:#111113;--bg-2:#19191C;--bg-3:#222225;--bg-4:#2C2C30;--line:#2E2E32;--line-soft:#1F1F23;--ink-0:#EDEDEF;--ink-1:#A0A0A6;--ink-2:#6E6E76;--ink-3:#4A4A52;--accent:#E5484D;--accent-dim:#C13B3F;--accent-glow:rgba(229,72,77,.15);--accent-subtle:rgba(229,72,77,.08);--accent-subtle-border:rgba(229,72,77,.25);--on-accent:#FFF;--success:#46A758;--success-subtle:rgba(70,167,88,.08);--success-subtle-border:rgba(70,167,88,.25);--warn:#F5A623;--warn-subtle:rgba(245,166,35,.08);--warn-subtle-border:rgba(245,166,35,.25);--error:#E5484D;--error-subtle:rgba(229,72,77,.08);--error-subtle-border:rgba(229,72,77,.25);--info:#3E9DE6;--info-subtle:rgba(62,157,230,.08);--info-subtle-border:rgba(62,157,230,.25);--sh-sm:0 1px 2px rgba(0,0,0,.5);color-scheme:dark;}
+  [data-theme="light"]{--bg-0:#FFFFFF;--bg-1:#F8F8F9;--bg-2:#F0F0F2;--bg-3:#E8E8EB;--bg-4:#DDDDE0;--line:#E0E0E3;--line-soft:#EBEBEE;--ink-0:#1A1A1E;--ink-1:#6B6B76;--ink-2:#9B9BA6;--ink-3:#C0C0C8;--accent:#DC3545;--accent-dim:#B52A37;--accent-glow:rgba(220,53,69,.10);--accent-subtle:rgba(220,53,69,.06);--accent-subtle-border:rgba(220,53,69,.20);--on-accent:#FFF;--success:#2D8A3E;--success-subtle:rgba(45,138,62,.06);--success-subtle-border:rgba(45,138,62,.20);--warn:#D4850C;--warn-subtle:rgba(212,133,12,.06);--warn-subtle-border:rgba(212,133,12,.20);--error:#DC3545;--error-subtle:rgba(220,53,69,.06);--error-subtle-border:rgba(220,53,69,.20);--info:#2B7EC2;--info-subtle:rgba(43,126,194,.06);--info-subtle-border:rgba(43,126,194,.20);--sh-sm:0 1px 2px rgba(0,0,0,.05);color-scheme:light;}
+
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--sans);font-size:var(--fs-base);line-height:1.5;background:var(--bg-0);color:var(--ink-0);height:100vh;overflow:hidden;-webkit-font-smoothing:antialiased;}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums;}
+  ::-webkit-scrollbar{width:6px;height:6px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--bg-4);border-radius:3px;}
+
+  /* Shell */
+  .shell{display:flex;height:100vh;}
+  .sidebar{width:200px;flex-shrink:0;background:var(--bg-1);border-right:1px solid var(--line-soft);display:flex;flex-direction:column;}
+  .sidebar-head{height:52px;padding:0 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line-soft);flex-shrink:0;}
+  .sidebar-logo{width:26px;height:26px;border-radius:var(--r-sm);background:var(--bg-0);border:1px solid var(--accent-dim);display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px var(--accent-glow);}
+  .sidebar-logo span{font-family:var(--mono);font-weight:700;font-size:13px;color:var(--accent);line-height:1;}
+  .sidebar-brand{display:flex;flex-direction:column;gap:1px;}
+  .sidebar-brand-name{font-size:var(--fs-base);font-weight:700;color:var(--ink-0);}
+  .sidebar-brand-sub{font-size:var(--fs-xs);color:var(--ink-3);font-family:var(--mono);}
+  .sidebar-nav{padding:12px 8px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:1px;}
+  .sidebar-section{font-size:var(--fs-xs);color:var(--ink-3);font-weight:600;padding:4px 8px 8px;text-transform:uppercase;letter-spacing:0.04em;}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:var(--r-sm);color:var(--ink-2);font-size:var(--fs-md);font-weight:500;cursor:pointer;border:none;background:none;width:100%;text-align:left;transition:background var(--t-fast),color var(--t-fast);}
+  .nav-item:hover{background:var(--bg-2);color:var(--ink-1);}
+  .nav-item.active{background:var(--accent-subtle);color:var(--ink-0);}
+  .nav-item.active .nav-icon{color:var(--accent);}
+  .nav-icon{width:16px;height:16px;color:var(--ink-3);flex-shrink:0;}
+  .nav-label{flex:1;}
+  .nav-kbd{font-family:var(--mono);font-size:9px;color:var(--ink-3);padding:1px 5px;border:1px solid var(--line);border-radius:2px;}
+  .nav-badge{font-family:var(--mono);font-size:9px;font-weight:700;color:var(--warn);background:var(--warn-subtle);border:1px solid var(--warn-subtle-border);padding:1px 5px;border-radius:2px;}
+  .sidebar-foot{border-top:1px solid var(--line-soft);padding:8px;}
+  .theme-switch{display:flex;gap:4px;padding:3px;background:var(--bg-2);border-radius:var(--r-sm);border:1px solid var(--line-soft);}
+  .theme-switch button{padding:4px 10px;border:none;border-radius:2px;font-size:var(--fs-xs);font-weight:600;font-family:var(--mono);cursor:pointer;background:transparent;color:var(--ink-2);transition:all var(--t-fast);}
+  .theme-switch button.act{background:var(--bg-4);color:var(--ink-0);box-shadow:var(--sh-sm);}
+
+  .main{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;}
+  .header{height:48px;flex-shrink:0;background:var(--bg-1);border-bottom:1px solid var(--line-soft);display:flex;align-items:center;padding:0 16px;gap:16px;}
+  .header-crumb{display:flex;align-items:center;gap:8px;}
+  .header-crumb-prefix{font-size:var(--fs-sm);color:var(--ink-3);}
+  .header-crumb-sep{color:var(--ink-3);font-size:10px;}
+  .header-crumb-title{font-size:var(--fs-base);font-weight:600;color:var(--ink-0);}
+  .header-spacer{flex:1;}
+  .substrip{height:28px;flex-shrink:0;background:var(--bg-1);border-bottom:1px solid var(--line-soft);padding:0 16px;display:flex;align-items:center;gap:16px;font-size:var(--fs-xs);color:var(--ink-3);}
+  .substrip-label{font-weight:600;text-transform:uppercase;}
+  .substrip-val{color:var(--ink-1);font-family:var(--mono);}
+  .content{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+
+  /* Top panel */
+  .top-panel{background:var(--bg-1);border-bottom:1px solid var(--line-soft);flex-shrink:0;}
+  .summary-bar{display:flex;align-items:center;gap:0;padding:12px 20px 0;}
+  .summary-chips{display:flex;gap:6px;flex:1;flex-wrap:wrap;}
+  .s-chip{display:flex;align-items:center;gap:6px;padding:5px 10px;background:var(--bg-0);border:1px solid var(--line-soft);border-radius:var(--r-sm);cursor:default;transition:all var(--t-fast);min-width:0;}
+  .s-chip:hover{border-color:var(--line);}
+  .s-chip-label{font-size:var(--fs-xs);font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:0.03em;white-space:nowrap;}
+  .s-chip-num{font-family:var(--display);font-size:var(--fs-lg);font-weight:700;letter-spacing:-0.02em;line-height:1;}
+  .s-chip[data-tone="error"] .s-chip-num{color:var(--error);}
+  .s-chip[data-tone="warn"] .s-chip-num{color:var(--warn);}
+  .s-chip[data-tone="clean"] .s-chip-num{color:var(--success);}
+  .s-chip[data-tone="clean"]{border-color:var(--success-subtle-border);}
+  .summary-actions{display:flex;gap:6px;align-items:center;margin-left:16px;}
+
+  /* Buttons */
+  .btn{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:var(--r-sm);font-size:var(--fs-sm);font-weight:600;font-family:var(--sans);cursor:pointer;border:1px solid transparent;transition:all var(--t-fast);white-space:nowrap;}
+  .btn--primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent-dim);}
+  .btn--primary:hover{background:var(--accent-dim);}
+  .btn--ghost{background:transparent;color:var(--ink-1);border-color:var(--line);}
+  .btn--ghost:hover{background:var(--bg-2);color:var(--ink-0);}
+  .btn--success{background:var(--success-subtle);color:var(--success);border-color:var(--success-subtle-border);}
+  .btn--success:hover{background:var(--success);color:var(--on-accent);}
+
+  /* Tabs — scrollable for 7 */
+  .tab-strip{display:flex;gap:0;padding:0 20px;margin-top:10px;overflow-x:auto;}
+  .tab-strip::-webkit-scrollbar{display:none;}
+  .tab-btn{padding:8px 12px 9px;border:none;background:none;font-family:var(--sans);font-size:var(--fs-md);font-weight:600;color:var(--ink-2);cursor:pointer;border-bottom:2px solid transparent;transition:all var(--t-fast);display:flex;align-items:center;gap:6px;white-space:nowrap;flex-shrink:0;}
+  .tab-btn:hover{color:var(--ink-1);}
+  .tab-btn.active{color:var(--ink-0);border-bottom-color:var(--accent);}
+  .tab-count{font-family:var(--mono);font-size:9px;font-weight:700;padding:1px 5px;border-radius:2px;border:1px solid;}
+  .tab-btn.active .tab-count{color:var(--accent);border-color:var(--accent-subtle-border);background:var(--accent-subtle);}
+  .tab-count[data-tone="error"]{color:var(--error);border-color:var(--error-subtle-border);background:var(--error-subtle);}
+  .tab-count[data-tone="warn"]{color:var(--warn);border-color:var(--warn-subtle-border);background:var(--warn-subtle);}
+  .tab-count[data-tone="clean"]{color:var(--success);border-color:var(--success-subtle-border);background:var(--success-subtle);}
+  .tab-btn:not(.active) .tab-count{opacity:.7;}
+  .tab-sep{width:1px;height:16px;background:var(--line-soft);margin:0 4px;flex-shrink:0;align-self:center;}
+
+  /* Tab panels */
+  .tab-panels{flex:1;overflow:hidden;display:flex;flex-direction:column;}
+  .tab-panel{display:none;flex:1;flex-direction:column;overflow:hidden;}
+  .tab-panel.active{display:flex;}
+  .panel-toolbar{display:flex;align-items:center;gap:10px;padding:10px 20px;border-bottom:1px solid var(--line-soft);background:var(--bg-1);flex-shrink:0;}
+  .panel-toolbar-code{font-family:var(--mono);font-size:var(--fs-xs);font-weight:700;color:var(--accent);background:var(--accent-subtle);border:1px solid var(--accent-subtle-border);padding:1px 6px;border-radius:2px;}
+  .panel-toolbar-desc{font-size:var(--fs-sm);color:var(--ink-2);}
+  .panel-toolbar-spacer{flex:1;}
+
+  /* Table */
+  .tbl-wrap{flex:1;overflow-y:auto;overflow-x:auto;}
+  .tbl{width:100%;border-collapse:collapse;font-size:var(--fs-md);}
+  .tbl thead{position:sticky;top:0;z-index:1;background:var(--bg-1);}
+  .tbl th{padding:8px 20px;text-align:left;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-2);border-bottom:1px solid var(--line-soft);white-space:nowrap;}
+  .tbl th.r{text-align:right;}
+  .tbl td{padding:8px 20px;border-bottom:1px solid var(--line-soft);color:var(--ink-1);}
+  .tbl td.r{text-align:right;}
+  .tbl tbody tr:last-child td{border-bottom:none;}
+  .tbl tbody tr{transition:background var(--t-fast);}
+  .tbl tbody tr:hover{background:var(--bg-2);}
+  .tbl code{font-family:var(--mono);font-size:var(--fs-sm);color:var(--ink-0);background:var(--bg-2);padding:1px 5px;border-radius:2px;border:1px solid var(--line-soft);}
+  .bc{font-family:var(--mono);font-size:var(--fs-sm);color:var(--ink-0);}
+  .idx{font-family:var(--mono);font-size:var(--fs-xs);color:var(--ink-3);}
+  .ws{color:var(--error);font-weight:700;font-size:10px;}
+  .neg{color:var(--error);font-weight:600;font-family:var(--mono);font-size:var(--fs-sm);}
+  .dup-tag{display:inline-block;font-family:var(--mono);font-size:9px;color:var(--warn);background:var(--warn-subtle);border:1px solid var(--warn-subtle-border);padding:1px 5px;border-radius:2px;margin-right:3px;}
+  .dt{font-family:var(--mono);font-size:var(--fs-xs);color:var(--ink-2);}
+  .td-name{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .pill-sm{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:2px;font-size:9px;font-weight:700;border:1px solid;white-space:nowrap;}
+  .pill-sm--warn{color:var(--warn);border-color:var(--warn-subtle-border);background:var(--warn-subtle);}
+  .pill-sm--info{color:var(--info);border-color:var(--info-subtle-border);background:var(--info-subtle);}
+  .num-hi{font-family:var(--mono);font-size:var(--fs-sm);font-weight:600;color:var(--warn);}
+
+  /* Status bar */
+  .status-bar{height:28px;flex-shrink:0;background:var(--bg-1);border-top:1px solid var(--line-soft);padding:0 20px;display:flex;align-items:center;gap:16px;font-size:var(--fs-xs);color:var(--ink-3);}
+  .status-bar b{font-weight:600;color:var(--ink-2);}
+  .s-warn{color:var(--warn);}
+</style>
+</head>
+
+<body data-theme="dark">
+<div class="shell">
+
+  <!-- Sidebar — consolidated: 标签查重+数据质量+数据健康 → 数据质量 -->
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="sidebar-logo"><span>&gt;_</span></div>
+      <div class="sidebar-brand"><div class="sidebar-brand-name">DataOps</div><div class="sidebar-brand-sub">v4.1 · ADMIN</div></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-section">MODULES · 9</div>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg><span class="nav-label">总览</span><span class="nav-kbd">⌘`</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7v10a2 2 0 002 2h7l8-8a2 2 0 000-2.83l-4.17-4.17A2 2 0 0014 3H5a2 2 0 00-2 2z"/><circle cx="8" cy="8" r="1.5"/></svg><span class="nav-label">标签处理</span><span class="nav-kbd">⌘1</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h2l2.5 12h11l2-8H6.5"/><circle cx="9" cy="20" r="1.5"/><circle cx="17" cy="20" r="1.5"/></svg><span class="nav-label">采购导入</span><span class="nav-kbd">⌘2</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="16" rx="1.5"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span class="nav-label">考勤台账</span><span class="nav-kbd">⌘3</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12a9 9 0 109-9"/><path d="M3 4v5h5"/><path d="M12 7v5l3 2"/></svg><span class="nav-label">货号历史</span><span class="nav-kbd">⌘4</span></button>
+      <button class="nav-item active"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z"/><path d="M9 12l2 2 4-4"/></svg><span class="nav-label">数据质量</span><span class="nav-badge">42</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg><span class="nav-label">老外客人</span><span class="nav-kbd">⌘5</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 20h18M5 16l4-6 4 4 6-9"/></svg><span class="nav-label">补货决策</span><span class="nav-kbd">⌘6</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg><span class="nav-label">系统管理</span><span class="nav-kbd">⌘0</span></button>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="theme-switch"><button class="act" onclick="setTheme('dark')">DARK</button><button onclick="setTheme('light')">LIGHT</button></div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="header">
+      <div class="header-crumb">
+        <span class="header-crumb-prefix">DataOps</span>
+        <span class="header-crumb-sep">/</span>
+        <span class="header-crumb-title">数据质量</span>
+      </div>
+      <div class="header-spacer"></div>
+      <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--success);"></span><span style="font-size:var(--fs-sm);font-weight:600;color:var(--success);">在线</span></div>
+      <span class="mono" style="font-size:var(--fs-sm);color:var(--ink-2);" id="clock">14:32</span>
+    </header>
+    <div class="substrip">
+      <span class="substrip-label">stockpile</span><span class="substrip-val">2026-05-25 · #89</span>
+      <span style="color:var(--ink-3)">·</span>
+      <span class="substrip-label">active</span><span class="substrip-val">14,827</span>
+      <span style="color:var(--ink-3)">·</span>
+      <span class="substrip-label">mode</span><span class="substrip-val">READ ONLY · 只读扫描</span>
+      <span style="flex:1"></span>
+      <span class="substrip-label">tz</span><span class="substrip-val">Europe/Athens</span>
+    </div>
+
+    <div class="content">
+
+      <!-- Top: summary chips + tabs -->
+      <div class="top-panel">
+        <div class="summary-bar">
+          <div class="summary-chips">
+            <div class="s-chip" data-tone="error"><span class="s-chip-label">空白</span><span class="s-chip-num">15</span></div>
+            <div class="s-chip" data-tone="error"><span class="s-chip-label">前缀</span><span class="s-chip-num">7</span></div>
+            <div class="s-chip" data-tone="error"><span class="s-chip-label">重复</span><span class="s-chip-num">5</span></div>
+            <div class="s-chip" data-tone="warn"><span class="s-chip-label">空位</span><span class="s-chip-num">3</span></div>
+            <div class="s-chip" data-tone="error"><span class="s-chip-label">负库</span><span class="s-chip-num">12</span></div>
+            <div class="s-chip" data-tone="warn"><span class="s-chip-label">多位</span><span class="s-chip-num">134</span></div>
+            <div class="s-chip" data-tone="warn"><span class="s-chip-label">翻转</span><span class="s-chip-num">48</span></div>
+          </div>
+          <div class="summary-actions">
+            <button class="btn btn--ghost" id="ddRefresh">↻ 重新扫描</button>
+            <button class="btn btn--primary" id="ddCopyAll">⎘ 复制全部</button>
+          </div>
+        </div>
+        <div class="tab-strip" id="tabStrip">
+          <button class="tab-btn active" data-tab="whitespace">空白字符<span class="tab-count" data-tone="error">15</span></button>
+          <button class="tab-btn" data-tab="prefix">异常前缀<span class="tab-count" data-tone="error">7</span></button>
+          <button class="tab-btn" data-tab="duplicate">重复段<span class="tab-count" data-tone="error">5</span></button>
+          <button class="tab-btn" data-tab="orphan">空库位<span class="tab-count" data-tone="warn">3</span></button>
+          <button class="tab-btn" data-tab="negstock">负库存<span class="tab-count" data-tone="error">12</span></button>
+          <div class="tab-sep"></div>
+          <button class="tab-btn" data-tab="multi">同维度多位<span class="tab-count" data-tone="warn">134</span></button>
+          <button class="tab-btn" data-tab="flippers">高频翻转<span class="tab-count" data-tone="warn">48</span></button>
+        </div>
+      </div>
+
+      <!-- Tab panels -->
+      <div class="tab-panels">
+
+        <!-- WHITESPACE -->
+        <div class="tab-panel active" data-panel="whitespace">
+          <div class="panel-toolbar">
+            <span class="panel-toolbar-code">G·WHITESPACE</span>
+            <span class="panel-toolbar-desc">stockpile_location 含前后空格 / 段间空格，strip 后有差异</span>
+            <span class="panel-toolbar-spacer"></span>
+            <a class="btn btn--success" href="#">↓ 修复模板</a>
+            <button class="btn btn--ghost copy-btn">⎘ 复制型号</button>
+          </div>
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead><tr><th style="width:28px">#</th><th>条码</th><th>型号</th><th>原 RAW（<span class="ws">·</span> = 空格）</th><th>STRIP 后</th></tr></thead>
+              <tbody>
+                <tr><td class="idx">1</td><td class="bc">8299979002791</td><td>KLF-2204</td><td><code>A-05-02/<span class="ws">·</span>B-12-08</code></td><td><code>A-05-02/B-12-08</code></td></tr>
+                <tr><td class="idx">2</td><td class="bc">5828079293643</td><td>HTR-1150</td><td><code>A-03-11<span class="ws">·</span>/C-07-04</code></td><td><code>A-03-11/C-07-04</code></td></tr>
+                <tr><td class="idx">3</td><td class="bc">8690637001232</td><td>PLT-3302</td><td><code><span class="ws">·</span>B-01-09/X-22-01</code></td><td><code>B-01-09/X-22-01</code></td></tr>
+                <tr><td class="idx">4</td><td class="bc">6901234500178</td><td>MKR-4410</td><td><code>A-12-03/<span class="ws">·</span>A-12-03<span class="ws">·</span></code></td><td><code>A-12-03/A-12-03</code></td></tr>
+                <tr><td class="idx">5</td><td class="bc">8690101456002</td><td>GLS-0087</td><td><code>C-04-12<span class="ws">·</span>/<span class="ws">·</span>B-08-01</code></td><td><code>C-04-12/B-08-01</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- PREFIX -->
+        <div class="tab-panel" data-panel="prefix">
+          <div class="panel-toolbar">
+            <span class="panel-toolbar-code">G·PREFIX</span>
+            <span class="panel-toolbar-desc">stockpile_locations.kind = 'unknown'（非 A/B/C/X/Z 开头）</span>
+            <span class="panel-toolbar-spacer"></span>
+            <button class="btn btn--ghost copy-btn">⎘ 复制型号</button>
+          </div>
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead><tr><th style="width:28px">#</th><th>条码</th><th>型号</th><th>当前 LOCATION</th><th>异常段</th></tr></thead>
+              <tbody>
+                <tr><td class="idx">1</td><td class="bc">8690637004567</td><td>VLV-0912</td><td>D-02-14/A-05-01</td><td><code>D-02-14</code></td></tr>
+                <tr><td class="idx">2</td><td class="bc">8691002340011</td><td>FNR-2201</td><td>F-11-03</td><td><code>F-11-03</code></td></tr>
+                <tr><td class="idx">3</td><td class="bc">6920011220033</td><td>CRT-5567</td><td>E-07-22/B-03-09</td><td><code>E-07-22</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- DUPLICATE -->
+        <div class="tab-panel" data-panel="duplicate">
+          <div class="panel-toolbar">
+            <span class="panel-toolbar-code">G·DUPLICATE</span>
+            <span class="panel-toolbar-desc">raw stockpile_location 里同一 location 段出现 ≥ 2 次</span>
+            <span class="panel-toolbar-spacer"></span>
+            <button class="btn btn--ghost copy-btn">⎘ 复制型号</button>
+          </div>
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead><tr><th style="width:28px">#</th><th>条码</th><th>型号</th><th>原 RAW</th><th>重复段</th></tr></thead>
+              <tbody>
+                <tr><td class="idx">1</td><td class="bc">6901234500178</td><td>MKR-4410</td><td><code>A-12-03/A-12-03</code></td><td><span class="dup-tag">A-12-03</span></td></tr>
+                <tr><td class="idx">2</td><td class="bc">8299979005544</td><td>SWT-7702</td><td><code>B-04-11/C-02-09/B-04-11</code></td><td><span class="dup-tag">B-04-11</span></td></tr>
+                <tr><td class="idx">3</td><td class="bc">8690101789001</td><td>PLG-0113</td><td><code>X-01-05/X-01-05</code></td><td><span class="dup-tag">X-01-05</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ORPHAN -->
+        <div class="tab-panel" data-panel="orphan">
+          <div class="panel-toolbar">
+            <span class="panel-toolbar-code">G·ORPHAN</span>
+            <span class="panel-toolbar-desc">active SKU 但 stockpile_location 为空</span>
+            <span class="panel-toolbar-spacer"></span>
+            <button class="btn btn--ghost copy-btn">⎘ 复制型号</button>
+          </div>
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead><tr><th style="width:28px">#</th><th>条码</th><th>型号</th><th>品名</th><th>最近更新</th></tr></thead>
+              <tbody>
+                <tr><td class="idx">1</td><td class="bc">8690637009090</td><td>NWP-1104</td><td class="td-name">新品杯具套装 白色</td><td class="dt">2026-05-24</td></tr>
+                <tr><td class="idx">2</td><td class="bc">6901234567890</td><td>TST-0001</td><td class="td-name">测试用品 红色</td><td class="dt">2026-05-22</td></tr>
+                <tr><td class="idx">3</td><td class="bc">8691002345678</td><td>PKG-2203</td><td class="td-name">包装盒 大号 牛皮纸</td><td class="dt">2026-05-20</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- NEGATIVE STOCK -->
+        <div class="tab-panel" data-panel="negstock">
+          <div class="panel-toolbar">
+            <span class="panel-toolbar-code">G·NEGATIVE_STOCK</span>
+            <span class="panel-toolbar-desc">最新 snapshot 中 qty_total &lt; 0，需 ERP 纠错</span>
+            <span class="panel-toolbar-spacer"></span>
+            <button class="btn btn--ghost copy-btn">⎘ 复制型号</button>
+          </div>
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead><tr><th style="width:28px">#</th><th>条码</th><th>型号</th><th>品名</th><th class="r">库存</th></tr></thead>
+              <tbody>
+                <tr><td class="idx">1</td><td class="bc">5828079293643</td><td>HTR-1150</td><td class="td-name">陶瓷加热器 1500W</td><td class="r neg">-47</td></tr>
+                <tr><td class="idx">2</td><td class="bc">8690637012345</td><td>FAN-3301</td><td class="td-name">立式风扇 45cm</td><td class="r neg">-23</td></tr>
+                <tr><td class="idx">3</td><td class="bc">8299979001122</td><td>LMP-0782</td><td class="td-name">台灯 LED 可调光</td><td class="r neg">-18</td></tr>
+                <tr><td class="idx">4</td><td class="bc">6920011229900</td><td>KTL-5502</td><td class="td-name">电水壶 1.7L 不锈钢</td><td class="r neg">-12</td></tr>
+                <tr><td class="idx">5</td><td class="bc">8690101333444</td><td>IRN-1105</td><td class="td-name">蒸汽熨斗 2200W</td><td class="r neg">-9</td></tr>
+                <tr><td class="idx">6</td><td class="bc">8691002388877</td><td>MXR-2204</td><td class="td-name">手持搅拌器 300W</td><td class="r neg">-7</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ═══ NEW: MULTI SAME KIND ═══ -->
+        <div class="tab-panel" data-panel="multi">
+          <div class="panel-toolbar">
+            <span class="panel-toolbar-code">DQ·MULTI</span>
+            <span class="panel-toolbar-desc">同一货号在同维度（warehouse / store）下占多个 location</span>
+            <span class="panel-toolbar-spacer"></span>
+            <button class="btn btn--ghost copy-btn">⎘ 复制型号</button>
+          </div>
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead><tr><th style="width:28px">#</th><th>条码</th><th>型号</th><th>当前 LOCATION</th><th>重复维度</th></tr></thead>
+              <tbody>
+                <tr><td class="idx">1</td><td class="bc">8690637001232</td><td>PLT-3302</td><td>B-01-09/B-03-14/X-22-01</td><td><span class="pill-sm pill-sm--warn">store × 2</span></td></tr>
+                <tr><td class="idx">2</td><td class="bc">5828079293643</td><td>HTR-1150</td><td>A-03-11/A-07-02/C-07-04</td><td><span class="pill-sm pill-sm--warn">warehouse × 2</span></td></tr>
+                <tr><td class="idx">3</td><td class="bc">8299979002791</td><td>KLF-2204</td><td>A-05-02/A-09-16/B-12-08</td><td><span class="pill-sm pill-sm--info">store × 2</span></td></tr>
+                <tr><td class="idx">4</td><td class="bc">6901234500178</td><td>MKR-4410</td><td>A-12-03/A-12-07</td><td><span class="pill-sm pill-sm--info">store × 2</span></td></tr>
+                <tr><td class="idx">5</td><td class="bc">8690101456002</td><td>GLS-0087</td><td>C-04-12/C-08-01/B-08-01</td><td><span class="pill-sm pill-sm--warn">warehouse × 2</span></td></tr>
+                <tr><td class="idx">6</td><td class="bc">8690998877665</td><td>VNT-0293</td><td>B-09-14/B-14-03/A-03-07</td><td><span class="pill-sm pill-sm--info">store × 2</span></td></tr>
+                <tr><td class="idx">7</td><td class="bc">6920011223344</td><td>DRL-5521</td><td>X-11-02/X-11-03/X-15-01</td><td><span class="pill-sm pill-sm--warn">warehouse × 3</span></td></tr>
+                <tr><td class="idx">8</td><td class="bc">8691002345670</td><td>PWR-8812</td><td>C-02-18/C-06-04</td><td><span class="pill-sm pill-sm--info">store × 2</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ═══ NEW: FLIPPERS ═══ -->
+        <div class="tab-panel" data-panel="flippers">
+          <div class="panel-toolbar">
+            <span class="panel-toolbar-code">DQ·FLIPPERS</span>
+            <span class="panel-toolbar-desc">location 变更 ≥ 4 次的货号（频繁在库位间移动，可能是数据录入问题）</span>
+            <span class="panel-toolbar-spacer"></span>
+            <button class="btn btn--ghost copy-btn">⎘ 复制型号</button>
+          </div>
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead><tr><th style="width:28px">#</th><th>条码</th><th>型号</th><th class="r">变更次数</th><th>当前 LOCATION</th></tr></thead>
+              <tbody>
+                <tr><td class="idx">1</td><td class="bc">5828079293643</td><td>HTR-1150</td><td class="r num-hi">24</td><td>A-03-11/C-07-04</td></tr>
+                <tr><td class="idx">2</td><td class="bc">8690637001232</td><td>PLT-3302</td><td class="r num-hi">18</td><td>B-01-09/X-22-01</td></tr>
+                <tr><td class="idx">3</td><td class="bc">8299979002791</td><td>KLF-2204</td><td class="r num-hi">15</td><td>A-05-02/B-12-08</td></tr>
+                <tr><td class="idx">4</td><td class="bc">6901234500178</td><td>MKR-4410</td><td class="r num-hi">12</td><td>A-12-03</td></tr>
+                <tr><td class="idx">5</td><td class="bc">8690101456002</td><td>GLS-0087</td><td class="r num-hi">11</td><td>C-04-12/B-08-01</td></tr>
+                <tr><td class="idx">6</td><td class="bc">8690998877665</td><td>VNT-0293</td><td class="r num-hi">9</td><td>B-09-14/A-03-07</td></tr>
+                <tr><td class="idx">7</td><td class="bc">6920011223344</td><td>DRL-5521</td><td class="r num-hi">8</td><td>X-11-02/X-11-03</td></tr>
+                <tr><td class="idx">8</td><td class="bc">8691002345670</td><td>PWR-8812</td><td class="r num-hi">7</td><td>C-02-18</td></tr>
+                <tr><td class="idx">9</td><td class="bc">5201145309001</td><td>SPK-4407</td><td class="r num-hi">6</td><td>A-01-01/B-06-22</td></tr>
+                <tr><td class="idx">10</td><td class="bc">8690637088821</td><td>CRD-1109</td><td class="r num-hi">5</td><td>B-15-03/A-04-09</td></tr>
+                <tr><td class="idx">11</td><td class="bc">8299979004455</td><td>BLT-6603</td><td class="r num-hi">5</td><td>C-08-12/C-08-13</td></tr>
+                <tr><td class="idx">12</td><td class="bc">6901234599887</td><td>FRM-2201</td><td class="r num-hi">4</td><td>A-14-05/B-02-11</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Status bar -->
+      <div class="status-bar">
+        <span>扫描范围 <b>16,030</b> 条（active + inactive）</span>
+        <span>·</span>
+        <span>异常合计 <b class="s-warn">224</b></span>
+        <span>·</span>
+        <span>上次扫描 <b>14:32:09</b></span>
+        <span style="flex:1"></span>
+        <span>只读模式 · 本页不修改数据</span>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  function setTheme(t){
+    document.body.dataset.theme=t;
+    document.querySelectorAll('.theme-switch button').forEach(b=>{
+      b.classList.toggle('act',b.textContent.trim().toLowerCase()===t);
+    });
+  }
+  function tick(){const n=new Date();document.getElementById('clock').textContent=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');}
+  tick();setInterval(tick,30000);
+
+  // Tabs
+  document.getElementById('tabStrip').addEventListener('click',e=>{
+    const btn=e.target.closest('.tab-btn');
+    if(!btn)return;
+    const tab=btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b===btn));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===tab));
+  });
+
+  // Refresh
+  document.getElementById('ddRefresh')?.addEventListener('click',function(){
+    const b=this;b.textContent='↻ 扫描中…';b.disabled=true;
+    setTimeout(()=>{b.textContent='↻ 重新扫描';b.disabled=false;},1200);
+  });
+
+  // Copy buttons
+  document.querySelectorAll('.copy-btn, #ddCopyAll').forEach(btn=>{
+    btn.addEventListener('click',function(){
+      const o=this.textContent;this.textContent='✓ 已复制';
+      setTimeout(()=>{this.textContent=o;},1500);
+    });
+  });
+</script>
+</body>
+</html>

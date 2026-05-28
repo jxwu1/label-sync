@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DataOps — 采购导入 V3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-7:32px;--sp-8:40px;--fs-xs:10px;--fs-sm:11px;--fs-md:12px;--fs-base:13px;--fs-lg:15px;--fs-xl:17px;--fs-2xl:20px;--fs-3xl:24px;--fs-4xl:28px;--r-sm:4px;--r-md:6px;--r-lg:8px;--mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Consolas,monospace;--sans:'Inter',system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;--display:'Space Grotesk','Inter',system-ui,sans-serif;--t-fast:.12s ease;--t-base:.2s ease;}
+  [data-theme="dark"]{--bg-0:#0A0A0B;--bg-1:#111113;--bg-2:#19191C;--bg-3:#222225;--bg-4:#2C2C30;--line:#2E2E32;--line-soft:#1F1F23;--ink-0:#EDEDEF;--ink-1:#A0A0A6;--ink-2:#6E6E76;--ink-3:#4A4A52;--accent:#E5484D;--accent-dim:#C13B3F;--accent-glow:rgba(229,72,77,.15);--accent-subtle:rgba(229,72,77,.08);--accent-subtle-border:rgba(229,72,77,.25);--on-accent:#FFF;--success:#46A758;--success-subtle:rgba(70,167,88,.08);--success-subtle-border:rgba(70,167,88,.25);--warn:#F5A623;--warn-subtle:rgba(245,166,35,.08);--warn-subtle-border:rgba(245,166,35,.25);--error:#E5484D;--error-subtle:rgba(229,72,77,.08);--error-subtle-border:rgba(229,72,77,.25);--info:#3E9DE6;--info-subtle:rgba(62,157,230,.08);--info-subtle-border:rgba(62,157,230,.25);--sh-sm:0 1px 2px rgba(0,0,0,.5);color-scheme:dark;}
+  [data-theme="light"]{--bg-0:#FFFFFF;--bg-1:#F8F8F9;--bg-2:#F0F0F2;--bg-3:#E8E8EB;--bg-4:#DDDDE0;--line:#E0E0E3;--line-soft:#EBEBEE;--ink-0:#1A1A1E;--ink-1:#6B6B76;--ink-2:#9B9BA6;--ink-3:#C0C0C8;--accent:#DC3545;--accent-dim:#B52A37;--accent-glow:rgba(220,53,69,.10);--accent-subtle:rgba(220,53,69,.06);--accent-subtle-border:rgba(220,53,69,.20);--on-accent:#FFF;--success:#2D8A3E;--success-subtle:rgba(45,138,62,.06);--success-subtle-border:rgba(45,138,62,.20);--warn:#D4850C;--warn-subtle:rgba(212,133,12,.06);--warn-subtle-border:rgba(212,133,12,.20);--error:#DC3545;--error-subtle:rgba(220,53,69,.06);--error-subtle-border:rgba(220,53,69,.20);--info:#2B7EC2;--info-subtle:rgba(43,126,194,.06);--info-subtle-border:rgba(43,126,194,.20);--sh-sm:0 1px 2px rgba(0,0,0,.05);color-scheme:light;}
+
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--sans);font-size:var(--fs-base);line-height:1.5;background:var(--bg-0);color:var(--ink-0);height:100vh;overflow:hidden;-webkit-font-smoothing:antialiased;}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums;}
+  ::-webkit-scrollbar{width:6px;height:6px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--bg-4);border-radius:3px;}
+
+  /* Shell */
+  .shell{display:flex;height:100vh;}
+  .sidebar{width:200px;flex-shrink:0;background:var(--bg-1);border-right:1px solid var(--line-soft);display:flex;flex-direction:column;}
+  .sidebar-head{height:52px;padding:0 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line-soft);flex-shrink:0;}
+  .sidebar-logo{width:26px;height:26px;border-radius:var(--r-sm);background:var(--bg-0);border:1px solid var(--accent-dim);display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px var(--accent-glow);}
+  .sidebar-logo span{font-family:var(--mono);font-weight:700;font-size:13px;color:var(--accent);line-height:1;}
+  .sidebar-brand{display:flex;flex-direction:column;gap:1px;}
+  .sidebar-brand-name{font-size:var(--fs-base);font-weight:700;color:var(--ink-0);}
+  .sidebar-brand-sub{font-size:var(--fs-xs);color:var(--ink-3);font-family:var(--mono);}
+  .sidebar-nav{padding:12px 8px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:1px;}
+  .sidebar-section{font-size:var(--fs-xs);color:var(--ink-3);font-weight:600;padding:4px 8px 8px;text-transform:uppercase;letter-spacing:0.04em;}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:var(--r-sm);color:var(--ink-2);font-size:var(--fs-md);font-weight:500;cursor:pointer;border:none;background:none;width:100%;text-align:left;transition:background var(--t-fast),color var(--t-fast);}
+  .nav-item:hover{background:var(--bg-2);color:var(--ink-1);}
+  .nav-item.active{background:var(--accent-subtle);color:var(--ink-0);}
+  .nav-item.active .nav-icon{color:var(--accent);}
+  .nav-icon{width:16px;height:16px;color:var(--ink-3);flex-shrink:0;}
+  .nav-label{flex:1;}
+  .nav-kbd{font-family:var(--mono);font-size:9px;color:var(--ink-3);padding:1px 5px;border:1px solid var(--line);border-radius:2px;}
+  .sidebar-foot{border-top:1px solid var(--line-soft);padding:8px;}
+  .theme-switch{display:flex;gap:4px;padding:3px;background:var(--bg-2);border-radius:var(--r-sm);border:1px solid var(--line-soft);}
+  .theme-switch button{padding:4px 10px;border:none;border-radius:2px;font-size:var(--fs-xs);font-weight:600;font-family:var(--mono);cursor:pointer;background:transparent;color:var(--ink-2);transition:all var(--t-fast);}
+  .theme-switch button.act{background:var(--bg-4);color:var(--ink-0);box-shadow:var(--sh-sm);}
+
+  .main{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;}
+  .header{height:48px;flex-shrink:0;background:var(--bg-1);border-bottom:1px solid var(--line-soft);display:flex;align-items:center;padding:0 16px;gap:16px;}
+  .header-crumb{display:flex;align-items:center;gap:8px;}
+  .header-crumb-prefix{font-size:var(--fs-sm);color:var(--ink-3);}
+  .header-crumb-sep{color:var(--ink-3);font-size:10px;}
+  .header-crumb-title{font-size:var(--fs-base);font-weight:600;color:var(--ink-0);}
+  .header-spacer{flex:1;}
+  .substrip{height:28px;flex-shrink:0;background:var(--bg-1);border-bottom:1px solid var(--line-soft);padding:0 16px;display:flex;align-items:center;gap:16px;font-size:var(--fs-xs);color:var(--ink-3);}
+  .substrip-label{font-weight:600;text-transform:uppercase;}
+  .substrip-val{color:var(--ink-1);font-family:var(--mono);}
+  .content{flex:1;padding:16px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;}
+
+  /* Shared */
+  .btn{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:var(--r-sm);font-size:var(--fs-sm);font-weight:600;font-family:var(--sans);cursor:pointer;border:1px solid transparent;transition:all var(--t-fast);white-space:nowrap;}
+  .btn--primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent-dim);}
+  .btn--primary:hover{background:var(--accent-dim);}
+  .btn--primary:disabled{opacity:.4;cursor:not-allowed;}
+  .btn--ghost{background:transparent;color:var(--ink-1);border-color:var(--line);}
+  .btn--ghost:hover{background:var(--bg-2);color:var(--ink-0);}
+  .btn--ghost:disabled{opacity:.4;cursor:not-allowed;}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:2px;font-size:9.5px;font-weight:700;letter-spacing:0.03em;border:1px solid;white-space:nowrap;text-transform:uppercase;}
+  .pill--match{color:var(--success);border-color:var(--success-subtle-border);background:var(--success-subtle);}
+  .pill--new{color:var(--info);border-color:var(--info-subtle-border);background:var(--info-subtle);}
+  .pill--check{color:var(--warn);border-color:var(--warn-subtle-border);background:var(--warn-subtle);}
+  .pill--off{color:var(--ink-2);border-color:var(--line);background:var(--bg-2);}
+  .pill--accent{color:var(--accent);border-color:var(--accent-subtle-border);background:var(--accent-subtle);}
+  .pill--ghost{color:var(--ink-2);border-color:var(--line);background:var(--bg-2);}
+
+  /* Panel */
+  .pnl{background:var(--bg-1);border:1px solid var(--line-soft);border-radius:var(--r-md);display:flex;flex-direction:column;overflow:hidden;}
+  .pnl-hd{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line-soft);}
+  .pnl-code{font-family:var(--mono);font-size:var(--fs-xs);font-weight:700;color:var(--accent);background:var(--accent-subtle);border:1px solid var(--accent-subtle-border);padding:1px 6px;border-radius:2px;}
+  .pnl-title{font-size:var(--fs-base);font-weight:600;color:var(--ink-0);}
+  .pnl-sub{font-size:var(--fs-sm);color:var(--ink-2);}
+  .pnl-spacer{flex:1;}
+  .pnl-ft{display:flex;align-items:center;gap:10px;padding:8px 16px;border-top:1px solid var(--line-soft);flex-shrink:0;}
+  .ft-stat{font-size:var(--fs-sm);font-family:var(--mono);color:var(--ink-2);}
+  .ft-stat b{font-weight:600;color:var(--ink-1);}
+  .v-accent{color:var(--accent)!important;}
+  .v-success{color:var(--success)!important;}
+  .v-warn{color:var(--warn)!important;}
+  .v-info{color:var(--info)!important;}
+
+  /* Drop zone (01) */
+  .drop-zone{border:1.5px dashed var(--line);border-radius:var(--r-md);padding:20px;display:flex;align-items:center;gap:16px;cursor:pointer;transition:all var(--t-base);}
+  .drop-zone:hover{border-color:var(--accent);background:var(--accent-subtle);}
+  .drop-icon{width:44px;height:44px;border-radius:var(--r-md);background:var(--accent-subtle);border:1px solid var(--accent-subtle-border);display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:20px;flex-shrink:0;}
+  .drop-text{flex:1;}
+  .drop-main{font-size:var(--fs-lg);color:var(--ink-0);font-weight:600;}
+  .drop-hint{font-size:var(--fs-sm);color:var(--ink-2);margin-top:2px;}
+  .drop-hint code{font-family:var(--mono);font-size:var(--fs-xs);color:var(--ink-1);background:var(--bg-2);padding:1px 4px;border-radius:2px;border:1px solid var(--line-soft);}
+
+  /* Compact drop strip (after parse) */
+  .drop-strip{border:1px dashed var(--line);border-radius:var(--r-md);padding:8px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all var(--t-fast);}
+  .drop-strip:hover{border-color:var(--accent);background:var(--accent-subtle);}
+  .drop-strip-icon{width:24px;height:24px;border-radius:var(--r-sm);background:var(--accent-subtle);border:1px solid var(--accent-subtle-border);display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:12px;flex-shrink:0;}
+  .drop-strip-text{font-size:var(--fs-sm);color:var(--ink-2);}
+  .drop-strip-text b{color:var(--ink-0);font-weight:600;}
+  .drop-strip-file{font-family:var(--mono);font-size:var(--fs-xs);color:var(--ink-3);background:var(--bg-2);border:1px solid var(--line-soft);padding:1px 6px;border-radius:2px;}
+
+  /* Results table */
+  .tbl{width:100%;border-collapse:collapse;font-size:var(--fs-md);}
+  .tbl thead{position:sticky;top:0;z-index:1;background:var(--bg-1);}
+  .tbl th{padding:7px 16px;text-align:left;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-2);border-bottom:1px solid var(--line-soft);white-space:nowrap;}
+  .tbl th.r{text-align:right;}
+  .tbl td{padding:6px 16px;border-bottom:1px solid var(--line-soft);color:var(--ink-1);}
+  .tbl td.r{text-align:right;font-family:var(--mono);font-size:var(--fs-sm);}
+  .tbl tbody tr:last-child td{border-bottom:none;}
+  .tbl tbody tr{transition:background var(--t-fast);}
+  .tbl tbody tr:hover{background:var(--bg-2);}
+  .bc{font-family:var(--mono);font-size:var(--fs-sm);color:var(--ink-0);}
+  .idx{font-family:var(--mono);font-size:var(--fs-xs);color:var(--ink-3);width:28px;}
+  .tbl tr.flagged{background:var(--warn-subtle);}
+  .price-inp{background:var(--warn-subtle);border:1px solid var(--warn-subtle-border);border-radius:2px;color:var(--warn);font-family:var(--mono);font-size:var(--fs-sm);padding:2px 6px;width:72px;text-align:right;outline:none;}
+  .price-inp:focus{border-color:var(--warn);}
+
+  /* Empty placeholder */
+  .pnl-empty{padding:32px 16px;text-align:center;color:var(--ink-3);font-size:var(--fs-md);}
+
+  /* New barcodes table */
+  .new-hd{display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--line-soft);}
+  .new-sup-label{font-size:var(--fs-xs);font-weight:600;color:var(--ink-2);text-transform:uppercase;}
+  .new-sup-val{font-family:var(--mono);font-size:var(--fs-sm);font-weight:600;color:var(--success);}
+  .new-tbl{width:100%;border-collapse:collapse;font-size:var(--fs-md);}
+  .new-tbl th{padding:6px 16px;text-align:left;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-2);border-bottom:1px solid var(--line-soft);}
+  .new-tbl td{padding:5px 16px;border-bottom:1px solid var(--line-soft);vertical-align:middle;}
+  .new-tbl tbody tr:last-child td{border-bottom:none;}
+  .new-tbl tbody tr{transition:background var(--t-fast);}
+  .new-tbl tbody tr:hover{background:var(--bg-2);}
+  .new-inp{background:var(--bg-0);border:1px solid var(--line-soft);border-radius:2px;color:var(--ink-0);font-size:var(--fs-sm);padding:3px 8px;width:100%;outline:none;transition:border-color var(--t-fast);}
+  .new-inp:focus{border-color:var(--info);}
+  .new-inp::placeholder{color:var(--ink-3);}
+  .new-acts{display:flex;gap:4px;}
+  .na{font-size:9px;font-weight:700;cursor:pointer;padding:2px 6px;border-radius:2px;border:1px solid;transition:all var(--t-fast);background:transparent;text-transform:uppercase;}
+  .na--fix{color:var(--ink-2);border-color:var(--line);}
+  .na--fix:hover{background:var(--bg-3);color:var(--ink-0);}
+  .na--del{color:var(--error);border-color:var(--error-subtle-border);}
+  .na--del:hover{background:var(--error);color:var(--on-accent);}
+
+  /* Monthly summary strip */
+  .ms{display:flex;align-items:center;gap:10px;background:var(--bg-1);border:1px solid var(--line-soft);border-radius:var(--r-md);padding:8px 16px;}
+  .ms-code{font-family:var(--mono);font-size:var(--fs-xs);font-weight:700;color:var(--accent);background:var(--accent-subtle);border:1px solid var(--accent-subtle-border);padding:1px 6px;border-radius:2px;}
+  .ms-sel{background:var(--bg-2);border:1px solid var(--line-soft);border-radius:var(--r-sm);color:var(--ink-0);font-family:var(--mono);font-size:var(--fs-sm);padding:3px 8px;outline:none;}
+  .ms-stat{font-size:var(--fs-sm);color:var(--ink-2);}
+  .ms-stat b{font-weight:600;color:var(--ink-1);}
+
+  /* Modal */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;}
+  .modal-overlay.hidden{display:none;}
+  .modal{background:var(--bg-1);border:1px solid var(--line);border-radius:var(--r-lg);width:400px;max-width:90vw;overflow:hidden;}
+  .modal-hd{padding:12px 16px;border-bottom:1px solid var(--line-soft);font-size:var(--fs-base);font-weight:600;color:var(--ink-0);}
+  .modal-bd{padding:12px 16px;display:flex;flex-direction:column;gap:10px;}
+  .mf{display:flex;flex-direction:column;gap:3px;}
+  .mf-label{font-size:var(--fs-xs);font-weight:600;color:var(--ink-2);text-transform:uppercase;}
+  .mf-inp{background:var(--bg-2);border:1px solid var(--line-soft);border-radius:var(--r-sm);color:var(--ink-0);font-family:var(--sans);font-size:var(--fs-sm);padding:6px 10px;outline:none;}
+  .mf-inp:focus{border-color:var(--accent);}
+  .mf-inp:disabled{color:var(--ink-2);cursor:not-allowed;}
+  .modal-ft{padding:10px 16px;border-top:1px solid var(--line-soft);display:flex;gap:8px;justify-content:flex-end;}
+
+  /* Demo toggle */
+  .demo{position:fixed;bottom:12px;right:12px;z-index:200;display:flex;gap:4px;padding:3px;background:var(--bg-2);border-radius:var(--r-sm);border:1px solid var(--line);box-shadow:var(--sh-sm);}
+  .demo button{padding:4px 10px;border:none;border-radius:2px;font-size:var(--fs-xs);font-weight:600;font-family:var(--mono);cursor:pointer;background:transparent;color:var(--ink-2);transition:all var(--t-fast);}
+  .demo button.act{background:var(--accent);color:var(--on-accent);}
+</style>
+</head>
+
+<body data-theme="dark">
+<div class="shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="sidebar-logo"><span>&gt;_</span></div>
+      <div class="sidebar-brand"><div class="sidebar-brand-name">DataOps</div><div class="sidebar-brand-sub">v4.1</div></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-section">MODULES</div>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg><span class="nav-label">总览</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7v10a2 2 0 002 2h7l8-8a2 2 0 000-2.83l-4.17-4.17A2 2 0 0014 3H5a2 2 0 00-2 2z"/><circle cx="8" cy="8" r="1.5"/></svg><span class="nav-label">标签处理</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="11" height="11" rx="1.5"/><rect x="10" y="10" width="11" height="11" rx="1.5"/></svg><span class="nav-label">标签查重</span></button>
+      <button class="nav-item active"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h2l2.5 12h11l2-8H6.5"/><circle cx="9" cy="20" r="1.5"/><circle cx="17" cy="20" r="1.5"/></svg><span class="nav-label">采购导入</span><span class="nav-kbd">⌘3</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="16" rx="1.5"/><path d="M3 10h18"/></svg><span class="nav-label">考勤台账</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12a9 9 0 109-9"/><path d="M3 4v5h5"/></svg><span class="nav-label">货号历史</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z"/></svg><span class="nav-label">数据质量</span></button>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="theme-switch"><button class="act" onclick="setTheme('dark')">DARK</button><button onclick="setTheme('light')">LIGHT</button></div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="header">
+      <div class="header-crumb">
+        <span class="header-crumb-prefix">DataOps</span>
+        <span class="header-crumb-sep">/</span>
+        <span class="header-crumb-title">采购导入</span>
+      </div>
+      <span class="pill pill--ghost" id="hPill">待上传</span>
+      <div class="header-spacer"></div>
+      <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--success);"></span><span style="font-size:var(--fs-sm);font-weight:600;color:var(--success);">在线</span></div>
+      <span class="mono" style="font-size:var(--fs-sm);color:var(--ink-2);" id="clock">14:32</span>
+    </header>
+    <div class="substrip">
+      <span class="substrip-label">schema</span><span class="substrip-val">v2 · COL[1] 条码 · COL[3] 价格 · COL[6] 数量</span>
+      <span style="color:var(--ink-3)">·</span>
+      <span class="substrip-label">stockpile</span><span class="substrip-val">14,827 active</span>
+      <span style="flex:1"></span>
+      <span class="substrip-label">tz</span><span class="substrip-val">Europe/Athens</span>
+    </div>
+
+    <div class="content">
+
+      <!-- ═══════════════════════════════════════ -->
+      <!-- 01: Drop zone (always present)         -->
+      <!-- ═══════════════════════════════════════ -->
+
+      <!-- 01-A: Full drop zone (empty state) -->
+      <section class="pnl" id="drop01Full">
+        <div class="pnl-hd">
+          <span class="pnl-code">01</span>
+          <span class="pnl-title">文件投递</span>
+          <span class="pnl-sub">供应商 Excel</span>
+          <span class="pnl-spacer"></span>
+          <span class="pill pill--ghost">.xlsx</span>
+          <span class="pill pill--ghost">.xls</span>
+          <span class="pill pill--ghost">.csv</span>
+        </div>
+        <div style="padding:12px 16px;">
+          <div class="drop-zone">
+            <div class="drop-icon">⊞</div>
+            <div class="drop-text">
+              <div class="drop-main">拖入或点击 · 供应商 Excel</div>
+              <div class="drop-hint">列映射：<code>COL[1]</code> 条码 · <code>COL[3]</code> 单价 · <code>COL[6]</code> 数量 · 上传后自动匹配 stockpile</div>
+            </div>
+            <button class="btn btn--primary">↑ 浏览文件</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 01-B: Compact drop strip (parsed state) -->
+      <div class="drop-strip" id="drop01Strip" style="display:none;">
+        <div class="drop-strip-icon">⊞</div>
+        <div class="drop-strip-text">拖入新文件替换 · 当前：<b>invoice_20260526.xlsx</b></div>
+        <span class="drop-strip-file">142.3 KB</span>
+        <span class="pnl-spacer"></span>
+        <span style="font-size:var(--fs-sm);font-weight:600;color:var(--accent);">HOMEPLAST</span>
+        <span class="pill pill--accent" style="font-size:9px;">24 行 · 168 件</span>
+      </div>
+
+      <!-- ═══════════════════════════════════════ -->
+      <!-- 02: Results (always present)            -->
+      <!-- ═══════════════════════════════════════ -->
+      <section class="pnl">
+        <div class="pnl-hd">
+          <span class="pnl-code">02</span>
+          <span class="pnl-title">解析结果</span>
+          <span class="pnl-sub" id="resSub">等待文件</span>
+          <span class="pnl-spacer"></span>
+          <!-- status pills (parsed only) -->
+          <span class="pill pill--match parsed-only" style="font-size:9px;display:none;">MATCH 19</span>
+          <span class="pill pill--new parsed-only" style="font-size:9px;display:none;">NEW 3</span>
+          <span class="pill pill--check parsed-only" style="font-size:9px;display:none;">CHECK 1</span>
+          <span class="pill pill--off parsed-only" style="font-size:9px;display:none;">OFF 1</span>
+        </div>
+
+        <!-- 02-A: Empty state -->
+        <div class="pnl-empty" id="resEmpty">上传供应商 Excel 后自动解析</div>
+
+        <!-- 02-B: Parsed table -->
+        <div id="resTable" style="display:none;overflow:auto;max-height:300px;">
+          <table class="tbl">
+            <thead><tr><th class="idx">#</th><th>条码</th><th class="r">单价</th><th class="r">数量</th><th>状态</th></tr></thead>
+            <tbody>
+              <tr><td class="idx">01</td><td class="bc">8690637001232</td><td class="r">3.45</td><td class="r">12</td><td><span class="pill pill--match">MATCH</span></td></tr>
+              <tr><td class="idx">02</td><td class="bc">5828079293643</td><td class="r">7.80</td><td class="r">6</td><td><span class="pill pill--match">MATCH</span></td></tr>
+              <tr><td class="idx">03</td><td class="bc">8299979002791</td><td class="r">2.15</td><td class="r">24</td><td><span class="pill pill--match">MATCH</span></td></tr>
+              <tr><td class="idx">04</td><td class="bc">8690101456002</td><td class="r">12.50</td><td class="r">4</td><td><span class="pill pill--match">MATCH</span></td></tr>
+              <tr><td class="idx">05</td><td class="bc">6920011223344</td><td class="r">5.60</td><td class="r">10</td><td><span class="pill pill--match">MATCH</span></td></tr>
+              <tr class="flagged"><td class="idx">06</td><td class="bc">8690998877665</td><td class="r"><input class="price-inp" value="4.123456"></td><td class="r">8</td><td><span class="pill pill--check">CHECK</span></td></tr>
+              <tr><td class="idx">07</td><td class="bc">8691002345670</td><td class="r">1.90</td><td class="r">20</td><td><span class="pill pill--match">MATCH</span></td></tr>
+              <tr><td class="idx">08</td><td class="bc">5201145309001</td><td class="r">8.75</td><td class="r">3</td><td><span class="pill pill--match">MATCH</span></td></tr>
+              <tr><td class="idx">09</td><td class="bc">8690637088821</td><td class="r">6.30</td><td class="r">15</td><td><span class="pill pill--match">MATCH</span></td></tr>
+              <tr><td class="idx">10</td><td class="bc">6901234500178</td><td class="r">4.20</td><td class="r">9</td><td><span class="pill pill--off">OFF</span></td></tr>
+              <tr><td class="idx">11</td><td class="bc">8690637099111</td><td class="r">11.20</td><td class="r">5</td><td><span class="pill pill--new">NEW</span></td></tr>
+              <tr><td class="idx">12</td><td class="bc">6920011229922</td><td class="r">3.85</td><td class="r">18</td><td><span class="pill pill--new">NEW</span></td></tr>
+              <tr><td class="idx">13</td><td class="bc">8299979008833</td><td class="r">9.10</td><td class="r">7</td><td><span class="pill pill--new">NEW</span></td></tr>
+              <tr><td class="idx">14</td><td class="bc">8690101222001</td><td class="r">15.40</td><td class="r">2</td><td><span class="pill pill--match">MATCH</span></td></tr>
+              <tr><td class="idx">15</td><td class="bc">5828079290055</td><td class="r">2.70</td><td class="r">14</td><td><span class="pill pill--match">MATCH</span></td></tr>
+              <tr><td class="idx">16</td><td class="bc">8690637004567</td><td class="r">7.15</td><td class="r">8</td><td><span class="pill pill--match">MATCH</span></td></tr>
+              <tr><td class="idx">17</td><td class="bc">8691002340011</td><td class="r">4.95</td><td class="r">11</td><td><span class="pill pill--match">MATCH</span></td></tr>
+              <tr><td class="idx">18</td><td class="bc">5201145309876</td><td class="r">6.80</td><td class="r">6</td><td><span class="pill pill--match">MATCH</span></td></tr>
+              <tr><td class="idx">19</td><td class="bc">8690998870022</td><td class="r">3.25</td><td class="r">22</td><td><span class="pill pill--match">MATCH</span></td></tr>
+              <tr><td class="idx">20</td><td class="bc">8299979006677</td><td class="r">10.60</td><td class="r">4</td><td><span class="pill pill--match">MATCH</span></td></tr>
+              <tr><td class="idx">21</td><td class="bc">6901234577889</td><td class="r">5.40</td><td class="r">9</td><td><span class="pill pill--match">MATCH</span></td></tr>
+              <tr><td class="idx">22</td><td class="bc">8690101789001</td><td class="r">8.90</td><td class="r">3</td><td><span class="pill pill--match">MATCH</span></td></tr>
+              <tr><td class="idx">23</td><td class="bc">5828079291111</td><td class="r">2.35</td><td class="r">16</td><td><span class="pill pill--match">MATCH</span></td></tr>
+              <tr><td class="idx">24</td><td class="bc">6920011228888</td><td class="r">14.75</td><td class="r">2</td><td><span class="pill pill--match">MATCH</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Footer (parsed only) -->
+        <div class="pnl-ft parsed-only" style="display:none;">
+          <span class="ft-stat">SUM · <b class="v-accent">€1,247.35</b> · <b>24</b> ROWS · <b>168</b> UNITS</span>
+          <span class="pnl-spacer"></span>
+          <button class="btn btn--ghost" disabled title="修正 CHECK 后可用">⎘ 一键复制</button>
+          <button class="btn btn--primary" onclick="showModal()">↓ 下载全部</button>
+        </div>
+      </section>
+
+      <!-- ═══════════════════════════════════════ -->
+      <!-- 03: New barcodes (hidden when empty)    -->
+      <!-- ═══════════════════════════════════════ -->
+      <section class="pnl parsed-only" id="newPanel" style="display:none;">
+        <div class="pnl-hd">
+          <span class="pnl-code">03</span>
+          <span class="pnl-title">新条码</span>
+          <span class="pnl-sub">3 条 · 需填写品名后导出</span>
+          <span class="pnl-spacer"></span>
+          <button class="btn btn--ghost" style="font-size:var(--fs-xs);">↪ 一键入库</button>
+          <button class="btn btn--ghost" style="font-size:var(--fs-xs);">⎘ 复制条码</button>
+        </div>
+        <div class="new-hd">
+          <span class="new-sup-label">供应商</span>
+          <span class="new-sup-val">SUP-0042 · HOMEPLAST</span>
+          <span style="font-size:var(--fs-xs);color:var(--success);margin-left:4px;">✓ 自动识别</span>
+          <span class="pnl-spacer"></span>
+          <button class="btn btn--ghost" style="font-size:var(--fs-xs);padding:3px 8px;">编辑供应商</button>
+        </div>
+        <table class="new-tbl">
+          <thead><tr><th style="width:130px;">条码</th><th>品名（第 4 列）</th><th>发票品名（第 5 列）</th><th style="width:64px;"></th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="bc v-info">8690637099111</span></td>
+              <td><input class="new-inp" placeholder="例：保温杯 500ml"></td>
+              <td><input class="new-inp" placeholder="例：ΘΕΡΜΟΣ 500ML"></td>
+              <td><div class="new-acts"><button class="na na--fix">修正</button><button class="na na--del">删</button></div></td>
+            </tr>
+            <tr>
+              <td><span class="bc v-info">6920011229922</span></td>
+              <td><input class="new-inp" value="保温杯 500ml 不锈钢"></td>
+              <td><input class="new-inp" value="ΘΕΡΜΟΣ 500ML INOX"></td>
+              <td><div class="new-acts"><button class="na na--fix">修正</button><button class="na na--del">删</button></div></td>
+            </tr>
+            <tr>
+              <td><span class="bc v-info">8299979008833</span></td>
+              <td><input class="new-inp" placeholder="例：塑料收纳盒 L"></td>
+              <td><input class="new-inp" placeholder="例：ΚΟΥΤΙ ΑΠΟΘ. L"></td>
+              <td><div class="new-acts"><button class="na na--fix">修正</button><button class="na na--del">删</button></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ═══════════════════════════════════════ -->
+      <!-- 04: Monthly summary (always visible)    -->
+      <!-- ═══════════════════════════════════════ -->
+      <div class="ms">
+        <span class="ms-code">HISTORY · 月度总结</span>
+        <select class="ms-sel"><option>2026-05</option><option>2026-04</option><option>2026-03</option></select>
+        <span class="ms-stat"><b>7</b> 条记录 · 累计 <b class="v-accent">€8,421.50</b></span>
+        <span class="pnl-spacer"></span>
+        <button class="btn btn--ghost">+ 补录</button>
+        <button class="btn btn--ghost">⌗ 管理</button>
+        <button class="btn btn--primary">⌖ 下载 PDF</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay hidden" id="modalOverlay" onclick="if(event.target===this)hideModal()">
+  <div class="modal">
+    <div class="modal-hd">记录到月度总结</div>
+    <div class="modal-bd">
+      <div class="mf"><span class="mf-label">供应商名称</span><input class="mf-inp" value="HOMEPLAST"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="mf"><span class="mf-label">总价 (€)</span><input class="mf-inp" value="1247.35" id="mT"></div>
+        <div class="mf"><span class="mf-label">税金 (€)</span><input class="mf-inp" placeholder="必填" id="mX"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="mf"><span class="mf-label">特殊税 (€)</span><input class="mf-inp" placeholder="可选" id="mS"></div>
+        <div class="mf"><span class="mf-label">加税总价 (€)</span><input class="mf-inp" disabled id="mTT" value="—"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="mf"><span class="mf-label">开票日期</span><input class="mf-inp" type="date" value="2026-05-26"></div>
+        <div class="mf"><span class="mf-label">目标月份</span><input class="mf-inp" type="month" value="2026-05"></div>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn--ghost" onclick="hideModal()">取消</button>
+      <button class="btn btn--ghost" onclick="hideModal()">跳过，直接导出</button>
+      <button class="btn btn--primary" onclick="hideModal()">确认并导出</button>
+    </div>
+  </div>
+</div>
+
+<!-- Demo toggle -->
+<div class="demo" id="demoT">
+  <button class="act" onclick="setState('empty')">空态</button>
+  <button onclick="setState('parsed')">已解析</button>
+</div>
+
+<script>
+  function setTheme(t){
+    document.body.dataset.theme=t;
+    document.querySelectorAll('.theme-switch button').forEach(b=>{
+      b.classList.toggle('act',b.textContent.trim().toLowerCase()===t);
+    });
+  }
+  function tick(){const n=new Date();document.getElementById('clock').textContent=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');}
+  tick();setInterval(tick,30000);
+
+  function showModal(){document.getElementById('modalOverlay').classList.remove('hidden');}
+  function hideModal(){document.getElementById('modalOverlay').classList.add('hidden');}
+
+  function setState(s){
+    const parsed=s==='parsed';
+    // 01
+    document.getElementById('drop01Full').style.display=parsed?'none':'flex';
+    document.getElementById('drop01Strip').style.display=parsed?'flex':'none';
+    // 02
+    document.getElementById('resEmpty').style.display=parsed?'none':'block';
+    document.getElementById('resTable').style.display=parsed?'block':'none';
+    document.getElementById('resSub').textContent=parsed?'24 行 · 168 件':'等待文件';
+    // header pill
+    const hp=document.getElementById('hPill');
+    hp.textContent=parsed?'已解析':'待上传';
+    hp.className=parsed?'pill pill--accent':'pill pill--ghost';
+    // parsed-only elements
+    document.querySelectorAll('.parsed-only').forEach(el=>{
+      el.style.display=parsed?(el.classList.contains('pnl')?'flex':(el.tagName==='DIV'||el.tagName==='SECTION'?'flex':'inline-flex')):'none';
+    });
+    // demo buttons
+    document.querySelectorAll('#demoT button').forEach(b=>{
+      b.classList.toggle('act',b.textContent.trim()===(parsed?'已解析':'空态'));
+    });
+  }
+
+  // Modal calc
+  ['mX','mS','mT'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('input',()=>{
+      const t=parseFloat(document.getElementById('mT').value)||0;
+      const x=parseFloat(document.getElementById('mX').value)||0;
+      const s=parseFloat(document.getElementById('mS').value)||0;
+      document.getElementById('mTT').value='€'+(t+x+s).toFixed(2);
+    });
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DataOps — 数据健康</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-7:32px;--sp-8:40px;--fs-xs:10px;--fs-sm:11px;--fs-md:12px;--fs-base:13px;--fs-lg:15px;--fs-xl:17px;--fs-2xl:20px;--fs-3xl:24px;--r-sm:4px;--r-md:6px;--r-lg:8px;--mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Consolas,monospace;--sans:'Inter',system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;--display:'Space Grotesk','Inter',system-ui,sans-serif;--t-fast:.12s ease;--t-base:.2s ease;}
+  [data-theme="dark"]{--bg-0:#0A0A0B;--bg-1:#111113;--bg-2:#19191C;--bg-3:#222225;--bg-4:#2C2C30;--line:#2E2E32;--line-soft:#1F1F23;--ink-0:#EDEDEF;--ink-1:#A0A0A6;--ink-2:#6E6E76;--ink-3:#4A4A52;--accent:#E5484D;--accent-dim:#C13B3F;--accent-glow:rgba(229,72,77,.15);--accent-subtle:rgba(229,72,77,.08);--accent-subtle-border:rgba(229,72,77,.25);--on-accent:#FFF;--success:#46A758;--success-subtle:rgba(70,167,88,.08);--success-subtle-border:rgba(70,167,88,.25);--warn:#F5A623;--warn-subtle:rgba(245,166,35,.08);--warn-subtle-border:rgba(245,166,35,.25);--error:#E5484D;--error-subtle:rgba(229,72,77,.08);--error-subtle-border:rgba(229,72,77,.25);--info:#3E9DE6;--info-subtle:rgba(62,157,230,.08);--info-subtle-border:rgba(62,157,230,.25);--sh-sm:0 1px 2px rgba(0,0,0,.5);color-scheme:dark;}
+  [data-theme="light"]{--bg-0:#FFFFFF;--bg-1:#F8F8F9;--bg-2:#F0F0F2;--bg-3:#E8E8EB;--bg-4:#DDDDE0;--line:#E0E0E3;--line-soft:#EBEBEE;--ink-0:#1A1A1E;--ink-1:#6B6B76;--ink-2:#9B9BA6;--ink-3:#C0C0C8;--accent:#DC3545;--accent-dim:#B52A37;--accent-glow:rgba(220,53,69,.10);--accent-subtle:rgba(220,53,69,.06);--accent-subtle-border:rgba(220,53,69,.20);--on-accent:#FFF;--success:#2D8A3E;--success-subtle:rgba(45,138,62,.06);--success-subtle-border:rgba(45,138,62,.20);--warn:#D4850C;--warn-subtle:rgba(212,133,12,.06);--warn-subtle-border:rgba(212,133,12,.20);--error:#DC3545;--error-subtle:rgba(220,53,69,.06);--error-subtle-border:rgba(220,53,69,.20);--info:#2B7EC2;--info-subtle:rgba(43,126,194,.06);--info-subtle-border:rgba(43,126,194,.20);--sh-sm:0 1px 2px rgba(0,0,0,.05);color-scheme:light;}
+
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--sans);font-size:var(--fs-base);line-height:1.5;background:var(--bg-0);color:var(--ink-0);height:100vh;overflow:hidden;-webkit-font-smoothing:antialiased;}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums;}
+  ::-webkit-scrollbar{width:6px;height:6px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--bg-4);border-radius:3px;}
+
+  /* Shell */
+  .shell{display:flex;height:100vh;}
+  .sidebar{width:200px;flex-shrink:0;background:var(--bg-1);border-right:1px solid var(--line-soft);display:flex;flex-direction:column;}
+  .sidebar-head{height:52px;padding:0 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line-soft);}
+  .sidebar-logo{width:26px;height:26px;border-radius:var(--r-sm);background:var(--bg-0);border:1px solid var(--accent-dim);display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px var(--accent-glow);}
+  .sidebar-logo span{font-family:var(--mono);font-weight:700;font-size:13px;color:var(--accent);}
+  .sidebar-nav{padding:12px 8px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:1px;}
+  .sidebar-section{font-size:var(--fs-xs);color:var(--ink-3);font-weight:600;padding:4px 8px 8px;text-transform:uppercase;letter-spacing:0.04em;}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:var(--r-sm);color:var(--ink-2);font-size:var(--fs-md);font-weight:500;cursor:pointer;border:none;background:none;width:100%;text-align:left;transition:background var(--t-fast),color var(--t-fast);}
+  .nav-item:hover{background:var(--bg-2);color:var(--ink-1);}
+  .nav-item.active{background:var(--accent-subtle);color:var(--ink-0);}
+  .nav-item.active .nav-icon{color:var(--accent);}
+  .nav-icon{width:16px;height:16px;color:var(--ink-3);flex-shrink:0;}
+  .nav-label{flex:1;}
+  .nav-kbd{font-family:var(--mono);font-size:9px;color:var(--ink-3);padding:1px 5px;border:1px solid var(--line);border-radius:2px;}
+  .sidebar-foot{border-top:1px solid var(--line-soft);padding:8px;}
+  .theme-switch{display:flex;gap:4px;padding:3px;background:var(--bg-2);border-radius:var(--r-sm);border:1px solid var(--line-soft);}
+  .theme-switch button{padding:4px 10px;border:none;border-radius:2px;font-size:var(--fs-xs);font-weight:600;font-family:var(--mono);cursor:pointer;background:transparent;color:var(--ink-2);transition:all var(--t-fast);}
+  .theme-switch button.act{background:var(--bg-4);color:var(--ink-0);box-shadow:var(--sh-sm);}
+  .main{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;}
+  .header{height:48px;flex-shrink:0;background:var(--bg-1);border-bottom:1px solid var(--line-soft);display:flex;align-items:center;padding:0 16px;gap:16px;}
+  .header-crumb{display:flex;align-items:center;gap:8px;}
+  .header-crumb-prefix{font-size:var(--fs-sm);color:var(--ink-3);}
+  .header-crumb-sep{color:var(--ink-3);font-size:10px;}
+  .header-crumb-title{font-size:var(--fs-base);font-weight:600;color:var(--ink-0);}
+  .header-spacer{flex:1;}
+  .content{flex:1;padding:16px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;}
+
+  /* Shared */
+  .btn{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:var(--r-sm);font-size:var(--fs-sm);font-weight:600;font-family:var(--sans);cursor:pointer;border:1px solid transparent;transition:all var(--t-fast);white-space:nowrap;}
+  .btn--primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent-dim);}
+  .btn--primary:hover{background:var(--accent-dim);}
+  .btn--ghost{background:transparent;color:var(--ink-1);border-color:var(--line);}
+  .btn--ghost:hover{background:var(--bg-2);color:var(--ink-0);}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:2px;font-size:9.5px;font-weight:700;letter-spacing:0.03em;border:1px solid;white-space:nowrap;}
+  .pill--ghost{color:var(--ink-2);border-color:var(--line);background:var(--bg-2);}
+  .pnl{background:var(--bg-1);border:1px solid var(--line-soft);border-radius:var(--r-md);display:flex;flex-direction:column;overflow:hidden;}
+  .pnl-hd{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line-soft);}
+  .pnl-code{font-family:var(--mono);font-size:var(--fs-xs);font-weight:700;color:var(--accent);background:var(--accent-subtle);border:1px solid var(--accent-subtle-border);padding:1px 6px;border-radius:2px;}
+  .pnl-title{font-size:var(--fs-base);font-weight:600;color:var(--ink-0);}
+  .pnl-sub{font-size:var(--fs-sm);color:var(--ink-2);}
+  .pnl-spacer{flex:1;}
+  .pnl-bd{padding:12px 16px;}
+
+  /* ═══ Health overview: 2-column ═══ */
+  .health-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .health-card{background:var(--bg-0);border:1px solid var(--line-soft);border-radius:var(--r-sm);padding:12px 14px;}
+  .health-card h4{font-size:var(--fs-sm);font-weight:700;color:var(--ink-0);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.03em;}
+  .health-row{display:flex;align-items:baseline;gap:6px;padding:3px 0;font-size:var(--fs-sm);color:var(--ink-1);}
+  .health-row b{color:var(--ink-0);font-family:var(--mono);font-weight:600;}
+  .health-date{font-family:var(--mono);font-size:var(--fs-sm);font-weight:600;}
+  .health-ok{color:var(--success);}
+  .health-warn{color:var(--warn);}
+  .health-stale{color:var(--error);}
+  .health-ago{font-size:var(--fs-xs);color:var(--ink-2);margin-left:2px;}
+  .health-sub{font-size:var(--fs-xs);color:var(--ink-3);margin-left:8px;}
+
+  /* ═══ Import history table ═══ */
+  .tbl{width:100%;border-collapse:collapse;font-size:var(--fs-md);}
+  .tbl thead{position:sticky;top:0;z-index:1;background:var(--bg-1);}
+  .tbl th{padding:7px 16px;text-align:left;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-2);border-bottom:1px solid var(--line-soft);white-space:nowrap;}
+  .tbl th.r{text-align:right;}
+  .tbl td{padding:6px 16px;border-bottom:1px solid var(--line-soft);color:var(--ink-1);}
+  .tbl td.r{text-align:right;}
+  .tbl tbody tr:last-child td{border-bottom:none;}
+  .tbl tbody tr{transition:background var(--t-fast);}
+  .tbl tbody tr:hover{background:var(--bg-2);}
+  .td-time{font-family:var(--mono);font-size:var(--fs-sm);color:var(--ink-1);}
+  .td-type{font-size:var(--fs-sm);}
+  .td-file{font-family:var(--mono);font-size:var(--fs-xs);color:var(--ink-2);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .st-ok{color:var(--success);font-weight:600;font-size:var(--fs-sm);}
+  .st-err{color:var(--error);font-weight:600;font-size:var(--fs-sm);}
+
+  /* ═══ Emergency details ═══ */
+  .emergency{border:1px solid var(--line);border-radius:var(--r-md);margin-top:4px;}
+  .emergency-summary{display:flex;align-items:center;gap:8px;padding:10px 16px;cursor:pointer;font-size:var(--fs-md);font-weight:600;color:var(--ink-1);background:var(--bg-1);border:none;transition:background var(--t-fast);list-style:none;user-select:none;}
+  .emergency-summary:hover{background:var(--bg-2);}
+  .emergency-summary::marker,.emergency-summary::-webkit-details-marker{display:none;}
+  .emergency-chevron{color:var(--ink-3);font-size:10px;transition:transform var(--t-fast);}
+  .emergency[open] .emergency-chevron{transform:rotate(90deg);}
+  .emergency-body{border-top:1px solid var(--line-soft);display:flex;flex-direction:column;gap:12px;padding:16px;}
+
+  /* Import zone */
+  .import-zone{background:var(--bg-1);border:1px solid var(--line-soft);border-radius:var(--r-md);overflow:hidden;}
+  .import-hd{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line-soft);}
+  .import-bd{padding:10px 16px;}
+  .kind-row{display:flex;align-items:center;gap:12px;margin-bottom:8px;}
+  .kind{display:flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid var(--line);border-radius:var(--r-sm);cursor:pointer;transition:all var(--t-fast);font-size:var(--fs-sm);font-weight:600;color:var(--ink-2);}
+  .kind:has(input:checked){border-color:var(--accent-subtle-border);background:var(--accent-subtle);color:var(--accent);}
+  .kind input{display:none;}
+  .kind-dot{width:8px;height:8px;border-radius:50%;border:2px solid var(--ink-3);transition:all var(--t-fast);}
+  .kind:has(input:checked) .kind-dot{border-color:var(--accent);background:var(--accent);}
+  .file-row{display:flex;align-items:center;gap:8px;}
+  .file-name{font-size:var(--fs-sm);color:var(--ink-3);}
+  .hint{font-family:var(--mono);font-size:var(--fs-xs);color:var(--ink-3);margin-top:8px;line-height:1.7;}
+  .hint-prompt{color:var(--accent);font-weight:700;}
+
+  /* Product zone */
+  .product-zone{display:flex;align-items:center;gap:14px;background:var(--bg-1);border:1px solid var(--line-soft);border-radius:var(--r-md);padding:10px 16px;}
+  .product-icon{width:36px;height:36px;border-radius:var(--r-sm);background:var(--info-subtle);border:1px solid var(--info-subtle-border);display:flex;align-items:center;justify-content:center;color:var(--info);font-size:16px;flex-shrink:0;}
+  .product-text{flex:1;}
+  .product-title{font-size:var(--fs-md);font-weight:600;color:var(--ink-0);}
+  .product-sub{font-size:var(--fs-xs);color:var(--ink-2);margin-top:1px;}
+
+  /* DB state stats */
+  .db-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+  .db-stat{background:var(--bg-0);border:1px solid var(--line-soft);border-radius:var(--r-sm);padding:12px 14px;border-left:3px solid var(--accent);}
+  .db-stat-label{font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-2);}
+  .db-stat-num{font-family:var(--display);font-size:var(--fs-2xl);font-weight:700;letter-spacing:-0.02em;line-height:1.2;color:var(--accent);}
+  .db-stat-sub{font-size:var(--fs-xs);font-family:var(--mono);color:var(--ink-3);margin-top:2px;}
+  .db-stat:nth-child(2){border-left-color:var(--info);}
+  .db-stat:nth-child(2) .db-stat-num{color:var(--info);}
+  .db-stat:nth-child(3){border-left-color:var(--ink-1);}
+  .db-stat:nth-child(3) .db-stat-num{color:var(--ink-0);}
+  .db-stat:nth-child(4){border-left-color:var(--warn);}
+  .db-stat:nth-child(4) .db-stat-num{color:var(--warn);}
+
+  /* Customer type pills */
+  .type-pills{display:flex;gap:6px;margin-top:8px;padding:0 16px 12px;}
+  .type-pill{font-size:var(--fs-xs);font-weight:700;padding:2px 8px;border-radius:2px;border:1px solid;}
+  .type-pill--cn{color:var(--accent);border-color:var(--accent-subtle-border);background:var(--accent-subtle);}
+  .type-pill--fo{color:var(--info);border-color:var(--info-subtle-border);background:var(--info-subtle);}
+  .type-pill--mx{color:var(--warn);border-color:var(--warn-subtle-border);background:var(--warn-subtle);}
+  .type-pill--un{color:var(--ink-2);border-color:var(--line);background:var(--bg-2);}
+</style>
+</head>
+
+<body data-theme="dark">
+<div class="shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="sidebar-logo"><span>&gt;_</span></div>
+      <div style="display:flex;flex-direction:column;gap:1px;"><div style="font-size:var(--fs-base);font-weight:700;color:var(--ink-0);">DataOps</div><div style="font-size:var(--fs-xs);color:var(--ink-3);font-family:var(--mono);">v4.1</div></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-section">MODULES · 10</div>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg><span class="nav-label">总览</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7v10a2 2 0 002 2h7l8-8a2 2 0 000-2.83l-4.17-4.17A2 2 0 0014 3H5a2 2 0 00-2 2z"/><circle cx="8" cy="8" r="1.5"/></svg><span class="nav-label">标签处理</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h2l2.5 12h11l2-8H6.5"/><circle cx="9" cy="20" r="1.5"/><circle cx="17" cy="20" r="1.5"/></svg><span class="nav-label">采购导入</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="16" rx="1.5"/><path d="M3 10h18"/></svg><span class="nav-label">考勤台账</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12a9 9 0 109-9"/><path d="M3 4v5h5"/></svg><span class="nav-label">货号历史</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z"/></svg><span class="nav-label">数据质量</span></button>
+      <button class="nav-item active"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 8l-4-4M21 8l-4 4M21 8H9"/><path d="M3 16l4 4M3 16l4-4M3 16h12"/></svg><span class="nav-label">数据健康</span><span class="nav-kbd">⌘6</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/></svg><span class="nav-label">老外客人</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 20h18M5 16l4-6 4 4 6-9"/></svg><span class="nav-label">补货决策</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09"/></svg><span class="nav-label">系统管理</span></button>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="theme-switch"><button class="act" onclick="setTheme('dark')">DARK</button><button onclick="setTheme('light')">LIGHT</button></div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="header">
+      <div class="header-crumb">
+        <span class="header-crumb-prefix">DataOps</span>
+        <span class="header-crumb-sep">/</span>
+        <span class="header-crumb-title">数据健康</span>
+      </div>
+      <div class="header-spacer"></div>
+      <span class="mono" style="font-size:var(--fs-sm);color:var(--ink-2);" id="clock">14:32</span>
+    </header>
+
+    <div class="content">
+
+      <!-- ═══ Health overview (DB stats + Scraper status) ═══ -->
+      <section class="pnl">
+        <div class="pnl-hd">
+          <span class="pnl-code">📊</span>
+          <span class="pnl-title">数据健康总览</span>
+          <span class="pnl-spacer"></span>
+          <button class="btn btn--ghost">↻ 刷新</button>
+        </div>
+        <!-- 4 stat cards -->
+        <div style="padding:12px 16px 0;">
+          <div class="db-stats">
+            <div class="db-stat">
+              <div class="db-stat-label">事件总数</div>
+              <div class="db-stat-num">1,437,355</div>
+              <div class="db-stat-sub">采购 70,557 / 销售 1,366,798</div>
+            </div>
+            <div class="db-stat">
+              <div class="db-stat-label">客户</div>
+              <div class="db-stat-num">3,707</div>
+            </div>
+            <div class="db-stat">
+              <div class="db-stat-label">供应商</div>
+              <div class="db-stat-num">594</div>
+            </div>
+            <div class="db-stat">
+              <div class="db-stat-label">SKU</div>
+              <div class="db-stat-num">45,887</div>
+            </div>
+          </div>
+        </div>
+        <!-- Customer type pills -->
+        <div class="type-pills">
+          <span class="type-pill type-pill--cn">chinese · 373</span>
+          <span class="type-pill type-pill--fo">foreign · 3,284</span>
+          <span class="type-pill type-pill--mx">mixed · 44</span>
+          <span class="type-pill type-pill--un">unknown · 6</span>
+        </div>
+        <!-- Scraper status -->
+        <div style="padding:0 16px 12px;">
+          <div class="health-card" style="margin-top:0;">
+            <h4>Scraper 状态</h4>
+            <div class="health-row">销售: <span class="health-date health-ok">2026-05-25</span> <span class="health-ago">✓ 0 天前</span> <span class="health-sub">最新记录 <span class="health-date health-ok">2026-05-25</span> <span class="health-ago">✓ 1 天前</span></span></div>
+            <div class="health-row">采购: <span class="health-date health-ok">2026-05-25</span> <span class="health-ago">✓ 0 天前</span> <span class="health-sub">最新记录 <span class="health-date health-ok">2026-05-23</span> <span class="health-ago">✓ 3 天前</span></span></div>
+            <div class="health-row">库存快照: <span class="health-date health-ok">2026-05-25</span> <span class="health-ago">✓ 0 天前</span></div>
+            <div class="health-row">产品总档: <span class="health-date health-ok">2026-05-25</span> <span class="health-ago">✓ 0 天前</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ Emergency: manual upload + import history ═══ -->
+      <details class="emergency">
+        <summary class="emergency-summary">
+          <span class="emergency-chevron">▶</span>
+          应急: 手动上传（scraper 失效时用）
+        </summary>
+        <div class="emergency-body">
+
+          <!-- IO-01: 进销存导入 -->
+          <div class="import-zone">
+            <div class="import-hd">
+              <span class="pnl-code">IO-01</span>
+              <span class="pnl-title">进销存导入</span>
+              <span class="pnl-spacer"></span>
+              <span class="pill pill--ghost">.xls (HTML 伪装)</span>
+            </div>
+            <div class="import-bd">
+              <div class="kind-row">
+                <label class="kind"><input type="radio" name="invType" value="purchase" checked><span class="kind-dot"></span>采购单 .xls</label>
+                <label class="kind"><input type="radio" name="invType" value="sales"><span class="kind-dot"></span>销售单 .xls</label>
+                <span class="pnl-spacer"></span>
+                <div class="file-row">
+                  <button class="btn btn--ghost">⎙ 选择文件</button>
+                  <span class="file-name">未选择任何文件</span>
+                </div>
+                <span class="pnl-spacer"></span>
+                <button class="btn btn--ghost">预览</button>
+                <button class="btn btn--primary">↪ 执行导入</button>
+              </div>
+              <div class="hint">
+                <span class="hint-prompt">$</span> 上传 ERP 导出的 .xls 文件（实际是 HTML 伪装格式）<br>
+                <span class="hint-prompt">$</span> 先 [预览] 检查列映射 → 再 [执行导入] 入库 · 重复 import 同一文件不会重复落库
+              </div>
+            </div>
+          </div>
+
+          <!-- Product master -->
+          <div class="product-zone">
+            <div class="product-icon">⊞</div>
+            <div class="product-text">
+              <div class="product-title">产品总档 · product.csv</div>
+              <div class="product-sub">升级 stockpile 主档 · 含品名 / 价格 / 供应商 / 分类码</div>
+            </div>
+            <button class="btn btn--ghost">⎙ 选择文件</button>
+            <span class="file-name">未选择任何文件</span>
+            <button class="btn btn--primary">↪ 导入产品总档</button>
+          </div>
+
+          <!-- Recent manual imports -->
+          <div class="import-zone">
+            <div class="import-hd">
+              <span class="pnl-code">RECENT</span>
+              <span class="pnl-title">近 10 次手动 Import</span>
+              <span class="pnl-spacer"></span>
+              <button class="btn btn--ghost">↻ 刷新</button>
+            </div>
+            <div style="overflow:auto;max-height:220px;">
+              <table class="tbl">
+                <thead><tr><th>时间</th><th>类型</th><th>状态</th><th class="r">行数</th><th>文件</th></tr></thead>
+                <tbody>
+                  <tr><td class="td-time">2026-05-25 16:42</td><td class="td-type">sale</td><td class="st-ok">✓ ok</td><td class="r mono" style="font-size:var(--fs-sm);">12,847</td><td class="td-file">sales_20260525.xls</td></tr>
+                  <tr><td class="td-time">2026-05-25 16:40</td><td class="td-type">purchase</td><td class="st-ok">✓ ok</td><td class="r mono" style="font-size:var(--fs-sm);">342</td><td class="td-file">purchase_20260525.xls</td></tr>
+                  <tr><td class="td-time">2026-05-25 04:00</td><td class="td-type">snapshot</td><td class="st-ok">✓ ok</td><td class="r mono" style="font-size:var(--fs-sm);">45,887</td><td class="td-file">inventory_snapshot.csv</td></tr>
+                  <tr><td class="td-time">2026-05-25 03:55</td><td class="td-type">product</td><td class="st-ok">✓ ok</td><td class="r mono" style="font-size:var(--fs-sm);">45,887</td><td class="td-file">product.csv</td></tr>
+                  <tr><td class="td-time">2026-05-24 16:38</td><td class="td-type">sale</td><td class="st-ok">✓ ok</td><td class="r mono" style="font-size:var(--fs-sm);">11,923</td><td class="td-file">sales_20260524.xls</td></tr>
+                  <tr><td class="td-time">2026-05-24 16:36</td><td class="td-type">purchase</td><td class="st-ok">✓ ok</td><td class="r mono" style="font-size:var(--fs-sm);">298</td><td class="td-file">purchase_20260524.xls</td></tr>
+                  <tr><td class="td-time">2026-05-23 16:42</td><td class="td-type">sale</td><td class="st-ok">✓ ok</td><td class="r mono" style="font-size:var(--fs-sm);">10,445</td><td class="td-file">sales_20260523.xls</td></tr>
+                  <tr><td class="td-time">2026-05-23 16:40</td><td class="td-type">purchase</td><td class="st-err">✗ partial</td><td class="r mono" style="font-size:var(--fs-sm);">156</td><td class="td-file">purchase_20260523.xls</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </details>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  function setTheme(t){document.body.dataset.theme=t;document.querySelectorAll('.theme-switch button').forEach(b=>{b.classList.toggle('act',b.textContent.trim().toLowerCase()===t);});}
+  function tick(){const n=new Date();document.getElementById('clock').textContent=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');}
+  tick();setInterval(tick,30000);
+</script>
+</body>
+</html>

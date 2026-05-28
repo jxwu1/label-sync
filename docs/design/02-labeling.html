@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DataOps — 标签处理 Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-7:32px;--sp-8:40px;--fs-xs:10px;--fs-sm:11px;--fs-md:12px;--fs-base:13px;--fs-lg:15px;--fs-xl:17px;--fs-2xl:20px;--fs-3xl:24px;--r-sm:4px;--r-md:6px;--r-lg:8px;--r-pill:999px;--mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Consolas,monospace;--sans:'Inter',system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;--display:'Space Grotesk','Inter',system-ui,sans-serif;--t-fast:.12s ease;--t-base:.2s ease;}
+  [data-theme="dark"]{--bg-0:#0A0A0B;--bg-1:#111113;--bg-2:#19191C;--bg-3:#222225;--bg-4:#2C2C30;--line:#2E2E32;--line-soft:#1F1F23;--ink-0:#EDEDEF;--ink-1:#A0A0A6;--ink-2:#6E6E76;--ink-3:#4A4A52;--accent:#E5484D;--accent-dim:#C13B3F;--accent-glow:rgba(229,72,77,.15);--accent-subtle:rgba(229,72,77,.08);--accent-subtle-border:rgba(229,72,77,.25);--on-accent:#FFF;--success:#46A758;--success-subtle:rgba(70,167,88,.08);--success-subtle-border:rgba(70,167,88,.25);--warn:#F5A623;--warn-subtle:rgba(245,166,35,.08);--warn-subtle-border:rgba(245,166,35,.25);--error:#E5484D;--error-subtle:rgba(229,72,77,.08);--error-subtle-border:rgba(229,72,77,.25);--info:#3E9DE6;--info-subtle:rgba(62,157,230,.08);--info-subtle-border:rgba(62,157,230,.25);--sh-sm:0 1px 2px rgba(0,0,0,.5);color-scheme:dark;}
+  [data-theme="light"]{--bg-0:#FFFFFF;--bg-1:#F8F8F9;--bg-2:#F0F0F2;--bg-3:#E8E8EB;--bg-4:#DDDDE0;--line:#E0E0E3;--line-soft:#EBEBEE;--ink-0:#1A1A1E;--ink-1:#6B6B76;--ink-2:#9B9BA6;--ink-3:#C0C0C8;--accent:#DC3545;--accent-dim:#B52A37;--accent-glow:rgba(220,53,69,.10);--accent-subtle:rgba(220,53,69,.06);--accent-subtle-border:rgba(220,53,69,.20);--on-accent:#FFF;--success:#2D8A3E;--success-subtle:rgba(45,138,62,.06);--success-subtle-border:rgba(45,138,62,.20);--warn:#D4850C;--warn-subtle:rgba(212,133,12,.06);--warn-subtle-border:rgba(212,133,12,.20);--error:#DC3545;--error-subtle:rgba(220,53,69,.06);--error-subtle-border:rgba(220,53,69,.20);--info:#2B7EC2;--info-subtle:rgba(43,126,194,.06);--info-subtle-border:rgba(43,126,194,.20);--sh-sm:0 1px 2px rgba(0,0,0,.05);color-scheme:light;}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--sans);font-size:var(--fs-base);line-height:1.5;background:var(--bg-0);color:var(--ink-0);height:100vh;overflow:hidden;-webkit-font-smoothing:antialiased;}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums;}
+  ::-webkit-scrollbar{width:6px;height:6px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--bg-4);border-radius:3px;}
+
+  /* Shell */
+  .shell{display:flex;height:100vh;}
+  .sidebar{width:200px;flex-shrink:0;background:var(--bg-1);border-right:1px solid var(--line-soft);display:flex;flex-direction:column;}
+  .sidebar-head{height:52px;padding:0 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line-soft);flex-shrink:0;}
+  .sidebar-logo{width:26px;height:26px;border-radius:var(--r-sm);background:var(--bg-0);border:1px solid var(--accent-dim);display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px var(--accent-glow);}
+  .sidebar-logo span{font-family:var(--mono);font-weight:700;font-size:13px;color:var(--accent);line-height:1;}
+  .sidebar-brand{display:flex;flex-direction:column;gap:1px;}
+  .sidebar-brand-name{font-size:var(--fs-base);font-weight:700;color:var(--ink-0);}
+  .sidebar-brand-sub{font-size:var(--fs-xs);color:var(--ink-3);font-family:var(--mono);}
+  .sidebar-nav{padding:12px 8px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:1px;}
+  .sidebar-section{font-size:var(--fs-xs);color:var(--ink-3);font-weight:600;padding:4px 8px 8px;text-transform:uppercase;letter-spacing:0.04em;}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:var(--r-sm);color:var(--ink-2);font-size:var(--fs-md);font-weight:500;cursor:pointer;border:none;background:none;width:100%;text-align:left;transition:background var(--t-fast),color var(--t-fast);}
+  .nav-item:hover{background:var(--bg-2);color:var(--ink-1);}
+  .nav-item.active{background:var(--accent-subtle);color:var(--ink-0);}
+  .nav-item.active .nav-icon{color:var(--accent);}
+  .nav-icon{width:16px;height:16px;color:var(--ink-3);flex-shrink:0;}
+  .nav-label{flex:1;}
+  .nav-kbd{font-family:var(--mono);font-size:9px;color:var(--ink-3);padding:1px 5px;border:1px solid var(--line);border-radius:2px;}
+  .sidebar-foot{border-top:1px solid var(--line-soft);padding:8px;}
+  .theme-switch{display:flex;gap:4px;padding:3px;background:var(--bg-2);border-radius:var(--r-sm);border:1px solid var(--line-soft);}
+  .theme-switch button{padding:4px 10px;border:none;border-radius:2px;font-size:var(--fs-xs);font-weight:600;font-family:var(--mono);cursor:pointer;background:transparent;color:var(--ink-2);transition:all var(--t-fast);}
+  .theme-switch button.act{background:var(--bg-4);color:var(--ink-0);box-shadow:var(--sh-sm);}
+
+  .main{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;}
+  .header{height:48px;flex-shrink:0;background:var(--bg-1);border-bottom:1px solid var(--line-soft);display:flex;align-items:center;padding:0 16px;gap:16px;}
+  .header-crumb{display:flex;align-items:center;gap:8px;}
+  .header-crumb-prefix{font-size:var(--fs-sm);color:var(--ink-3);}
+  .header-crumb-sep{color:var(--ink-3);font-size:10px;}
+  .header-crumb-title{font-size:var(--fs-base);font-weight:600;color:var(--ink-0);}
+  .header-spacer{flex:1;}
+  .substrip{height:28px;flex-shrink:0;background:var(--bg-1);border-bottom:1px solid var(--line-soft);padding:0 16px;display:flex;align-items:center;gap:16px;font-size:var(--fs-xs);color:var(--ink-3);}
+  .substrip-label{font-weight:600;text-transform:uppercase;}
+  .substrip-val{color:var(--ink-1);font-family:var(--mono);}
+  .substrip-val--accent{color:var(--accent);font-weight:600;font-family:var(--mono);}
+  .content{flex:1;padding:16px;overflow-y:auto;}
+
+  /* ── Layout: 2-column grid ── */
+  .page-grid{display:grid;grid-template-columns:1fr 340px;grid-template-rows:auto auto 1fr;gap:12px;min-height:calc(100vh - 140px);}
+
+  /* ── Panel (shared) ── */
+  .pnl{background:var(--bg-1);border:1px solid var(--line-soft);border-radius:var(--r-md);display:flex;flex-direction:column;overflow:hidden;}
+  .pnl-hd{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line-soft);}
+  .pnl-code{font-family:var(--mono);font-size:var(--fs-xs);font-weight:700;color:var(--accent);background:var(--accent-subtle);border:1px solid var(--accent-subtle-border);padding:1px 6px;border-radius:2px;}
+  .pnl-title{font-size:var(--fs-base);font-weight:600;color:var(--ink-0);}
+  .pnl-sub{font-size:var(--fs-sm);color:var(--ink-2);}
+  .pnl-spacer{flex:1;}
+  .pnl-pill{font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:2px;border:1px solid var(--line);color:var(--ink-2);background:var(--bg-2);}
+  .pnl-bd{padding:12px 16px;}
+
+  /* ── 01: Upload panel ── */
+  .drop-zone{border:1.5px dashed var(--line);border-radius:var(--r-md);padding:20px;display:flex;align-items:center;gap:16px;cursor:pointer;transition:all var(--t-base);}
+  .drop-zone:hover{border-color:var(--accent);background:var(--accent-subtle);}
+  .drop-icon{width:44px;height:44px;border-radius:var(--r-md);background:var(--accent-subtle);border:1px solid var(--accent-subtle-border);display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:20px;flex-shrink:0;}
+  .drop-text{flex:1;}
+  .drop-main{font-size:var(--fs-lg);color:var(--ink-0);font-weight:600;}
+  .drop-main .hl{color:var(--accent);}
+  .drop-hint{font-size:var(--fs-sm);color:var(--ink-2);margin-top:2px;}
+
+  /* ── 02: Pipeline panel ── */
+  .pl-progress{height:3px;background:var(--bg-3);border-radius:2px;overflow:hidden;margin-bottom:12px;}
+  .pl-progress-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .4s ease;}
+  .pl-stages{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}
+  .pl-stage{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;border-radius:var(--r-sm);text-align:center;position:relative;}
+  .pl-num{font-family:var(--mono);font-size:var(--fs-xs);color:var(--ink-3);font-weight:600;}
+  .pl-name{font-size:var(--fs-sm);font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:0.02em;}
+  .pl-desc{font-size:9px;color:var(--ink-3);}
+  .pl-stage.current{background:var(--accent-subtle);border:1px solid var(--accent-subtle-border);}
+  .pl-stage.current .pl-num,.pl-stage.current .pl-name{color:var(--accent);}
+  .pl-stage.done .pl-num::after{content:'✓';margin-left:4px;color:var(--success);}
+  .pl-stage.done .pl-name{color:var(--ink-1);}
+
+  /* ── 03: Exceptions panel ── */
+  .ex-empty{padding:24px;text-align:center;color:var(--ink-3);font-size:var(--fs-md);}
+  .ex-idle-icon{width:48px;height:48px;border-radius:50%;background:var(--bg-2);border:1px solid var(--line-soft);display:flex;align-items:center;justify-content:center;color:var(--ink-3);}
+
+  /* Last batch compact strip */
+  .lb-strip{display:flex;align-items:center;gap:8px;padding:8px 16px;border-bottom:1px solid var(--line-soft);font-size:var(--fs-sm);}
+  .lb-strip-label{font-weight:600;color:var(--ink-3);text-transform:uppercase;font-size:var(--fs-xs);}
+  .lb-strip-val{color:var(--ink-1);}
+  .lb-strip-sep{color:var(--ink-3);font-size:9px;}
+  .lb-detail{display:flex;align-items:center;gap:10px;padding:8px 16px;font-size:var(--fs-sm);color:var(--ink-2);}
+  .lb-detail-item{display:flex;align-items:center;gap:5px;}
+  .lb-detail b{font-weight:600;color:var(--ink-1);}
+  .ex-list{flex:1;overflow-y:auto;min-height:0;}
+  .ex-card{display:flex;align-items:flex-start;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line-soft);border-left:3px solid transparent;transition:background var(--t-fast);}
+  .ex-card:last-child{border-bottom:none;}
+  .ex-card:hover{background:var(--bg-2);}
+  .ex-card.high{border-left-color:var(--error);}
+  .ex-card.med{border-left-color:var(--warn);}
+  .ex-card.low{border-left-color:var(--info);}
+  .ex-dot{width:8px;height:8px;border-radius:50%;margin-top:4px;flex-shrink:0;}
+  .ex-card.high .ex-dot{background:var(--error);}
+  .ex-card.med .ex-dot{background:var(--warn);}
+  .ex-card.low .ex-dot{background:var(--info);}
+  .ex-content{flex:1;min-width:0;}
+  .ex-title{font-size:var(--fs-md);font-weight:600;color:var(--ink-0);}
+  .ex-meta{font-size:var(--fs-xs);color:var(--ink-3);font-family:var(--mono);margin-top:1px;}
+  .ex-action{font-size:var(--fs-xs);color:var(--accent);font-weight:500;cursor:pointer;white-space:nowrap;padding:2px 8px;border:1px solid var(--accent-subtle-border);border-radius:2px;background:var(--accent-subtle);transition:all var(--t-fast);}
+  .ex-action:hover{background:var(--accent);color:var(--on-accent);border-color:var(--accent);}
+  .ex-sev{font-size:9px;font-weight:700;text-transform:uppercase;padding:1px 5px;border-radius:2px;border:1px solid;}
+  .ex-sev.high{color:var(--error);border-color:var(--error-subtle-border);background:var(--error-subtle);}
+  .ex-sev.med{color:var(--warn);border-color:var(--warn-subtle-border);background:var(--warn-subtle);}
+  .ex-sev.low{color:var(--info);border-color:var(--info-subtle-border);background:var(--info-subtle);}
+  .ex-sev-done{font-size:var(--fs-xs);font-weight:700;color:var(--success);background:var(--success-subtle);border:1px solid var(--success-subtle-border);padding:2px 8px;border-radius:2px;}
+  .ex-done-icon{width:48px;height:48px;border-radius:50%;background:var(--success-subtle);border:2px solid var(--success-subtle-border);display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--success);font-weight:700;}
+  .ex-done-summary{width:200px;background:var(--bg-2);border:1px solid var(--line-soft);border-radius:var(--r-md);padding:10px 14px;display:flex;flex-direction:column;gap:6px;}
+  .ex-done-row{display:flex;align-items:center;gap:8px;}
+  .ex-done-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+  .ex-done-label{flex:1;font-size:var(--fs-sm);color:var(--ink-2);}
+  .ex-done-count{font-size:var(--fs-sm);font-weight:600;color:var(--ink-1);min-width:24px;text-align:right;}
+  .ex-done-divider{height:1px;background:var(--line-soft);margin:2px 0;}
+
+  /* ── 04: File queue ── */
+  .fq-list{max-height:200px;overflow-y:auto;}
+  .fq-item{display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--line-soft);}
+  .fq-item:last-child{border-bottom:none;}
+  .fq-ext{font-family:var(--mono);font-size:9px;font-weight:700;color:var(--accent);background:var(--accent-subtle);border:1px solid var(--accent-subtle-border);padding:2px 6px;border-radius:2px;text-transform:uppercase;}
+  .fq-info{flex:1;min-width:0;}
+  .fq-name{font-size:var(--fs-md);font-weight:500;color:var(--ink-0);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .fq-size{font-size:var(--fs-xs);color:var(--ink-3);font-family:var(--mono);}
+  .fq-status{font-size:9px;font-weight:700;padding:2px 7px;border-radius:2px;border:1px solid;display:flex;align-items:center;gap:4px;}
+  .fq-status .dot{width:5px;height:5px;border-radius:50%;background:currentColor;}
+  .fq-status.queue{color:var(--ink-2);border-color:var(--line-soft);background:var(--bg-2);}
+  .fq-status.run{color:var(--info);border-color:var(--info-subtle-border);background:var(--info-subtle);}
+  .fq-status.run .dot{animation:pulse 1.2s infinite;}
+  .fq-status.done{color:var(--success);border-color:var(--success-subtle-border);background:var(--success-subtle);}
+  .fq-rm{width:20px;height:20px;display:flex;align-items:center;justify-content:center;border-radius:2px;color:var(--ink-3);font-size:13px;cursor:pointer;border:none;background:none;transition:all var(--t-fast);}
+  .fq-rm:hover{background:var(--error-subtle);color:var(--error);}
+  .fq-actions{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px;border-top:1px solid var(--line-soft);}
+  .fq-status-bar{padding:8px 16px;border-top:1px solid var(--line-soft);font-size:var(--fs-sm);color:var(--ink-2);}
+
+  /* ── 06: Activity log ── */
+  .al-bd{font-family:var(--mono);font-size:var(--fs-sm);background:var(--bg-0);max-height:180px;overflow-y:auto;padding:8px 12px;}
+  .al-row{padding:2px 0;color:var(--ink-1);white-space:pre-wrap;word-break:break-word;}
+  .al-row.ok{color:var(--success);}
+  .al-row.warn{color:var(--warn);}
+  .al-row.err{color:var(--error);}
+  .al-row.info{color:var(--info);}
+  .al-live{display:flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:600;color:var(--success);}
+  .al-live-dot{width:6px;height:6px;border-radius:50%;background:var(--success);animation:pulse 1.5s infinite;}
+
+  /* ── 05: Scan stats ── */
+  .sc-card{background:var(--bg-0);border:1px solid var(--line-soft);border-radius:var(--r-sm);padding:10px 12px;display:flex;flex-direction:column;gap:4px;}
+  .sc-label{font-size:var(--fs-xs);font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:0.04em;}
+  .sc-value{font-family:var(--display);font-size:var(--fs-2xl);font-weight:700;color:var(--ink-0);letter-spacing:-0.02em;line-height:1.2;}
+  .sc-spark{height:20px;width:100%;margin-top:2px;}
+  .sc-area{opacity:0.15;}
+  .sc-bar{height:4px;background:var(--bg-3);border-radius:2px;overflow:hidden;margin-top:4px;}
+  .sc-bar-fill{height:100%;border-radius:2px;}
+  .sc-breakdown{display:flex;gap:4px;margin-top:2px;}
+  .sc-tag{font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:2px;border:1px solid;}
+  .sc-tag.high{color:var(--error);border-color:var(--error-subtle-border);background:var(--error-subtle);}
+  .sc-tag.med{color:var(--warn);border-color:var(--warn-subtle-border);background:var(--warn-subtle);}
+  .sc-tag.low{color:var(--info);border-color:var(--info-subtle-border);background:var(--info-subtle);}
+  .sc-note{font-size:var(--fs-xs);color:var(--ink-3);font-family:var(--mono);}
+  .np-tag{font-family:var(--mono);font-size:9.5px;color:var(--info);background:var(--info-subtle);border:1px solid var(--info-subtle-border);padding:2px 6px;border-radius:2px;}
+
+  /* ── Buttons ── */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:6px 14px;border-radius:var(--r-sm);font-size:var(--fs-md);font-weight:600;font-family:var(--sans);cursor:pointer;border:1px solid transparent;transition:all var(--t-fast);white-space:nowrap;}
+  .btn-primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent-dim);}
+  .btn-primary:hover{background:var(--accent-dim);}
+  .btn-primary:disabled{opacity:.4;cursor:not-allowed;}
+  .btn-ghost{background:transparent;color:var(--ink-1);border-color:var(--line);}
+  .btn-ghost:hover{background:var(--bg-2);color:var(--ink-0);}
+  .btn-success{background:var(--success-subtle);color:var(--success);border-color:var(--success-subtle-border);}
+  .btn-warn{background:var(--warn-subtle);color:var(--warn);border-color:var(--warn-subtle-border);}
+  .btn-info{background:var(--info-subtle);color:var(--info);border-color:var(--info-subtle-border);}
+
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+</style>
+</head>
+
+<body data-theme="dark">
+<div class="shell">
+
+  <!-- Sidebar (abbreviated) -->
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="sidebar-logo"><span>&gt;_</span></div>
+      <div class="sidebar-brand"><div class="sidebar-brand-name">DataOps</div><div class="sidebar-brand-sub">v4.1</div></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-section">MODULES</div>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg><span class="nav-label">总览</span></button>
+      <button class="nav-item active"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7v10a2 2 0 002 2h7l8-8a2 2 0 000-2.83l-4.17-4.17A2 2 0 0014 3H5a2 2 0 00-2 2z"/><circle cx="8" cy="8" r="1.5"/></svg><span class="nav-label">标签处理</span><span class="nav-kbd">⌘1</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="11" height="11" rx="1.5"/><rect x="10" y="10" width="11" height="11" rx="1.5"/></svg><span class="nav-label">标签查重</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h2l2.5 12h11l2-8H6.5"/></svg><span class="nav-label">采购导入</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="16" rx="1.5"/><path d="M3 10h18"/></svg><span class="nav-label">考勤台账</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12a9 9 0 109-9"/><path d="M3 4v5h5"/></svg><span class="nav-label">货号历史</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z"/></svg><span class="nav-label">数据质量</span></button>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="theme-switch"><button class="act" onclick="setTheme('dark')">DARK</button><button onclick="setTheme('light')">LIGHT</button></div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="header">
+      <div class="header-crumb">
+        <span class="header-crumb-prefix">DataOps</span>
+        <span class="header-crumb-sep">/</span>
+        <span class="header-crumb-title">标签处理</span>
+      </div>
+      <span style="font-size:var(--fs-xs);color:var(--ink-3);background:var(--bg-2);border:1px solid var(--line-soft);border-radius:var(--r-sm);padding:2px 8px;font-weight:500;">STAGE 2</span>
+      <div class="header-spacer"></div>
+      <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--success);"></span><span style="font-size:var(--fs-sm);font-weight:600;color:var(--success);">在线</span></div>
+      <span class="mono" style="font-size:var(--fs-sm);color:var(--ink-2);" id="clock">14:32</span>
+    </header>
+    <div class="substrip">
+      <span class="substrip-label">session</span><span class="substrip-val">ISLAM · 价格标</span>
+      <span style="color:var(--ink-3)">·</span>
+      <span class="substrip-label">input</span><span class="substrip-val--accent">3 files</span>
+      <span style="color:var(--ink-3)">·</span>
+      <span class="substrip-label">stockpile</span><span class="substrip-val">2026-05-25</span>
+      <span style="flex:1"></span>
+      <span class="substrip-label">tz</span><span class="substrip-val">Europe/Athens</span>
+    </div>
+
+    <div class="content">
+      <div class="page-grid">
+
+        <!-- ═══ 01: File Upload (drag = auto upload + process) ═══ -->
+        <section class="pnl">
+          <div class="pnl-hd">
+            <span class="pnl-code">01</span>
+            <span class="pnl-title">文件投递</span>
+            <span class="pnl-sub">拖入即处理</span>
+            <span class="pnl-spacer"></span>
+            <span class="pnl-pill">.xlsx</span>
+            <span class="pnl-pill">.csv</span>
+          </div>
+          <div class="pnl-bd">
+            <div class="drop-zone">
+              <div class="drop-icon">⇣</div>
+              <div class="drop-text">
+                <div class="drop-main">拖拽扫描文件到此区域</div>
+                <div class="drop-hint">支持 .xlsx / .csv · 投入后自动上传并开始处理</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══ 02: Pipeline ═══ -->
+        <section class="pnl">
+          <div class="pnl-hd">
+            <span class="pnl-code">02</span>
+            <span class="pnl-title">处理管线</span>
+            <span class="pnl-sub">pipeline</span>
+            <span class="pnl-spacer"></span>
+            <span class="mono" style="font-size:var(--fs-lg);font-weight:700;color:var(--accent);">72%</span>
+          </div>
+          <div class="pnl-bd">
+            <div class="pl-progress"><div class="pl-progress-fill" style="width:72%;"></div></div>
+            <div class="pl-stages">
+              <div class="pl-stage done"><span class="pl-num">01</span><span class="pl-name">Parse</span><span class="pl-desc">解析文件</span></div>
+              <div class="pl-stage done"><span class="pl-num">02</span><span class="pl-name">Norm</span><span class="pl-desc">标准化</span></div>
+              <div class="pl-stage current"><span class="pl-num">03</span><span class="pl-name">Match</span><span class="pl-desc">匹配库存</span></div>
+              <div class="pl-stage"><span class="pl-num">04</span><span class="pl-name">Audit</span><span class="pl-desc">异常检测</span></div>
+              <div class="pl-stage"><span class="pl-num">05</span><span class="pl-name">Commit</span><span class="pl-desc">写入仓库</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══ 03-IDLE: Last batch compact strip (default state) ═══ -->
+        <section class="pnl" style="min-height:0;" id="exIdle">
+          <div class="pnl-hd">
+            <span class="pnl-code">03</span>
+            <span class="pnl-title">异常处理</span>
+            <span class="pnl-sub">exceptions</span>
+            <span class="pnl-spacer"></span>
+            <span class="pnl-pill">0 待处理</span>
+          </div>
+          <div class="lb-strip">
+            <span class="lb-strip-label">上一批次</span>
+            <span class="lb-strip-val mono">ISLAM · 价格标</span>
+            <span class="lb-strip-sep">·</span>
+            <span class="lb-strip-val mono">287 条码</span>
+            <span class="lb-strip-sep">·</span>
+            <span class="lb-strip-val mono" style="color:var(--success);">96.2%</span>
+            <span class="lb-strip-sep">·</span>
+            <span class="lb-strip-val mono" style="color:var(--warn);">11 异常</span>
+            <span class="lb-strip-sep">·</span>
+            <span class="lb-strip-val mono" style="color:var(--info);">5 新品</span>
+            <span class="lb-strip-sep">·</span>
+            <span class="lb-strip-val mono">05-24 16:42</span>
+          </div>
+          <div class="lb-detail">
+            <div class="lb-detail-item"><span class="ex-done-dot" style="background:var(--error);"></span><span>修正 <b class="mono">3</b></span></div>
+            <span class="lb-strip-sep">·</span>
+            <div class="lb-detail-item"><span class="ex-done-dot" style="background:var(--warn);"></span><span>确认 <b class="mono">5</b></span></div>
+            <span class="lb-strip-sep">·</span>
+            <div class="lb-detail-item"><span class="ex-done-dot" style="background:var(--info);"></span><span>忽略 <b class="mono">3</b></span></div>
+            <span style="flex:1;"></span>
+            <span style="font-size:var(--fs-xs);color:var(--ink-3);">拖入文件开始下一批次</span>
+          </div>
+        </section>
+
+        <!-- ═══ 03-ACTIVE: Exceptions with items ═══ -->
+        <section class="pnl" style="min-height:0;display:none;" id="exActive">
+          <div class="pnl-hd">
+            <span class="pnl-code">03</span>
+            <span class="pnl-title">异常处理</span>
+            <span class="pnl-sub">exceptions</span>
+            <span class="pnl-spacer"></span>
+            <span class="ex-sev high">HIGH 3</span>
+            <span class="ex-sev med" style="margin-left:4px;">MED 8</span>
+            <span class="ex-sev low" style="margin-left:4px;">LOW 12</span>
+          </div>
+          <div class="ex-list">
+            <div class="ex-card high">
+              <div class="ex-dot"></div>
+              <div class="ex-content">
+                <div class="ex-title">条码长度异常 · <span class="mono">8690637123456789</span></div>
+                <div class="ex-meta">16 位 · 预期 13 位 · scan_20260525_01.xlsx · A-12-03</div>
+              </div>
+              <button class="ex-action">修正</button>
+            </div>
+            <div class="ex-card high">
+              <div class="ex-dot"></div>
+              <div class="ex-content">
+                <div class="ex-title">条码过短 · <span class="mono">52011453</span></div>
+                <div class="ex-meta">8 位 · 预期 13 位 · scan_20260525_01.xlsx · B-04-11</div>
+              </div>
+              <button class="ex-action">修正</button>
+            </div>
+            <div class="ex-card med">
+              <div class="ex-dot"></div>
+              <div class="ex-content">
+                <div class="ex-title">库位格式异常 · <span class="mono">AA-12</span></div>
+                <div class="ex-meta">不匹配 [A-Z]-\d{2}-\d{2} 模式</div>
+              </div>
+              <button class="ex-action">修正</button>
+            </div>
+            <div class="ex-card med">
+              <div class="ex-dot"></div>
+              <div class="ex-content">
+                <div class="ex-title">新品条码 · <span class="mono">6901234567890</span></div>
+                <div class="ex-meta">stockpile 中不存在 · 需确认是否新品</div>
+              </div>
+              <button class="ex-action">确认</button>
+            </div>
+            <div class="ex-card low">
+              <div class="ex-dot"></div>
+              <div class="ex-content">
+                <div class="ex-title">重复扫描 · <span class="mono">8690101234567</span></div>
+                <div class="ex-meta">同一文件内出现 2 次 · 自动合并</div>
+              </div>
+              <button class="ex-action">忽略</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══ 03-B: Exceptions COMPLETED state (toggle with button) ═══ -->
+        <section class="pnl" style="min-height:0;display:none;" id="exDone">
+          <div class="pnl-hd">
+            <span class="pnl-code">03</span>
+            <span class="pnl-title">异常处理</span>
+            <span class="pnl-sub">exceptions</span>
+            <span class="pnl-spacer"></span>
+            <span class="ex-sev-done">✓ 全部完成</span>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;">
+            <div class="ex-done-icon">✓</div>
+            <div style="text-align:center;">
+              <div style="font-size:var(--fs-lg);font-weight:600;color:var(--ink-0);">异常全部处理完毕</div>
+              <div style="font-size:var(--fs-sm);color:var(--ink-2);margin-top:4px;">自动继续下一阶段</div>
+            </div>
+            <div class="ex-done-summary">
+              <div class="ex-done-row">
+                <span class="ex-done-dot" style="background:var(--error);"></span>
+                <span class="ex-done-label">已修正</span>
+                <span class="ex-done-count mono">3</span>
+              </div>
+              <div class="ex-done-row">
+                <span class="ex-done-dot" style="background:var(--warn);"></span>
+                <span class="ex-done-label">已确认</span>
+                <span class="ex-done-count mono">8</span>
+              </div>
+              <div class="ex-done-row">
+                <span class="ex-done-dot" style="background:var(--info);"></span>
+                <span class="ex-done-label">已忽略</span>
+                <span class="ex-done-count mono">12</span>
+              </div>
+              <div class="ex-done-divider"></div>
+              <div class="ex-done-row">
+                <span class="ex-done-dot" style="background:var(--ink-3);"></span>
+                <span class="ex-done-label" style="font-weight:600;color:var(--ink-0);">合计处理</span>
+                <span class="ex-done-count mono" style="color:var(--ink-0);">23</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══ Right column (spans all rows) ═══ -->
+        <div style="grid-column:2;grid-row:1/-1;display:flex;flex-direction:column;gap:12px;min-height:0;">
+
+          <!-- 04: File queue -->
+          <section class="pnl" style="flex-shrink:0;">
+            <div class="pnl-hd">
+              <span class="pnl-code">04</span>
+              <span class="pnl-title">文件队列</span>
+              <span class="pnl-sub">3 files</span>
+              <span class="pnl-spacer"></span>
+            </div>
+            <div class="fq-list">
+              <div class="fq-item">
+                <span class="fq-ext">XLSX</span>
+                <div class="fq-info"><div class="fq-name">scan_20260525_01.xlsx</div><div class="fq-size">142.3 KB</div></div>
+                <span class="fq-status done"><span class="dot"></span>DONE</span>
+              </div>
+              <div class="fq-item">
+                <span class="fq-ext">XLSX</span>
+                <div class="fq-info"><div class="fq-name">scan_20260525_02.xlsx</div><div class="fq-size">98.7 KB</div></div>
+                <span class="fq-status run"><span class="dot"></span>RUN</span>
+              </div>
+              <div class="fq-item">
+                <span class="fq-ext">XLSX</span>
+                <div class="fq-info"><div class="fq-name">scan_20260525_03.xlsx</div><div class="fq-size">67.1 KB</div></div>
+                <span class="fq-status queue"><span class="dot"></span>QUEUE</span>
+              </div>
+            </div>
+            <div class="fq-actions">
+              <button class="btn btn-success" style="font-size:var(--fs-sm);">下载结果</button>
+              <button class="btn btn-info" style="font-size:var(--fs-sm);">复制型号</button>
+              <button class="btn btn-ghost" style="font-size:var(--fs-sm);">清空</button>
+            </div>
+          </section>
+
+          <!-- 05: Scan stats (replaced Stockpile) -->
+          <section class="pnl" style="flex:1;min-height:0;">
+            <div class="pnl-hd">
+              <span class="pnl-code">05</span>
+              <span class="pnl-title">扫描统计</span>
+              <span class="pnl-sub">当前批次</span>
+              <span class="pnl-spacer"></span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 16px;">
+              <div class="sc-card">
+                <div class="sc-label">总条码</div>
+                <div class="sc-value">312</div>
+                <svg class="sc-spark" viewBox="0 0 80 24" preserveAspectRatio="none">
+                  <polyline class="sc-area" points="0,20 13,16 26,18 40,12 53,14 66,8 80,6 80,24 0,24" style="fill:var(--accent);"/>
+                  <polyline points="0,20 13,16 26,18 40,12 53,14 66,8 80,6" style="stroke:var(--accent);fill:none;stroke-width:1.5;stroke-linecap:round;"/>
+                </svg>
+              </div>
+              <div class="sc-card">
+                <div class="sc-label">匹配率</div>
+                <div class="sc-value" style="color:var(--success);">94.5%</div>
+                <div class="sc-bar"><div class="sc-bar-fill" style="width:94.5%;background:var(--success);"></div></div>
+              </div>
+              <div class="sc-card">
+                <div class="sc-label">异常</div>
+                <div class="sc-value" style="color:var(--warn);">23</div>
+                <div class="sc-breakdown">
+                  <span class="sc-tag high">HIGH 3</span>
+                  <span class="sc-tag med">MED 8</span>
+                  <span class="sc-tag low">LOW 12</span>
+                </div>
+              </div>
+              <div class="sc-card">
+                <div class="sc-label">新品</div>
+                <div class="sc-value" style="color:var(--info);">18</div>
+                <div class="sc-note">待确认入库</div>
+              </div>
+            </div>
+            <div style="border-top:1px solid var(--line-soft);padding:10px 16px;display:flex;flex-direction:column;gap:6px;">
+              <div style="font-size:var(--fs-xs);font-weight:600;color:var(--ink-2);text-transform:uppercase;">最近新品</div>
+              <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                <span class="np-tag">6901234567890</span>
+                <span class="np-tag">8691002345678</span>
+                <span class="np-tag">6920011223344</span>
+                <span class="np-tag">8690998877665</span>
+                <span class="np-tag">6901122334455</span>
+                <span style="font-size:var(--fs-xs);color:var(--ink-3);padding:3px 6px;">+13</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- 06: Activity log -->
+          <section class="pnl" style="flex-shrink:0;">
+            <div class="pnl-hd">
+              <span class="pnl-code">06</span>
+              <span class="pnl-title">活动日志</span>
+              <span class="pnl-sub">tail · live</span>
+              <span class="pnl-spacer"></span>
+              <div class="al-live"><span class="al-live-dot"></span>LIVE</div>
+              <button class="pnl-pill" style="cursor:pointer;">清空</button>
+            </div>
+            <div class="al-bd">
+              <div class="al-row info">[14:32:09] 阶段 2 启动 — 匹配 stockpile 数据库</div>
+              <div class="al-row ok">[14:32:08] ✓ 阶段 1 完成 — 解析 312 条码，3 文件</div>
+              <div class="al-row">[14:32:07] 检测到异常条码长度：8690637123456789（16 位）</div>
+              <div class="al-row">[14:32:07] 检测到异常条码长度：52011453（8 位）</div>
+              <div class="al-row warn">[14:32:06] ⚠ 库位格式异常：AA-12</div>
+              <div class="al-row">[14:32:05] 正在解析 scan_20260525_01.xlsx ...</div>
+              <div class="al-row">[14:32:04] 正在解析 scan_20260525_02.xlsx ...</div>
+              <div class="al-row">[14:32:03] 正在解析 scan_20260525_03.xlsx ...</div>
+              <div class="al-row ok">[14:32:02] ✓ stockpile 就绪 — 14,827 条记录</div>
+              <div class="al-row">[14:32:01] 开始处理 — ISLAM · 价格标</div>
+            </div>
+          </section>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function setTheme(t){document.body.dataset.theme=t;document.querySelectorAll('.theme-switch button').forEach(b=>{b.classList.toggle('act',b.textContent.trim().toLowerCase()===t);});}
+  function tick(){const n=new Date();document.getElementById('clock').textContent=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');}
+  tick();setInterval(tick,30000);
+
+  // Demo: cycle through 3 exception states
+  // idle (default) -> click idle panel -> active -> click any action -> done -> click done -> idle
+  const exPanels = { idle: document.getElementById('exIdle'), active: document.getElementById('exActive'), done: document.getElementById('exDone') };
+  function showEx(state) {
+    Object.entries(exPanels).forEach(([k, el]) => { el.style.display = k === state ? 'flex' : 'none'; });
+  }
+  exPanels.idle.addEventListener('click', () => showEx('active'));
+  document.querySelectorAll('.ex-action').forEach(btn => {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); showEx('done'); });
+  });
+  exPanels.done.addEventListener('click', () => showEx('idle'));
+</script>
+</body>
+</html>

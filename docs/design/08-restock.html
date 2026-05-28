@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DataOps — 补货决策</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-7:32px;--sp-8:40px;--fs-xs:10px;--fs-sm:11px;--fs-md:12px;--fs-base:13px;--fs-lg:15px;--fs-xl:17px;--fs-2xl:20px;--fs-3xl:24px;--fs-4xl:28px;--r-sm:4px;--r-md:6px;--r-lg:8px;--mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Consolas,monospace;--sans:'Inter',system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;--display:'Space Grotesk','Inter',system-ui,sans-serif;--t-fast:.12s ease;--t-base:.2s ease;}
+  [data-theme="dark"]{--bg-0:#0A0A0B;--bg-1:#111113;--bg-2:#19191C;--bg-3:#222225;--bg-4:#2C2C30;--line:#2E2E32;--line-soft:#1F1F23;--ink-0:#EDEDEF;--ink-1:#A0A0A6;--ink-2:#6E6E76;--ink-3:#4A4A52;--accent:#E5484D;--accent-dim:#C13B3F;--accent-glow:rgba(229,72,77,.15);--accent-subtle:rgba(229,72,77,.08);--accent-subtle-border:rgba(229,72,77,.25);--on-accent:#FFF;--success:#46A758;--success-subtle:rgba(70,167,88,.08);--success-subtle-border:rgba(70,167,88,.25);--warn:#F5A623;--warn-subtle:rgba(245,166,35,.08);--warn-subtle-border:rgba(245,166,35,.25);--error:#E5484D;--error-subtle:rgba(229,72,77,.08);--error-subtle-border:rgba(229,72,77,.25);--info:#3E9DE6;--info-subtle:rgba(62,157,230,.08);--info-subtle-border:rgba(62,157,230,.25);--sh-sm:0 1px 2px rgba(0,0,0,.5);color-scheme:dark;}
+  [data-theme="light"]{--bg-0:#FFFFFF;--bg-1:#F8F8F9;--bg-2:#F0F0F2;--bg-3:#E8E8EB;--bg-4:#DDDDE0;--line:#E0E0E3;--line-soft:#EBEBEE;--ink-0:#1A1A1E;--ink-1:#6B6B76;--ink-2:#9B9BA6;--ink-3:#C0C0C8;--accent:#DC3545;--accent-dim:#B52A37;--accent-glow:rgba(220,53,69,.10);--accent-subtle:rgba(220,53,69,.06);--accent-subtle-border:rgba(220,53,69,.20);--on-accent:#FFF;--success:#2D8A3E;--success-subtle:rgba(45,138,62,.06);--success-subtle-border:rgba(45,138,62,.20);--warn:#D4850C;--warn-subtle:rgba(212,133,12,.06);--warn-subtle-border:rgba(212,133,12,.20);--error:#DC3545;--error-subtle:rgba(220,53,69,.06);--error-subtle-border:rgba(220,53,69,.20);--info:#2B7EC2;--info-subtle:rgba(43,126,194,.06);--info-subtle-border:rgba(43,126,194,.20);--sh-sm:0 1px 2px rgba(0,0,0,.05);color-scheme:light;}
+
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--sans);font-size:var(--fs-base);line-height:1.5;background:var(--bg-0);color:var(--ink-0);height:100vh;overflow:hidden;-webkit-font-smoothing:antialiased;}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums;}
+  .display{font-family:var(--display);letter-spacing:-0.01em;}
+  ::-webkit-scrollbar{width:6px;height:6px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--bg-4);border-radius:3px;}
+
+  /* Shell */
+  .shell{display:flex;height:100vh;}
+  .sidebar{width:200px;flex-shrink:0;background:var(--bg-1);border-right:1px solid var(--line-soft);display:flex;flex-direction:column;}
+  .sidebar-head{height:52px;padding:0 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line-soft);flex-shrink:0;}
+  .sidebar-logo{width:26px;height:26px;border-radius:var(--r-sm);background:var(--bg-0);border:1px solid var(--accent-dim);display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px var(--accent-glow);}
+  .sidebar-logo span{font-family:var(--mono);font-weight:700;font-size:13px;color:var(--accent);line-height:1;}
+  .sidebar-brand{display:flex;flex-direction:column;gap:1px;}
+  .sidebar-brand-name{font-size:var(--fs-base);font-weight:700;color:var(--ink-0);}
+  .sidebar-brand-sub{font-size:var(--fs-xs);color:var(--ink-3);font-family:var(--mono);}
+  .sidebar-nav{padding:12px 8px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:1px;}
+  .sidebar-section{font-size:var(--fs-xs);color:var(--ink-3);font-weight:600;padding:4px 8px 8px;text-transform:uppercase;letter-spacing:0.04em;}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:var(--r-sm);color:var(--ink-2);font-size:var(--fs-md);font-weight:500;cursor:pointer;border:none;background:none;width:100%;text-align:left;transition:background var(--t-fast),color var(--t-fast);}
+  .nav-item:hover{background:var(--bg-2);color:var(--ink-1);}
+  .nav-item.active{background:var(--accent-subtle);color:var(--ink-0);}
+  .nav-item.active .nav-icon{color:var(--accent);}
+  .nav-icon{width:16px;height:16px;color:var(--ink-3);flex-shrink:0;}
+  .nav-label{flex:1;}
+  .nav-kbd{font-family:var(--mono);font-size:9px;color:var(--ink-3);padding:1px 5px;border:1px solid var(--line);border-radius:2px;}
+  .sidebar-foot{border-top:1px solid var(--line-soft);padding:8px;}
+  .theme-switch{display:flex;gap:4px;padding:3px;background:var(--bg-2);border-radius:var(--r-sm);border:1px solid var(--line-soft);}
+  .theme-switch button{padding:4px 10px;border:none;border-radius:2px;font-size:var(--fs-xs);font-weight:600;font-family:var(--mono);cursor:pointer;background:transparent;color:var(--ink-2);transition:all var(--t-fast);}
+  .theme-switch button.act{background:var(--bg-4);color:var(--ink-0);box-shadow:var(--sh-sm);}
+
+  .main{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;}
+  .header{height:48px;flex-shrink:0;background:var(--bg-1);border-bottom:1px solid var(--line-soft);display:flex;align-items:center;padding:0 16px;gap:16px;}
+  .header-crumb{display:flex;align-items:center;gap:8px;}
+  .header-crumb-prefix{font-size:var(--fs-sm);color:var(--ink-3);}
+  .header-crumb-sep{color:var(--ink-3);font-size:10px;}
+  .header-crumb-title{font-size:var(--fs-base);font-weight:600;color:var(--ink-0);}
+  .header-spacer{flex:1;}
+  .substrip{height:28px;flex-shrink:0;background:var(--bg-1);border-bottom:1px solid var(--line-soft);padding:0 16px;display:flex;align-items:center;gap:16px;font-size:var(--fs-xs);color:var(--ink-3);}
+  .substrip-label{font-weight:600;text-transform:uppercase;}
+  .substrip-val{color:var(--ink-1);font-family:var(--mono);}
+  .content{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+
+  /* Shared */
+  .btn{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:var(--r-sm);font-size:var(--fs-sm);font-weight:600;font-family:var(--sans);cursor:pointer;border:1px solid transparent;transition:all var(--t-fast);white-space:nowrap;}
+  .btn--primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent-dim);}
+  .btn--primary:hover{background:var(--accent-dim);}
+  .btn--ghost{background:transparent;color:var(--ink-1);border-color:var(--line);}
+  .btn--ghost:hover{background:var(--bg-2);color:var(--ink-0);}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:2px;font-size:9.5px;font-weight:700;letter-spacing:0.03em;border:1px solid;white-space:nowrap;text-transform:uppercase;}
+  .pill--accent{color:var(--accent);border-color:var(--accent-subtle-border);background:var(--accent-subtle);}
+  .pill--success{color:var(--success);border-color:var(--success-subtle-border);background:var(--success-subtle);}
+  .pill--warn{color:var(--warn);border-color:var(--warn-subtle-border);background:var(--warn-subtle);}
+  .pill--error{color:var(--error);border-color:var(--error-subtle-border);background:var(--error-subtle);}
+  .pill--info{color:var(--info);border-color:var(--info-subtle-border);background:var(--info-subtle);}
+  .pill--ghost{color:var(--ink-2);border-color:var(--line);background:var(--bg-2);}
+
+  /* ═══ Top bar: stats + controls ═══ */
+  .top-bar{background:var(--bg-1);border-bottom:1px solid var(--line-soft);flex-shrink:0;padding:12px 20px;}
+  .top-row{display:flex;align-items:center;gap:12px;}
+  .top-stats{display:flex;gap:6px;flex:1;flex-wrap:wrap;}
+  .ts{display:flex;align-items:center;gap:6px;padding:5px 10px;background:var(--bg-0);border:1px solid var(--line-soft);border-radius:var(--r-sm);cursor:default;transition:all var(--t-fast);}
+  .ts:hover{border-color:var(--line);}
+  .ts-label{font-size:var(--fs-xs);font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:0.03em;white-space:nowrap;}
+  .ts-num{font-family:var(--display);font-size:var(--fs-lg);font-weight:700;letter-spacing:-0.02em;line-height:1;}
+  .ts[data-tone="error"] .ts-num{color:var(--error);}
+  .ts[data-tone="warn"] .ts-num{color:var(--warn);}
+  .ts[data-tone="success"] .ts-num{color:var(--success);}
+  .ts[data-tone="accent"] .ts-num{color:var(--accent);}
+  .ts[data-tone="info"] .ts-num{color:var(--info);}
+
+  /* Filter row */
+  .filter-row{display:flex;align-items:center;gap:8px;margin-top:8px;}
+  .f-chip{padding:4px 10px;border-radius:var(--r-sm);font-size:var(--fs-sm);font-weight:600;color:var(--ink-2);background:transparent;border:1px solid var(--line-soft);cursor:pointer;transition:all var(--t-fast);white-space:nowrap;}
+  .f-chip:hover{background:var(--bg-2);color:var(--ink-1);}
+  .f-chip.active{background:var(--accent-subtle);color:var(--accent);border-color:var(--accent-subtle-border);}
+  .f-sep{width:1px;height:16px;background:var(--line-soft);flex-shrink:0;}
+  .f-search{display:flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--line-soft);border-radius:var(--r-sm);background:var(--bg-0);transition:border-color var(--t-fast);}
+  .f-search:focus-within{border-color:var(--accent);}
+  .f-search-icon{font-size:12px;color:var(--ink-3);}
+  .f-search input{border:none;background:none;outline:none;font-family:var(--sans);font-size:var(--fs-sm);color:var(--ink-0);width:140px;}
+  .f-search input::placeholder{color:var(--ink-3);}
+  .f-spacer{flex:1;}
+  .sort-sel{padding:4px 8px;border-radius:var(--r-sm);font-size:var(--fs-sm);font-weight:600;color:var(--ink-1);background:var(--bg-0);border:1px solid var(--line-soft);cursor:pointer;font-family:var(--sans);outline:none;transition:border-color var(--t-fast);}
+  .sort-sel:focus{border-color:var(--accent);}
+  .sort-sel option{background:var(--bg-1);color:var(--ink-0);}
+
+  /* ═══ Main table ═══ */
+  .tbl-wrap{flex:1;overflow-y:auto;overflow-x:auto;}
+  .tbl{width:100%;border-collapse:collapse;font-size:var(--fs-md);}
+  .tbl thead{position:sticky;top:0;z-index:2;background:var(--bg-1);}
+  .tbl th{padding:8px 16px;text-align:left;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-2);border-bottom:1px solid var(--line-soft);white-space:nowrap;cursor:default;}
+  .tbl th.r{text-align:right;}
+  .tbl th.sortable{cursor:pointer;}
+  .tbl th.sortable:hover{color:var(--ink-1);}
+  .tbl th .sort-arrow{font-size:8px;margin-left:2px;opacity:0.4;}
+  .tbl th.sorted .sort-arrow{opacity:1;color:var(--accent);}
+  .tbl td{padding:7px 16px;border-bottom:1px solid var(--line-soft);color:var(--ink-1);vertical-align:middle;}
+  .tbl td.r{text-align:right;}
+  .tbl tbody tr{transition:background var(--t-fast);cursor:pointer;}
+  .tbl tbody tr:hover{background:var(--bg-2);}
+  .tbl tbody tr.expanded{background:var(--bg-2);}
+  .tbl tbody tr:last-child td{border-bottom:none;}
+
+  /* Urgency score cell */
+  .urg{display:inline-flex;align-items:center;gap:5px;}
+  .urg-bar{width:48px;height:5px;background:var(--bg-3);border-radius:2px;overflow:hidden;flex-shrink:0;}
+  .urg-fill{height:100%;border-radius:2px;transition:width .3s ease;}
+  .urg-fill.high{background:var(--error);}
+  .urg-fill.mid{background:var(--warn);}
+  .urg-fill.low{background:var(--success);}
+  .urg-num{font-family:var(--mono);font-size:var(--fs-sm);font-weight:600;min-width:20px;text-align:right;}
+  .urg-num.high{color:var(--error);}
+  .urg-num.mid{color:var(--warn);}
+  .urg-num.low{color:var(--success);}
+
+  /* Trend sparkline in table */
+  .spark-cell{width:60px;height:20px;}
+  .spark-cell polyline{fill:none;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round;}
+
+  /* SKU name + code */
+  .sku-cell{display:flex;flex-direction:column;gap:1px;}
+  .sku-name{font-size:var(--fs-md);color:var(--ink-0);font-weight:500;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .sku-code{font-family:var(--mono);font-size:var(--fs-xs);color:var(--ink-3);}
+
+  /* Profit badge */
+  .profit-badge{display:inline-flex;align-items:center;padding:1px 5px;border-radius:2px;font-size:9px;font-weight:700;text-transform:uppercase;}
+  .profit-badge--good{color:var(--success);background:var(--success-subtle);border:1px solid var(--success-subtle-border);}
+  .profit-badge--bad{color:var(--error);background:var(--error-subtle);border:1px solid var(--error-subtle-border);}
+
+  /* Stock weeks pill */
+  .wk{font-family:var(--mono);font-size:var(--fs-sm);font-weight:600;}
+  .wk.crit{color:var(--error);}
+  .wk.low{color:var(--warn);}
+  .wk.ok{color:var(--ink-1);}
+  .wk.high{color:var(--success);}
+
+  /* ═══ Expanded detail row ═══ */
+  .detail-row{display:none;}
+  .detail-row.open{display:table-row;}
+  .detail-row td{padding:0;border-bottom:1px solid var(--line-soft);background:var(--bg-0);}
+  .detail-inner{padding:12px 16px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:10px;}
+  .d-sec{background:var(--bg-1);border:1px solid var(--line-soft);border-radius:var(--r-sm);padding:10px 12px;}
+  .d-sec-title{font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-2);margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+  .d-sec-title .d-icon{font-size:11px;}
+  .d-row{display:flex;justify-content:space-between;align-items:baseline;padding:2px 0;font-size:var(--fs-sm);}
+  .d-row-label{color:var(--ink-2);}
+  .d-row-val{font-family:var(--mono);font-weight:600;color:var(--ink-0);font-size:var(--fs-sm);}
+  .d-row-val.muted{color:var(--ink-2);font-weight:400;}
+  .d-row-val.accent{color:var(--accent);}
+  .d-row-val.success{color:var(--success);}
+  .d-row-val.warn{color:var(--warn);}
+  .d-row-val.error{color:var(--error);}
+
+  /* Rec-group (p50/p98/上次量) */
+  .tbl th.rec-g{background:var(--bg-2);color:var(--ink-1);}
+  .tbl td.rec-g{background:var(--accent-subtle);}
+  .rec-sep{border-left:2px solid var(--accent-subtle-border) !important;}
+  .rec-v{font-family:var(--mono);font-size:var(--fs-sm);font-weight:600;color:var(--ink-0);}
+  .rec-v.hi{color:var(--accent);}
+
+  /* Score breakdown bar */
+  .score-bar{display:flex;align-items:center;gap:4px;margin-top:3px;}
+  .score-seg{height:6px;border-radius:2px;transition:width .2s ease;}
+  .score-seg.s1{background:var(--accent);}
+  .score-seg.s2{background:var(--info);}
+  .score-seg.s3{background:var(--warn);}
+  .score-seg.s4{background:var(--success);}
+  .score-legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+  .score-legend-item{display:flex;align-items:center;gap:3px;font-size:9px;color:var(--ink-2);}
+  .score-legend-dot{width:6px;height:6px;border-radius:1px;}
+
+  /* Timeline mini chart in detail */
+  .tml-mini{width:100%;height:64px;margin-top:4px;}
+  .tml-mini rect{rx:1;transition:opacity var(--t-fast);}
+  .tml-mini rect:hover{opacity:0.7;}
+
+  /* Detail actions */
+  .d-actions{display:flex;gap:6px;margin-top:8px;}
+
+  /* Footer summary */
+  .tbl-foot{display:flex;align-items:center;gap:12px;padding:8px 16px;background:var(--bg-1);border-top:1px solid var(--line-soft);flex-shrink:0;}
+  .tbl-foot-stat{font-size:var(--fs-sm);font-family:var(--mono);color:var(--ink-2);}
+  .tbl-foot-stat b{font-weight:600;color:var(--ink-1);}
+
+  /* ═══ Demo toggle ═══ */
+  .demo{position:fixed;bottom:12px;right:12px;display:flex;gap:4px;background:var(--bg-1);border:1px solid var(--line);border-radius:var(--r-sm);padding:3px;z-index:100;}
+  .demo button{padding:4px 10px;border:none;border-radius:2px;font-size:var(--fs-xs);font-weight:600;font-family:var(--mono);cursor:pointer;background:transparent;color:var(--ink-2);transition:all var(--t-fast);}
+  .demo button.act{background:var(--accent);color:var(--on-accent);}
+
+  /* Empty state */
+  .empty{display:none;flex:1;align-items:center;justify-content:center;flex-direction:column;gap:8px;padding:40px;}
+  .empty.show{display:flex;}
+  .empty-icon{font-size:28px;color:var(--ink-3);}
+  .empty-text{font-size:var(--fs-md);color:var(--ink-2);text-align:center;}
+
+  /* Popover for generated order */
+  .order-toast{position:fixed;bottom:60px;right:20px;background:var(--bg-1);border:1px solid var(--success-subtle-border);border-radius:var(--r-md);padding:12px 16px;display:none;align-items:center;gap:10px;z-index:200;box-shadow:var(--sh-sm);}
+  .order-toast.show{display:flex;}
+  .order-toast-dot{width:8px;height:8px;border-radius:50%;background:var(--success);flex-shrink:0;}
+  .order-toast-text{font-size:var(--fs-sm);color:var(--ink-0);}
+  .order-toast-text b{font-weight:600;color:var(--success);}
+  .order-toast-close{border:none;background:none;color:var(--ink-3);cursor:pointer;font-size:14px;padding:2px;}
+</style>
+</head>
+
+<body data-theme="dark">
+<div class="shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="sidebar-logo"><span>>_</span></div>
+      <div class="sidebar-brand"><div class="sidebar-brand-name">DataOps</div><div class="sidebar-brand-sub">v4.1</div></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-section">MODULES · 9</div>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg><span class="nav-label">总览</span><span class="nav-kbd">⌘1</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7v10a2 2 0 002 2h7l8-8a2 2 0 000-2.83l-4.17-4.17A2 2 0 0014 3H5a2 2 0 00-2 2z"/><circle cx="8" cy="8" r="1.5"/></svg><span class="nav-label">标签处理</span><span class="nav-kbd">⌘2</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h2l2.5 12h11l2-8H6.5"/><circle cx="9" cy="20" r="1.5"/><circle cx="17" cy="20" r="1.5"/></svg><span class="nav-label">采购导入</span><span class="nav-kbd">⌘3</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12a9 9 0 109-9"/><path d="M3 4v5h5"/><path d="M12 7v5l3 2"/></svg><span class="nav-label">货号历史</span><span class="nav-kbd">⌘4</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z"/></svg><span class="nav-label">数据质量</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/></svg><span class="nav-label">老外客人</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="16" rx="1.5"/><path d="M3 10h18"/></svg><span class="nav-label">考勤台账</span></button>
+      <button class="nav-item active"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 20h18M5 16l4-6 4 4 6-9"/></svg><span class="nav-label">补货决策</span><span class="nav-kbd">⌘8</span></button>
+      <button class="nav-item"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09"/></svg><span class="nav-label">系统管理</span></button>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="theme-switch"><button class="act" onclick="setTheme('dark')">DARK</button><button onclick="setTheme('light')">LIGHT</button></div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="header">
+      <div class="header-crumb">
+        <span class="header-crumb-prefix">DataOps</span>
+        <span class="header-crumb-sep">/</span>
+        <span class="header-crumb-title">补货决策</span>
+      </div>
+      <div class="header-spacer"></div>
+      <span class="pill pill--accent" id="hPill">47 待补货</span>
+      <span class="mono" style="font-size:var(--fs-sm);color:var(--ink-2);" id="clock">14:32</span>
+    </header>
+
+    <div class="substrip">
+      <span class="substrip-label">窗口</span><span class="substrip-val">26 周</span>
+      <span class="substrip-label">数据</span><span class="substrip-val">2026-05-26</span>
+      <span class="substrip-label">SKU 池</span><span class="substrip-val">14,827 active</span>
+      <span class="substrip-label">TZ</span><span class="substrip-val">Europe/Athens</span>
+    </div>
+
+    <div class="content" id="mainContent">
+
+      <!-- Top bar -->
+      <div class="top-bar">
+        <div class="top-row">
+          <div class="top-stats">
+            <div class="ts" data-tone="error"><span class="ts-label">紧急</span><span class="ts-num">12</span></div>
+            <div class="ts" data-tone="warn"><span class="ts-label">关注</span><span class="ts-num">19</span></div>
+            <div class="ts" data-tone="success"><span class="ts-label">充足</span><span class="ts-num">16</span></div>
+            <div class="ts" data-tone="accent"><span class="ts-label">已标记</span><span class="ts-num">5</span></div>
+            <div class="ts" data-tone="info"><span class="ts-label">本周补货额</span><span class="ts-num">€2,340</span></div>
+          </div>
+          <button class="btn btn--ghost" onclick="toggleToast()">⊞ 生成采购单</button>
+          <button class="btn btn--ghost">⇣ 导出 CSV</button>
+          <button class="btn btn--primary">↻ 刷新评分</button>
+        </div>
+        <div class="filter-row">
+          <button class="f-chip active" data-f="all" onclick="setFilter(this)">全部 <span class="mono" style="font-size:9px;">47</span></button>
+          <button class="f-chip" data-f="urgent" onclick="setFilter(this)">紧急 ≥70</button>
+          <button class="f-chip" data-f="watch" onclick="setFilter(this)">关注 40–69</button>
+          <button class="f-chip" data-f="ok" onclick="setFilter(this)">充足 <40</button>
+          <button class="f-chip" data-f="flagged" onclick="setFilter(this)">⚑ 已标记</button>
+          <div class="f-sep"></div>
+          <div class="f-search"><span class="f-search-icon">⌕</span><input placeholder="货号 / 品名"></div>
+          <div class="f-spacer"></div>
+          <select class="sort-sel">
+            <option>紧迫分 ↓</option>
+            <option>库存周 ↑</option>
+            <option>周销额 ↓</option>
+            <option>毛利率 ↓</option>
+            <option>距上次进货 ↓</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="tbl-wrap" id="tblWrap">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th style="width:28px;padding-left:20px;">⚑</th>
+              <th class="sortable sorted">紧迫分 <span class="sort-arrow">▼</span></th>
+              <th>货号 / 品名</th>
+              <th>供应商</th>
+              <th class="r">库存</th>
+              <th class="r">可撑</th>
+              <th class="r">周销速</th>
+              <th class="r">周销额</th>
+              <th class="r">毛利率</th>
+              <th>26w 趋势</th>
+              <th>盈亏</th>
+              <th class="r">距进货</th>
+              <th class="r rec-sep rec-g">p50</th>
+              <th class="r rec-g">p98</th>
+              <th class="r rec-g">上次量</th>
+            </tr>
+          </thead>
+          <tbody id="tblBody">
+
+            <!-- Row 1: URGENT -->
+            <tr onclick="toggleDetail('d1')" id="r1">
+              <td style="padding-left:20px;"><span class="flag flagged" onclick="event.stopPropagation();toggleFlag(this)">⚑</span></td>
+              <td><div class="urg"><div class="urg-bar"><div class="urg-fill high" style="width:88%"></div></div><span class="urg-num high">88</span></div></td>
+              <td><div class="sku-cell"><span class="sku-name">塑料收纳盒 3件套</span><span class="sku-code">KLF-2204</span></div></td>
+              <td style="color:var(--ink-2);">HOMEPLAST</td>
+              <td class="r"><span class="mono" style="font-size:var(--fs-sm);color:var(--error);">23</span></td>
+              <td class="r"><span class="wk crit">1.5w</span></td>
+              <td class="r mono" style="font-size:var(--fs-sm);">15.5</td>
+              <td class="r mono" style="font-size:var(--fs-sm);">€53.48</td>
+              <td class="r mono" style="font-size:var(--fs-sm);color:var(--success);">47.2%</td>
+              <td><svg class="spark-cell" viewBox="0 0 60 20"><polyline points="2,16 8,14 14,12 20,10 26,12 32,8 38,6 44,4 50,3 56,2" stroke="var(--accent)" /></svg></td>
+              <td><span class="profit-badge profit-badge--good">已回本</span></td>
+              <td class="r mono" style="font-size:var(--fs-sm);color:var(--warn);">34d</td>
+              <td class="r rec-sep rec-g"><span class="rec-v hi">74</span></td>
+              <td class="r rec-g"><span class="rec-v">110</span></td>
+              <td class="r rec-g"><span class="rec-v">70</span></td>
+            </tr>
+            <tr class="detail-row" id="d1">
+              <td colspan="15">
+                <div class="detail-inner">
+                  <div class="d-sec">
+                    <div class="d-sec-title"><span class="d-icon">💰</span> 财务快照</div>
+                    <div class="d-row"><span class="d-row-label">批发价</span><span class="d-row-val">€3.45</span></div>
+                    <div class="d-row"><span class="d-row-label">零售价</span><span class="d-row-val">€6.90 <span class="d-row-val muted">(×2)</span></span></div>
+                    <div class="d-row"><span class="d-row-label">单件进价</span><span class="d-row-val">€1.82</span></div>
+                    <div class="d-row"><span class="d-row-label">毛利率</span><span class="d-row-val success">47.2%</span></div>
+                  </div>
+                  <div class="d-sec">
+                    <div class="d-sec-title"><span class="d-icon">📦</span> 库存</div>
+                    <div class="d-row"><span class="d-row-label">当前库存</span><span class="d-row-val error">23 件</span></div>
+                    <div class="d-row"><span class="d-row-label">可销售额</span><span class="d-row-val">€158.70</span></div>
+                    <div class="d-row"><span class="d-row-label">库存成本</span><span class="d-row-val">€41.86</span></div>
+                    <div class="d-row"><span class="d-row-label">可撑</span><span class="d-row-val error">1.5 周</span></div>
+                  </div>
+                  <div class="d-sec">
+                    <div class="d-sec-title"><span class="d-icon">💵</span> 累计盈亏 <span class="profit-badge profit-badge--good" style="margin-left:4px;">已回本</span></div>
+                    <div class="d-row"><span class="d-row-label">累计投入</span><span class="d-row-val">€4,218 <span class="d-row-val muted">(2,318件)</span></span></div>
+                    <div class="d-row"><span class="d-row-label">累计销售</span><span class="d-row-val">€9,822 <span class="d-row-val muted">(2,847件)</span></span></div>
+                    <div class="d-row"><span class="d-row-label">实现利润</span><span class="d-row-val success">+€5,604</span></div>
+                  </div>
+                  <div class="d-sec">
+                    <div class="d-sec-title"><span class="d-icon">📊</span> 销售 (26w)</div>
+                    <div class="d-row"><span class="d-row-label">周销速</span><span class="d-row-val">15.5 件/周</span></div>
+                    <div class="d-row"><span class="d-row-label">周销额</span><span class="d-row-val">€53.48/周</span></div>
+                    <div class="d-row"><span class="d-row-label">活跃周</span><span class="d-row-val">22/26 周</span></div>
+                    <div class="d-row"><span class="d-row-label">距上次进货</span><span class="d-row-val warn">34 天</span></div>
+                  </div>
+                  <div class="d-sec">
+                    <div class="d-sec-title"><span class="d-icon">🎯</span> 紧迫分 <span class="mono" style="color:var(--error);font-weight:700;margin-left:4px;">88</span></div>
+                    <div class="score-bar">
+                      <div class="score-seg s1" style="width:80%;" title="销额 24/30"></div>
+                      <div class="score-seg s2" style="width:73%;" title="库存 22/30"></div>
+                      <div class="score-seg s3" style="width:80%;" title="距进货 8/10"></div>
+                      <div class="score-seg s4" style="width:60%;" title="毛利 18/30"></div>
+                    </div>
+                    <div class="score-legend">
+                      <span class="score-legend-item"><span class="score-legend-dot" style="background:var(--accent)"></span>销额 24/30</span>
+                      <span class="score-legend-item"><span class="score-legend-dot" style="background:var(--info)"></span>库存 22/30</span>
+                      <span class="score-legend-item"><span class="score-legend-dot" style="background:var(--warn)"></span>距进货 8/10</span>
+                      <span class="score-legend-item"><span class="score-legend-dot" style="background:var(--success)"></span>毛利 18/30</span>
+                    </div>
+                    <div class="d-actions">
+                      <button class="btn btn--primary" style="font-size:var(--fs-xs);padding:3px 8px;">加入采购单</button>
+                      <button class="btn btn--ghost" style="font-size:var(--fs-xs);padding:3px 8px;">→ 货号历史</button>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+
+            <!-- Row 2: URGENT -->
+            <tr onclick="toggleDetail('d2')" id="r2">
+              <td style="padding-left:20px;"><span class="flag flagged" onclick="event.stopPropagation();toggleFlag(this)">⚑</span></td>
+              <td><div class="urg"><div class="urg-bar"><div class="urg-fill high" style="width:82%"></div></div><span class="urg-num high">82</span></div></td>
+              <td><div class="sku-cell"><span class="sku-name">不锈钢餐具套装 24P</span><span class="sku-code">MAK-5512</span></div></td>
+              <td style="color:var(--ink-2);">VΘIΩΤHΣ</td>
+              <td class="r"><span class="mono" style="font-size:var(--fs-sm);color:var(--error);">8</span></td>
+              <td class="r"><span class="wk crit">0.6w</span></td>
+              <td class="r mono" style="font-size:var(--fs-sm);">12.8</td>
+              <td class="r mono" style="font-size:var(--fs-sm);">€89.60</td>
+              <td class="r mono" style="font-size:var(--fs-sm);color:var(--success);">52.1%</td>
+              <td><svg class="spark-cell" viewBox="0 0 60 20"><polyline points="2,12 8,10 14,14 20,8 26,6 32,10 38,4 44,6 50,2 56,4" stroke="var(--accent)" /></svg></td>
+              <td><span class="profit-badge profit-badge--good">已回本</span></td>
+              <td class="r mono" style="font-size:var(--fs-sm);color:var(--error);">52d</td>
+              <td class="r rec-sep rec-g"><span class="rec-v hi">48</span></td>
+              <td class="r rec-g"><span class="rec-v">72</span></td>
+              <td class="r rec-g"><span class="rec-v">60</span></td>
+            </tr>
+            <tr class="detail-row" id="d2">
+              <td colspan="15">
+                <div class="detail-inner">
+                  <div class="d-sec">
+                    <div class="d-sec-title"><span class="d-icon">💰</span> 财务快照</div>
+                    <div class="d-row"><span class="d-row-label">批发价</span><span class="d-row-val">€7.00</span></div>
+                    <div class="d-row"><span class="d-row-label">零售价</span><span class="d-row-val">€14.60</span></div>
+                    <div class="d-row"><span class="d-row-label">单件进价</span><span class="d-row-val">€3.35</span></div>
+                    <div class="d-row"><span class="d-row-label">毛利率</span><span class="d-row-val success">52.1%</span></div>
+                  </div>
+                  <div class="d-sec">
+                    <div class="d-sec-title"><span class="d-icon">📦</span> 库存</div>
+                    <div class="d-row"><span class="d-row-label">当前库存</span><span class="d-row-val error">8 件</span></div>
+                    <div class="d-row"><span class="d-row-label">可销售额</span><span class="d-row-val">€116.80</span></div>
+                    <div class="d-row"><span class="d-row-label">库存成本</span><span class="d-row-val">€26.80</span></div>
+                    <div class="d-row"><span class="d-row-label">可撑</span><span class="d-row-val error">0.6 周</span></div>
+                  </div>
+                  <div class="d-sec">
+                    <div class="d-sec-title"><span class="d-icon">💵</span> 累计盈亏 <span class="profit-badge profit-badge--good" style="margin-left:4px;">已回本</span></div>
+                    <div class="d-row"><span class="d-row-label">累计投入</span><span class="d-row-val">€2,680</span></div>
+                    <div class="d-row"><span class="d-row-label">累计销售</span><span class="d-row-val">€7,154</span></div>
+                    <div class="d-row"><span class="d-row-label">实现利润</span><span class="d-row-val success">+€4,474</span></div>
+                  </div>
+                  <div class="d-sec">
+                    <div class="d-sec-title"><span class="d-icon">📊</span> 销售 (26w)</div>
+                    <div class="d-row"><span class="d-row-label">周销速</span><span class="d-row-val">12.8 件/周</span></div>
+                    <div class="d-row"><span class="d-row-label">周销额</span><span class="d-row-val">€89.60/周</span></div>
+                    <div class="d-row"><span class="d-row-label">活跃周</span><span class="d-row-val">24/26 周</span></div>
+                    <div class="d-row"><span class="d-row-label">距上次进货</span><span class="d-row-val error">52 天</span></div>
+                  </div>
+                  <div class="d-sec">
+                    <div class="d-sec-title"><span class="d-icon">🎯</span> 紧迫分 <span class="mono" style="color:var(--error);font-weight:700;margin-left:4px;">82</span></div>
+                    <div class="score-bar">
+                      <div class="score-seg s1" style="width:90%;" title="销额 27/30"></div>
+                      <div class="score-seg s2" style="width:93%;" title="库存 28/30"></div>
+                      <div class="score-seg s3" style="width:90%;" title="距进货 9/10"></div>
+                      <div class="score-seg s4" style="width:60%;" title="毛利 18/30"></div>
+                    </div>
+                    <div class="score-legend">
+                      <span class="score-legend-item"><span class="score-legend-dot" style="background:var(--accent)"></span>销额 27/30</span>
+                      <span class="score-legend-item"><span class="score-legend-dot" style="background:var(--info)"></span>库存 28/30</span>
+                      <span class="score-legend-item"><span class="score-legend-dot" style="background:var(--warn)"></span>距进货 9/10</span>
+                      <span class="score-legend-item"><span class="score-legend-dot" style="background:var(--success)"></span>毛利 18/30</span>
+                    </div>
+                    <div class="d-actions">
+                      <button class="btn btn--primary" style="font-size:var(--fs-xs);padding:3px 8px;">加入采购单</button>
+                      <button class="btn btn--ghost" style="font-size:var(--fs-xs);padding:3px 8px;">→ 货号历史</button>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+
+            <!-- Row 3: URGENT -->
+            <tr onclick="toggleDetail('d3')">
+              <td style="padding-left:20px;"><span class="flag flagged" onclick="event.stopPropagation();toggleFlag(this)">⚑</span></td>
+              <td><div class="urg"><div class="urg-bar"><div class="urg-fill high" style="width:79%"></div></div><span class="urg-num high">79</span></div></td>
+              <td><div class="sku-cell"><span class="sku-name">玻璃储物罐 1.5L</span><span class="sku-code">BOR-8831</span></div></td>
+              <td style="color:var(--ink-2);">ΒΟΡΟΣΙΛ</td>
+              <td class="r"><span class="mono" style="font-size:var(--fs-sm);color:var(--error);">14</span></td>
+              <td class="r"><span class="wk crit">1.2w</span></td>
+              <td class="r mono" style="font-size:var(--fs-sm);">11.2</td>
+              <td class="r mono" style="font-size:var(--fs-sm);">€44.80</td>
+              <td class="r mono" style="font-size:var(--fs-sm);color:var(--success);">38.5%</td>
+              <td><svg class="spark-cell" viewBox="0 0 60 20"><polyline points="2,18 8,14 14,16 20,12 26,10 32,8 38,10 44,6 50,4 56,6" stroke="var(--accent)" /></svg></td>
+              <td><span class="profit-badge profit-badge--good">已回本</span></td>
+              <td class="r mono" style="font-size:var(--fs-sm);color:var(--warn);">28d</td>
+              <td class="r rec-sep rec-g"><span class="rec-v hi">55</span></td>
+              <td class="r rec-g"><span class="rec-v">84</span></td>
+              <td class="r rec-g"><span class="rec-v">50</span></td>
+            </tr>
+            <tr class="detail-row" id="d3"><td colspan="15"><div class="detail-inner">
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">💰</span> 财务</div><div class="d-row"><span class="d-row-label">批发</span><span class="d-row-val">€4.00</span></div><div class="d-row"><span class="d-row-label">零售</span><span class="d-row-val">€6.50</span></div><div class="d-row"><span class="d-row-label">进价</span><span class="d-row-val">€2.46</span></div><div class="d-row"><span class="d-row-label">毛利</span><span class="d-row-val success">38.5%</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">📦</span> 库存</div><div class="d-row"><span class="d-row-label">库存</span><span class="d-row-val error">14 件</span></div><div class="d-row"><span class="d-row-label">可销额</span><span class="d-row-val">€91.00</span></div><div class="d-row"><span class="d-row-label">成本</span><span class="d-row-val">€34.44</span></div><div class="d-row"><span class="d-row-label">可撑</span><span class="d-row-val error">1.2 周</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">💵</span> 盈亏 <span class="profit-badge profit-badge--good" style="margin-left:4px;">已回本</span></div><div class="d-row"><span class="d-row-label">投入</span><span class="d-row-val">€1,845</span></div><div class="d-row"><span class="d-row-label">销售</span><span class="d-row-val">€4,420</span></div><div class="d-row"><span class="d-row-label">利润</span><span class="d-row-val success">+€2,575</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">📊</span> 26w</div><div class="d-row"><span class="d-row-label">周销</span><span class="d-row-val">11.2 件</span></div><div class="d-row"><span class="d-row-label">周额</span><span class="d-row-val">€44.80</span></div><div class="d-row"><span class="d-row-label">活跃</span><span class="d-row-val">20/26 周</span></div><div class="d-row"><span class="d-row-label">距进货</span><span class="d-row-val warn">28 天</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">🎯</span> 紧迫 <span class="mono" style="color:var(--error);font-weight:700;margin-left:4px;">79</span></div><div class="score-bar"><div class="score-seg s1" style="width:73%"></div><div class="score-seg s2" style="width:87%"></div><div class="score-seg s3" style="width:70%"></div><div class="score-seg s4" style="width:53%"></div></div><div class="score-legend"><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--accent)"></span>销额 22/30</span><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--info)"></span>库存 26/30</span><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--warn)"></span>距进货 7/10</span><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--success)"></span>毛利 16/30</span></div><div class="d-actions"><button class="btn btn--primary" style="font-size:var(--fs-xs);padding:3px 8px;">加入采购单</button><button class="btn btn--ghost" style="font-size:var(--fs-xs);padding:3px 8px;">→ 货号历史</button></div></div>
+            </div></td></tr>
+
+            <!-- Row 4: WATCH -->
+            <tr onclick="toggleDetail('d4')">
+              <td style="padding-left:20px;"><span class="flag" onclick="event.stopPropagation();toggleFlag(this)">⚑</span></td>
+              <td><div class="urg"><div class="urg-bar"><div class="urg-fill mid" style="width:65%"></div></div><span class="urg-num mid">65</span></div></td>
+              <td><div class="sku-cell"><span class="sku-name">密封保鲜盒套装 5P</span><span class="sku-code">FSH-1190</span></div></td>
+              <td style="color:var(--ink-2);">ΕΛΛΑΔΑ</td>
+              <td class="r"><span class="mono" style="font-size:var(--fs-sm);color:var(--warn);">42</span></td>
+              <td class="r"><span class="wk low">3.2w</span></td>
+              <td class="r mono" style="font-size:var(--fs-sm);">13.1</td>
+              <td class="r mono" style="font-size:var(--fs-sm);">€45.85</td>
+              <td class="r mono" style="font-size:var(--fs-sm);color:var(--success);">41.8%</td>
+              <td><svg class="spark-cell" viewBox="0 0 60 20"><polyline points="2,10 8,12 14,8 20,10 26,6 32,8 38,10 44,8 50,6 56,8" stroke="var(--warn)" /></svg></td>
+              <td><span class="profit-badge profit-badge--good">已回本</span></td>
+              <td class="r mono" style="font-size:var(--fs-sm);">18d</td>
+              <td class="r rec-sep rec-g"><span class="rec-v">62</span></td>
+              <td class="r rec-g"><span class="rec-v">95</span></td>
+              <td class="r rec-g"><span class="rec-v">80</span></td>
+            </tr>
+            <tr class="detail-row" id="d4"><td colspan="15"><div class="detail-inner">
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">💰</span> 财务</div><div class="d-row"><span class="d-row-label">批发</span><span class="d-row-val">€3.50</span></div><div class="d-row"><span class="d-row-label">零售</span><span class="d-row-val">€6.00</span></div><div class="d-row"><span class="d-row-label">进价</span><span class="d-row-val">€2.04</span></div><div class="d-row"><span class="d-row-label">毛利</span><span class="d-row-val success">41.8%</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">📦</span> 库存</div><div class="d-row"><span class="d-row-label">库存</span><span class="d-row-val warn">42 件</span></div><div class="d-row"><span class="d-row-label">可销额</span><span class="d-row-val">€252.00</span></div><div class="d-row"><span class="d-row-label">成本</span><span class="d-row-val">€85.68</span></div><div class="d-row"><span class="d-row-label">可撑</span><span class="d-row-val warn">3.2 周</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">💵</span> 盈亏 <span class="profit-badge profit-badge--good" style="margin-left:4px;">已回本</span></div><div class="d-row"><span class="d-row-label">投入</span><span class="d-row-val">€3,060</span></div><div class="d-row"><span class="d-row-label">销售</span><span class="d-row-val">€6,240</span></div><div class="d-row"><span class="d-row-label">利润</span><span class="d-row-val success">+€3,180</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">📊</span> 26w</div><div class="d-row"><span class="d-row-label">周销</span><span class="d-row-val">13.1 件</span></div><div class="d-row"><span class="d-row-label">周额</span><span class="d-row-val">€45.85</span></div><div class="d-row"><span class="d-row-label">活跃</span><span class="d-row-val">21/26 周</span></div><div class="d-row"><span class="d-row-label">距进货</span><span class="d-row-val">18 天</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">🎯</span> 紧迫 <span class="mono" style="color:var(--warn);font-weight:700;margin-left:4px;">65</span></div><div class="score-bar"><div class="score-seg s1" style="width:70%"></div><div class="score-seg s2" style="width:57%"></div><div class="score-seg s3" style="width:50%"></div><div class="score-seg s4" style="width:57%"></div></div><div class="score-legend"><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--accent)"></span>销额 21/30</span><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--info)"></span>库存 17/30</span><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--warn)"></span>距进货 5/10</span><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--success)"></span>毛利 17/30</span></div><div class="d-actions"><button class="btn btn--primary" style="font-size:var(--fs-xs);padding:3px 8px;">加入采购单</button><button class="btn btn--ghost" style="font-size:var(--fs-xs);padding:3px 8px;">→ 货号历史</button></div></div>
+            </div></td></tr>
+
+            <!-- Row 5: WATCH -->
+            <tr onclick="toggleDetail('d5')">
+              <td style="padding-left:20px;"><span class="flag flagged" onclick="event.stopPropagation();toggleFlag(this)">⚑</span></td>
+              <td><div class="urg"><div class="urg-bar"><div class="urg-fill mid" style="width:58%"></div></div><span class="urg-num mid">58</span></div></td>
+              <td><div class="sku-cell"><span class="sku-name">铝制炒锅 28cm 不粘</span><span class="sku-code">PAN-0093</span></div></td>
+              <td style="color:var(--ink-2);">ΚΕΡΑΜΟΣ</td>
+              <td class="r"><span class="mono" style="font-size:var(--fs-sm);color:var(--warn);">31</span></td>
+              <td class="r"><span class="wk low">4.1w</span></td>
+              <td class="r mono" style="font-size:var(--fs-sm);">7.6</td>
+              <td class="r mono" style="font-size:var(--fs-sm);">€68.40</td>
+              <td class="r mono" style="font-size:var(--fs-sm);color:var(--success);">55.3%</td>
+              <td><svg class="spark-cell" viewBox="0 0 60 20"><polyline points="2,14 8,16 14,12 20,14 26,10 32,12 38,8 44,10 50,8 56,6" stroke="var(--warn)" /></svg></td>
+              <td><span class="profit-badge profit-badge--good">已回本</span></td>
+              <td class="r mono" style="font-size:var(--fs-sm);">22d</td>
+              <td class="r rec-sep rec-g"><span class="rec-v">36</span></td>
+              <td class="r rec-g"><span class="rec-v">55</span></td>
+              <td class="r rec-g"><span class="rec-v">40</span></td>
+            </tr>
+            <tr class="detail-row" id="d5"><td colspan="15"><div class="detail-inner">
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">💰</span> 财务</div><div class="d-row"><span class="d-row-label">批发</span><span class="d-row-val">€9.00</span></div><div class="d-row"><span class="d-row-label">零售</span><span class="d-row-val">€20.00</span></div><div class="d-row"><span class="d-row-label">进价</span><span class="d-row-val">€4.02</span></div><div class="d-row"><span class="d-row-label">毛利</span><span class="d-row-val success">55.3%</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">📦</span> 库存</div><div class="d-row"><span class="d-row-label">库存</span><span class="d-row-val warn">31 件</span></div><div class="d-row"><span class="d-row-label">可销额</span><span class="d-row-val">€620.00</span></div><div class="d-row"><span class="d-row-label">成本</span><span class="d-row-val">€124.62</span></div><div class="d-row"><span class="d-row-label">可撑</span><span class="d-row-val warn">4.1 周</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">💵</span> 盈亏 <span class="profit-badge profit-badge--good" style="margin-left:4px;">已回本</span></div><div class="d-row"><span class="d-row-label">投入</span><span class="d-row-val">€1,608</span></div><div class="d-row"><span class="d-row-label">销售</span><span class="d-row-val">€5,600</span></div><div class="d-row"><span class="d-row-label">利润</span><span class="d-row-val success">+€3,992</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">📊</span> 26w</div><div class="d-row"><span class="d-row-label">周销</span><span class="d-row-val">7.6 件</span></div><div class="d-row"><span class="d-row-label">周额</span><span class="d-row-val">€68.40</span></div><div class="d-row"><span class="d-row-label">活跃</span><span class="d-row-val">18/26 周</span></div><div class="d-row"><span class="d-row-label">距进货</span><span class="d-row-val">22 天</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">🎯</span> 紧迫 <span class="mono" style="color:var(--warn);font-weight:700;margin-left:4px;">58</span></div><div class="score-bar"><div class="score-seg s1" style="width:70%"></div><div class="score-seg s2" style="width:47%"></div><div class="score-seg s3" style="width:60%"></div><div class="score-seg s4" style="width:63%"></div></div><div class="score-legend"><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--accent)"></span>销额 21/30</span><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--info)"></span>库存 14/30</span><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--warn)"></span>距进货 6/10</span><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--success)"></span>毛利 19/30</span></div><div class="d-actions"><button class="btn btn--primary" style="font-size:var(--fs-xs);padding:3px 8px;">加入采购单</button><button class="btn btn--ghost" style="font-size:var(--fs-xs);padding:3px 8px;">→ 货号历史</button></div></div>
+            </div></td></tr>
+
+            <!-- Row 6: WATCH -->
+            <tr onclick="toggleDetail('d6')">
+              <td style="padding-left:20px;"><span class="flag" onclick="event.stopPropagation();toggleFlag(this)">⚑</span></td>
+              <td><div class="urg"><div class="urg-bar"><div class="urg-fill mid" style="width:51%"></div></div><span class="urg-num mid">51</span></div></td>
+              <td><div class="sku-cell"><span class="sku-name">陶瓷杯 350ml 哑光</span><span class="sku-code">CUP-4401</span></div></td>
+              <td style="color:var(--ink-2);">ΚΕΡΑΜΟΣ</td>
+              <td class="r"><span class="mono" style="font-size:var(--fs-sm);">67</span></td>
+              <td class="r"><span class="wk low">5.0w</span></td>
+              <td class="r mono" style="font-size:var(--fs-sm);">13.4</td>
+              <td class="r mono" style="font-size:var(--fs-sm);">€26.80</td>
+              <td class="r mono" style="font-size:var(--fs-sm);">33.5%</td>
+              <td><svg class="spark-cell" viewBox="0 0 60 20"><polyline points="2,8 8,10 14,6 20,8 26,10 32,8 38,12 44,10 50,8 56,10" stroke="var(--warn)" /></svg></td>
+              <td><span class="profit-badge profit-badge--good">已回本</span></td>
+              <td class="r mono" style="font-size:var(--fs-sm);">15d</td>
+              <td class="r rec-sep rec-g"><span class="rec-v">64</span></td>
+              <td class="r rec-g"><span class="rec-v">96</span></td>
+              <td class="r rec-g"><span class="rec-v">72</span></td>
+            </tr>
+            <tr class="detail-row" id="d6"><td colspan="15"><div class="detail-inner">
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">💰</span> 财务</div><div class="d-row"><span class="d-row-label">批发</span><span class="d-row-val">€2.00</span></div><div class="d-row"><span class="d-row-label">零售</span><span class="d-row-val">€3.00</span></div><div class="d-row"><span class="d-row-label">进价</span><span class="d-row-val">€1.33</span></div><div class="d-row"><span class="d-row-label">毛利</span><span class="d-row-val">33.5%</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">📦</span> 库存</div><div class="d-row"><span class="d-row-label">库存</span><span class="d-row-val">67 件</span></div><div class="d-row"><span class="d-row-label">可销额</span><span class="d-row-val">€201.00</span></div><div class="d-row"><span class="d-row-label">成本</span><span class="d-row-val">€89.11</span></div><div class="d-row"><span class="d-row-label">可撑</span><span class="d-row-val">5.0 周</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">💵</span> 盈亏 <span class="profit-badge profit-badge--good" style="margin-left:4px;">已回本</span></div><div class="d-row"><span class="d-row-label">投入</span><span class="d-row-val">€2,394</span></div><div class="d-row"><span class="d-row-label">销售</span><span class="d-row-val">€5,400</span></div><div class="d-row"><span class="d-row-label">利润</span><span class="d-row-val success">+€3,006</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">📊</span> 26w</div><div class="d-row"><span class="d-row-label">周销</span><span class="d-row-val">13.4 件</span></div><div class="d-row"><span class="d-row-label">周额</span><span class="d-row-val">€26.80</span></div><div class="d-row"><span class="d-row-label">活跃</span><span class="d-row-val">23/26 周</span></div><div class="d-row"><span class="d-row-label">距进货</span><span class="d-row-val">15 天</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">🎯</span> 紧迫 <span class="mono" style="color:var(--warn);font-weight:700;margin-left:4px;">51</span></div><div class="score-bar"><div class="score-seg s1" style="width:53%"></div><div class="score-seg s2" style="width:43%"></div><div class="score-seg s3" style="width:40%"></div><div class="score-seg s4" style="width:47%"></div></div><div class="score-legend"><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--accent)"></span>销额 16/30</span><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--info)"></span>库存 13/30</span><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--warn)"></span>距进货 4/10</span><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--success)"></span>毛利 14/30</span></div><div class="d-actions"><button class="btn btn--primary" style="font-size:var(--fs-xs);padding:3px 8px;">加入采购单</button><button class="btn btn--ghost" style="font-size:var(--fs-xs);padding:3px 8px;">→ 货号历史</button></div></div>
+            </div></td></tr>
+
+            <!-- Row 7: OK -->
+            <tr onclick="toggleDetail('d7')">
+              <td style="padding-left:20px;"><span class="flag" onclick="event.stopPropagation();toggleFlag(this)">⚑</span></td>
+              <td><div class="urg"><div class="urg-bar"><div class="urg-fill low" style="width:28%"></div></div><span class="urg-num low">28</span></div></td>
+              <td><div class="sku-cell"><span class="sku-name">竹木菜板 40×30cm</span><span class="sku-code">WDB-7720</span></div></td>
+              <td style="color:var(--ink-2);">HOMEPLAST</td>
+              <td class="r"><span class="mono" style="font-size:var(--fs-sm);">145</span></td>
+              <td class="r"><span class="wk ok">12.1w</span></td>
+              <td class="r mono" style="font-size:var(--fs-sm);">12.0</td>
+              <td class="r mono" style="font-size:var(--fs-sm);">€36.00</td>
+              <td class="r mono" style="font-size:var(--fs-sm);">29.3%</td>
+              <td><svg class="spark-cell" viewBox="0 0 60 20"><polyline points="2,10 8,8 14,10 20,12 26,10 32,8 38,10 44,12 50,10 56,8" stroke="var(--success)" /></svg></td>
+              <td><span class="profit-badge profit-badge--good">已回本</span></td>
+              <td class="r mono" style="font-size:var(--fs-sm);">10d</td>
+              <td class="r rec-sep rec-g"><span class="rec-v">57</span></td>
+              <td class="r rec-g"><span class="rec-v">86</span></td>
+              <td class="r rec-g"><span class="rec-v">60</span></td>
+            </tr>
+            <tr class="detail-row" id="d7"><td colspan="15"><div class="detail-inner">
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">💰</span> 财务</div><div class="d-row"><span class="d-row-label">批发</span><span class="d-row-val">€3.00</span></div><div class="d-row"><span class="d-row-label">零售</span><span class="d-row-val">€4.24</span></div><div class="d-row"><span class="d-row-label">进价</span><span class="d-row-val">€2.12</span></div><div class="d-row"><span class="d-row-label">毛利</span><span class="d-row-val">29.3%</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">📦</span> 库存</div><div class="d-row"><span class="d-row-label">库存</span><span class="d-row-val">145 件</span></div><div class="d-row"><span class="d-row-label">可销额</span><span class="d-row-val">€614.80</span></div><div class="d-row"><span class="d-row-label">成本</span><span class="d-row-val">€307.40</span></div><div class="d-row"><span class="d-row-label">可撑</span><span class="d-row-val">12.1 周</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">💵</span> 盈亏 <span class="profit-badge profit-badge--good" style="margin-left:4px;">已回本</span></div><div class="d-row"><span class="d-row-label">投入</span><span class="d-row-val">€5,088</span></div><div class="d-row"><span class="d-row-label">销售</span><span class="d-row-val">€8,480</span></div><div class="d-row"><span class="d-row-label">利润</span><span class="d-row-val success">+€3,392</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">📊</span> 26w</div><div class="d-row"><span class="d-row-label">周销</span><span class="d-row-val">12.0 件</span></div><div class="d-row"><span class="d-row-label">周额</span><span class="d-row-val">€36.00</span></div><div class="d-row"><span class="d-row-label">活跃</span><span class="d-row-val">24/26 周</span></div><div class="d-row"><span class="d-row-label">距进货</span><span class="d-row-val">10 天</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">🎯</span> 紧迫 <span class="mono" style="color:var(--success);font-weight:700;margin-left:4px;">28</span></div><div class="score-bar"><div class="score-seg s1" style="width:50%"></div><div class="score-seg s2" style="width:10%"></div><div class="score-seg s3" style="width:30%"></div><div class="score-seg s4" style="width:27%"></div></div><div class="score-legend"><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--accent)"></span>销额 15/30</span><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--info)"></span>库存 3/30</span><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--warn)"></span>距进货 3/10</span><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--success)"></span>毛利 8/30</span></div><div class="d-actions"><button class="btn btn--ghost" style="font-size:var(--fs-xs);padding:3px 8px;">→ 货号历史</button></div></div>
+            </div></td></tr>
+
+            <!-- Row 8: OK - not yet profitable -->
+            <tr onclick="toggleDetail('d8')">
+              <td style="padding-left:20px;"><span class="flag" onclick="event.stopPropagation();toggleFlag(this)">⚑</span></td>
+              <td><div class="urg"><div class="urg-bar"><div class="urg-fill low" style="width:22%"></div></div><span class="urg-num low">22</span></div></td>
+              <td><div class="sku-cell"><span class="sku-name">微波炉加热盖 PP</span><span class="sku-code">MWV-0061</span></div></td>
+              <td style="color:var(--ink-2);">ΠΛΑΣΤ</td>
+              <td class="r"><span class="mono" style="font-size:var(--fs-sm);">218</span></td>
+              <td class="r"><span class="wk high">18.2w</span></td>
+              <td class="r mono" style="font-size:var(--fs-sm);">12.0</td>
+              <td class="r mono" style="font-size:var(--fs-sm);">€12.00</td>
+              <td class="r mono" style="font-size:var(--fs-sm);">22.0%</td>
+              <td><svg class="spark-cell" viewBox="0 0 60 20"><polyline points="2,14 8,12 14,14 20,16 26,14 32,12 38,14 44,16 50,14 56,12" stroke="var(--success)" /></svg></td>
+              <td><span class="profit-badge profit-badge--bad">未回本</span></td>
+              <td class="r mono" style="font-size:var(--fs-sm);">6d</td>
+              <td class="r rec-sep rec-g"><span class="rec-v">57</span></td>
+              <td class="r rec-g"><span class="rec-v">86</span></td>
+              <td class="r rec-g"><span class="rec-v">50</span></td>
+            </tr>
+            <tr class="detail-row" id="d8"><td colspan="15"><div class="detail-inner">
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">💰</span> 财务</div><div class="d-row"><span class="d-row-label">批发</span><span class="d-row-val">€1.00</span></div><div class="d-row"><span class="d-row-label">零售</span><span class="d-row-val">€1.28</span></div><div class="d-row"><span class="d-row-label">进价</span><span class="d-row-val">€0.78</span></div><div class="d-row"><span class="d-row-label">毛利</span><span class="d-row-val">22.0%</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">📦</span> 库存</div><div class="d-row"><span class="d-row-label">库存</span><span class="d-row-val">218 件</span></div><div class="d-row"><span class="d-row-label">可销额</span><span class="d-row-val">€279.04</span></div><div class="d-row"><span class="d-row-label">成本</span><span class="d-row-val">€170.04</span></div><div class="d-row"><span class="d-row-label">可撑</span><span class="d-row-val success">18.2 周</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">💵</span> 盈亏 <span class="profit-badge profit-badge--bad" style="margin-left:4px;">未回本</span></div><div class="d-row"><span class="d-row-label">投入</span><span class="d-row-val">€780</span></div><div class="d-row"><span class="d-row-label">销售</span><span class="d-row-val">€512</span></div><div class="d-row"><span class="d-row-label">利润</span><span class="d-row-val error">-€268</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">📊</span> 26w</div><div class="d-row"><span class="d-row-label">周销</span><span class="d-row-val">12.0 件</span></div><div class="d-row"><span class="d-row-label">周额</span><span class="d-row-val">€12.00</span></div><div class="d-row"><span class="d-row-label">活跃</span><span class="d-row-val">16/26 周</span></div><div class="d-row"><span class="d-row-label">距进货</span><span class="d-row-val">6 天</span></div></div>
+              <div class="d-sec"><div class="d-sec-title"><span class="d-icon">🎯</span> 紧迫 <span class="mono" style="color:var(--success);font-weight:700;margin-left:4px;">22</span></div><div class="score-bar"><div class="score-seg s1" style="width:27%"></div><div class="score-seg s2" style="width:7%"></div><div class="score-seg s3" style="width:20%"></div><div class="score-seg s4" style="width:17%"></div></div><div class="score-legend"><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--accent)"></span>销额 8/30</span><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--info)"></span>库存 2/30</span><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--warn)"></span>距进货 2/10</span><span class="score-legend-item"><span class="score-legend-dot" style="background:var(--success)"></span>毛利 5/30</span></div><div class="d-actions"><button class="btn btn--ghost" style="font-size:var(--fs-xs);padding:3px 8px;">→ 货号历史</button></div></div>
+            </div></td></tr>
+
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Empty state (hidden by default) -->
+      <div class="empty" id="emptyState">
+        <span class="empty-icon">⊘</span>
+        <span class="empty-text">暂无待补货 SKU<br><span style="font-size:var(--fs-xs);color:var(--ink-3);">所有 SKU 库存充足，或无满足条件的活跃商品</span></span>
+      </div>
+
+      <!-- Footer -->
+      <div class="tbl-foot" id="tblFoot">
+        <span class="tbl-foot-stat">显示 <b>8</b> / 47 项</span>
+        <span class="tbl-foot-stat">已标记 <b style="color:var(--accent);">5</b></span>
+        <span class="tbl-foot-stat">紧急 <b style="color:var(--error);">12</b> · 关注 <b style="color:var(--warn);">19</b> · 充足 <b style="color:var(--success);">16</b></span>
+        <div style="flex:1;"></div>
+        <span class="tbl-foot-stat">评分窗口 <b>26w</b> · 数据截止 <b>2026-05-26</b></span>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="order-toast" id="orderToast">
+  <span class="order-toast-dot"></span>
+  <span class="order-toast-text">采购单已生成 · <b>5 项</b> · 预估 <b>€2,340</b></span>
+  <button class="order-toast-close" onclick="document.getElementById('orderToast').classList.remove('show')">✕</button>
+</div>
+
+<!-- Demo toggle -->
+<div class="demo">
+  <button class="act" onclick="setView('data')">数据态</button>
+  <button onclick="setView('empty')">空态</button>
+</div>
+
+<script>
+  function setTheme(t){
+    document.body.dataset.theme=t;
+    document.querySelectorAll('.theme-switch button').forEach(b=>{
+      b.classList.toggle('act',b.textContent.trim().toLowerCase()===t);
+    });
+  }
+  function tick(){const n=new Date();document.getElementById('clock').textContent=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');}
+  tick();setInterval(tick,30000);
+
+  // Toggle detail row
+  function toggleDetail(id){
+    const row=document.getElementById(id);
+    if(row){
+      row.classList.toggle('open');
+      // Also toggle expanded class on the parent row
+      const prev=row.previousElementSibling;
+      if(prev) prev.classList.toggle('expanded',row.classList.contains('open'));
+    }
+  }
+
+  // Flag toggle
+  function toggleFlag(el){
+    el.classList.toggle('flagged');
+  }
+  // Style flags
+  document.querySelectorAll('.flag').forEach(f=>{
+    if(!f.classList.contains('flagged')){
+      f.style.color='var(--ink-3)';f.style.cursor='pointer';
+    }
+  });
+  // Add CSS for flag states
+  const flagStyle=document.createElement('style');
+  flagStyle.textContent=`.flag{color:var(--ink-3);cursor:pointer;font-size:12px;transition:color var(--t-fast);user-select:none;}.flag.flagged{color:var(--accent);}`;
+  document.head.appendChild(flagStyle);
+
+  // Filter chips
+  function setFilter(el){
+    document.querySelectorAll('.f-chip').forEach(c=>c.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  // Toggle toast
+  function toggleToast(){
+    const t=document.getElementById('orderToast');
+    t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'),4000);
+  }
+
+  // Demo view toggle
+  function setView(v){
+    const data=v==='data';
+    document.getElementById('tblWrap').style.display=data?'block':'none';
+    document.getElementById('tblFoot').style.display=data?'flex':'none';
+    document.getElementById('emptyState').classList.toggle('show',!data);
+    document.querySelectorAll('.demo button').forEach(b=>{
+      b.classList.toggle('act',b.textContent.trim()===(data?'数据态':'空态'));
+    });
+  }
+</script>
+</body>
+</html>
