@@ -2520,7 +2520,8 @@
 /* ============================================================
  * Labeling Page — 02-labeling design v2
  * ============================================================ */
-.page-grid { display: grid; grid-template-columns: 1fr 340px; grid-template-rows: auto auto 1fr; gap: 12px; min-height: calc(100vh - 116px); }
+/* height（非 min-height）才能让 1fr 行有确定高度，异常列表(#warnBox)等内部面板才能 overflow 滚动而不是把整页撑高被裁切 */
+.page-grid { display: grid; grid-template-columns: 1fr 340px; grid-template-rows: auto auto 1fr; gap: 12px; height: calc(100vh - 116px); min-height: 0; }
 
 /* Drop zone */
 .drop-zone { border: 1.5px dashed var(--line); border-radius: var(--r-md); padding: 20px; display: flex; align-items: center; gap: 16px; cursor: pointer; transition: all var(--t-base); }
