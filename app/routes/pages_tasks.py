@@ -3,6 +3,7 @@ import os
 from flask import Blueprint, jsonify, render_template, request, send_file
 from pydantic import BaseModel
 
+from app.config import CONFIG
 from app.services import barcode as barcode_service
 from app.services import storage as storage_service
 from app.services import task as task_service
@@ -34,7 +35,7 @@ class _BarcodeDelete(BaseModel):
 
 @bp.get("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", enable_transfer=CONFIG.enable_transfer)
 
 
 @bp.post("/upload")

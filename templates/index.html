@@ -462,6 +462,7 @@
               <div class="fq-size" x-text="b.files.length + ' 文件'"></div>
             </div>
             <span class="fq-status done"><span class="dot"></span>DONE</span>
+            <button class="fq-dl" @click="__batchDownload(b.id)" title="下载该批次结果 CSV">↓</button>
           </div>
         </template>
         <div class="empty" x-data x-show="$store.upload.selected.length === 0 && $store.upload.batches.length === 0" style="padding:20px">拖入文件开始下一批次</div>
@@ -471,7 +472,7 @@
           <div style="display:flex;gap:6px">
             <button class="btn btn-success" style="font-size:var(--fs-sm)" @click="__batchDownload($store.upload.batches[0]?.id)">下载结果</button>
             <button class="btn btn-info" style="font-size:var(--fs-sm)" @click="__batchCopyModels($store.upload.batches[0]?.id)">复制型号</button>
-            <button class="btn btn-ghost" id="reset" style="font-size:var(--fs-sm)">清空</button>
+            <button class="btn btn-ghost" id="reset" style="font-size:var(--fs-sm)" @click="__reset()">清空</button>
           </div>
         </template>
         <span x-show="$store.upload.batches.length === 0" style="font-size:var(--fs-xs);color:var(--ink-3)">处理完成后可下载结果</span>
@@ -1293,6 +1294,7 @@
   </div>
 </div>
 
+<script>window.__ENABLE_TRANSFER = {{ 'true' if enable_transfer else 'false' }};</script>
 <script type="module" src="{{ url_for('static', filename='js/index.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/purchase.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/attendance.js') }}"></script>

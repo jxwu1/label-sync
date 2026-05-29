@@ -2591,6 +2591,8 @@
 .fq-status.done { color: var(--success); border-color: var(--success-subtle-border); background: var(--success-subtle); }
 .fq-rm { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border-radius: 2px; color: var(--ink-3); font-size: 13px; cursor: pointer; border: none; background: none; transition: all var(--t-fast); }
 .fq-rm:hover { background: var(--error-subtle); color: var(--error); }
+.fq-dl { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border-radius: 2px; color: var(--ink-3); font-size: 13px; cursor: pointer; border: none; background: none; transition: all var(--t-fast); }
+.fq-dl:hover { background: var(--success-subtle); color: var(--success); }
 .fq-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 16px; border-top: 1px solid var(--line-soft); }
 
 /* File queue v2 (legacy) */

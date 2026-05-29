@@ -239,7 +239,9 @@ $("#download").onclick = () => {
   Alpine.store('term').push("下载结果文件" + (bid ? " · " + bid : ""));
 };
 
-$("#reset").onclick = () => {
+// 清空（id="reset"）位于 x-if 内，加载时不在 DOM；用 Alpine @click 绑 window.__reset，
+// 不再用 $("#reset").onclick（那会在模块加载时拿到 null 抛错，连带停掉后面的 __batchDownload 等定义）。
+window.__reset = () => {
   Alpine.store('upload').clear();
   $("#fileInput").value = "";
   const c = $("#cont"); c.style.display = "none"; c.disabled = false; c.textContent = "继续处理";
@@ -313,9 +315,14 @@ async function restore() {
   } catch (e) { console.error("Status restore failed:", e); }
 }
 
-setupTransferZone(); loadTransferUI(); loadMsgsUI(); restore();
-setInterval(loadTransferUI, 5000); setInterval(loadMsgsUI, 5000);
+restore();
 initStockpile();
+// 双端互传 / 文字互传：仅在后端开启 transfer 时初始化与轮询。
+// 单端模式下 /transfer_list、/text_list 蓝图未注册，跳过避免每 5s 404 刷屏。
+if (window.__ENABLE_TRANSFER) {
+  setupTransferZone(); loadTransferUI(); loadMsgsUI();
+  setInterval(loadTransferUI, 5000); setInterval(loadMsgsUI, 5000);
+}
 
 async function loadLastBatch() {
   try {
