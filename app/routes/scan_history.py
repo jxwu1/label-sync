@@ -28,6 +28,20 @@ def download_csv(batch_id: str):
     )
 
 
+@bp.get("/batches/<path:batch_id>/download/zip")
+def download_zip(batch_id: str):
+    """打包下载整个 batch（CSV + 所有 xlsx）为 zip — 标签处理页"下载结果"用。"""
+    zip_buf = scan_history_service.build_batch_zip(batch_id)
+    if zip_buf is None:
+        abort(404)
+    return send_file(
+        zip_buf,
+        as_attachment=True,
+        download_name=f"{batch_id}.zip",
+        mimetype="application/zip",
+    )
+
+
 @bp.get("/batches/<path:batch_id>/files/<filename>")
 def download_xlsx(batch_id: str, filename: str):
     """下载 batch 内某个 xlsx 文件。"""

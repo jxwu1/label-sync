@@ -232,7 +232,7 @@ $("#cont").onclick = async () => {
 $("#download").onclick = () => {
   const bid = _lastBatchId;
   if (bid) {
-    location.href = "/scan_history/batches/" + encodeURIComponent(bid) + "/download/csv";
+    location.href = "/scan_history/batches/" + encodeURIComponent(bid) + "/download/zip";
   } else {
     location.href = "/download";
   }
@@ -299,7 +299,7 @@ async function loadMsgsUI() {
 
 async function __delMsg(id) { await deleteMessage(id); loadMsgsUI(); }
 window.__delMsg = __delMsg;
-window.__batchDownload = (bid) => { location.href = "/scan_history/batches/" + encodeURIComponent(bid) + "/download/csv"; };
+window.__batchDownload = (bid) => { location.href = "/scan_history/batches/" + encodeURIComponent(bid) + "/download/zip"; };
 window.__batchCopyModels = (bid) => copyModelsAndDisplay(true, bid);
 
 async function restore() {

@@ -3,7 +3,9 @@
 仅文件系统操作，不写 DB、不缓存（51 个 batch 的扫描 < 100ms）。
 """
 
+import io
 import re
+import zipfile
 from pathlib import Path
 
 from app.config import CONFIG
@@ -177,3 +179,21 @@ def get_batch_xlsx_path(batch_id: str, filename: str) -> Path | None:
     if not candidate.exists() or not candidate.is_file():
         return None
     return candidate
+
+
+def build_batch_zip(batch_id: str) -> io.BytesIO | None:
+    """把整个 batch 目录（CSV + 所有 xlsx）打包成内存 zip。
+
+    与 storage.package_latest_output 行为一致（顶层平铺所有文件），
+    但按 batch_id 取任意历史批次。越界/不存在返回 None。
+    """
+    batch_dir = _safe_resolve_batch(batch_id)
+    if batch_dir is None:
+        return None
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for entry in sorted(batch_dir.iterdir()):
+            if entry.is_file():
+                zip_file.write(entry, entry.name)
+    buf.seek(0)
+    return buf
