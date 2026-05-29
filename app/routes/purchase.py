@@ -5,6 +5,7 @@ from datetime import date
 from flask import Blueprint, jsonify, request, send_file
 from pydantic import BaseModel, Field
 
+from app.services import pricing_sheet
 from app.services import purchase as purchase_service
 from app.repositories import stockpile_db
 from app.utils.route_helpers import parse_body
@@ -114,4 +115,48 @@ def export():
         mimetype="application/zip",
         as_attachment=True,
         download_name=f"采购订单{date_str}.zip",
+    )
+
+
+@bp.post("/pricing/preview")
+def pricing_preview():
+    data = request.get_json(silent=True) or {}
+    rows = data.get("rows", [])
+    new_entries = data.get("new_entries", [])
+    supplier_id = (data.get("supplier_id") or "").strip()
+    try:
+        result = pricing_sheet.preview_pricing(rows, new_entries, supplier_id)
+    except Exception as exc:
+        return jsonify({"ok": False, "msg": f"预览失败：{exc}"}), 500
+    if result["n_new"] == 0 and result["n_changed"] == 0:
+        return jsonify({"ok": False, "msg": "本次无新品也无调价老品，无需定价表"}), 200
+    return jsonify({"ok": True, **result})
+
+
+@bp.post("/pricing/export")
+def pricing_export():
+    data = request.get_json(silent=True) or {}
+    rows = data.get("rows", [])
+    new_entries = data.get("new_entries", [])
+    supplier_id = (data.get("supplier_id") or "").strip()
+    supplier_name = (data.get("supplier_name") or "").strip()
+    try:
+        target = float(data.get("target_margin_pct"))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "msg": "目标利润率无效"}), 400
+    if not (0 <= target < 100):
+        return jsonify({"ok": False, "msg": "目标利润率需在 0–100 之间"}), 400
+    date_str = date.today().strftime("%Y%m%d")
+    try:
+        xlsx_bytes = pricing_sheet.export_pricing_bytes(
+            rows, new_entries, supplier_id, supplier_name, target, date_str
+        )
+    except Exception as exc:
+        return jsonify({"ok": False, "msg": f"导出失败：{exc}"}), 500
+    safe_sup = "".join(c for c in supplier_name if c.isalnum() or c in "_-") or "供应商"
+    return send_file(
+        io.BytesIO(xlsx_bytes),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=f"定价表_{safe_sup}_{date_str}.xlsx",
     )

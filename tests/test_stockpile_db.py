@@ -682,6 +682,26 @@ class StockpileDbTests(unittest.TestCase):
         self.assertEqual(len(changes), 2)
         self.assertGreater(changes[0]["id"], changes[1]["id"])
 
+    def test_query_products_by_barcodes_returns_known_only(self) -> None:
+        from app.models import Stockpile
+        with stockpile_db._session() as s:
+            s.add(Stockpile(
+                product_barcode="A1", product_model="M1", stockpile_location="L1",
+                product_name_zh="陶瓷碗", sale_price=1.98, last_purchase_unit_price=1.05,
+            ))
+            s.add(Stockpile(
+                product_barcode="A2", product_model="M2", stockpile_location="L2",
+                product_name_zh=None, sale_price=None, last_purchase_unit_price=None,
+            ))
+            s.commit()
+        out = stockpile_db.query_products_by_barcodes(["A1", "A2", "NOPE"])
+        self.assertEqual(set(out.keys()), {"A1", "A2"})  # 不在主档的 NOPE 不出现
+        self.assertEqual(out["A1"]["name_zh"], "陶瓷碗")
+        self.assertAlmostEqual(out["A1"]["sale_price"], 1.98)
+        self.assertAlmostEqual(out["A1"]["last_purchase_unit_price"], 1.05)
+        self.assertIsNone(out["A2"]["sale_price"])
+        self.assertIsNone(out["A2"]["last_purchase_unit_price"])
+
 
 if __name__ == "__main__":
     unittest.main()

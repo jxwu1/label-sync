@@ -66,6 +66,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
           <button class="btn btn--ghost" id="purCopy" disabled>⎘ 一键复制</button>
           <button class="btn btn--ghost" id="purImport" disabled>↪ 一键入库</button>
           <button class="btn btn--primary" id="purDl" disabled>↓ 下载全部</button>
+          <button class="btn btn--ghost" id="purPricing" disabled>📋 老板定价表</button>
         </div>
       </section>
 
@@ -161,6 +162,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     document.getElementById('purImport').addEventListener('click', importToStockpile);
     document.getElementById('purNewCopyAll').addEventListener('click', copyNewBarcodes);
     document.getElementById('purDl').addEventListener('click', downloadZip);
+    document.getElementById('purPricing').addEventListener('click', doPricing);
     document.getElementById('purSupId').addEventListener('input', (e) => { supplierInfo.id = e.target.value.trim(); updateButtons(); });
     document.getElementById('purSupName').addEventListener('input', (e) => { supplierInfo.name = e.target.value.trim(); updateButtons(); updateStrip(); });
     document.getElementById('purMsTax').addEventListener('input', updateTotalTax);
@@ -512,6 +514,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     document.getElementById('purCopy').disabled = anyFlagged || !hasRows;
     document.getElementById('purImport').disabled = anyFlagged || !hasNew;
     document.getElementById('purDl').disabled = anyFlagged || !hasRows || (hasNew && !newOk);
+    document.getElementById('purPricing').disabled = anyFlagged || !hasRows;
   }
 
   async function copyAll() {
@@ -651,6 +654,57 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
       URL.revokeObjectURL(url);
     } catch (e) { setStatus('下载失败：' + e.message, true); }
     finally { updateButtons(); }
+  }
+
+  async function doPricing() {
+    const payload = {
+      rows: rows.map(r => ({ barcode: r.barcode, price: r.price, quantity: r.quantity })),
+      new_entries: newEntries.map(e => ({ barcode: e.barcode, name: e.name, invoice_name: e.invoice_name })),
+      supplier_id: supplierInfo.id,
+      supplier_name: supplierInfo.name,
+    };
+    setStatus('正在计算利润…');
+    let pv;
+    try {
+      const res = await fetch('/purchase/pricing/preview', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      pv = await res.json();
+    } catch (e) { setStatus('预览失败：' + e, true); return; }
+    if (!pv.ok) { setStatus(pv.msg, true); return; }
+
+    const summary = `新品 ${pv.n_new} 个 · 调价老品 ${pv.n_changed} 个`
+      + (pv.skipped_no_baseline ? ` · ${pv.skipped_no_baseline} 个老品无历史进价未列入` : '');
+    const tip = pv.target_margin_pct != null
+      ? `目标利润率%（来自该供应商 ${pv.n_samples} 个老品中位数），可改：`
+      : '无足够历史利润数据，请手填目标利润率%：';
+    const def = pv.target_margin_pct != null ? String(pv.target_margin_pct) : '';
+    const input = window.prompt(`${summary}\n\n${tip}`, def);
+    if (input === null) { setStatus(''); return; }
+    const margin = parseFloat(input);
+    if (isNaN(margin) || margin < 0 || margin >= 100) {
+      setStatus('利润率需在 0–100 之间', true); return;
+    }
+
+    setStatus('正在生成定价表…');
+    try {
+      const res = await fetch('/purchase/pricing/export', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, target_margin_pct: margin }),
+      });
+      if (!res.ok) { const b = await res.json(); setStatus(b.msg, true); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const supTag = cleanSupplierForFilename(supplierInfo.name);
+      a.download = supTag ? `定价表_${supTag}_${ymd}.xlsx` : `定价表_${ymd}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setStatus('定价表已生成');
+    } catch (e) { setStatus('导出失败：' + e, true); }
   }
 
   async function loadSummaryMonths() {

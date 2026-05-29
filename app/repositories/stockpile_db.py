@@ -568,6 +568,34 @@ def query_all_barcodes_set(include_inactive: bool = False) -> set[str]:
     return {row[0] for row in rows}
 
 
+def query_products_by_barcodes(barcodes: list[str]) -> dict[str, dict]:
+    """给定 barcode 列表，返回主档中存在的产品 → {name_zh, sale_price, last_purchase_unit_price}。
+
+    结果 keys 即「系统已知的 barcode」；不在主档的 barcode 不出现。
+    采购定价表用：判断哪些上传货号是老品、拿现售价与最近采购净价。
+    """
+    uniq = sorted({bc for bc in barcodes if bc})
+    if not uniq:
+        return {}
+    out: dict[str, dict] = {}
+    with _session() as session:
+        rows = session.execute(
+            select(
+                Stockpile.product_barcode,
+                Stockpile.product_name_zh,
+                Stockpile.sale_price,
+                Stockpile.last_purchase_unit_price,
+            ).where(Stockpile.product_barcode.in_(uniq))
+        ).all()
+    for bc, name_zh, sale_price, last_pp in rows:
+        out[bc] = {
+            "name_zh": name_zh,
+            "sale_price": float(sale_price) if sale_price is not None else None,
+            "last_purchase_unit_price": float(last_pp) if last_pp is not None else None,
+        }
+    return out
+
+
 def list_inactive_records(limit: int = 100) -> list[dict]:
     with _session() as session:
         objs = (
