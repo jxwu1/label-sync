@@ -3,7 +3,10 @@ import { initDup, renderDupCard } from "./index-dup.js";
 
 const $ = (selector) => document.querySelector(selector);
 
-export function initWarnings() {}
+// 解决异常后回灌状态的回调（由 index.js 注入 handleStatus）。
+// 没有它时退化为只重渲染异常卡片（旧行为）。
+let _onStatus = null;
+export function initWarnings(opts) { _onStatus = (opts && opts.onStatus) || null; }
 
 // PR-FE-8b：异常类型 → 严重度 / code 映射（视觉换皮，数据模型不变）
 const EX_CAT = {
@@ -199,7 +202,10 @@ function ignoreBc(index) { const el = $("#bc_" + index); if (!el) return; el.sty
 async function reloadStatus() {
   const response = await fetch("/status");
   const data = await response.json();
-  renderReview(data);
+  // 回灌完整 handleStatus：解决最后一条异常后能自动继续下一阶段；
+  // 否则只重渲染卡片、面板状态与自动继续都不会触发（旧 fallback）。
+  if (_onStatus) _onStatus(data);
+  else renderReview(data);
   return data;
 }
 

@@ -7,7 +7,7 @@ import { initStockpile } from "./index-stockpile.js";
 const $ = (selector) => document.querySelector(selector);
 let poll = null;
 
-initWarnings();
+initWarnings({ onStatus: handleStatus });
 
 setupDropZone($("#drop"), $("#fileInput"), (files) => {
   Alpine.store('upload').add([...files]);
@@ -101,6 +101,27 @@ async function _autoContinue() {
 
 let _lastBatchId = "";
 
+// 异常处理面板三态切换：idle（上一批次概览）/ active（异常列表）/ done（完成）。
+// 设计稿把面板拆成三个 div 互斥 display，但之前没有 JS 切换 → 异常永远藏在 display:none 的 #exActive 里。
+function setExPanel(state) {
+  const idle = $("#exIdle"), active = $("#exActive"), done = $("#exDone");
+  if (idle) idle.style.display = state === "idle" ? "block" : "none";
+  if (active) active.style.display = state === "active" ? "flex" : "none";
+  if (done) done.style.display = state === "done" ? "flex" : "none";
+}
+
+// 异常列表头部的 HIGH/MED/LOW 计数（视觉，与卡片同一份数据）。
+function _updateExSev(data) {
+  const bw = (data.barcode_warnings || []).filter(w => !w.deleted && !w.corrected).length;
+  const lw = (data.location_warnings || []).filter(w => !w.corrected).length;
+  const nb = (data.new_barcodes || []).length;
+  const pw = (data.phase2_warnings || []).filter(w => !w.resolved).length;
+  const set = (id, label, n) => { const e = $("#" + id); if (e) e.textContent = `${label} ${n}`; };
+  set("exSevHigh", "HIGH", bw);
+  set("exSevMed", "MED", lw + pw);
+  set("exSevLow", "LOW", nb);
+}
+
 function _autoReset(batchId) {
   _lastBatchId = batchId || "";
   plFinish();
@@ -109,6 +130,8 @@ function _autoReset(batchId) {
   Alpine.store('term').push("处理完成 · 批次 " + (_lastBatchId || "unknown"), "log-ok");
   Alpine.store('upload').markDone(_lastBatchId);
   $("#warnBox").innerHTML = '<div class="empty">暂无需要人工处理的异常</div>';
+  setExPanel("idle");
+  loadLastBatch();
   setTimeout(() => {
     plReset();
     Alpine.store('app').setBadge("idle", "空闲");
@@ -160,13 +183,14 @@ function handleStatus(data) {
     Alpine.store('app').setBadge("waiting", "等待处理");
     Alpine.store('app').setStatus(waitMsg(data.waiting_stage));
     cont.style.display = "block"; cont.disabled = false; cont.textContent = "继续处理";
+    setExPanel("active"); _updateExSev(data);
     return;
   }
-  if (data.running) { Alpine.store('app').setBadge("running", "处理中"); Alpine.store('app').setStatus('<span class="spin"></span>处理中，请稍候...'); return; }
+  if (data.running) { Alpine.store('app').setBadge("running", "处理中"); Alpine.store('app').setStatus('<span class="spin"></span>处理中，请稍候...'); setExPanel("idle"); return; }
   clearInterval(poll); cont.style.display = "none";
-  if (data.error) { Alpine.store('app').setStatus("处理失败，请查看日志", "error"); Alpine.store('app').setBadge("error", "出错"); plReset(); return; }
+  if (data.error) { Alpine.store('app').setStatus("处理失败，请查看日志", "error"); Alpine.store('app').setBadge("error", "出错"); plReset(); setExPanel("idle"); return; }
   if (data.done) { _autoReset(data.batch_id); return; }
-  Alpine.store('app').setBadge("idle", "空闲");
+  Alpine.store('app').setBadge("idle", "空闲"); setExPanel("idle");
 }
 
 function startPoll() {
