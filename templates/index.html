@@ -471,7 +471,7 @@
         <template x-if="$store.upload.batches.length > 0">
           <div style="display:flex;gap:6px">
             <button class="btn btn-success" style="font-size:var(--fs-sm)" @click="__batchDownload($store.upload.batches[0]?.id)">下载结果</button>
-            <button class="btn btn-info" style="font-size:var(--fs-sm)" @click="__batchCopyModels($store.upload.batches[0]?.id)">复制型号</button>
+            <button class="btn btn-info" style="font-size:var(--fs-sm)" @click="__batchCopyModels($store.upload.batches[0]?.id, $event.currentTarget)">复制型号</button>
             <button class="btn btn-ghost" id="reset" style="font-size:var(--fs-sm)" @click="__reset()">清空</button>
           </div>
         </template>

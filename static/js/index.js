@@ -253,8 +253,11 @@ window.__reset = () => {
   Alpine.store('term').push("已清空文件队列", "log-dim");
 };
 
-async function copyModelsAndDisplay(isUnique, batchId) {
-  const cm = isUnique ? $("#copyModels") : $("#copyModelsAll"); const label = isUnique ? "复制型号" : "复制型号(含重复)";
+async function copyModelsAndDisplay(isUnique, batchId, btnEl) {
+  // btnEl：被点击的可见按钮（文件队列里那个）。缺省回退到隐藏的 legacy #copyModels，
+  // 否则反馈（复制中/已复制 N）会写到隐藏按钮上、可见按钮毫无反应，看起来像没生效。
+  const cm = btnEl || (isUnique ? $("#copyModels") : $("#copyModelsAll"));
+  const label = isUnique ? "复制型号" : "复制型号(含重复)";
   cm.disabled = true; cm.textContent = "复制中...";
   try {
     const url = batchId ? "/models?batch_id=" + encodeURIComponent(batchId) : "/models";
@@ -300,7 +303,7 @@ async function loadMsgsUI() {
 async function __delMsg(id) { await deleteMessage(id); loadMsgsUI(); }
 window.__delMsg = __delMsg;
 window.__batchDownload = (bid) => { location.href = "/scan_history/batches/" + encodeURIComponent(bid) + "/download/zip"; };
-window.__batchCopyModels = (bid) => copyModelsAndDisplay(true, bid);
+window.__batchCopyModels = (bid, btn) => copyModelsAndDisplay(true, bid, btn);
 
 async function restore() {
   try {
