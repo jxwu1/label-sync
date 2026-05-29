@@ -149,20 +149,24 @@ function _updateScanStats(data) {
     + pw.filter(w => !w.resolved).length;
   const totalNew = nb.length;
 
+  // 总条码 / 匹配率来自阶段 3 的 MATCHED / NEW / UNMATCHED 日志（update_location.py 打印）。
+  // 旧代码用 /解析 N 条码/ 正则，但阶段脚本从不打这行 → 永远 0 → 这两格一直空。
   const log = data.log || [];
-  let totalBarcodes = 0;
+  let matched = null, newCount = null, unmatched = null;
   for (const line of log) {
-    const m = line.match(/解析\s*(\d+)\s*条码/);
-    if (m) totalBarcodes = parseInt(m[1]);
+    let m;
+    if ((m = line.match(/^MATCHED\s+(\d+)/))) matched = parseInt(m[1], 10);
+    else if ((m = line.match(/^UNMATCHED\s+(\d+)/))) unmatched = parseInt(m[1], 10);
+    else if ((m = line.match(/^NEW\s+(\d+)/))) newCount = parseInt(m[1], 10);
   }
 
   const el = (id, v) => { const e = $("#" + id); if (e) e.textContent = v; };
-  if (totalBarcodes) {
-    el("scTotal", totalBarcodes.toLocaleString());
-    const matched = totalBarcodes - totalAnomalies - totalNew;
-    const rate = totalBarcodes > 0 ? (matched / totalBarcodes * 100).toFixed(1) + "%" : "—";
+  if (matched !== null && newCount !== null && unmatched !== null) {
+    const total = matched + newCount + unmatched;
+    el("scTotal", total.toLocaleString());
+    const rate = total > 0 ? (matched / total * 100).toFixed(1) + "%" : "—";
     el("scMatchRate", rate);
-    const bar = $("#scMatchBar"); if (bar) bar.style.width = (matched / totalBarcodes * 100) + "%";
+    const bar = $("#scMatchBar"); if (bar) bar.style.width = (total > 0 ? matched / total * 100 : 0) + "%";
   }
   el("scAnomalies", totalAnomalies || "0");
   el("scNewItems", totalNew || "0");
