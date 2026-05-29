@@ -14,6 +14,11 @@ def _resource_dir() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
+def _env_bool(name: str) -> bool:
+    """读环境变量当布尔；'1'/'true'/'yes'/'on'（忽略大小写）为真。"""
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _data_dir() -> Path:
     """运行时数据目录 (stockpile.db / input / output / archive / etc).
 
@@ -102,4 +107,10 @@ class AppConfig:
         return self.base_dir / "stockpile.db"
 
 
-CONFIG = AppConfig(base_dir=_data_dir(), resource_dir=_resource_dir())
+# debug 仅由 LABEL_SYNC_DEBUG 环境变量开启（本地开发热重载用）。
+# 生产 Docker 不设此变量 → debug=False → waitress 正常跑，不受影响。
+CONFIG = AppConfig(
+    base_dir=_data_dir(),
+    resource_dir=_resource_dir(),
+    debug=_env_bool("LABEL_SYNC_DEBUG"),
+)

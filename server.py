@@ -12,6 +12,8 @@ from app.state import INPUT_DIR, OUTPUT_DIR, TRANSFER_DIR
 
 def create_app() -> Flask:
     app = Flask(__name__, template_folder=str(CONFIG.templates_dir))
+    # 本地 debug 时模板改动即时生效，不必重启（生产 debug=False，模板缓存照旧）。
+    app.config["TEMPLATES_AUTO_RELOAD"] = CONFIG.debug
 
     dirs = [INPUT_DIR, OUTPUT_DIR, CONFIG.trash_dir]
     if CONFIG.enable_transfer:

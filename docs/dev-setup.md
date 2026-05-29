@@ -13,6 +13,51 @@ pre-commit install
 
 完事。以后 `git commit` 会自动跑 ruff + ruff format。
 
+---
+
+## 本地开发循环（核心：改完本地即测，别上服务器调试）
+
+线上跑的是 main，且 **push main 会自动触发 Coolify redeploy**。所以调试 **绝不** 在 main 上做——
+每个 bug 在本地复现、修、验证，全过了再合并；服务器只接收已验证的代码。
+
+一键起本地（本地 PG + 热重载）：
+
+```powershell
+./dev.ps1
+```
+
+它会：起本地 PostgreSQL 17（Docker，端口 5433）→ `alembic upgrade head` → 用 `LABEL_SYNC_DEBUG=1`
+跑 `server.py`。**改 `.py` / `templates/*.html` 存盘即自动重载，不用手动重启 server。**
+
+手动等价：
+
+```powershell
+docker compose -f docker-compose.dev.yml up -d
+$env:DATABASE_URL = 'postgresql+psycopg://dev:devpass@localhost:5433/label_sync'
+$env:LABEL_SYNC_DEBUG = '1'
+python -m alembic upgrade head
+python server.py
+```
+
+### 灌线上真实数据到本地（复现业务 bug 的前提）
+
+空库跑标签流程出不了异常、复现不了业务 bug。把线上 PG 整库拉到本地一份：
+
+```powershell
+$env:PROD_DATABASE_URL = "postgresql://<user>:<pass>@<host>:<port>/<db>"  # 凭据在 1Password「Servers」vault
+$env:DATABASE_URL      = "postgresql+psycopg://dev:devpass@localhost:5433/label_sync"
+python tools/pull_prod_db.py
+```
+
+线上仅内网可达，外网跑需先开 SSH 隧道（脚本头部有说明）。只读线上、只覆盖本地，绝不反向写。
+
+### 热重载的边界
+
+- `LABEL_SYNC_DEBUG` **只本地设**。生产 Docker 不设 → `debug=False` → waitress 正常跑、模板照常缓存。
+- `.py` 改动：werkzeug reloader 自动重启进程。
+- `templates/*.html` 改动：Jinja `TEMPLATES_AUTO_RELOAD` 即时生效（debug 时自动开）。
+- `static/*.css` / `*.js` 改动：本来就即时（静态文件每次新取），刷新浏览器即可。
+
 ## Claude Code 项目级 hook（可选，跨机器复现）
 
 仓库内含一个项目级 post-commit hook（`.claude/hooks/gitnexus-post-commit.cjs`），
