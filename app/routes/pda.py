@@ -1,6 +1,9 @@
 """PDA 扫描端 + PC 待处理端路由。"""
 from __future__ import annotations
 
+import hashlib
+from pathlib import Path
+
 from flask import Blueprint, jsonify, render_template, request
 
 from app.auth import require_role
@@ -9,6 +12,23 @@ import app.services.scan_session as scan_svc
 
 bp = Blueprint("pda", __name__, url_prefix="/pda")
 
+# 静态资源版本号（内容哈希）：内容一变就换 URL，强制 PDA 浏览器加载新版 JS/CSS，
+# 不再被缓存坑（改了扫码逻辑、设备却还跑旧 js）。进程启动算一次。
+_STATIC_DIR = Path(__file__).resolve().parents[2] / "static"
+
+
+def _asset_version() -> str:
+    h = hashlib.md5()
+    for rel in ("js/pda.js", "css/pda.css"):
+        try:
+            h.update((_STATIC_DIR / rel).read_bytes())
+        except OSError:
+            pass
+    return h.hexdigest()[:8]
+
+
+_ASSET_V = _asset_version()
+
 
 def _err(msg: str, code: int = 400):
     return jsonify(ok=False, msg=msg), code
@@ -16,7 +36,7 @@ def _err(msg: str, code: int = 400):
 
 @bp.get("/")
 def scan_page():
-    return render_template("pda.html")
+    return render_template("pda.html", asset_v=_ASSET_V)
 
 
 @bp.get("/operators")
