@@ -31,3 +31,26 @@ class RequireRoleTests(unittest.TestCase):
         with mock.patch.object(authmod, "current_user", _U("admin", auth=False)):
             with self.assertRaises(Unauthorized):
                 self._wrapped()()
+
+
+class CacheControlHeaderTests(unittest.TestCase):
+    def test_html_is_no_store(self):
+        cc = authmod.cache_control_header("/", "text/html; charset=utf-8")
+        self.assertIn("no-store", cc)
+
+    def test_static_revalidates(self):
+        # 静态资源：no-cache（每次向服务器校验，部署后免强刷），非 no-store（仍可 304）
+        self.assertEqual(
+            authmod.cache_control_header("/static/js/index.js", "application/javascript"),
+            "no-cache",
+        )
+
+    def test_static_covers_imported_submodule(self):
+        # ES 模块内部 import 的子文件也走静态路径 → 同样 no-cache
+        self.assertEqual(
+            authmod.cache_control_header("/static/js/shared.js", "text/javascript"),
+            "no-cache",
+        )
+
+    def test_other_responses_untouched(self):
+        self.assertIsNone(authmod.cache_control_header("/admin/api/x", "application/json"))
