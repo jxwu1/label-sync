@@ -1,0 +1,22 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg-0); color: var(--ink-0);
+  font-family: var(--sans, system-ui); }
+body { display: flex; flex-direction: column; }
+.pda-top, .pda-foot { display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  background: var(--bg-1); }
+.pda-op { flex: 1; height: 40px; font-size: 16px; }
+.pda-save { min-width: 84px; height: 40px; font-size: 16px; background: var(--accent);
+  color: #fff; border: 0; border-radius: 8px; }
+.pda-save:disabled { opacity: .4; }
+.pda-dot { width: 12px; height: 12px; border-radius: 50%; }
+.pda-dot--on { background: #16a34a; } .pda-dot--off { background: #dc2626; }
+.pda-grid { flex: 1; overflow: auto; }
+.pda-grid table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.pda-grid th { position: sticky; top: 0; background: var(--bg-1); }
+.pda-grid td, .pda-grid th { border: 1px solid var(--bg-3, #ddd); padding: 8px; min-height: 44px; }
+.pda-grid td.num { width: 36px; color: #999; text-align: center; }
+.pda-grid tr.loc td:nth-child(2) { font-weight: 700; }
+.pda-grid tr.bc td:nth-child(2) { padding-left: 18px; font-family: monospace; }
+.pda-undo { min-width: 84px; height: 44px; font-size: 16px; }
+.pda-pend { color: #dc2626; font-size: 13px; }
+.pda-scan { position: absolute; left: -9999px; opacity: 0; } /* 扫描枪输入，不弹软键盘 */
