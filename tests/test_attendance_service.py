@@ -605,3 +605,14 @@ class TestLeaves(_DBTestCase):
         self.assertEqual(row["start"], "13:00")
         self.assertEqual(row["end"], "20:00")
         self.assertAlmostEqual(row["day_fraction"], 7.0 / 10.5, places=3)
+
+
+class TestScannerFlag(_DBTestCase):
+    def test_set_scanner_and_list(self):
+        emp = svc.create_employee("小王")
+        svc.set_scanner(emp["id"], True)
+        listed = {e["id"]: e for e in svc.list_employees()}
+        self.assertTrue(listed[emp["id"]]["is_scanner"])
+        svc.set_scanner(emp["id"], False)
+        listed = {e["id"]: e for e in svc.list_employees()}
+        self.assertFalse(listed[emp["id"]]["is_scanner"])

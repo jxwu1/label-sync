@@ -316,6 +316,8 @@
                     : ' attn-rail-bar-fill--low';
       // 头像方块：取 id 末尾两位（e001 → "01"）+ accent 高亮态
       const avatar = (r.id || '').slice(-2).toUpperCase();
+      const empData = employees.find(e => e.id === r.id) || {};
+      const scannerChecked = empData.is_scanner ? 'checked' : '';
       return `<button class="attn-rail-item${active}" data-emp-id="${r.id}">
         <div class="attn-rail-row1">
           <span class="attn-rail-avatar">${escapeHtml(avatar)}</span>
@@ -326,6 +328,9 @@
           <span class="attn-rail-pct">${pct}%</span>
         </div>
         <div class="attn-rail-meta">${r.filled} / ${r.total} 天</div>
+        <label class="attn-rail-scanner" data-scanner-id="${r.id}">
+          <input type="checkbox" ${scannerChecked} data-scanner-emp="${r.id}"> 扫描员
+        </label>
       </button>`;
     }).join('');
     list.querySelectorAll('.attn-rail-item').forEach((btn) => {
@@ -338,6 +343,15 @@
         _lastClickDate = null;
         loadMonth();
       });
+    });
+    list.querySelectorAll('input[data-scanner-emp]').forEach((cb) => {
+      cb.addEventListener('change', (e) => {
+        e.stopPropagation();
+        toggleScanner(cb.dataset.scannerEmp, cb.checked);
+      });
+    });
+    list.querySelectorAll('label.attn-rail-scanner').forEach((lbl) => {
+      lbl.addEventListener('click', (e) => e.stopPropagation());
     });
   }
 
@@ -376,6 +390,15 @@
       currentEmployeeId = '';
       await loadEmployees();
     } catch (e) { alert('删除失败：' + e.message); }
+  }
+
+  async function toggleScanner(id, checked) {
+    await fetch(`/attendance/employees/${id}/scanner`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_scanner: checked }),
+    });
+    await loadEmployees();
   }
 
   function onEmployeeChange(e) {
