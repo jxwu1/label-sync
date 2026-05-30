@@ -23,8 +23,9 @@
   </main>
   <footer class="pda-foot">
     <button id="undoBtn" class="pda-undo">↶ 撤销</button>
+    <input id="scanInput" class="pda-scan" type="text" inputmode="none" autocomplete="off"
+           placeholder="点这里激活，再用扫描枪扫">
     <span id="pendBadge" class="pda-pend" hidden>待同步 0</span>
-    <span class="pda-hint">扫描枪直接扫</span>
   </footer>
   <script src="{{ url_for('static', filename='js/pda.js') }}?v={{ asset_v }}"></script>
 </body>

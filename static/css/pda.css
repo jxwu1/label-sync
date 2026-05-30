@@ -21,5 +21,9 @@ body { display: flex; flex-direction: column; }
 .pda-grid tr.bc td:nth-child(2) { padding-left: 18px; font-family: monospace; }
 .pda-undo { min-width: 84px; height: 44px; font-size: 16px; }
 .pda-pend { color: #dc2626; font-size: 13px; }
-.pda-hint { color: #999; font-size: 13px; margin-left: auto; } /* 提示：直接用扫描枪扫，无需点输入框 */
+/* 可见、可聚焦、带光标的扫描输入框：扫描枪把字符注入聚焦的输入框，必须可见可聚焦 */
+.pda-scan { flex: 1; min-width: 0; height: 40px; font-size: 16px; padding: 0 10px;
+  border: 2px solid var(--bg-3, #ccc); border-radius: 8px;
+  background: var(--bg-0); color: var(--ink-0); }
+.pda-scan:focus { outline: none; border-color: #16a34a; background: #f0fdf4; } /* 绿框=已激活可扫 */
 .pda-grid tr.empty td { height: 34px; } /* 空占位行：撑出 Excel 般的等高网格 */
