@@ -115,33 +115,102 @@ class TestBuildXlsx(unittest.TestCase):
         # B2 = 目标利润率小数 + 百分比格式
         self.assertAlmostEqual(ws["B2"].value, 0.30)
         self.assertEqual(ws["B2"].number_format, "0.00%")
-        # 表头行（第 4 行）
-        self.assertEqual(ws.cell(row=4, column=1).value, "图片")
-        self.assertEqual(ws.cell(row=4, column=2).value, "条码")
-        self.assertEqual(ws.cell(row=4, column=9).value, "建议批发价")
+        # 表头行（第 4 行）新列序
+        expected_headers = [
+            "图片", "条码", "中文品名", "数量", "旧进价", "新进价", "现售价",
+            "老利润率", "推荐新售价", "修改", "改后利润率", "热度",
+            "建议批发价", "建议利润率",
+        ]
+        for idx, name in enumerate(expected_headers, start=1):
+            self.assertEqual(ws.cell(row=4, column=idx).value, name)
         # 收集所有单元格文本，确认两个分段标题存在
         texts = {c.value for row in ws.iter_rows() for c in row if isinstance(c.value, str)}
         self.assertIn("◆ 新产品", texts)
         self.assertIn("◆ 调价老产品", texts)
-        # 找到第一条数据行（条码列=NEW1），断言建议批发价公式引用 $B$2、热度="新品"
+
+        # ---- 新产品行：四列同数据（老利润率镜像建议利润率、推荐新售价镜像建议批发价）----
         new_r = next(r for r in range(1, ws.max_row + 1)
                      if ws.cell(row=r, column=2).value == "NEW1")
-        self.assertIn("$B$2", str(ws.cell(row=new_r, column=9).value))
-        self.assertEqual(ws.cell(row=new_r, column=6).value, 5.15)        # 新进价
-        self.assertEqual(ws.cell(row=new_r, column=13).value, "新品")      # 热度
-        self.assertIsNone(ws.cell(row=new_r, column=5).value)            # 旧进价空
+        self.assertEqual(ws.cell(row=new_r, column=6).value, 5.15)          # 新进价
+        self.assertIsNone(ws.cell(row=new_r, column=5).value)              # 旧进价空
+        self.assertIsNone(ws.cell(row=new_r, column=7).value)             # 现售价空
+        self.assertEqual(ws.cell(row=new_r, column=12).value, "新品")      # 热度（移到第 12 列）
+        # 老利润率(8) 镜像建议利润率(N=14)；推荐新售价(9) 镜像建议批发价(M=13)
+        self.assertEqual(str(ws.cell(row=new_r, column=8).value), f"=N{new_r}")
+        self.assertEqual(str(ws.cell(row=new_r, column=9).value), f"=M{new_r}")
+        # 建议批发价(13) 引用 $B$2；建议利润率(14) 引用 M
+        self.assertIn("$B$2", str(ws.cell(row=new_r, column=13).value))
+        self.assertIn(f"M{new_r}", str(ws.cell(row=new_r, column=14).value))
         self.assertEqual(ws.cell(row=new_r, column=6).number_format, _eur())
-        # 调价老品行
+
+        # ---- 调价老品行：真实老利润率 + 推荐新售价 ----
         old_r = next(r for r in range(1, ws.max_row + 1)
                      if ws.cell(row=r, column=2).value == "OLD1")
         self.assertEqual(ws.cell(row=old_r, column=5).value, 1.10)        # 旧进价
         self.assertEqual(ws.cell(row=old_r, column=7).value, 1.98)        # 现售价
-        self.assertEqual(ws.cell(row=old_r, column=13).value, 78.0)       # 热度数值
-        self.assertIn("/", str(ws.cell(row=old_r, column=8).value))       # 现利润率是公式
+        self.assertEqual(ws.cell(row=old_r, column=12).value, 78.0)       # 热度数值
+        # 老利润率(8) = (现售价G - 旧进价E)/现售价G —— 关键：用旧进价 E，不是新进价 F
+        om = str(ws.cell(row=old_r, column=8).value)
+        self.assertIn(f"E{old_r}", om)
+        self.assertIn(f"G{old_r}", om)
+        self.assertNotIn(f"F{old_r}", om)
+        # 推荐新售价(9) = 新进价F / (1 - 老利润率H)
+        rs = str(ws.cell(row=old_r, column=9).value)
+        self.assertIn(f"F{old_r}", rs)
+        self.assertIn(f"1-H{old_r}", rs)
+        # 建议批发价(13)/建议利润率(14) 老品也填（参考列）
+        self.assertIn("$B$2", str(ws.cell(row=old_r, column=13).value))
+        self.assertIn(f"M{old_r}", str(ws.cell(row=old_r, column=14).value))
+        # 改后利润率(11) = (修改J - 新进价F)/修改J，两区块都填
+        k_old = str(ws.cell(row=old_r, column=11).value)
+        self.assertIn(f"J{old_r}", k_old)
+        self.assertIn(f"F{old_r}", k_old)
+        # 数字格式锁定：价格列 EUR、利润率列 百分比
+        for col in (5, 7, 9, 13):   # 旧进价/现售价/推荐新售价/建议批发价
+            self.assertEqual(ws.cell(row=old_r, column=col).number_format, _eur())
+        for col in (8, 11, 14):     # 老利润率/改后利润率/建议利润率
+            self.assertEqual(ws.cell(row=old_r, column=col).number_format, "0.00%")
+        # 冻结表头（A5）
+        self.assertEqual(ws.freeze_panes, "A5")
         # 图片列空 + 行高加高
         self.assertIsNone(ws.cell(row=new_r, column=1).value)
         self.assertIsNotNone(ws.row_dimensions[new_r].height)
         self.assertGreaterEqual(ws.row_dimensions[new_r].height, 60)
+
+    def test_changed_without_saleprice_falls_back_to_mirror(self):
+        """调价老品缺现售价 → 老利润率算不出 → 回退镜像（=N / =M），避免表里空洞。"""
+        items = {
+            "new": [],
+            "changed": [{"section": "changed", "barcode": "OLD9", "name_zh": "无售价",
+                         "quantity": 5, "old_price": 2.0, "new_price": 2.5,
+                         "sale_price": None, "urgency": 10.0}],
+        }
+        data = pricing_sheet.build_pricing_xlsx(items, 0.30, "S", "20260529")
+        wb = openpyxl.load_workbook(io.BytesIO(data))
+        ws = wb.active
+        r = next(rr for rr in range(1, ws.max_row + 1)
+                 if ws.cell(row=rr, column=2).value == "OLD9")
+        self.assertEqual(str(ws.cell(row=r, column=8).value), f"=N{r}")   # 老利润率←建议利润率
+        self.assertEqual(str(ws.cell(row=r, column=9).value), f"=M{r}")   # 推荐新售价←建议批发价
+        self.assertIsNone(ws.cell(row=r, column=7).value)                 # 现售价列空
+        self.assertEqual(ws.cell(row=r, column=5).value, 2.0)             # 旧进价仍在
+        self.assertEqual(ws.cell(row=r, column=12).value, 10.0)           # 热度数值
+
+    def test_free_goods_zero_oldprice_falls_back_to_mirror(self):
+        """调价老品 old_price=0（free goods/脏数据）→ 算不出老利润率 → 回退镜像，不留空格。"""
+        items = {
+            "new": [],
+            "changed": [{"section": "changed", "barcode": "FREE1", "name_zh": "赠品",
+                         "quantity": 3, "old_price": 0.0, "new_price": 1.2,
+                         "sale_price": 2.0, "urgency": 5.0}],
+        }
+        data = pricing_sheet.build_pricing_xlsx(items, 0.30, "S", "20260530")
+        wb = openpyxl.load_workbook(io.BytesIO(data))
+        ws = wb.active
+        r = next(rr for rr in range(1, ws.max_row + 1)
+                 if ws.cell(row=rr, column=2).value == "FREE1")
+        self.assertEqual(str(ws.cell(row=r, column=8).value), f"=N{r}")   # 老利润率←镜像
+        self.assertEqual(str(ws.cell(row=r, column=9).value), f"=M{r}")   # 推荐新售价←镜像
 
 
     def test_name_formula_injection_neutralized(self):

@@ -13,10 +13,13 @@ from app.repositories import stockpile_db
 from app.services import analytics as analytics_service
 
 # xlsx 列序（1-indexed）
+# 图片 条码 中文品名 数量 | 旧进价 新进价 现售价 老利润率 推荐新售价 | 修改 改后利润率 热度 | 建议批发价 建议利润率
 _COL_IMG, _COL_BARCODE, _COL_NAME, _COL_QTY = 1, 2, 3, 4
-_COL_OLD, _COL_NEW, _COL_SALE, _COL_CUR_MARGIN = 5, 6, 7, 8
-_COL_SUGGEST, _COL_SUGGEST_MARGIN, _COL_EDIT, _COL_EDIT_MARGIN, _COL_HEAT = 9, 10, 11, 12, 13
-_LAST_COL = _COL_HEAT
+_COL_OLD, _COL_NEW, _COL_SALE = 5, 6, 7
+_COL_OLD_MARGIN, _COL_SUGGEST_SALE = 8, 9
+_COL_EDIT, _COL_EDIT_MARGIN, _COL_HEAT = 10, 11, 12
+_COL_SUGGEST_WS, _COL_SUGGEST_MARGIN = 13, 14
+_LAST_COL = _COL_SUGGEST_MARGIN
 
 _EUR_FMT = '#,##0.00 "€"'
 _PCT_FMT = "0.00%"
@@ -131,7 +134,8 @@ def build_pricing_items(
 
 _HEADERS = [
     "图片", "条码", "中文品名", "数量", "旧进价", "新进价", "现售价",
-    "现利润率", "建议批发价", "建议利润率", "修改", "改后利润率", "热度",
+    "老利润率", "推荐新售价", "修改", "改后利润率", "热度",
+    "建议批发价", "建议利润率",
 ]
 
 
@@ -148,18 +152,37 @@ def _write_item_row(ws, r: int, item: dict) -> None:
     ws.cell(row=r, column=_COL_NEW, value=item["new_price"]).number_format = _EUR_FMT
     if item["sale_price"] is not None:
         ws.cell(row=r, column=_COL_SALE, value=item["sale_price"]).number_format = _EUR_FMT
-    # 现利润率（仅老品有现售价时）：(现售价-新进价)/现售价
-    if not is_new:
-        ws.cell(row=r, column=_COL_CUR_MARGIN,
-                value=f'=IF(AND(G{r},F{r}),(G{r}-F{r})/G{r},"")').number_format = _PCT_FMT
-    # 建议批发价 = 新进价/(1-目标利润率)；建议利润率 = (建议-新进价)/建议
-    ws.cell(row=r, column=_COL_SUGGEST, value=f"=F{r}/(1-{_TARGET_CELL})").number_format = _EUR_FMT
+
+    # 建议批发价 M = 新进价/(1-目标利润率)；建议利润率 N = (M-新进价)/M
+    # 统一用 B2 目标利润率（供应商平均），所有行都填——新品的主推荐价，老品的参考价。
+    ws.cell(row=r, column=_COL_SUGGEST_WS, value=f"=F{r}/(1-{_TARGET_CELL})").number_format = _EUR_FMT
     ws.cell(row=r, column=_COL_SUGGEST_MARGIN,
-            value=f'=IF(I{r},(I{r}-F{r})/I{r},"")').number_format = _PCT_FMT
-    # 修改（空，老板填）+ 改后利润率
+            value=f'=IF(M{r},(M{r}-F{r})/M{r},"")').number_format = _PCT_FMT
+
+    # 老利润率 H / 推荐新售价 I：
+    #   调价老品且现售价+旧进价齐 → 真实历史利润率，倒推保住老赚头的新售价；
+    #   否则（新品 / 缺现售价）→ 镜像建议列（老利润率←N、推荐新售价←M），四列同数据、对齐凑齐。
+    # 现售价/旧进价 任一为 None 或 0（free goods / 主档脏数据）都算不出真实历史利润率
+    # → 落入镜像分支，避免该行 老利润率/推荐新售价 两列空白。
+    has_old_margin = (
+        not is_new and bool(item["sale_price"]) and bool(item["old_price"])
+    )
+    if has_old_margin:
+        # 老利润率 = (现售价 - 旧进价)/现售价  ←用旧进价 E，反映以前实际赚多少
+        ws.cell(row=r, column=_COL_OLD_MARGIN,
+                value=f'=IF(AND(G{r},E{r}),(G{r}-E{r})/G{r},"")').number_format = _PCT_FMT
+        # 推荐新售价 = 新进价 / (1 - 老利润率)  ←保住老利润率倒推
+        ws.cell(row=r, column=_COL_SUGGEST_SALE,
+                value=f'=IF(H{r}<>"",F{r}/(1-H{r}),"")').number_format = _EUR_FMT
+    else:
+        ws.cell(row=r, column=_COL_OLD_MARGIN, value=f"=N{r}").number_format = _PCT_FMT
+        ws.cell(row=r, column=_COL_SUGGEST_SALE, value=f"=M{r}").number_format = _EUR_FMT
+
+    # 修改（空，老板填）+ 改后利润率 K = (修改-新进价)/修改
     ws.cell(row=r, column=_COL_EDIT).number_format = _EUR_FMT
     ws.cell(row=r, column=_COL_EDIT_MARGIN,
-            value=f'=IF(K{r},(K{r}-F{r})/K{r},"")').number_format = _PCT_FMT
+            value=f'=IF(J{r},(J{r}-F{r})/J{r},"")').number_format = _PCT_FMT
+
     # 热度
     if is_new:
         ws.cell(row=r, column=_COL_HEAT, value="新品")
@@ -220,7 +243,8 @@ def build_pricing_xlsx(items: dict, target_fraction: float, supplier_name: str, 
             r += 1
 
     # 列宽 + 冻结表头
-    widths = {1: 18, 2: 16, 3: 22, 4: 6, 5: 10, 6: 10, 7: 10, 8: 9, 9: 11, 10: 9, 11: 10, 12: 10, 13: 7}
+    widths = {1: 18, 2: 16, 3: 22, 4: 6, 5: 10, 6: 10, 7: 10, 8: 9, 9: 11,
+              10: 10, 11: 10, 12: 7, 13: 11, 14: 9}
     for col_idx, w in widths.items():
         ws.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = w
     ws.freeze_panes = "A5"
