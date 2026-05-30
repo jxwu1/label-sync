@@ -62,6 +62,8 @@ def test_pending_reloads_and_handles_errors():
 def test_flush_is_reentrancy_guarded():
     # 扫描 + 4s 定时器并发 flush 会重复 POST → 服务端 seq 重复（1234557）；必须有防重入锁
     assert "flushing" in PDA_JS
+    # 排空后才用服务端 rows 对账，避免快速扫描时乐观行"突然消失又跳出来"
+    assert "outbox.length === 0" in PDA_JS
 
 
 def test_process_picks_up_task_on_main():
