@@ -1,5 +1,7 @@
 """Flask-Login 初始化 + 登录/注销路由 + seed 首用户."""
 
+import os
+import secrets
 from functools import wraps
 
 from flask import Blueprint, abort, redirect, render_template, request, url_for
@@ -20,7 +22,7 @@ def require_role(role: str):
         def wrapped(*args, **kwargs):
             if not getattr(current_user, "is_authenticated", False):
                 abort(401)
-            if getattr(current_user, "role", "admin") != role:
+            if getattr(current_user, "role", None) != role:
                 abort(403)
             return fn(*args, **kwargs)
         return wrapped
@@ -32,6 +34,7 @@ def init_auth(app):
     login_manager.init_app(app)
     app.register_blueprint(bp)
     _seed_admin()
+    _seed_scanner()
 
     @app.before_request
     def _require_login():
@@ -67,6 +70,16 @@ def hash_password(plain: str) -> str:
 
 def check_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+
+
+def _seed_scanner():
+    with get_session() as s:
+        if s.query(User).filter_by(role="scanner").count() > 0:
+            return
+        pw = os.environ.get("PDA_SEED_PASSWORD") or secrets.token_urlsafe(12)
+        s.add(User(username="pda", password_hash=hash_password(pw),
+                   display_name="PDA 扫描", theme="light", role="scanner"))
+        print(f"[pda-seed] 已创建扫描账号 'pda'，初始密码: {pw}（请在系统管理里尽快修改）", flush=True)
 
 
 def _seed_admin():
