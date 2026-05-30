@@ -32,7 +32,8 @@ async function load() {
 async function proc(id) {
   const r = await (await fetch(`/pda/pending/${id}/process`, { method: 'POST' })).json();
   if (r.ok === false) { alert(r.msg); return; }
-  Alpine.store('nav').switch('main');  // 跳标签处理页看进度
+  Alpine.store('nav').switch('main');                          // 跳标签处理页
+  if (window.pickupExternalTask) window.pickupExternalTask();  // 让主页接管刚启动的任务并轮询进度
 }
 async function discard(id) {
   await fetch(`/pda/pending/${id}/discard`, { method: 'POST' });
