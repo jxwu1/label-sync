@@ -1,7 +1,9 @@
 """Flask-Login 初始化 + 登录/注销路由 + seed 首用户."""
 
-from flask import Blueprint, redirect, render_template, request, url_for
-from flask_login import LoginManager, login_required, login_user, logout_user
+from functools import wraps
+
+from flask import Blueprint, abort, redirect, render_template, request, url_for
+from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 import bcrypt
 
 from app.models import User, SystemSetting, get_session
@@ -12,6 +14,19 @@ login_manager.login_view = "auth.login"
 bp = Blueprint("auth", __name__)
 
 
+def require_role(role: str):
+    def deco(fn):
+        @wraps(fn)
+        def wrapped(*args, **kwargs):
+            if not getattr(current_user, "is_authenticated", False):
+                abort(401)
+            if getattr(current_user, "role", "admin") != role:
+                abort(403)
+            return fn(*args, **kwargs)
+        return wrapped
+    return deco
+
+
 def init_auth(app):
     app.secret_key = app.secret_key or "label-sync-dev-secret-change-in-prod"
     login_manager.init_app(app)
@@ -20,13 +35,16 @@ def init_auth(app):
 
     @app.before_request
     def _require_login():
-        from flask_login import current_user
         if request.endpoint and request.endpoint.startswith("auth."):
             return
         if request.endpoint == "static":
             return
         if request.headers.get("X-Upload-Token"):
             return
+        if current_user.is_authenticated and getattr(current_user, "role", "admin") == "scanner":
+            ep = request.endpoint or ""
+            if not (ep.startswith("pda.") or ep.startswith("auth.") or ep == "static"):
+                return redirect(url_for("pda.scan_page"))
         if not current_user.is_authenticated:
             return redirect(url_for("auth.login", next=request.url))
 
