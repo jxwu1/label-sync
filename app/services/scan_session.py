@@ -105,6 +105,7 @@ def _session_dict(session_id: int) -> dict:
     sess = repo.get_session_row(session_id)
     items = repo.list_items(session_id)
     return {
+        "ok": True,
         "session_id": sess.id,
         "operator_name": sess.operator_name,
         "status": sess.status,
