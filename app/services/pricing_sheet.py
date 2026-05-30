@@ -129,7 +129,34 @@ def build_pricing_items(
             "sale_price": prod.get("sale_price"), "urgency": summ.get("urgency_score"),
         })
 
-    return {"new": new_items, "changed": changed_items, "skipped_no_baseline": skipped}
+    # 完全无历史的"幽灵"产品：在主档但既无历史进价(baseline=None)、又无销售价格(sale_price=None)。
+    # 既进不了调价段(无基准被 skip)、又不在新条码段(已入主档) → 否则会彻底消失。
+    # 把它们当新品拉进表(用主档品名、平均利润率定价)。有 sale_price 的真老品不在此列、仍按 skip 处理。
+    changed_bcs = {c["barcode"] for c in changed_raw}
+    phantom_count = 0
+    seen_phantom: set[str] = set()
+    for r in rows:
+        bc = r["barcode"]
+        if bc in seen_new or bc in changed_bcs or bc in seen_phantom:
+            continue
+        prod = products_by_barcode.get(bc)
+        if prod is None:
+            continue  # 不在主档：应由新条码流程覆盖，不在此兜底
+        if prod.get("last_purchase_unit_price") is None and prod.get("sale_price") is None:
+            seen_phantom.add(bc)
+            phantom_count += 1
+            rr = row_by_bc.get(bc, {"price": 0.0, "quantity": 0})
+            new_items.append({
+                "section": "new", "barcode": bc, "name_zh": prod.get("name_zh") or "",
+                "quantity": rr["quantity"], "old_price": None, "new_price": rr["price"],
+                "sale_price": None, "urgency": None,
+            })
+
+    # 救起的幽灵已列入(新品)，从"未列入"计数里扣除；剩余=真老品缺进价(有 sale_price)仍未列入
+    return {
+        "new": new_items, "changed": changed_items,
+        "skipped_no_baseline": max(0, skipped - phantom_count),
+    }
 
 
 _HEADERS = [

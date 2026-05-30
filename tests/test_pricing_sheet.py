@@ -96,6 +96,32 @@ class TestBuildItems(unittest.TestCase):
         self.assertAlmostEqual(c["sale_price"], 1.98)
         self.assertAlmostEqual(c["urgency"], 78.0)
 
+    def test_phantom_no_history_surfaces_as_new(self):
+        """在主档但完全无历史（无历史进价 且 无销售价格）的'幽灵'产品 → 当新品进表；
+        有 sale_price 的真老品(缺进价)不被误判，仍跳过(计入 skipped_no_baseline)。"""
+        rows = [
+            {"barcode": "GHOST", "price": 3.20, "quantity": 8},     # 幽灵：无进价 无售价
+            {"barcode": "REALOLD", "price": 2.00, "quantity": 4},   # 真老品：无进价 但有售价
+        ]
+        products = {
+            "GHOST": {"name_zh": "测试误入品", "sale_price": None, "last_purchase_unit_price": None},
+            "REALOLD": {"name_zh": "老货", "sale_price": 5.0, "last_purchase_unit_price": None},
+        }
+        out = pricing_sheet.build_pricing_items([], rows, products, {})
+        new_bcs = {it["barcode"] for it in out["new"]}
+        self.assertIn("GHOST", new_bcs)        # 幽灵进新品段
+        self.assertNotIn("REALOLD", new_bcs)   # 真老品(有售价)不进新品段
+        ghost = next(it for it in out["new"] if it["barcode"] == "GHOST")
+        self.assertEqual(ghost["section"], "new")
+        self.assertEqual(ghost["name_zh"], "测试误入品")    # 用主档品名
+        self.assertAlmostEqual(ghost["new_price"], 3.20)    # 用上传新价
+        self.assertEqual(ghost["quantity"], 8)
+        self.assertIsNone(ghost["old_price"])
+        self.assertIsNone(ghost["sale_price"])
+        # REALOLD 仍未列入：计入 skipped，且不在 changed 段；GHOST 不计入 skipped
+        self.assertEqual(out["skipped_no_baseline"], 1)
+        self.assertNotIn("REALOLD", {it["barcode"] for it in out["changed"]})
+
 
 class TestBuildXlsx(unittest.TestCase):
     def _items(self):
