@@ -40,3 +40,20 @@ def test_asset_version_is_8_hex():
     v = _asset_version()
     assert len(v) == 8
     int(v, 16)  # 必须是合法 hex（内容哈希）
+
+
+def test_scan_no_scroll_jump_to_bottom():
+    # 扫一条不能把视图滚到空占位行底部（旧 bug：scrollTop=1e9 → 跳到第 18 行）
+    assert "scrollTop = 1e9" not in PDA_JS
+    assert "scrollIntoView" in PDA_JS
+    assert "_sig" in PDA_JS  # 内容签名守卫，避免重复重绘闪烁
+
+
+def test_pending_reloads_and_handles_errors():
+    js = (ROOT / "static" / "js" / "pda_pending.js").read_text(encoding="utf-8")
+    # 每次页面可见就重新拉，不再调用一次性 onFirstActivate（首次失败永远卡"加载中"）
+    assert "MutationObserver" in js
+    assert "onFirstActivate(" not in js
+    # load() 必须有错误处理，失败给重试而非静默卡住
+    assert "catch" in js
+    assert "reloadPending" in js
