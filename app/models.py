@@ -523,6 +523,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     display_name: Mapped[str | None] = mapped_column(Text)
     theme: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'dark'"))
+    role: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'admin'"))
     created_at: Mapped[str | None] = mapped_column(
         Text, server_default=func.current_timestamp()
     )
@@ -565,6 +566,7 @@ class Employee(Base):
     active: Mapped[int] = mapped_column(Integer, default=1)
     notes: Mapped[str | None] = mapped_column(Text)
     wecom_account: Mapped[str | None] = mapped_column(Text)
+    is_scanner: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
 
     attendance_records = relationship("AttendanceRecord", back_populates="employee", cascade="all, delete-orphan")
     leave_records = relationship("LeaveRecord", back_populates="employee", cascade="all, delete-orphan")
@@ -632,6 +634,43 @@ class SpecialDay(Base):
     special_date: Mapped[str] = mapped_column(Text, primary_key=True)
     label: Mapped[str | None] = mapped_column(Text)
     end_time: Mapped[str | None] = mapped_column(Text)
+
+
+class ScanSession(Base):
+    __tablename__ = "scan_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    operator_employee_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("employees.employee_id"), nullable=False
+    )
+    operator_name: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'active'"))
+    batch_label: Mapped[str | None] = mapped_column(Text)
+    item_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    created_at: Mapped[str | None] = mapped_column(Text, server_default=func.current_timestamp())
+    finalized_at: Mapped[str | None] = mapped_column(Text)
+
+    items = relationship(
+        "ScanItem", back_populates="session", cascade="all, delete-orphan",
+        order_by="ScanItem.seq",
+    )
+
+
+class ScanItem(Base):
+    __tablename__ = "scan_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("scan_sessions.id"), nullable=False
+    )
+    seq: Mapped[int] = mapped_column(Integer, nullable=False)
+    raw: Mapped[str] = mapped_column(Text, nullable=False)
+    kind: Mapped[str] = mapped_column(Text, nullable=False)
+    scanned_at: Mapped[str | None] = mapped_column(Text, server_default=func.current_timestamp())
+
+    session = relationship("ScanSession", back_populates="items")
+
+    __table_args__ = (Index("idx_scan_items_session", "session_id", "seq"),)
 
 
 _SessionFactory = sessionmaker(bind=_engine, future=True, expire_on_commit=False)

@@ -60,6 +60,7 @@ def _seed_admin():
             password_hash=hash_password("admin"),
             display_name="管理员",
             theme="dark",
+            role="admin",
         )
         s.add(admin)
         defaults = {
