@@ -6,6 +6,7 @@
 
 from app.config import CONFIG
 from app.routes.admin import bp as admin_bp
+from app.routes.pda import bp as pda_bp
 from app.routes.analytics import bp as analytics_bp
 from app.routes.attendance import bp as attendance_bp
 from app.routes.dashboard import bp as dashboard_bp
@@ -40,6 +41,7 @@ def register_routes(app) -> None:
     app.register_blueprint(analytics_bp)
     app.register_blueprint(restock_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(pda_bp)
     if CONFIG.enable_transfer:
         from app.routes.collab import bp as collab_bp
         from app.routes.transfer import bp as transfer_bp

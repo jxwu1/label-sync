@@ -1,6 +1,7 @@
 import os
 
 from flask import Blueprint, jsonify, render_template, request, send_file
+from flask_login import current_user
 from pydantic import BaseModel
 
 from app.config import CONFIG
@@ -35,7 +36,8 @@ class _BarcodeDelete(BaseModel):
 
 @bp.get("/")
 def index():
-    return render_template("index.html", enable_transfer=CONFIG.enable_transfer)
+    return render_template("index.html", enable_transfer=CONFIG.enable_transfer,
+                           is_admin=(getattr(current_user, "role", None) == "admin"))
 
 
 @bp.post("/upload")

@@ -15,11 +15,10 @@ def create_app() -> Flask:
     # 本地 debug 时模板改动即时生效，不必重启（生产 debug=False，模板缓存照旧）。
     app.config["TEMPLATES_AUTO_RELOAD"] = CONFIG.debug
 
-    dirs = [INPUT_DIR, OUTPUT_DIR, CONFIG.trash_dir]
-    if CONFIG.enable_transfer:
-        dirs.append(TRANSFER_DIR)
-    for folder in dirs:
-        folder.mkdir(exist_ok=True)
+    # 运行时目录：startup_cleanup 会无条件遍历 INPUT/TRANSFER，故一并建全；
+    # parents=True 让全新数据目录（LABEL_SYNC_DATA_DIR 指向不存在路径时）也能起。
+    for folder in (INPUT_DIR, OUTPUT_DIR, CONFIG.trash_dir, TRANSFER_DIR):
+        folder.mkdir(parents=True, exist_ok=True)
 
     storage_service.startup_cleanup()
     stockpile_db.ensure_db()

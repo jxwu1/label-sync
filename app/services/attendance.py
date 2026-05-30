@@ -70,6 +70,7 @@ def list_employees() -> list[dict]:
                 "id": emp.employee_id,
                 "name": emp.name,
                 "created_at": emp.created_at,
+                "is_scanner": bool(emp.is_scanner),
             }
             if emp.start_date:
                 d["start_date"] = emp.start_date
@@ -135,6 +136,14 @@ def create_employee(name: str, *, start_date: str | None = None) -> dict:
 def delete_employee(employee_id: str) -> None:
     with get_session() as s:
         s.execute(delete(Employee).where(Employee.employee_id == employee_id))
+
+
+def set_scanner(employee_id: str, value: bool) -> None:
+    with get_session() as s:
+        emp = s.get(Employee, employee_id)
+        if emp is None:
+            raise ValueError("员工不存在")
+        emp.is_scanner = 1 if value else 0
 
 
 # ── Holidays ──────────────────────────────────────────────────────────

@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+<script>window.__IS_ADMIN = {{ 'true' if is_admin else 'false' }};</script>
 <script defer src="{{ url_for('static', filename='js/store.js') }}"></script>
 <script defer src="{{ url_for('static', filename='vendor/alpinejs/alpine.min.js') }}"></script>
 <script>
@@ -98,8 +99,8 @@
       </div>
     </div>
     <nav class="sidebar-nav">
-      <div class="sidebar-section">MODULES · <span x-text="$store.nav.pages.length"></span></div>
-      <template x-for="p in $store.nav.pages" :key="p.id">
+      <div class="sidebar-section">MODULES · <span x-text="$store.nav.visiblePages.length"></span></div>
+      <template x-for="p in $store.nav.visiblePages" :key="p.id">
         <button class="nav-item"
                 :class="$store.nav.current === p.id && 'active'"
                 :data-tooltip="p.label"
@@ -1249,6 +1250,15 @@
           </section>
         </div>
       </div>
+  <!-- ═══ PDA 待处理 ═══ -->
+      <div class="page" id="pagePdaPending" x-data :class="$store.nav.current === 'pda_pending' ? 'active' : ''"
+           style="padding:var(--sp-4) var(--sp-6);">
+        <div class="panel">
+          <div class="panel-hd">PDA 待处理批次</div>
+          <div class="panel-bd"><div id="pdaPendingList">加载中…</div></div>
+        </div>
+      </div>
+
   <!-- ═══ 系统管理 ═══ -->
       <div class="page" id="pageAdmin" x-data :class="$store.nav.current === 'admin' ? 'active' : ''" style="grid-template-rows:auto auto 1fr;align-content:start;padding:var(--sp-4) var(--sp-6);">
 
@@ -1308,5 +1318,6 @@
 <script type="module" src="{{ url_for('static', filename='js/restock.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/sales-analytics.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/admin.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/pda_pending.js') }}"></script>
 </body>
 </html>

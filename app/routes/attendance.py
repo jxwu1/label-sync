@@ -106,6 +106,16 @@ def delete_employee(employee_id: str):
     return jsonify({"ok": True})
 
 
+@bp.post("/employees/<employee_id>/scanner")
+def set_employee_scanner(employee_id: str):
+    data = request.get_json(silent=True) or {}
+    try:
+        attendance_service.set_scanner(employee_id, bool(data.get("is_scanner")))
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 404
+    return jsonify({"ok": True})
+
+
 @bp.get("/holidays")
 def list_holidays():
     return jsonify({"ok": True, "holidays": attendance_service.list_holidays()})

@@ -14,6 +14,8 @@ from app.repositories.transfer import iter_transfer_items, transfer_file_path
 def startup_cleanup() -> None:
     """Clear transient inputs and transfer files while keeping output history."""
     for folder in (INPUT_DIR, TRANSFER_DIR):
+        if not folder.exists():
+            continue
         for path in folder.iterdir():
             if path.is_file():
                 try:

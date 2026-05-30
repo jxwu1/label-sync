@@ -170,8 +170,12 @@ document.addEventListener("alpine:init", () => {
       // 页面 DOM (pageSalesAnalytics) 留着备份, 等下周确认无人用再彻底删.
       // { id: "sales_analytics",   label: "销售分析",   icon: "sales",      code: "09", shortcut: "9" },
       { id: "restock",           label: "补货决策",   icon: "sales",      code: "11", shortcut: "" },
+      { id: "pda_pending",       label: "PDA 待处理", icon: "tags",       code: "12", shortcut: "" },
       { id: "admin",             label: "系统管理",   icon: "quality",    code: "SYS", shortcut: "0" },
     ],
+    get visiblePages() {
+      return this.pages.filter(p => window.__IS_ADMIN || !['pda_pending', 'admin'].includes(p.id));
+    },
     switch(id) {
       this.current = id;
       this._fireFirstActivate(id);
