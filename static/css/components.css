@@ -660,6 +660,30 @@
 #pageRestock.active     { display: block; overflow: auto; height: calc(100vh - 122px); padding: 16px 24px; }
 #pageTransfer.active    { display: flex; flex-direction: column; gap: 14px; overflow: auto; height: calc(100vh - 122px); padding: 0 2px 24px 2px; }
 
+/* 采购页固定视口布局：整页不滚，所有面板 + 月度总结始终一屏可见。
+ * 长内容面板（解析结果 02 / 新条码 03）设上限并「表头吸顶 + 表体内部滚动」，
+ * 而非撑开整页把下方月度总结挤出视口。02 比 03 略高。
+ * 背景：.pnl 自带 overflow:hidden，作为 flex item 时 min-height:auto 会塌成 0；
+ * 若不约束，长表会被压扁裁切且整页不溢出导致行够不到（见本次修复）。 */
+#pagePurchase.active { overflow: hidden; }
+/* 固定高度元素：紧凑投递 strip / 空态投递区 / 月度总结，绝不压缩 */
+#pagePurchase.active > .drop-strip,
+#pagePurchase.active > .ms,
+#pagePurchase.active > #purDropFull { flex-shrink: 0; }
+/* 两个长内容面板：按比例瓜分剩余空间（新条码 03 比解析结果 02 略高，
+ * 因 03 要填品名是主要操作区），各自内部滚动。
+ * 用 flex 份额而非独立 max-height，保证一方再满也不会把另一方挤到只剩几行。 */
+#purResultsPanel { flex: 1 1 0;   min-height: 0; }
+#purNewBox       { flex: 1.6 1 0; min-height: 0; }
+/* 面板内部：表头/底栏固定，仅表体滚动区填充剩余空间 */
+#purResultsPanel > .pnl-hd, #purResultsPanel > .pnl-ft,
+#purNewBox > .pnl-hd, #purNewBox > .new-hd { flex-shrink: 0; }
+#purResultsPanel > #purResultsWrap,
+#purNewBox > .new-scroll { flex: 1; min-height: 0; overflow: auto; }
+/* 滚动时表头吸顶，保留列含义 */
+#purResultsWrap thead th,
+.new-scroll thead th { position: sticky; top: 0; background: var(--bg-1); z-index: 1; }
+
 /* ============================================================
  * Pill / Dot — atomic primitives
  * ============================================================ */

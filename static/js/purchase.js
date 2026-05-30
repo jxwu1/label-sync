@@ -56,7 +56,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
           <span class="pnl-spacer"></span>
           <span class="pill pill--off pill--xs" id="purStatePill">未解析</span>
         </div>
-        <div id="purResultsWrap" style="overflow:auto;max-height:340px;">
+        <div id="purResultsWrap">
           <div id="purResults"><div class="pnl-empty">上传供应商 Excel 后自动解析</div></div>
         </div>
         <div class="pnl-ft">
@@ -85,15 +85,17 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
           <input class="new-inp" id="purSupName" placeholder="供应商名称（必填）" style="max-width:220px;">
           <span class="new-sup-val" id="purSupAuto" style="display:none;">✓ 自动识别</span>
         </div>
-        <table class="new-tbl">
-          <thead><tr>
-            <th style="width:140px;">条码</th>
-            <th>品名（第 4 列）</th>
-            <th>发票品名（第 5 列）</th>
-            <th style="width:120px;"></th>
-          </tr></thead>
-          <tbody id="purNewList"></tbody>
-        </table>
+        <div class="new-scroll">
+          <table class="new-tbl">
+            <thead><tr>
+              <th style="width:140px;">条码</th>
+              <th>品名（第 4 列）</th>
+              <th>发票品名（第 5 列）</th>
+              <th style="width:120px;"></th>
+            </tr></thead>
+            <tbody id="purNewList"></tbody>
+          </table>
+        </div>
       </section>
 
       <!-- 04 HISTORY · 月度总结 -->
