@@ -20,6 +20,7 @@ async function init() {
   document.getElementById('scanInput').addEventListener('keydown', onScanKey);
   document.getElementById('undoBtn').onclick = undo;
   document.getElementById('saveBtn').onclick = save;
+  document.getElementById('exitBtn').onclick = exitPda;
   setInterval(flush, 4000);
 }
 async function startSession() {
@@ -70,6 +71,11 @@ async function save() {
   alert(`已提交，共 ${r.item_count} 件`);
   sessionId = null; document.getElementById('rows').innerHTML = '';
   document.getElementById('opSelect').value = ''; updateSave(0);
+}
+function exitPda() {
+  if (outbox.length && !confirm(`还有 ${outbox.length} 条扫描未同步，退出会丢失，确定退出？`)) return;
+  if (!confirm('退出扫描端并登出？需要管理员重新登录。')) return;
+  location.href = '/logout';
 }
 function appendRowUI(raw) {
   const tb = document.getElementById('rows');
