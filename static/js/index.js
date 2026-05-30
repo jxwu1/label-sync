@@ -202,6 +202,16 @@ function startPoll() {
   poll = setInterval(async () => { try { handleStatus(await (await fetch("/status")).json()); } catch (e) { console.error("Status poll failed:", e); } }, 1000);
 }
 
+// 接管「外部已启动」的任务：PDA 待处理点"处理"后，server 已 POST 启动 run_phase_one，
+// 主页只需开始显示进度 + 轮询。导出到 window 供 pda_pending.js（独立 module）调用。
+function pickupExternalTask() {
+  Alpine.store('app').setBadge("running", "处理中");
+  Alpine.store('app').setStatus('<span class="spin"></span>处理中，请稍候...');
+  plStart();
+  startPoll();
+}
+window.pickupExternalTask = pickupExternalTask;
+
 // PR-FE-8a：Pipeline 假壳动画（B 选项 — 后端只发开始/完成，前端时间驱动 5 阶段）
 const PL_STAGES = ["parse", "norm", "match", "audit", "commit"];
 let _plTimer = null;

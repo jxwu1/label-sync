@@ -66,19 +66,29 @@ function enqueue(raw) {
   flush();
 }
 
+let flushing = false;
 async function flush() {
-  if (!sessionId) return;
-  while (outbox.length) {
-    const raw = outbox[0];
-    try {
+  // 防重入：扫描调用 + 4s 定时器若并发，会把 outbox[0] 重复 POST，服务端 item_count
+  // 并发自增 → 序号重复（1,2,3,4,5,5,7）。同一时刻只允许一个 flush 循环。
+  if (!sessionId || flushing) return;
+  flushing = true;
+  try {
+    while (outbox.length) {
+      const raw = outbox[0];
       const r = await (await fetch(`/pda/session/${sessionId}/scan`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ raw }) })).json();
       outbox.shift(); localStorage.setItem(KEY, JSON.stringify(outbox));
-      setNet(true); rows = r.rows || []; paint(); updateSave(r.item_count);
-    } catch (_) { setNet(false); break; }
+      setNet(true);
+      if (r.rows) { rows = r.rows; paint(); }   // 仅在返回 rows 时对账，避免错误响应清空表格
+      if (typeof r.item_count === 'number') updateSave(r.item_count);
+    }
+  } catch (_) {
+    setNet(false);
+  } finally {
+    flushing = false;
+    updatePend();
   }
-  updatePend();
 }
 
 async function undo() {

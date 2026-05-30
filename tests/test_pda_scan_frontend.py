@@ -57,3 +57,16 @@ def test_pending_reloads_and_handles_errors():
     # load() 必须有错误处理，失败给重试而非静默卡住
     assert "catch" in js
     assert "reloadPending" in js
+
+
+def test_flush_is_reentrancy_guarded():
+    # 扫描 + 4s 定时器并发 flush 会重复 POST → 服务端 seq 重复（1234557）；必须有防重入锁
+    assert "flushing" in PDA_JS
+
+
+def test_process_picks_up_task_on_main():
+    # 点"处理"启动任务后，主页要接管轮询，否则跳过去"不进行处理"
+    pending = (ROOT / "static" / "js" / "pda_pending.js").read_text(encoding="utf-8")
+    index = (ROOT / "static" / "js" / "index.js").read_text(encoding="utf-8")
+    assert "pickupExternalTask" in pending
+    assert "window.pickupExternalTask" in index
