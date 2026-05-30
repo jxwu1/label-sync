@@ -16,6 +16,21 @@ login_manager.login_view = "auth.login"
 bp = Blueprint("auth", __name__)
 
 
+def cache_control_header(path: str, content_type: str | None) -> str | None:
+    """决定响应的 Cache-Control。
+
+    - HTML：完全不缓存（页面必须每次拿最新）。
+    - 静态 JS/CSS：允许缓存但每次向服务器校验（no-cache → ETag/304）。部署新版后
+      浏览器自动取到新文件，无需手动强刷；未变则回 304 几乎零开销。ES 模块内部
+      import 的子文件同样走这条，挂标签版号覆盖不到的它也覆盖。
+    """
+    if content_type and "text/html" in content_type:
+        return "no-store, no-cache, must-revalidate, max-age=0"
+    if path.startswith("/static/"):
+        return "no-cache"
+    return None
+
+
 def require_role(role: str):
     def deco(fn):
         @wraps(fn)
@@ -52,9 +67,10 @@ def init_auth(app):
             return redirect(url_for("auth.login", next=request.url))
 
     @app.after_request
-    def _no_cache_html(response):
-        if response.content_type and "text/html" in response.content_type:
-            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    def _apply_cache_control(response):
+        cc = cache_control_header(request.path or "", response.content_type)
+        if cc:
+            response.headers["Cache-Control"] = cc
         return response
 
 
