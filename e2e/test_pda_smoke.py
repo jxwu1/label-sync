@@ -54,16 +54,16 @@ def test_pda_scan_to_pending_smoke(live_server, page_with_console) -> None:
     page.select_option("#opSelect", emp_id)
     page.wait_for_timeout(_ALPINE_SETTLE_MS)
 
-    # 扫库位码 + 条码：扫描枪以"字符 + Enter"喂入隐藏的 #scanInput
-    scan = page.locator("#scanInput")
-    scan.fill("C08-12-03")
-    scan.press("Enter")
-    scan.fill("5828079343379")
-    scan.press("Enter")
+    # 扫库位码 + 条码：扫描枪 = 键盘 wedge（逐字符 + Enter），页面 document 级捕获，
+    # 不依赖任何输入框焦点。用 keyboard 模拟扫描枪。
+    page.keyboard.type("C08-12-03")
+    page.keyboard.press("Enter")
+    page.keyboard.type("5828079343379")
+    page.keyboard.press("Enter")
     page.wait_for_timeout(_ALPINE_SETTLE_MS)
 
-    # 表格累积出 2 行（库位 + 条码）
-    assert page.locator("#rows tr").count() >= 2
+    # 表格累积出 2 条真实行（库位 + 条码）；空占位行 tr.empty 不计
+    assert page.locator("#rows tr.loc, #rows tr.bc").count() == 2
 
     # 保存（finalize 后前端 alert，提前挂 dialog 处理器自动确认）
     page.on("dialog", lambda d: d.accept())
