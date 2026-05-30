@@ -80,8 +80,10 @@ async function flush() {
         body: JSON.stringify({ raw }) })).json();
       outbox.shift(); localStorage.setItem(KEY, JSON.stringify(outbox));
       setNet(true);
-      if (r.rows) { rows = r.rows; paint(); }   // 仅在返回 rows 时对账，避免错误响应清空表格
       if (typeof r.item_count === 'number') updateSave(r.item_count);
+      // 只在排空（服务端已追平所有乐观行）时用服务端 rows 对账一次。
+      // 中途对账会把尚未同步的乐观行抹掉再冒出来（快速扫描"突然消失又跳出来"）。
+      if (outbox.length === 0 && r.rows) { rows = r.rows; paint(); }
     }
   } catch (_) {
     setNet(false);
