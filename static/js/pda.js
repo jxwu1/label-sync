@@ -103,12 +103,19 @@ function exitPda() {
   location.href = '/logout';
 }
 
+let _sig = '';
 function paint() {
+  const sig = rows.length + '#' + rows.map(r => r.seq + ':' + r.raw).join('|');
+  if (sig === _sig) return;            // 内容没变不重绘：消除每次扫描整表重画两遍的闪烁
+  _sig = sig;
   const tb = document.getElementById('rows');
   let html = rows.map(r => rowHtml(r.seq, r.raw, r.kind)).join('');
   for (let i = rows.length; i < MIN_ROWS; i++) html += emptyRowHtml(i + 1);
   tb.innerHTML = html;
-  document.getElementById('grid').scrollTop = 1e9;
+  // 只把最后一条真实行带进视野（block:nearest）——不要滚到空占位行底部，
+  // 否则扫第 1 行视图就跳到第 18 行附近（用户反馈的"滑到下面去"）。
+  const real = tb.querySelectorAll('tr.loc, tr.bc');
+  if (real.length) real[real.length - 1].scrollIntoView({ block: 'nearest' });
 }
 
 function updateSave(n) { document.getElementById('saveBtn').disabled = !(sessionId && n > 0); }
