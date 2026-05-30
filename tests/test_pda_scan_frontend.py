@@ -11,12 +11,15 @@ PDA_JS = (ROOT / "static" / "js" / "pda.js").read_text(encoding="utf-8")
 PDA_HTML = (ROOT / "templates" / "pda.html").read_text(encoding="utf-8")
 
 
-def test_scan_capture_is_document_level():
-    # 扫码必须整页捕获，不依赖隐藏输入框焦点
-    assert "document.addEventListener('keydown'" in PDA_JS
-    assert "scanBuf" in PDA_JS
-    # 旧的屏幕外隐藏输入框已移除（正是它导致扫不进）
-    assert 'id="scanInput"' not in PDA_HTML
+def test_scan_input_is_visible_and_focusable():
+    # 扫描枪把字符注入「聚焦的可编辑输入框」→ 必须有一个可见、可聚焦、带光标的输入框接住
+    assert 'id="scanInput"' in PDA_HTML
+    # 输入框不能被推到屏幕外（旧 bug：left:-9999px 隐藏 → 手机不给聚焦 → 扫不进）
+    css = (ROOT / "static" / "css" / "pda.css").read_text(encoding="utf-8")
+    assert "-9999px" not in css
+    # 点表格 → 聚焦扫描框（像点 Excel 格子唤出光标）
+    assert "focusScan" in PDA_JS
+    assert "addEventListener('click', focusScan)" in PDA_JS
 
 
 def test_assets_cache_busted():

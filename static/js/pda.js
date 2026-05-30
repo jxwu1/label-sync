@@ -3,8 +3,6 @@ const MIN_ROWS = 18;            // 预渲染空表格行数：一打开就像 Ex
 let sessionId = null;
 let rows = [];                  // 当前会话已显示的行（乐观 UI，flush 后用服务端对账）
 let outbox = JSON.parse(localStorage.getItem(KEY) || '[]');
-let scanBuf = '';               // 扫描枪逐字符累积缓冲
-let scanTimer = null;
 
 function esc(s) {
   return String(s).replace(/[&<>"']/g, c =>
@@ -25,14 +23,21 @@ async function init() {
   sel.innerHTML = '<option value="">选择操作员…</option>' +
     ops.map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('');
   sel.onchange = startSession;
-  // 整页捕获扫描枪输入（capture 阶段）。扫描枪 = 键盘 wedge，逐字符按键 + 末尾 Enter。
-  // 不再依赖隐藏输入框焦点——手机浏览器常拒绝给不可见输入自动聚焦，导致扫了没地方落。
-  document.addEventListener('keydown', onScanKey, true);
+  // 扫描枪 = 键盘 wedge：把字符注入「当前聚焦的可编辑输入框」+ 末尾 Enter。
+  // 所以必须有一个可见、可聚焦、带光标的输入框接住扫码（手机不给隐藏框聚焦/注入）。
+  document.getElementById('scanInput').addEventListener('keydown', onScanKey);
+  // 点表格任意处 → 聚焦扫描框（像点 Excel 格子那样唤出光标），保证扫描枪有处可落。
+  document.getElementById('grid').addEventListener('click', focusScan);
   document.getElementById('undoBtn').onclick = undo;
   document.getElementById('saveBtn').onclick = save;
   document.getElementById('exitBtn').onclick = exitPda;
-  paint();                       // 先画出空表格（即便还没选操作员）
+  paint();
   setInterval(flush, 4000);
+}
+
+function focusScan() {
+  const el = document.getElementById('scanInput');
+  if (el && sessionId) el.focus();
 }
 
 async function startSession() {
@@ -43,24 +48,15 @@ async function startSession() {
     body: JSON.stringify({ operator_employee_id: id }) })).json();
   if (r.ok === false) { alert(r.msg); return; }
   sessionId = r.session_id; rows = r.rows || []; paint(); updateSave(rows.length);
+  focusScan();
 }
 
-// 扫描枪逐字符喂入：会话开始后才拦截，避免影响选操作员前的下拉等交互。
 function onScanKey(e) {
-  if (e.ctrlKey || e.altKey || e.metaKey) return;
-  if (!sessionId) return;
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    const raw = scanBuf.trim(); scanBuf = '';
-    if (raw) enqueue(raw);
-    return;
-  }
-  if (e.key && e.key.length === 1) {
-    e.preventDefault();          // 防止字符泄漏进操作员下拉等
-    scanBuf += e.key;
-    clearTimeout(scanTimer);
-    scanTimer = setTimeout(() => { scanBuf = ''; }, 300);  // 零散手动按键超时丢弃
-  }
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const raw = e.target.value.trim(); e.target.value = '';
+  if (raw && sessionId) enqueue(raw);
+  focusScan();                   // 扫完保持聚焦，连续扫不用每次再点
 }
 
 function enqueue(raw) {
@@ -88,7 +84,7 @@ async function flush() {
 async function undo() {
   if (!sessionId) return;
   const r = await (await fetch(`/pda/session/${sessionId}/undo`, { method: 'POST' })).json();
-  rows = r.rows || []; paint(); updateSave(r.item_count);
+  rows = r.rows || []; paint(); updateSave(r.item_count); focusScan();
 }
 
 async function save() {
