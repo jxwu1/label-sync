@@ -102,6 +102,38 @@ class TestEmployeeCrud(_DBTestCase):
         e2 = svc.create_employee("B")
         self.assertEqual(e2["id"], "e002")
 
+    def test_delete_employee_with_attendance_keeps_records(self):
+        """有考勤记录的员工删除：软删除——不抛外键错，历史记录保留，列表不再显示。"""
+        from app.models import AttendanceRecord
+
+        emp = svc.create_employee("有记录的人")
+        session = self.Session()
+        try:
+            session.add(AttendanceRecord(
+                employee_id=emp["id"],
+                work_date="2026-05-01",
+                start_time="09:30",
+                end_time="20:00",
+            ))
+            session.commit()
+        finally:
+            session.close()
+
+        # 删除不应抛外键错（生产环境 PG 上 FK 强制，硬删会 ForeignKeyViolation → 500）
+        svc.delete_employee(emp["id"])
+
+        # 列表不再显示
+        self.assertEqual(svc.list_employees(), [])
+
+        # 历史考勤记录保留（UI 文案承诺"历史考勤数据保留"）
+        session = self.Session()
+        try:
+            kept = session.query(AttendanceRecord).filter_by(
+                employee_id=emp["id"]).count()
+        finally:
+            session.close()
+        self.assertEqual(kept, 1)
+
 
 class TestDayFraction(unittest.TestCase):
     def test_full_day(self):

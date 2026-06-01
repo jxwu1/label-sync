@@ -62,7 +62,9 @@ def day_fraction(start: str, end: str, standard_hours: float = STANDARD_HOURS) -
 def list_employees() -> list[dict]:
     with get_session() as s:
         emps = s.execute(
-            select(Employee).order_by(Employee.employee_id)
+            select(Employee)
+            .where(Employee.active == 1)
+            .order_by(Employee.employee_id)
         ).scalars().all()
         result = []
         for emp in emps:
@@ -134,8 +136,16 @@ def create_employee(name: str, *, start_date: str | None = None) -> dict:
 
 
 def delete_employee(employee_id: str) -> None:
+    """软删除：置 active=0，保留历史考勤数据（外键引用），列表不再显示。
+
+    不能硬删除：employees 被 attendance_records/leave_records/inactive_periods/
+    scan_sessions 外键引用，PG 强制外键时硬删会 ForeignKeyViolation。且 UI 文案
+    承诺"历史考勤数据保留但不再显示"。
+    """
     with get_session() as s:
-        s.execute(delete(Employee).where(Employee.employee_id == employee_id))
+        emp = s.get(Employee, employee_id)
+        if emp is not None:
+            emp.active = 0
 
 
 def set_scanner(employee_id: str, value: bool) -> None:
