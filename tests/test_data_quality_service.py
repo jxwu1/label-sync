@@ -269,6 +269,19 @@ class DataQualityTests(unittest.TestCase):
         self.assertEqual(report["empty_locations"]["count"], 0)
         self.assertEqual(report["empty_locations"]["samples"], [])
 
+    def test_scanned_count_includes_active_and_inactive(self) -> None:
+        """扫描范围 = 主档全部行数（active + inactive），供状态栏「扫描范围 N 条」。"""
+        self._import(
+            [{"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A1"}]
+        )
+        stockpile_db.apply_export_updates(pd.DataFrame([]))  # B1 → inactive
+        self._import(
+            [{"product_barcode": "B2", "product_model": "M2", "stockpile_location": "A2"}]
+        )
+        report = data_quality_service.build_report()
+        # B1(inactive) + B2(active) 都算入扫描范围
+        self.assertEqual(report["scanned_count"], 2)
+
 
     def _add_snapshot(self, snapshot_date: str, product_model: str, qty_total: int) -> None:
         from sqlalchemy import insert

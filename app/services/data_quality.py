@@ -352,10 +352,16 @@ def _negative_stock(session) -> dict:
     return {"count": total, "samples": samples, "snapshot_date": latest_date}
 
 
+def _scanned_count(session) -> int:
+    """扫描范围：主档全部行数（active + inactive）。供状态栏「扫描范围 N 条」。"""
+    return session.execute(select(func.count()).select_from(Stockpile)).scalar() or 0
+
+
 def build_report() -> dict:
-    """顶层入口：返回 7 类异常的汇总。供 routes_data_quality jsonify。"""
+    """顶层入口：返回 7 类异常的汇总 + 扫描范围。供 routes_data_quality jsonify。"""
     with stockpile_db._session() as session:
         return {
+            "scanned_count": _scanned_count(session),
             "multi_same_kind": _multi_same_kind(session),
             "flippers": _flippers(session),
             "whitespace_anomalies": _whitespace_anomalies(session),
