@@ -31,13 +31,14 @@ const HOT_URGENCY = 70;      // urgency_score >= 此值算紧急
 const state = {
   items: [],
   filter: {
-    origin: "FOREIGN",
-    view: "active",
-    coverMax: 4,
-    supplier: null,        // 供应商筛选 (点击表里 supplier_id 触发)
-    show_ordered: false,   // 显示已下单
-    kpi: null,             // null | 'hot' | 'overstock' (KPI 条 toggle)
-    search: "",            // 2026-05-23: 模糊搜 supplier_id / model / barcode / name
+    origin: "FOREIGN",     // 来源分段控件 ""=全部 / FOREIGN / CN / unknown
+    views: { active: true, new: false, disc: false }, // 视图多选 (活跃/新品/含停用)
+    band: "all",           // 状态 band 过滤: all | urgent(≥70) | watch(40-69) | ok(<40) | flagged
+    coverMax: 4,           // 可撑阈值筛选 (cf 弹层); null = 不限
+    coverThreshold: 4,     // 可撑微条安全周转阈值 (着色用, 列头齿轮/行内 knob 调)
+    supplier: null,        // 供应商筛选 (点击芯片/表里 supplier_id 触发)
+    show_ordered: false,   // 已下单项默认隐藏 (无 UI toggle, 货到自动清)
+    search: "",            // 模糊搜 supplier_id / model / barcode / name
   },
   sort: { key: "urgency_score", dir: "desc" },
   selected: new Set(),     // 当前勾选的 barcode
@@ -117,15 +118,9 @@ function originBadge(origin) {
   return '<span class="rs-origin rs-origin--unk">?</span>';
 }
 
-function urgencyCell(it) {
-  if (it.urgency_score === null || it.urgency_score === undefined) {
-    return '<span class="rs-urgency rs-urgency--none">—</span>';
-  }
+// 紧迫分提示文案 (tooltip + drawer 复用)
+function urgencyTip(it) {
   const score = it.urgency_score;
-  const cls =
-    score >= 70 ? "rs-urgency--hot" :
-    score >= 40 ? "rs-urgency--warm" :
-    "rs-urgency--cold";
   const bd = it.urgency_breakdown;
   let tip = `紧迫分 ${score}`;
   if (bd) {
@@ -147,23 +142,41 @@ function urgencyCell(it) {
       tip += `\n  零售(展示): 26 周 ${it.retail_qty_26w} 件 / €${it.retail_revenue_26w}（未进算法）`;
     }
   }
-  // 4 维 mini bar (2026-05-23): 让销/库/距/利贡献一眼可见
-  // 各段宽度 = 分项分数 / 各自满分; 颜色按段语义不同
-  let segs = '';
-  if (bd) {
-    const segments = [
-      { val: bd.velocity ?? 0, max: 30, cls: 'rs-urgency-seg--v', label: `销 ${bd.velocity ?? 0}/30` },
-      { val: bd.cover ?? 0,    max: 30, cls: 'rs-urgency-seg--c', label: `库 ${bd.cover ?? 0}/30` },
-      { val: bd.recency ?? 0,  max: 10, cls: 'rs-urgency-seg--r', label: `距 ${bd.recency ?? 0}/10` },
-      { val: bd.margin ?? 0,   max: 30, cls: 'rs-urgency-seg--m', label: `利 ${bd.margin ?? 0}/30` },
-    ];
-    segs = '<span class="rs-urgency-bar">' + segments.map(s => {
-      const fillPct = Math.max(0, Math.min(100, (s.val / s.max) * 100));
-      const widthPct = (s.max / 100) * 100; // 段宽按总分占比 (销 30% 库 30% 距 10% 利 30%)
-      return `<span class="rs-urgency-seg" style="width:${widthPct}%" title="${escapeHtml(s.label)}"><span class="rs-urgency-seg-fill ${s.cls}" style="width:${fillPct}%"></span></span>`;
-    }).join('') + '</span>';
+  return tip;
+}
+
+// 表格紧迫分单元格: 进度条 + 数字 (设计稿 .urg)。4 维拆解移进 drawer。
+function urgencyCell(it) {
+  if (it.urgency_score === null || it.urgency_score === undefined) {
+    return '<span class="rs-urg-num rs-urg-num--none">—</span>';
   }
-  return `<span class="rs-urgency ${cls}" title="${escapeHtml(tip)}">${score}${segs}</span>`;
+  const score = it.urgency_score;
+  const lvl = score >= 70 ? "high" : score >= 40 ? "mid" : "low";
+  const w = Math.max(0, Math.min(100, score));
+  return `<span class="rs-urg" title="${escapeHtml(urgencyTip(it))}">` +
+    `<span class="rs-urg-bar"><span class="rs-urg-fill rs-urg-fill--${lvl}" style="width:${w}%"></span></span>` +
+    `<span class="rs-urg-num rs-urg-num--${lvl}">${score}</span></span>`;
+}
+
+// drawer 紧迫分四段拆解 (销/库/距/利)
+function scoreBreakdown(it) {
+  const bd = it.urgency_breakdown;
+  if (!bd) return "";
+  const segs = [
+    { val: bd.velocity ?? 0, max: 30, cls: "rs-score-seg--v", label: `销额 ${bd.velocity ?? 0}/30`, dot: "var(--accent)" },
+    { val: bd.cover ?? 0,    max: 30, cls: "rs-score-seg--c", label: `库存 ${bd.cover ?? 0}/30`,    dot: "var(--info)" },
+    { val: bd.recency ?? 0,  max: 10, cls: "rs-score-seg--r", label: `距进货 ${bd.recency ?? 0}/10`, dot: "var(--warn)" },
+    { val: bd.margin ?? 0,   max: 30, cls: "rs-score-seg--m", label: `毛利 ${bd.margin ?? 0}/30`,    dot: "var(--success)" },
+  ];
+  const bars = segs.map((s) => {
+    const fillPct = Math.max(0, Math.min(100, (s.val / s.max) * 100));
+    const widthPct = s.max; // 段宽按总分占比 (销30 库30 距10 利30)
+    return `<div class="rs-score-seg ${s.cls}" style="width:${widthPct}%;opacity:${(0.35 + fillPct / 100 * 0.65).toFixed(2)}" title="${escapeHtml(s.label)}"></div>`;
+  }).join("");
+  const legend = segs.map((s) =>
+    `<span class="rs-score-legend-item"><span class="rs-score-legend-dot" style="background:${s.dot}"></span>${escapeHtml(s.label)}</span>`
+  ).join("");
+  return `<div class="rs-score-bar">${bars}</div><div class="rs-score-legend">${legend}</div>`;
 }
 
 function weeksOfCoverCell(woc) {
@@ -175,6 +188,46 @@ function weeksOfCoverCell(woc) {
     "";
   const label = woc === 0 ? "🔥 已断" : `${woc.toFixed(1)} 周`;
   return `<span class="rs-woc ${cls}">${label}</span>`;
+}
+
+// 可撑微条 (设计稿 .cover): 数字 + 轨道 + 填充 + 安全线 + hover 可拖 knob
+const COVER_CAP = 13.0; // 微条满刻度 (周); 超过即 100%
+function coverTone(w, T) {
+  if (w === null || w === undefined) return "ok";
+  if (w < T * 0.5) return "crit";
+  if (w < T) return "low";
+  if (w < T * 2) return "ok";
+  return "high";
+}
+function coverCell(it) {
+  const w = it.weeks_of_cover;
+  if (w === null || w === undefined) return '<span class="rs-cover-num ok">—</span>';
+  const T = state.filter.coverThreshold;
+  const tone = coverTone(w, T);
+  const fillPct = Math.min((w / COVER_CAP) * 100, 100);
+  const safePct = Math.min((T / COVER_CAP) * 100, 100);
+  return `<span class="rs-cover" data-w="${w}">` +
+    `<span class="rs-cover-num ${tone}">${w.toFixed(1)}w</span>` +
+    `<span class="rs-cover-track">` +
+      `<span class="rs-cover-fill ${tone}" style="width:${fillPct.toFixed(1)}%"></span>` +
+      `<span class="rs-cover-safe" style="left:${safePct.toFixed(1)}%"></span>` +
+      `<span class="rs-cover-knob" style="left:${safePct.toFixed(1)}%"></span>` +
+    `</span></span>`;
+}
+// 阈值变化只改 DOM 着色 + 安全线/knob 位置, 不整表重渲 (设计稿 setCoverThreshold)
+function recolorCover() {
+  const T = state.filter.coverThreshold;
+  const safePct = Math.min((T / COVER_CAP) * 100, 100).toFixed(1) + "%";
+  for (const c of document.querySelectorAll("#rsTbody .rs-cover")) {
+    const w = parseFloat(c.dataset.w);
+    const tone = coverTone(w, T);
+    const num = c.querySelector(".rs-cover-num");
+    const fill = c.querySelector(".rs-cover-fill");
+    for (const el of [num, fill]) {
+      if (el) { el.classList.remove("crit", "low", "ok", "high"); el.classList.add(tone); }
+    }
+    for (const s of c.querySelectorAll(".rs-cover-safe, .rs-cover-knob")) s.style.left = safePct;
+  }
 }
 
 function marginCell(it) {
@@ -211,15 +264,28 @@ function realBars(it) {
     : new Array(12).fill(0);
 }
 
+// SVG polyline sparkline (设计稿 .spark-cell), viewBox 60×20, 12 周点
 function sparkline(values, color) {
   const max = Math.max(...values, 1);
-  return `<span class="rs-spark">` +
-    values.map((v, i) => {
-      const h = Math.max(2, Math.round((v / max) * 100));
-      const op = (0.4 + (i / values.length) * 0.6).toFixed(2);
-      return `<span class="rs-spark__bar" style="height:${h}%;background:${color};opacity:${op}"></span>`;
-    }).join("") +
-    `</span>`;
+  const n = values.length;
+  const pts = values.map((v, i) => {
+    const x = (n > 1 ? (i / (n - 1)) * 56 : 28) + 2;
+    const y = 18 - (v / max) * 16; // 2(顶) .. 18(底)
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  return `<svg class="rs-spark-cell" viewBox="0 0 60 20"><polyline points="${pts}" stroke="${color}" /></svg>`;
+}
+
+// 盈亏列 badge (行内简版; drawer 有详版)
+function profitBadgeRow(it) {
+  const rp = it.realized_profit_eur;
+  const inv = it.inventory_cost_value_eur ?? 0;
+  if (rp === null || rp === undefined) {
+    return '<span class="rs-profit-badge rs-profit-badge--unknown" title="无 cost 数据">缺成本</span>';
+  }
+  if (rp > 0) return '<span class="rs-profit-badge rs-profit-badge--good">已回本</span>';
+  if (rp + inv > 0) return '<span class="rs-profit-badge rs-profit-badge--mid">压货中</span>';
+  return '<span class="rs-profit-badge rs-profit-badge--bad">未回本</span>';
 }
 
 function _filterPredicate(it, opts = {}) {
@@ -237,20 +303,25 @@ function _filterPredicate(it, opts = {}) {
     const hay = `${it.supplier_id ?? ''} ${it.barcode ?? ''} ${it.model ?? ''} ${it.name_zh ?? ''}`.toLowerCase();
     if (!hay.includes(q)) return false;
   }
-  if (state.filter.view === "active") {
-    if (it.is_truly_discontinued) return false;
-    if (it.is_new_item) return false;
-  } else if (state.filter.view === "new") {
-    if (!it.is_new_item) return false;
+  // 视图多选: 活跃(非停用非新品) / 新品 / 含停用; 命中任一启用视图即留
+  const vw = state.filter.views;
+  const isActive = !it.is_truly_discontinued && !it.is_new_item;
+  const viewMatch =
+    (vw.active && isActive) ||
+    (vw.new && it.is_new_item) ||
+    (vw.disc && it.is_truly_discontinued);
+  if (!viewMatch) return false;
+  // 状态 band 过滤 (urgency 区间 / 已标记)
+  const score = it.urgency_score ?? -1;
+  switch (state.filter.band) {
+    case "urgent": if (score < 70) return false; break;
+    case "watch":  if (score < 40 || score >= 70) return false; break;
+    case "ok":     if (score >= 40) return false; break;
+    case "flagged": if (!state.selected.has(it.barcode)) return false; break;
+    default: break; // all
   }
-  // KPI 模式覆盖 coverMax: 'hot' 只看 urgency>=70, 'overstock' 只看 cover>=20
-  if (state.filter.kpi === "hot") {
-    if ((it.urgency_score ?? -1) < HOT_URGENCY) return false;
-  } else if (state.filter.kpi === "overstock") {
-    if (it.weeks_of_cover === null || it.weeks_of_cover === undefined) return false;
-    if (it.weeks_of_cover < OVERSTOCK_WEEKS) return false;
-  } else if (state.filter.coverMax !== null && state.filter.view === "active") {
-    // null = 无 snapshot 数据, 不当 "不缺货" 过滤
+  // 可撑阈值筛选 (cf 弹层); null = 不限; 仅活跃视图下有库存数据的过滤
+  if (state.filter.coverMax !== null && vw.active) {
     if (it.weeks_of_cover !== null && it.weeks_of_cover !== undefined
         && it.weeks_of_cover > state.filter.coverMax) return false;
   }
@@ -266,16 +337,6 @@ function applyFilterExceptSupplier(items) {
 }
 
 function applySort(items) {
-  // 压货模式: 默认按"压货金额" = weekly_revenue × weeks_of_cover desc, 锁最多现金的在顶.
-  // 解决"资金流通"痛点: 顶部 = 最该清的库存.
-  // 用户点表头会切回 state.sort.key (sort key 改成非默认即取代).
-  if (state.filter.kpi === "overstock" && state.sort.key === "urgency_score") {
-    return [...items].sort((a, b) => {
-      const lockedA = (a.weekly_revenue ?? 0) * (a.weeks_of_cover ?? 0);
-      const lockedB = (b.weekly_revenue ?? 0) * (b.weeks_of_cover ?? 0);
-      return lockedB - lockedA;
-    });
-  }
   const { key, dir } = state.sort;
   const mul = dir === "asc" ? 1 : -1;
   return [...items].sort((a, b) => {
@@ -290,11 +351,14 @@ function applySort(items) {
 }
 
 function renderRow(it) {
-  const nameCell = it.name_zh
-    ? `<span class="rs-model">${escapeHtml(it.model)}</span><span class="rs-name">${escapeHtml(it.name_zh)}</span>`
-    : `<span class="rs-model">${escapeHtml(it.model)}</span>`;
+  const name = it.name_zh || it.model || "";
+  const nameCell =
+    `<div class="rs-sku">` +
+    `<span class="rs-model" title="${escapeHtml(it.model || "")}">${escapeHtml(name)}</span>` +
+    `<button class="rs-bc-link rs-name" data-bc="${escapeHtml(it.barcode)}" title="点开货号历史">${escapeHtml(it.barcode)}</button>` +
+    `</div>`;
   const trend = it.trend_slope_pct_per_week;
-  const sparkColor = trend > 0 ? "var(--accent)" : trend < 0 ? "var(--error)" : "var(--ink-3)";
+  const sparkColor = trend > 0 ? "var(--success)" : trend < 0 ? "var(--error)" : "var(--ink-3)";
   const bars = realBars(it);
   const hasSparkData = bars.some((v) => v > 0);
   const sparkCell = hasSparkData
@@ -306,31 +370,29 @@ function renderRow(it) {
   const orderedTag = ordered
     ? `<span class="rs-tag rs-tag--ordered" title="标已下单 ${escapeHtml(state.ordered[it.barcode].marked_at.slice(0,10))}">已下单</span>`
     : "";
-  const checked = state.selected.has(it.barcode) ? "checked" : "";
-  const checkboxCol = state.filter.show_ordered
-    ? "" // 已下单视图不让勾选
-    : `<input type="checkbox" class="rs-check" data-bc="${escapeHtml(it.barcode)}" ${checked}>`;
+  const flagged = state.selected.has(it.barcode) ? " is-flagged" : "";
+  const flagCol = `<span class="rs-flag${flagged}" data-bc="${escapeHtml(it.barcode)}" title="⚑ 标记 / 取消">⚑</span>`;
   const supplierCell = it.supplier_id
-    ? `<button class="rs-supplier" data-supplier="${escapeHtml(it.supplier_id)}" title="筛选同供应商 SKU">${escapeHtml(it.supplier_id)}</button>`
-    : '<span class="rs-supplier rs-supplier--none">—</span>';
+    ? `${originBadge(it.origin)}<button class="rs-supplier" data-supplier="${escapeHtml(it.supplier_id)}" title="筛选同供应商 SKU">${escapeHtml(it.supplier_id)}</button>`
+    : `${originBadge(it.origin)}<span class="rs-supplier rs-supplier--none">—</span>`;
+  const expanded = state.expandedBarcode === it.barcode ? " rs-row--expanded" : "";
   return `
-    <tr class="rs-row" data-bc="${escapeHtml(it.barcode)}">
-      <td class="rs-check-cell">${checkboxCol}</td>
-      <td class="rs-bc"><button class="rs-bc-link" data-bc="${escapeHtml(it.barcode)}" title="点开货号历史">${escapeHtml(it.barcode)}</button>${disc}${newTag}${orderedTag}</td>
-      <td class="rs-name-cell">${nameCell}</td>
-      <td>${originBadge(it.origin)}</td>
+    <tr class="rs-row${expanded}" data-bc="${escapeHtml(it.barcode)}">
+      <td class="rs-check-cell">${flagCol}</td>
+      <td>${urgencyCell(it)}</td>
+      <td>${nameCell}${disc}${newTag}${orderedTag}</td>
       <td>${supplierCell}</td>
       <td class="rs-num">${fmt(it.qty_total)}</td>
+      <td class="rs-num">${coverCell(it)}</td>
       <td class="rs-num">${fmt(it.weekly_velocity, 1)}</td>
       <td class="rs-num" title="周销额 = 折后净销售额 / 有销售周数 (近 26 周)">€${fmt(it.weekly_revenue, 1)}</td>
       <td class="rs-num">${marginCell(it)}</td>
-      <td class="rs-num">${weeksOfCoverCell(it.weeks_of_cover)}</td>
-      <td class="rs-num">${sparkCell}</td>
+      <td>${sparkCell}</td>
+      <td>${profitBadgeRow(it)}</td>
       <td class="rs-num">${fmtDays(it.last_purchase_days_ago)}</td>
-      <td class="rs-num" title="${it.restock_source || '—'}">${it.restock_qty_p50 != null ? it.restock_qty_p50 : '—'}</td>
-      <td class="rs-num" title="安全量">${it.restock_qty_p98 != null ? it.restock_qty_p98 : '—'}</td>
-      <td class="rs-num" style="color:var(--ink-2)">${it.last_purchase_qty != null ? it.last_purchase_qty : '—'}</td>
-      <td class="rs-num">${urgencyCell(it)}</td>
+      <td class="rs-num rs-rec-g rs-rec-sep" title="${it.restock_source || '—'}"><span class="rs-rec-v rs-rec-v--hi">${it.restock_qty_p50 != null ? it.restock_qty_p50 : '—'}</span></td>
+      <td class="rs-num rs-rec-g" title="安全量"><span class="rs-rec-v">${it.restock_qty_p98 != null ? it.restock_qty_p98 : '—'}</span></td>
+      <td class="rs-num rs-rec-g"><span class="rs-rec-v" style="color:var(--ink-2)">${it.last_purchase_qty != null ? it.last_purchase_qty : '—'}</span></td>
     </tr>
   `;
 }
@@ -398,7 +460,7 @@ function renderDrawer(it) {
   const skipDisabled = it.is_truly_discontinued ? 'disabled' : '';
   return `
     <tr class="rs-drawer-row" data-bc="${escapeHtml(it.barcode)}">
-      <td colspan="13" class="rs-drawer-cell">
+      <td colspan="15" class="rs-drawer-cell">
         <div class="rs-drawer">
           <div class="rs-drawer-grid">
             <section class="rs-drawer-sec">
@@ -431,18 +493,18 @@ function renderDrawer(it) {
               <div>周销速 <b>${fmt(it.weekly_velocity, 2)} 件/周</b> · 周销额 <b>€${fmt(it.weekly_revenue, 2)}/周</b></div>
             </section>
             <section class="rs-drawer-sec">
-              <h4>🎯 紧迫分 <b>${it.urgency_score ?? '—'}</b> 拆解</h4>
+              <h4>🎯 紧迫分 <b>${it.urgency_score ?? '—'}</b></h4>
+              ${scoreBreakdown(it)}
               <div>销额(30): <b>${velocityScore}</b></div>
               <div>库存(30): <b>${coverScore}</b></div>
               <div>距进货(10): <b>${recencyScore}</b></div>
               <div>毛利(30): <b>${marginScore}</b></div>
-              <div class="rs-drawer-muted" style="margin-top:6px">距上次进货 ${fmtDays(it.last_purchase_days_ago)}</div>
             </section>
           </div>
           <div class="rs-drawer-actions">
-            <button class="rs-btn rs-btn--ordered-single" data-bc="${escapeHtml(it.barcode)}">✓ 我已下单</button>
-            <button class="rs-btn rs-btn--skip-single" data-bc="${escapeHtml(it.barcode)}" ${skipDisabled}>✗ 跳过</button>
-            <button class="rs-btn rs-btn--close-drawer">收起</button>
+            <button class="btn btn--primary rs-btn--ordered-single" data-bc="${escapeHtml(it.barcode)}">✓ 我已下单</button>
+            <button class="btn btn--ghost rs-btn--skip-single" data-bc="${escapeHtml(it.barcode)}" ${skipDisabled}>✗ 跳过</button>
+            <button class="btn btn--ghost rs-btn--close-drawer" style="margin-left:auto;">收起</button>
           </div>
         </div>
       </td>
@@ -457,50 +519,65 @@ function csvCell(v) {
   return s;
 }
 
-function exportSelectedCsv() {
-  if (state.selected.size === 0) {
-    alert("请先勾选要导出的行");
-    return;
-  }
-  const cols = [
-    ["barcode", "条码"],
-    ["model", "型号"],
-    ["name_zh", "品名"],
-    ["origin", "Origin"],
-    ["supplier_id", "供应商"],
-    ["qty_total", "当前库存"],
-    ["weekly_velocity", "周销 件"],
-    ["weekly_revenue", "周销额 €"],
-    ["margin_pct", "毛利 %"],
-    ["last_purchase_unit_price", "上次进价 €"],
-    ["weeks_of_cover", "可撑周数"],
-    ["last_purchase_days_ago", "距上次进货 (天)"],
-    ["urgency_score", "紧迫分"],
-    ["restock_qty_p50", "推荐补货量 (p50)"],
-    ["restock_qty_p98", "推荐补货量 (p98)"],
-    ["last_purchase_qty", "上次进货量"],
-  ];
-  const selected = state.items
-    .filter((it) => state.selected.has(it.barcode))
-    .sort((a, b) => (b.urgency_score || 0) - (a.urgency_score || 0));
-  const head = cols.map((c) => c[1]).join(",") + ",ERP导入 (型号\\,数量)";
-  const rows = selected
-    .map((it) => {
-      const base = cols.map((c) => csvCell(it[c[0]])).join(",");
-      const qty = it.restock_qty_p98 != null ? it.restock_qty_p98 : "";
-      const mdl = String(it.model || "");
-      const erp = mdl && qty ? `"=""${mdl},${qty}"""` : "";
-      return base + "," + erp;
-    });
+const CSV_COLS = [
+  ["barcode", "条码"],
+  ["model", "型号"],
+  ["name_zh", "品名"],
+  ["origin", "Origin"],
+  ["supplier_id", "供应商"],
+  ["qty_total", "当前库存"],
+  ["weekly_velocity", "周销 件"],
+  ["weekly_revenue", "周销额 €"],
+  ["margin_pct", "毛利 %"],
+  ["last_purchase_unit_price", "上次进价 €"],
+  ["weeks_of_cover", "可撑周数"],
+  ["last_purchase_days_ago", "距上次进货 (天)"],
+  ["urgency_score", "紧迫分"],
+  ["restock_qty_p50", "推荐补货量 (p50)"],
+  ["restock_qty_p98", "推荐补货量 (p98)"],
+  ["last_purchase_qty", "上次进货量"],
+];
+
+function _downloadRestockCsv(items, namePrefix) {
+  const head = CSV_COLS.map((c) => c[1]).join(",") + ",ERP导入 (型号\\,数量)";
+  const rows = items.map((it) => {
+    const base = CSV_COLS.map((c) => csvCell(it[c[0]])).join(",");
+    const qty = it.restock_qty_p98 != null ? it.restock_qty_p98 : "";
+    const mdl = String(it.model || "");
+    const erp = mdl && qty ? `"=""${mdl},${qty}"""` : "";
+    return base + "," + erp;
+  });
   const csv = "﻿" + head + "\n" + rows.join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   const ts = new Date().toISOString().slice(0, 16).replace(/[:T-]/g, "");
   a.href = url;
-  a.download = `restock_${state.selected.size}_${ts}.csv`;
+  a.download = `${namePrefix}_${items.length}_${ts}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// 批量栏「导出选中」: 勾选的行
+function exportSelectedCsv() {
+  if (state.selected.size === 0) {
+    alert("请先勾选要导出的行");
+    return;
+  }
+  const selected = state.items
+    .filter((it) => state.selected.has(it.barcode))
+    .sort((a, b) => (b.urgency_score || 0) - (a.urgency_score || 0));
+  _downloadRestockCsv(selected, "restock");
+}
+
+// 「更多」菜单「导出 CSV / 生成采购单」: 当前过滤+排序后的可见行 (上限 500, 与表格一致)
+function exportVisibleCsv() {
+  const visible = applySort(applyFilter(state.items)).slice(0, 500);
+  if (visible.length === 0) {
+    alert("当前筛选范围内没有可导出的行");
+    return;
+  }
+  _downloadRestockCsv(visible, "restock_visible");
 }
 
 function markSelectedOrdered() {
@@ -672,62 +749,43 @@ function _allSuppliersSummary() {
 function renderSupplierSummary() {
   const root = $("rsSupplierOverview");
   if (!root) return;
-  // 默认折叠态: 紧迫供应商 (有 SKU >=70). 展开态: 全量供应商 (按 max desc, 含 69.5 这种"次紧迫").
+  // 默认折叠态: 紧迫供应商 (有 SKU >=70). 展开态: 全量供应商 (按 max desc, 含次紧迫).
   const hot = _supplierSummary();
   const all = _allSuppliersSummary();
   const expanded = state.supplierOverviewExpanded;
   const show = expanded ? all : hot.slice(0, SUPPLIER_OVERVIEW_TOP);
 
-  if (show.length === 0 && !expanded) {
-    root.innerHTML = `
-      <div class="rs-sup-empty">当前范围内没有紧迫分 ≥${SUPPLIER_OVERVIEW_HOT} 的 SKU
-        <button class="rs-sup-expand" id="rsSupExpand">↓ 查看全部 ${all.length} 家供应商</button>
-      </div>
-    `;
-    const exp = $("rsSupExpand");
-    if (exp) exp.addEventListener("click", () => {
-      state.supplierOverviewExpanded = true;
-      renderSupplierSummary();
-    });
-    return;
-  }
+  // 无供应商数据 → 整条隐藏 (:empty)
+  if (all.length === 0) { root.innerHTML = ""; return; }
 
-  const maxCount = Math.max(1, ...show.map((s) => s.count));
-  const rows = show.map((s) => {
-    const pct = Math.round((s.count / maxCount) * 100);
+  const chips = show.map((s) => {
+    const isHot = s.hot_count > 0 || s.max >= SUPPLIER_OVERVIEW_HOT;
     const isActive = state.filter.supplier === s.supplier_id;
-    const hotBadge = s.hot_count > 0
-      ? `<span class="rs-sup-hot-badge">🔥${s.hot_count}</span>`
-      : '';
+    const w = Math.max(4, Math.min(100, Math.round(s.max)));
     return `
-      <button class="rs-sup-row${isActive ? " rs-sup-row--active" : ""}"
+      <button class="sup-chip${isHot ? " is-hot" : ""}${isActive ? " is-active" : ""}"
               data-supplier="${escapeHtml(s.supplier_id)}"
-              title="点击筛选 ${escapeHtml(s.supplier_id)} 全部 ${s.count} 个 SKU">
-        <span class="rs-sup-name">${escapeHtml(s.supplier_id)}</span>
-        <span class="rs-sup-bar"><span class="rs-sup-bar-fill" style="width:${pct}%"></span></span>
-        <span class="rs-sup-count">${s.count}</span>
-        <span class="rs-sup-max">max ${s.max.toFixed(1)}</span>
-        ${hotBadge}
-      </button>
-    `;
+              title="点击筛选 ${escapeHtml(s.supplier_id)} 全部 ${s.count} 个 SKU (max ${s.max.toFixed(1)})">
+        <span class="sup-chip-name">${escapeHtml(s.supplier_id)}</span>
+        <span class="sup-chip-cnt">${s.count}</span>
+        <span class="sup-chip-mini"><i style="width:${w}%"></i></span>
+        <span class="sup-chip-score">${Math.round(s.max)}</span>
+      </button>`;
   }).join("");
 
-  const hdTitle = expanded
-    ? `全部供应商 (按 max urgency 降序, ${all.length} 家)`
-    : `🔥 紧迫供应商 (≥${SUPPLIER_OVERVIEW_HOT}, ${hot.length} 家)`;
-  const expandBtn = expanded
-    ? `<button class="rs-sup-expand" id="rsSupExpand">↑ 折叠 (仅 ≥${SUPPLIER_OVERVIEW_HOT} 紧迫)</button>`
-    : (hot.length > SUPPLIER_OVERVIEW_TOP
-        ? `<button class="rs-sup-expand" id="rsSupExpand">↓ 查看全部 ${all.length} 家 (含次紧迫)</button>`
-        : `<button class="rs-sup-expand" id="rsSupExpand">↓ 查看全部 ${all.length} 家</button>`);
+  const label = expanded
+    ? `<span class="sup-strip-label">全部供应商 <span class="sup-cond">(按紧迫度 · ${all.length} 家)</span></span>`
+    : `<span class="sup-strip-label"><span class="sup-fire">🔥</span> 紧迫供应商 <span class="sup-cond">(≥${SUPPLIER_OVERVIEW_HOT} · ${hot.length} 家)</span></span>`;
+  const moreBtn = expanded
+    ? `<button class="sup-strip-more" id="rsSupExpand">‹ 收起</button>`
+    : `<button class="sup-strip-more" id="rsSupExpand">查看全部 ${all.length} 家 ›</button>`;
+  const chipsHtml = show.length
+    ? `<div class="sup-chips">${chips}</div>`
+    : `<div class="sup-chips"><span class="sup-chip-score" style="padding:6px 4px">当前范围无紧迫分 ≥${SUPPLIER_OVERVIEW_HOT} 的供应商</span></div>`;
 
-  root.innerHTML = `
-    <div class="rs-sup-hd">${hdTitle}</div>
-    <div class="rs-sup-list">${rows}</div>
-    ${expandBtn}
-  `;
+  root.innerHTML = `${label}${chipsHtml}${moreBtn}`;
 
-  for (const btn of root.querySelectorAll(".rs-sup-row[data-supplier]")) {
+  for (const btn of root.querySelectorAll(".sup-chip[data-supplier]")) {
     btn.addEventListener("click", () => {
       state.filter.supplier = btn.dataset.supplier;
       state.filter.coverMax = null; // 凑单模式
@@ -744,16 +802,20 @@ function renderSupplierSummary() {
 }
 
 function syncChipActive() {
-  for (const btn of document.querySelectorAll("#pageRestock .rs-chip[data-filter]")) {
-    const f = btn.dataset.filter;
-    const v = btn.dataset.value;
-    btn.classList.toggle("rs-chip--active", String(state.filter[f] ?? "") === String(v));
+  // 状态 band chip
+  for (const b of document.querySelectorAll("#pageRestock .rs-chip[data-band]")) {
+    b.classList.toggle("rs-chip--active", b.dataset.band === state.filter.band);
   }
-  const v = state.filter.coverMax;
-  $("rsCoverVal").textContent = v === null ? "已禁用" : `${v} 周`;
-  $("rsCoverOff").classList.toggle("rs-chip--active", v === null);
-  $("rsCoverRange").disabled = v === null;
-  if (v !== null) $("rsCoverRange").value = String(v);
+  // 来源分段控件
+  for (const b of document.querySelectorAll("#rsOriginSeg button[data-origin]")) {
+    b.classList.toggle("on", (b.dataset.origin || "") === (state.filter.origin || ""));
+  }
+  // 视图多选
+  for (const b of document.querySelectorAll("#pageRestock .rs-vchip[data-view]")) {
+    b.classList.toggle("on", !!state.filter.views[b.dataset.view]);
+  }
+  syncCfUI();
+  syncCoverThresholdUI();
 
   // 供应商筛选标签
   const supEl = $("rsSupplierTag");
@@ -766,39 +828,56 @@ function syncChipActive() {
     }
   }
 
-  // 已下单工具栏
-  $("rsBtnExport").textContent = `↓ 导出选中 (${state.selected.size})`;
-  $("rsBtnMark").textContent = `✓ 标已下单 (${state.selected.size})`;
-  $("rsBtnSkip").textContent = `✗ 不进 (${state.selected.size})`;
-  $("rsBtnExport").disabled = state.selected.size === 0;
-  $("rsBtnMark").disabled = state.selected.size === 0;
-  $("rsBtnSkip").disabled = state.selected.size === 0;
+  // 批量操作栏: 选中行后浮现 (替换常驻按钮)
+  updateBulkBar(state.selected.size);
+  if ($("rsStatTotal")) $("rsStatTotal").textContent = `已标记 ${state.selected.size}`;
+  $("rsBtnUndo").disabled = state.orderedHistory.length === 0;
 
   // 智能凑单按钮预览数
   const { picks: bundlePicks, hotMode, capped } = _bundleCandidates();
   const bundleBtn = $("rsBtnBundle");
   if (bundleBtn) {
-    let tag;
-    if (hotMode && capped) tag = `top${BUNDLE_TARGET_COUNT}/扫描`;
-    else if (hotMode) tag = `≥70 凑单`;
-    else tag = `top${BUNDLE_TARGET_COUNT}`;
-    bundleBtn.textContent = `✓ 智能凑单 (${bundlePicks.length}, ${tag})`;
+    bundleBtn.textContent = `✓ 智能凑单 (${bundlePicks.length})`;
     bundleBtn.disabled = bundlePicks.length === 0;
     if (capped) {
       bundleBtn.title = `未选供应商: 自动 cap 在 top ${BUNDLE_TARGET_COUNT} 防止全选. 选具体供应商进入凑单模式后才不 cap.`;
     } else if (hotMode) {
       bundleBtn.title = `凑单模式 (供应商=${state.filter.supplier}): 紧迫分 ≥${BUNDLE_HOT_THRESHOLD} 的 SKU 全选`;
     } else {
-      bundleBtn.title = `紧迫分 ≥${BUNDLE_HOT_THRESHOLD} 不足 ${BUNDLE_TARGET_COUNT} 个, 退到 top ${BUNDLE_TARGET_COUNT} (≥${BUNDLE_FALLBACK_FLOOR} 才参与, 避免凑死货)`;
+      bundleBtn.title = `紧迫分 ≥${BUNDLE_HOT_THRESHOLD} 不足 ${BUNDLE_TARGET_COUNT} 个, 退到 top ${BUNDLE_TARGET_COUNT}`;
     }
   }
-  $("rsBtnUndo").disabled = state.orderedHistory.length === 0;
-  const orderedN = Object.keys(state.ordered).length;
-  const showOrderedChip = $("rsShowOrderedChip");
-  showOrderedChip.textContent = state.filter.show_ordered
-    ? `← 返回主表`
-    : `✓ 显示已下单 (${orderedN})`;
-  showOrderedChip.classList.toggle("rs-chip--active", state.filter.show_ordered);
+}
+
+// 可撑阈值筛选 cf chip UI
+function syncCfUI() {
+  const cf = $("rsCoverFilter");
+  if (!cf) return;
+  const set = state.filter.coverMax !== null;
+  cf.classList.toggle("is-set", set);
+  if (set) {
+    $("rsCfVal").textContent = state.filter.coverMax;
+    $("rsCfPopNum").textContent = state.filter.coverMax;
+    if ($("rsCfRange")) $("rsCfRange").value = String(state.filter.coverMax);
+  } else {
+    $("rsCfVal").textContent = "∞";
+  }
+}
+
+// 可撑微条安全阈值 UI (列头齿轮 popover)
+function syncCoverThresholdUI() {
+  const T = state.filter.coverThreshold;
+  if ($("rsCoverThVal")) $("rsCoverThVal").textContent = T.toFixed(1);
+  if ($("rsCoverThRange")) $("rsCoverThRange").value = String(T);
+}
+
+// 批量操作栏显隐 + 计数
+function updateBulkBar(n) {
+  const bar = $("rsBulkBar");
+  if (!bar) return;
+  const nEl = $("rsBulkN");
+  if (nEl) nEl.textContent = n;
+  bar.classList.toggle("show", n > 0);
 }
 
 function render() {
@@ -807,7 +886,7 @@ function render() {
   const visible = sorted.slice(0, 500);
   const tbody = $("rsTbody");
   if (visible.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="12" class="empty">无匹配项</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="15" class="empty">无匹配项</td></tr>';
   } else {
     // 渲染所有行; 如果某行 barcode == expandedBarcode, 紧接着插入 drawer
     const html = [];
@@ -818,14 +897,37 @@ function render() {
       }
     }
     tbody.innerHTML = html.join("");
-    // checkbox 勾选状态
-    for (const cb of tbody.querySelectorAll(".rs-check")) {
-      cb.addEventListener("click", (e) => {
+    // ⚑ flag 选择 (取代 checkbox): toggle state.selected
+    for (const fl of tbody.querySelectorAll(".rs-flag")) {
+      fl.addEventListener("click", (e) => {
         e.stopPropagation();
-        const bc = cb.dataset.bc;
-        if (cb.checked) state.selected.add(bc);
-        else state.selected.delete(bc);
+        const bc = fl.dataset.bc;
+        if (state.selected.has(bc)) state.selected.delete(bc);
+        else state.selected.add(bc);
+        fl.classList.toggle("is-flagged");
         syncChipActive();
+        renderKpi();
+        if (state.filter.band === "flagged") render(); // flagged 视图需重过滤
+      });
+    }
+    // 可撑微条 knob 拖拽 → 临时调全局安全阈值
+    for (const knob of tbody.querySelectorAll(".rs-cover-knob")) {
+      knob.addEventListener("mousedown", (e) => {
+        e.preventDefault(); e.stopPropagation();
+        const track = knob.parentElement;
+        const onMove = (ev) => {
+          const r = track.getBoundingClientRect();
+          const pct = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
+          state.filter.coverThreshold = Math.max(0.5, Math.round(pct * COVER_CAP * 2) / 2);
+          recolorCover();
+          syncCoverThresholdUI();
+        };
+        const onUp = () => {
+          document.removeEventListener("mousemove", onMove);
+          document.removeEventListener("mouseup", onUp);
+        };
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
       });
     }
     // 供应商点击 → 进入"凑单模式": 设供应商筛选 + 自动禁用 cover filter
@@ -848,10 +950,10 @@ function render() {
         }
       });
     }
-    // 行其他位置点击 → toggle drawer (排除 checkbox / supplier / barcode link)
+    // 行其他位置点击 → toggle drawer (排除 flag / supplier / barcode link / 可撑微条)
     for (const tr of tbody.querySelectorAll(".rs-row")) {
       tr.addEventListener("click", (e) => {
-        if (e.target.closest(".rs-check, .rs-supplier, .rs-bc-link")) return;
+        if (e.target.closest(".rs-flag, .rs-supplier, .rs-bc-link, .rs-cover-track")) return;
         const bc = tr.dataset.bc;
         state.expandedBarcode = (state.expandedBarcode === bc) ? null : bc;
         render();
@@ -883,12 +985,10 @@ function render() {
     }
   }
   const baseStat = visible.length < sorted.length
-    ? `显示前 ${visible.length} / ${sorted.length}`
-    : `${sorted.length} 条`;
-  const sortHint = state.filter.kpi === "overstock" && state.sort.key === "urgency_score"
-    ? " · 按压货金额 (周销额×可撑周) desc"
-    : "";
-  $("rsStatShowing").textContent = baseStat + sortHint;
+    ? `显示前 ${visible.length} / ${sorted.length} 项`
+    : `显示 ${sorted.length} 项`;
+  $("rsStatShowing").textContent = baseStat;
+  $("rsStatTotal").textContent = `已标记 ${state.selected.size}`;
 
   for (const th of document.querySelectorAll(".rs-th-sort")) {
     const ind = th.querySelector(".rs-sort-ind");
@@ -907,34 +1007,33 @@ function render() {
 }
 
 function renderKpi() {
-  // 全表统计仅看活跃 SKU (排除 truly_discontinued + new), 跟紧迫分计算口径一致
+  // stat 卡片: 紧急(≥70)/关注(40-69)/充足(<40) 看活跃 SKU; 已标记=选中数; 本周补货额=Σ可见行 p50×成本
   const pool = state.items.filter((it) => !it.is_truly_discontinued && !it.is_new_item);
-  const total = pool.length;
-  const hot = pool.filter((it) => (it.urgency_score ?? -1) >= HOT_URGENCY).length;
-  const over = pool.filter(
-    (it) => it.weeks_of_cover !== null && it.weeks_of_cover !== undefined
-            && it.weeks_of_cover >= OVERSTOCK_WEEKS,
-  ).length;
-  const noMargin = pool.filter((it) => it.margin_pct === null || it.margin_pct === undefined).length;
+  const hot = pool.filter((it) => (it.urgency_score ?? -1) >= 70).length;
+  const watch = pool.filter((it) => { const s = it.urgency_score ?? -1; return s >= 40 && s < 70; }).length;
+  const ok = pool.filter((it) => { const s = it.urgency_score ?? -1; return s >= 0 && s < 40; }).length;
+  let spend = 0;
+  for (const it of applyFilter(state.items)) {
+    const qty = it.restock_qty_p50;
+    const cost = it.last_purchase_unit_price ?? it.master_stock_price_eur;
+    if (qty && cost) spend += qty * cost;
+  }
   const set = (id, v) => { const el = $(id); if (el) el.textContent = v; };
-  set("rsKpiTotal", total.toLocaleString());
   set("rsKpiHot", hot.toLocaleString());
-  set("rsKpiOverstock", over.toLocaleString());
-  set("rsKpiNoMargin", noMargin.toLocaleString());
-  const pct = total > 0 ? Math.round(over * 100 / total) : 0;
-  set("rsKpiOverstockPct", `(${pct}%)`);
-  $("rsKpiHotBtn")?.classList.toggle("rs-kpi__btn--active", state.filter.kpi === "hot");
-  $("rsKpiOverstockBtn")?.classList.toggle("rs-kpi__btn--active", state.filter.kpi === "overstock");
+  set("rsKpiWatch", watch.toLocaleString());
+  set("rsKpiOk", ok.toLocaleString());
+  set("rsKpiFlagged", state.selected.size.toLocaleString());
+  set("rsKpiSpend", spend > 0 ? `€${Math.round(spend).toLocaleString()}` : "—");
 }
 
 async function load() {
   const tbody = $("rsTbody");
-  tbody.innerHTML = '<tr><td colspan="12" class="empty">加载中…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="15" class="empty">加载中…</td></tr>';
   try {
     const resp = await fetch("/analytics/list");
     const data = await resp.json();
     if (!data.ok) {
-      tbody.innerHTML = `<tr><td colspan="12" class="empty">加载失败：${escapeHtml(data.msg || "")}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="15" class="empty">加载失败：${escapeHtml(data.msg || "")}</td></tr>`;
       return;
     }
     state.items = data.items;
@@ -943,7 +1042,7 @@ async function load() {
     $("rsStatTotal").textContent = `共 ${data.total} 个 SKU`;
     render();
   } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="12" class="empty">网络错误：${escapeHtml(err.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="15" class="empty">网络错误：${escapeHtml(err.message)}</td></tr>`;
   }
 }
 
@@ -959,11 +1058,21 @@ function init() {
   $("rsBtnSkip").addEventListener("click", markSelectedSkipped);
   $("rsBtnBundle").addEventListener("click", smartBundleSelect);
   $("rsBtnUndo").addEventListener("click", undoMarkRecent);
-  $("rsShowOrderedChip").addEventListener("click", () => {
-    state.filter.show_ordered = !state.filter.show_ordered;
+  $("rsBulkClear")?.addEventListener("click", () => {
     state.selected.clear();
     render();
   });
+  // 顶部「更多」下拉
+  const actMore = $("rsActMore");
+  $("rsMoreBtn")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    actMore?.classList.toggle("open");
+  });
+  document.addEventListener("click", (e) => {
+    if (actMore && !actMore.contains(e.target)) actMore.classList.remove("open");
+  });
+  $("rsMenuExport")?.addEventListener("click", () => { actMore?.classList.remove("open"); exportVisibleCsv(); });
+  $("rsMenuOrder")?.addEventListener("click", () => { actMore?.classList.remove("open"); exportVisibleCsv(); });
   $("rsSupplierClear").addEventListener("click", () => {
     state.filter.supplier = null;
     render();
@@ -982,37 +1091,88 @@ function init() {
     render();
   });
 
-  // KPI 条 toggle: 紧急 / 压货 (互斥, 再点取消)
-  $("rsKpiHotBtn")?.addEventListener("click", () => {
-    state.filter.kpi = state.filter.kpi === "hot" ? null : "hot";
-    render();
-  });
-  $("rsKpiOverstockBtn")?.addEventListener("click", () => {
-    state.filter.kpi = state.filter.kpi === "overstock" ? null : "overstock";
-    render();
-  });
-
-  for (const btn of document.querySelectorAll("#pageRestock .rs-chip[data-filter]")) {
+  // 状态 band 过滤 chip (全部/紧急/关注/充足/已标记; 再点全部取消)
+  for (const btn of document.querySelectorAll("#pageRestock .rs-chip[data-band]")) {
     btn.addEventListener("click", () => {
-      const filter = btn.dataset.filter;
-      const value = btn.dataset.value;
-      state.filter[filter] = value;
+      state.filter.band = (state.filter.band === btn.dataset.band) ? "all" : btn.dataset.band;
       render();
     });
   }
-
-  $("rsCoverRange").addEventListener("input", (e) => {
+  // 来源分段控件 (单选)
+  for (const btn of document.querySelectorAll("#rsOriginSeg button[data-origin]")) {
+    btn.addEventListener("click", () => {
+      state.filter.origin = btn.dataset.origin || "";
+      render();
+    });
+  }
+  // 视图多选 (活跃/新品/含停用)
+  for (const btn of document.querySelectorAll("#pageRestock .rs-vchip[data-view]")) {
+    btn.addEventListener("click", () => {
+      const k = btn.dataset.view;
+      state.filter.views[k] = !state.filter.views[k];
+      render();
+    });
+  }
+  // 可撑阈值筛选 cf (收起的滑块 popover)
+  const cf = $("rsCoverFilter");
+  $("rsCfChip")?.addEventListener("click", (e) => {
+    if (e.target.id === "rsCfClear") return; // ✕ 清除时不开 popover
+    e.stopPropagation();
+    cf?.classList.toggle("open");
+  });
+  $("rsCfClear")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    state.filter.coverMax = null;
+    cf?.classList.remove("open");
+    render();
+  });
+  $("rsCfReset")?.addEventListener("click", () => {
+    state.filter.coverMax = null;
+    cf?.classList.remove("open");
+    render();
+  });
+  $("rsCfRange")?.addEventListener("input", (e) => {
     state.filter.coverMax = Number(e.target.value);
     render();
   });
-
-  $("rsCoverOff").addEventListener("click", () => {
-    state.filter.coverMax = state.filter.coverMax === null ? 4 : null;
+  document.addEventListener("click", (e) => {
+    if (cf && !cf.contains(e.target)) cf.classList.remove("open");
+  });
+  // 排序下拉
+  $("rsSortSel")?.addEventListener("change", (e) => {
+    const [key, dir] = e.target.value.split("|");
+    state.sort = { key, dir };
     render();
+  });
+  // 重置全部过滤
+  $("rsResetFilters")?.addEventListener("click", () => {
+    state.filter.origin = "";
+    state.filter.views = { active: true, new: false, disc: false };
+    state.filter.band = "all";
+    state.filter.coverMax = null;
+    state.filter.supplier = null;
+    state.filter.search = "";
+    if (searchInput) searchInput.value = "";
+    render();
+  });
+  // 可撑列头齿轮: 全局安全周转阈值 popover
+  const coverPop = $("rsCoverPop");
+  $("rsCoverGear")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    coverPop?.classList.toggle("open");
+  });
+  document.addEventListener("click", (e) => {
+    if (coverPop && !coverPop.parentElement.contains(e.target)) coverPop.classList.remove("open");
+  });
+  $("rsCoverThRange")?.addEventListener("input", (e) => {
+    state.filter.coverThreshold = Number(e.target.value);
+    syncCoverThresholdUI();
+    recolorCover();
   });
 
   for (const th of document.querySelectorAll("#pageRestock .rs-th-sort")) {
-    th.addEventListener("click", () => {
+    th.addEventListener("click", (e) => {
+      if (e.target.closest(".rs-cover-gear, .rs-cover-pop")) return; // 齿轮/弹层不排序
       const key = th.dataset.sort;
       if (state.sort.key === key) {
         state.sort.dir = state.sort.dir === "asc" ? "desc" : "asc";

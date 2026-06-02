@@ -1125,97 +1125,149 @@
       </div>
     </div>
       <div class="page" id="pageRestock" x-data :class="$store.nav.current === 'restock' ? 'active' : ''">
-        <div class="panel">
-          <div class="panel-hd">
-            补货决策（按紧迫分排序）
-            <div class="rs-actions">
-              <span class="rs-stat" id="rsStatTotal"></span>
-              <button class="rs-cta rs-cta--ghost" id="rsBtnExport" type="button" disabled>↓ 导出选中 (0)</button>
-              <button class="rs-cta rs-cta--ghost" id="rsBtnMark" type="button" disabled>✓ 标已下单 (0)</button>
-              <button class="rs-cta rs-cta--ghost" id="rsBtnSkip" type="button" disabled>✗ 不进 (0)</button>
-              <button class="rs-cta rs-cta--ghost" id="rsBtnBundle" type="button">✓ 智能凑单</button>
-              <button class="rs-cta rs-cta--ghost" id="rsBtnUndo" type="button" disabled>↺ 撤销</button>
-              <button class="rs-chip" id="rsShowOrderedChip" type="button">✓ 显示已下单 (0)</button>
-              <button class="rs-cta rs-cta--primary" id="rsRefresh">↻ 刷新</button>
+        <!-- Top bar: stat cards + actions + filters -->
+        <div class="rs-top">
+          <div class="rs-top-row">
+            <div class="rs-stats">
+              <div class="rs-ts" data-tone="error"><span class="rs-ts-label">紧急</span><span class="rs-ts-num" id="rsKpiHot">—</span></div>
+              <div class="rs-ts" data-tone="warn"><span class="rs-ts-label">关注</span><span class="rs-ts-num" id="rsKpiWatch">—</span></div>
+              <div class="rs-ts" data-tone="success"><span class="rs-ts-label">充足</span><span class="rs-ts-num" id="rsKpiOk">—</span></div>
+              <div class="rs-ts" data-tone="accent"><span class="rs-ts-label">已标记</span><span class="rs-ts-num" id="rsKpiFlagged">—</span></div>
+              <div class="rs-ts" data-tone="info"><span class="rs-ts-label">本周补货额</span><span class="rs-ts-num" id="rsKpiSpend">—</span></div>
+            </div>
+            <div class="act-spacer"></div>
+            <button class="btn btn--primary" id="rsBtnBundle" type="button">✓ 智能凑单</button>
+            <button class="btn btn--ghost" id="rsRefresh" type="button">↻ 刷新</button>
+            <div class="act-more" id="rsActMore">
+              <button class="btn btn--ghost" id="rsMoreBtn" type="button">⋯ 更多</button>
+              <div class="act-more-menu">
+                <button class="act-more-item" id="rsMenuOrder" type="button">⊞ 生成采购单 (可见)</button>
+                <button class="act-more-item" id="rsMenuExport" type="button">⇣ 导出 CSV (可见)</button>
+              </div>
             </div>
           </div>
-          <div class="panel-bd">
-            <div id="rsKpi" class="rs-kpi">
-              <span class="rs-kpi__item rs-kpi__item--muted">全表 <b id="rsKpiTotal">—</b></span>
-              <button class="rs-kpi__btn rs-kpi__btn--hot" id="rsKpiHotBtn" type="button" title="点击只看紧急 (≥70)">紧急 <b id="rsKpiHot">—</b></button>
-              <button class="rs-kpi__btn rs-kpi__btn--warn" id="rsKpiOverstockBtn" type="button" title="点击只看压货 (可撑 ≥20 周)">压货 <b id="rsKpiOverstock">—</b> <span class="rs-kpi__pct" id="rsKpiOverstockPct"></span></button>
-              <span class="rs-kpi__item rs-kpi__item--muted">缺进价 <b id="rsKpiNoMargin">—</b></span>
+
+          <!-- 第一排: 状态 band 过滤 + 搜索 + 排序 -->
+          <div class="rs-filter-row">
+            <button class="rs-chip" data-band="all">全部</button>
+            <button class="rs-chip" data-band="urgent">紧急 ≥70</button>
+            <button class="rs-chip" data-band="watch">关注 40–69</button>
+            <button class="rs-chip" data-band="ok">充足 &lt;40</button>
+            <button class="rs-chip" data-band="flagged">⚑ 已标记</button>
+            <div class="rs-search">
+              <span class="rs-search-icon">⌕</span>
+              <input type="text" id="rsSearch" class="rs-search-input" placeholder="供应商 / 条码 / 型号 / 品名">
             </div>
-            <div id="rsSupplierOverview" class="rs-sup-overview"></div>
-            <div class="rs-filter-bar">
-              <div class="rs-filter-group">
-                <span class="rs-filter-label">Origin</span>
-                <button class="rs-chip" data-filter="origin" data-value="FOREIGN">🇬🇷 老外货</button>
-                <button class="rs-chip" data-filter="origin" data-value="CN">🇨🇳 中国货</button>
-                <button class="rs-chip" data-filter="origin" data-value="unknown">未知</button>
-                <button class="rs-chip" data-filter="origin" data-value="">全部</button>
-              </div>
-              <div class="rs-filter-group">
-                <span class="rs-filter-label">视图</span>
-                <button class="rs-chip" data-filter="view" data-value="active">活跃（默认）</button>
-                <button class="rs-chip" data-filter="view" data-value="new">新品（&lt;4 周）</button>
-                <button class="rs-chip" data-filter="view" data-value="all">含停用</button>
-              </div>
-              <div class="rs-filter-group">
-                <span class="rs-filter-label">可撑周数 ≤</span>
-                <input type="range" id="rsCoverRange" min="0" max="20" step="1" value="4">
-                <span class="rs-filter-val" id="rsCoverVal">4 周</span>
-                <button class="rs-chip rs-chip--toggle" id="rsCoverOff" type="button" title="关闭缺货过滤">禁用过滤</button>
-              </div>
-              <div class="rs-filter-group" id="rsSupplierTag" style="display:none;">
-                <span class="rs-filter-label">供应商</span>
-                <span class="rs-chip rs-chip--active rs-supplier-tag">
-                  <span class="rs-supplier-tag-val">—</span>
-                  <button class="rs-supplier-tag-x" id="rsSupplierClear" type="button" title="清除供应商筛选">✕</button>
-                </span>
-              </div>
-              <div class="rs-filter-group">
-                <span class="rs-filter-label">🔍 搜索</span>
-                <input type="text" id="rsSearch" class="rs-search-input" placeholder="供应商 ID / 条码 / 型号 / 品名">
-                <button class="rs-chip rs-chip--toggle" id="rsSearchClear" type="button" title="清空搜索">✕</button>
+            <button class="rs-chip rs-chip--toggle" id="rsSearchClear" type="button" title="清空搜索">✕</button>
+            <div class="rs-f-spacer"></div>
+            <select class="rs-sortsel" id="rsSortSel" title="排序">
+              <option value="urgency_score|desc">紧迫分 ↓</option>
+              <option value="weeks_of_cover|asc">库存周 ↑</option>
+              <option value="weekly_revenue|desc">周销额 ↓</option>
+              <option value="margin_pct|desc">毛利率 ↓</option>
+              <option value="last_purchase_days_ago|desc">距上次进货 ↓</option>
+            </select>
+          </div>
+
+          <!-- 第二排: 来源 + 视图 + 可撑阈值 + 重置 -->
+          <div class="rs-filter-row2">
+            <span class="rs-filter-label">来源</span>
+            <div class="rs-seg" id="rsOriginSeg">
+              <button data-origin="">全部</button>
+              <button data-origin="FOREIGN">🇬🇷 老外货</button>
+              <button data-origin="CN">🇨🇳 中国货</button>
+              <button data-origin="unknown">未知</button>
+            </div>
+            <div class="rs-f-sep"></div>
+            <span class="rs-filter-label">视图</span>
+            <button class="rs-chip rs-vchip" data-view="active">活跃</button>
+            <button class="rs-chip rs-vchip" data-view="new">新品 &lt;4w</button>
+            <button class="rs-chip rs-vchip" data-view="disc">含停用</button>
+            <!-- 可撑阈值筛选 (收起的滑块) -->
+            <div class="rs-cf" id="rsCoverFilter">
+              <button class="rs-cf-chip" id="rsCfChip" type="button">
+                可撑 ≤ <span class="rs-cf-val" id="rsCfVal">4</span> 周
+                <span class="rs-cf-caret">▾</span>
+                <span class="rs-cf-clear" id="rsCfClear">✕</span>
+              </button>
+              <div class="rs-cf-pop" id="rsCfPop">
+                <div class="rs-cf-pop-head">
+                  <span class="rs-cf-pop-title">仅显示可撑 ≤</span>
+                  <span class="rs-cf-pop-num"><span id="rsCfPopNum">4</span> 周</span>
+                </div>
+                <input type="range" id="rsCfRange" min="0.5" max="20" step="0.5" value="4">
+                <div class="rs-cf-pop-foot">
+                  <span class="rs-cf-pop-hint">筛掉库存还能撑很久的 SKU</span>
+                  <button class="rs-cf-pop-reset" id="rsCfReset" type="button">不限</button>
+                </div>
               </div>
             </div>
+            <span class="rs-supplier-tag rs-chip rs-chip--active" id="rsSupplierTag" style="display:none;">
+              <span class="rs-supplier-tag-val">—</span>
+              <button class="rs-supplier-tag-x" id="rsSupplierClear" type="button" title="清除供应商筛选">✕</button>
+            </span>
+            <div class="rs-f-spacer"></div>
+            <button class="rs-reset" id="rsResetFilters" type="button">↺ 禁用过滤</button>
           </div>
         </div>
-        <div class="panel">
-          <div class="panel-hd">
-            清单
-            <div class="rs-actions">
-              <span class="rs-stat" id="rsStatShowing"></span>
-            </div>
+
+        <!-- Supplier urgency chips -->
+        <div class="sup-strip" id="rsSupplierOverview"></div>
+
+        <!-- Bulk ops bar (浮现 on selection) -->
+        <div class="bulk-bar" id="rsBulkBar">
+          <span class="bulk-count">已选 <b id="rsBulkN">0</b> 项</span>
+          <span class="bulk-sep"></span>
+          <div class="bulk-actions">
+            <button class="btn btn--primary" id="rsBtnExport" type="button">⇣ 导出选中</button>
+            <button class="btn btn--ghost" id="rsBtnMark" type="button">✓ 标已下单</button>
+            <button class="btn btn--ghost" id="rsBtnSkip" type="button">✕ 不进</button>
+            <button class="btn btn--ghost" id="rsBtnUndo" type="button">↺ 撤销</button>
           </div>
-          <div class="panel-bd">
-            <table class="rs-table">
-              <thead>
-                <tr>
-                  <th class="rs-check-cell"></th>
-                  <th>条码</th>
-                  <th>型号 / 品名</th>
-                  <th>Origin</th>
-                  <th>供应商</th>
-                  <th class="rs-num rs-th-sort" data-sort="qty_total">当前库存 <span class="rs-sort-ind"></span></th>
-                  <th class="rs-num rs-th-sort" data-sort="weekly_velocity" title="近 26 周件/周">周销 件 <span class="rs-sort-ind"></span></th>
-                  <th class="rs-num rs-th-sort" data-sort="weekly_revenue" title="近 26 周折后净销售额 / 周">周销额 € <span class="rs-sort-ind"></span></th>
-                  <th class="rs-num rs-th-sort" data-sort="margin_pct" title="(售净均价 - 上次进价) / 售净均价; 紧迫分按此排名">毛利 % <span class="rs-sort-ind"></span></th>
-                  <th class="rs-num rs-th-sort" data-sort="weeks_of_cover">可撑周数 <span class="rs-sort-ind"></span></th>
-                  <th class="rs-num">12 周</th>
-                  <th class="rs-num rs-th-sort" data-sort="last_purchase_days_ago">距上次进货 <span class="rs-sort-ind"></span></th>
-                  <th class="rs-num rs-th-sort" data-sort="restock_qty_p50" title="预测模型 p50 × 8周 - 库存">p50 <span class="rs-sort-ind"></span></th>
-                  <th class="rs-num rs-th-sort" data-sort="restock_qty_p98" title="预测模型 p98 × 8周 - 库存 (安全量)">p98 <span class="rs-sort-ind"></span></th>
-                  <th class="rs-num" title="最近一次进货的数量">上次量</th>
-                  <th class="rs-num rs-th-sort rs-th-sort--default" data-sort="urgency_score">紧迫分 <span class="rs-sort-ind"></span></th>
-                </tr>
-              </thead>
-              <tbody id="rsTbody">
-                <tr><td colspan="16" class="empty">点「刷新」加载</td></tr>
-              </tbody>
-            </table>
-          </div>
+          <div class="bulk-spacer"></div>
+          <button class="bulk-clear" id="rsBulkClear" type="button">取消选择</button>
+        </div>
+
+        <!-- Table -->
+        <div class="rs-tbl-wrap">
+          <table class="rs-table">
+            <thead>
+              <tr>
+                <th class="rs-check-cell"></th>
+                <th class="rs-th-sort rs-th-sort--default" data-sort="urgency_score">紧迫分 <span class="rs-sort-ind"></span></th>
+                <th>货号 / 品名</th>
+                <th>供应商</th>
+                <th class="rs-num rs-th-sort" data-sort="qty_total">库存 <span class="rs-sort-ind"></span></th>
+                <th class="rs-num rs-th-sort rs-th-cover" data-sort="weeks_of_cover">可撑 <span class="rs-sort-ind"></span><span class="rs-cover-gear" id="rsCoverGear" title="设置安全周转阈值">⚙</span>
+                  <div class="rs-cover-pop" id="rsCoverPop">
+                    <div class="rs-cover-pop-title">安全周转阈值 · <span class="rs-cover-pop-val" id="rsCoverThVal">4.0</span> 周</div>
+                    <input type="range" id="rsCoverThRange" min="1" max="20" step="0.5" value="4">
+                    <div class="rs-cover-pop-hint">低于此线判为需补货并红/黄着色。拖动行内微条的圆点也可临时调整。</div>
+                  </div>
+                </th>
+                <th class="rs-num rs-th-sort" data-sort="weekly_velocity" title="近 26 周件/周">周销速 <span class="rs-sort-ind"></span></th>
+                <th class="rs-num rs-th-sort" data-sort="weekly_revenue" title="近 26 周折后净销售额 / 周">周销额 <span class="rs-sort-ind"></span></th>
+                <th class="rs-num rs-th-sort" data-sort="margin_pct" title="(售净均价 - 上次进价) / 售净均价">毛利率 <span class="rs-sort-ind"></span></th>
+                <th>12w 趋势</th>
+                <th>盈亏</th>
+                <th class="rs-num rs-th-sort" data-sort="last_purchase_days_ago">距进货 <span class="rs-sort-ind"></span></th>
+                <th class="rs-num rs-rec-g rs-rec-sep rs-th-sort" data-sort="restock_qty_p50" title="预测模型 p50 × 8周 - 库存">p50 <span class="rs-sort-ind"></span></th>
+                <th class="rs-num rs-rec-g rs-th-sort" data-sort="restock_qty_p98" title="预测模型 p98 × 8周 - 库存 (安全量)">p98 <span class="rs-sort-ind"></span></th>
+                <th class="rs-num rs-rec-g" title="最近一次进货的数量">上次量</th>
+              </tr>
+            </thead>
+            <tbody id="rsTbody">
+              <tr><td colspan="15" class="empty">点「刷新」加载</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Footer -->
+        <div class="rs-foot">
+          <span class="rs-foot-stat" id="rsStatShowing"></span>
+          <span class="rs-foot-stat" id="rsStatTotal"></span>
+          <div class="rs-f-spacer"></div>
+          <span class="rs-foot-stat">评分窗口 <b>26w</b> · 趋势 <b>12w</b></span>
         </div>
       </div>
       <div class="page" id="pageTransfer" x-data :class="$store.nav.current === 'transfer' ? 'active' : ''">
