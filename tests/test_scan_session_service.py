@@ -66,3 +66,39 @@ class ScanServiceTests(unittest.TestCase):
             "5828079343386": ["C08-12-03"],
             "5828079394951": ["C08-12-02"],
         })
+
+    def test_update_item_fixes_location_and_regroups_barcodes(self):
+        sid = svc.start_session("e001")["session_id"]
+        for raw in ["C08-12-03", "5828079343379", "5828079343386"]:
+            svc.add_scan(sid, raw)
+        # 第 1 行库位扫错 → 改成正确库位，条码不动
+        out = svc.update_item(sid, 1, "C08-12-99")
+        self.assertEqual(out["rows"][0]["raw"], "C08-12-99")
+        self.assertEqual(out["rows"][0]["kind"], "location")
+        self.assertEqual(out["item_count"], 3)  # 不新增行
+        # phase1 重新解析 → 两个条码归到改后的库位
+        path = svc.materialize_xlsx(sid)
+        from phase_scripts.update_location_phase1 import collect_location_map
+        self.assertEqual(collect_location_map([path]), {
+            "5828079343379": ["C08-12-99"],
+            "5828079343386": ["C08-12-99"],
+        })
+
+    def test_update_item_empty_raw_rejected(self):
+        sid = svc.start_session("e001")["session_id"]
+        svc.add_scan(sid, "C08-12-03")
+        with self.assertRaises(ValueError):
+            svc.update_item(sid, 1, "   ")
+
+    def test_update_item_bad_seq_rejected(self):
+        sid = svc.start_session("e001")["session_id"]
+        svc.add_scan(sid, "C08-12-03")
+        with self.assertRaises(ValueError):
+            svc.update_item(sid, 99, "X-1")
+
+    def test_update_item_non_active_rejected(self):
+        sid = svc.start_session("e001")["session_id"]
+        svc.add_scan(sid, "C08-12-03")
+        svc.finalize(sid)  # → pending，已交单不能再改
+        with self.assertRaises(ValueError):
+            svc.update_item(sid, 1, "X-1")

@@ -43,6 +43,22 @@ def undo_last(session_id: int) -> dict:
     return _session_dict(session_id)
 
 
+def update_item(session_id: int, seq: int, raw: str) -> dict:
+    """修正某一行（库位扫错/条码扫错）：覆盖该行 raw 并重判 kind。仅作用于进行中的
+    active 会话——已交单（pending 及之后）不可改。"""
+    raw = (raw or "").strip()
+    if not raw:
+        raise ValueError("空扫描")
+    sess = repo.get_session_row(session_id)
+    if sess is None:
+        raise ValueError("会话不存在")
+    if sess.status != "active":
+        raise ValueError("会话已结束，不能修改")
+    if not repo.update_item_by_seq(session_id, seq, raw):
+        raise ValueError("该行不存在")
+    return _session_dict(session_id)
+
+
 def finalize(session_id: int) -> dict:
     sess = repo.get_session_row(session_id)
     if sess is None:

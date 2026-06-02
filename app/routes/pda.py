@@ -75,6 +75,21 @@ def session_undo(session_id: int):
     return jsonify(scan_svc.undo_last(session_id))
 
 
+@bp.post("/session/<int:session_id>/update-item")
+def session_update_item(session_id: int):
+    # 行内修正：把第 seq 行的值覆盖为 raw（点行→直接扫码覆盖）。按 seq 定位即可，
+    # 客户端拿的就是服务端返回的 seq。
+    data = request.get_json(silent=True) or {}
+    try:
+        seq = int(data.get("seq"))
+    except (TypeError, ValueError):
+        return _err("缺少行号")
+    try:
+        return jsonify(scan_svc.update_item(session_id, seq, data.get("raw", "")))
+    except ValueError as exc:
+        return _err(str(exc))
+
+
 @bp.post("/session/<int:session_id>/finalize")
 def session_finalize(session_id: int):
     try:

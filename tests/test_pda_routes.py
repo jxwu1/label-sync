@@ -50,3 +50,27 @@ class PdaRouteTests(unittest.TestCase):
         self.assertEqual(und["item_count"], 1)
         fin = self.client.post(f"/pda/session/{sid}/finalize").get_json()
         self.assertEqual(fin["status"], "pending")
+
+    def _start_with_loc(self):
+        sid = self.client.post("/pda/session/start", json={"operator_employee_id": "e001"}).get_json()["session_id"]
+        self.client.post(f"/pda/session/{sid}/scan", json={"raw": "C08-12-03"})
+        self.client.post(f"/pda/session/{sid}/scan", json={"raw": "5828079343379"})
+        return sid
+
+    def test_update_item_endpoint(self):
+        sid = self._start_with_loc()
+        body = self.client.post(f"/pda/session/{sid}/update-item",
+                                json={"seq": 1, "raw": "D09-01-02"}).get_json()
+        self.assertEqual(body["rows"][0]["raw"], "D09-01-02")
+        self.assertEqual(body["rows"][0]["kind"], "location")
+        self.assertEqual(body["item_count"], 2)  # 覆盖不新增行
+
+    def test_update_item_missing_seq_returns_400(self):
+        sid = self._start_with_loc()
+        rv = self.client.post(f"/pda/session/{sid}/update-item", json={"raw": "X-1"})
+        self.assertEqual(rv.status_code, 400)
+
+    def test_update_item_bad_seq_returns_400(self):
+        sid = self._start_with_loc()
+        rv = self.client.post(f"/pda/session/{sid}/update-item", json={"seq": 99, "raw": "X-1"})
+        self.assertEqual(rv.status_code, 400)

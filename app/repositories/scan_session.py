@@ -55,6 +55,18 @@ def pop_last_item(session_id: int) -> bool:
         return True
 
 
+def update_item_by_seq(session_id: int, seq: int, raw: str) -> bool:
+    """覆盖某一行的扫描值，并按和首次扫描相同的规则重判 kind。改库位行的值即可让其
+    下面的条码在 phase1 重新归位（往上推断），无需改动条码。找不到该行返回 False。"""
+    with get_session() as s:
+        item = s.query(ScanItem).filter_by(session_id=session_id, seq=seq).first()
+        if item is None:
+            return False
+        item.raw = raw
+        item.kind = _kind_of(raw)
+        return True
+
+
 def list_items(session_id: int) -> list[ScanItem]:
     with get_session() as s:
         return (

@@ -27,3 +27,8 @@ body { display: flex; flex-direction: column; }
   background: var(--bg-0); color: var(--ink-0); }
 .pda-scan:focus { outline: none; border-color: #16a34a; background: #f0fdf4; } /* 绿框=已激活可扫 */
 .pda-grid tr.empty td { height: 34px; } /* 空占位行：撑出 Excel 般的等高网格 */
+/* 「待覆盖」提示条：点行后告诉操作员下一次扫描会改哪行 + 怎么取消 */
+.pda-edithint { padding: 8px 10px; font-size: 14px; font-weight: 600; text-align: center;
+  background: #fde68a; color: #92400e; }
+/* 待覆盖行：醒目高亮，防止误把新扫描当追加 */
+.pda-grid tr.editing td { background: #fef3c7; box-shadow: inset 0 0 0 2px #f59e0b; }
