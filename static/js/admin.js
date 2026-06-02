@@ -140,20 +140,167 @@ function initAddUser() {
   });
 }
 
-if (window.Alpine) {
-  Alpine.store("nav").onFirstActivate("admin", () => {
-    renderThemePicker();
-    renderSettings();
-    renderUsers();
-    initAddUser();
+// ===== 09 合并：系统状态 / Scraper 新鲜度 / 近期 import / 应急上传（并入数据健康 07）=====
+const INV_TYPE_CN = { purchase: "采购", sale: "销售", sales: "销售", snapshot: "库存快照", product: "产品总档" };
+
+function _fmtAgo(iso) {
+  if (!iso) return '<span style="color:var(--ink-3)">—</span>';
+  const d = new Date(iso.length === 10 ? iso + "T00:00:00" : iso);
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  const color = days > 14 ? "var(--error)" : days > 7 ? "var(--warn)" : "var(--success)";
+  const tag = days > 14 ? "⚠" : days > 7 ? "·" : "✓";
+  return `<span style="color:${color}">${iso.slice(0, 10)} ${tag} ${days}天前</span>`;
+}
+
+async function renderSysStatus() {
+  const box = $("sysStatus");
+  if (!box) return;
+  try {
+    const s = await fetch("/inventory/stats").then((r) => r.json());
+    if (!s.ok) throw new Error(s.msg || "stats 失败");
+    const lastImp = [s.last_sale_import, s.last_purchase_import, s.last_inventory_snapshot_import]
+      .filter(Boolean).sort().pop();
+    const row = (label, val, dot = "ok") =>
+      `<div class="sys-row"><span class="sys-dot ${dot}"></span><span class="sys-label">${label}</span><span class="sys-val">${val}</span></div>`;
+    box.innerHTML =
+      row("服务器", "运行中") +
+      row("Stockpile DB", `${(s.skus_total || 0).toLocaleString()} active SKU`) +
+      row("上次导入", lastImp ? lastImp.slice(0, 16).replace("T", " ") : "—", lastImp ? "ok" : "warn") +
+      row("销售事件", (s.events_sale || 0).toLocaleString()) +
+      row("采购事件", (s.events_purchase || 0).toLocaleString()) +
+      row("客户 / 供应商", `${(s.customers_total || 0).toLocaleString()} / ${(s.suppliers_total || 0).toLocaleString()}`);
+  } catch (e) {
+    box.innerHTML = `<div class="sys-row"><span class="sys-dot err"></span><span class="sys-label">加载失败</span><span class="sys-val">${esc(e.message)}</span></div>`;
+  }
+}
+
+async function renderScraper() {
+  const box = $("sysScraper");
+  if (!box) return;
+  try {
+    const s = await fetch("/inventory/stats").then((r) => r.json());
+    const sched = (name, iso) =>
+      `<div class="sched-row"><span class="sched-name">${name}</span><span class="sched-cron">0 4 * * *</span><span class="sched-last">最新 ${_fmtAgo(iso)}</span><button class="sched-btn" disabled title="抓取是外部脚本，暂不支持页面触发">▶ 手动</button></div>`;
+    box.innerHTML =
+      sched("销售数据", s.latest_sale_at) +
+      sched("采购数据", s.latest_purchase_at) +
+      sched("库存快照", s.latest_inventory_snapshot_at) +
+      sched("产品总档", s.latest_product_master_at);
+    const pill = $("sysScrPill");
+    if (pill) {
+      const dates = [s.latest_sale_at, s.latest_purchase_at, s.latest_inventory_snapshot_at, s.latest_product_master_at].filter(Boolean);
+      const maxDays = dates.length
+        ? Math.max(...dates.map((d) => Math.floor((Date.now() - new Date(d.length === 10 ? d + "T00:00:00" : d).getTime()) / 86400000)))
+        : 999;
+      if (maxDays > 14) { pill.textContent = "数据陈旧"; pill.className = "pill pill--warn"; }
+      else { pill.textContent = "正常"; pill.className = "pill pill--success"; }
+    }
+  } catch (e) {
+    box.innerHTML = `<div class="sched-row"><span class="sched-name" style="color:var(--error)">加载失败</span></div>`;
+  }
+}
+
+async function renderRecentImports() {
+  const tbody = $("sysImportsBody");
+  if (!tbody) return;
+  try {
+    const r = await fetch("/inventory/imports?limit=10").then((x) => x.json());
+    const items = r.items || [];
+    if (!items.length) { tbody.innerHTML = '<tr><td colspan="5" class="pnl-empty">暂无 import 记录</td></tr>'; return; }
+    tbody.innerHTML = items.map((it) => {
+      const ok = it.status === "ok" || it.status === "success";
+      const ts = (it.imported_at || "").slice(0, 16).replace("T", " ");
+      return `<tr>
+        <td class="mono" style="font-size:var(--fs-xs);color:var(--ink-2)">${ts}</td>
+        <td class="mono" style="font-size:var(--fs-xs)">${INV_TYPE_CN[it.file_type] || it.file_type || "—"}</td>
+        <td style="color:${ok ? 'var(--success)' : 'var(--error)'};font-weight:600">${ok ? '✓' : '✗'} ${esc(it.status || '')}</td>
+        <td class="r mono" style="font-size:var(--fs-sm)">${(it.rows_imported ?? 0).toLocaleString()}</td>
+        <td class="mono" style="font-size:var(--fs-xs);color:var(--ink-2)">${esc(it.file_name || '')}</td>
+      </tr>`;
+    }).join("");
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="5" class="pnl-empty">加载失败：${esc(e.message)}</td></tr>`;
+  }
+}
+
+function _sysInvType() {
+  const r = document.querySelector('input[name="sysInvType"]:checked');
+  return r ? r.value : "purchase";
+}
+
+function initSysUpload() {
+  const file = $("sysInvFile");
+  const msg = $("sysInvMsg");
+  if (!file) return;
+  const setMsg = (html, err) => { if (msg) { msg.innerHTML = html; msg.style.color = err ? "var(--error)" : "var(--ink-2)"; } };
+  file.addEventListener("change", () => {
+    $("sysInvFileName").textContent = file.files[0] ? file.files[0].name : "未选择任何文件";
   });
+  $("sysInvPreview")?.addEventListener("click", async () => {
+    const f = file.files[0];
+    if (!f) return setMsg("请先选择文件", true);
+    setMsg("解析中…");
+    const fd = new FormData(); fd.append("file", f);
+    try {
+      const d = await fetch("/inventory/preview", { method: "POST", body: fd }).then((r) => r.json());
+      if (!d.ok) return setMsg(`预览失败：${esc(d.msg || "未知错误")}`, true);
+      setMsg(`预览成功：${d.row_count} 行 / ${(d.columns || []).length} 列。可直接「执行导入」（用已保存/默认列映射）。`);
+    } catch (e) { setMsg(`网络错误：${esc(e.message)}`, true); }
+  });
+  $("sysInvImport")?.addEventListener("click", async () => {
+    const f = file.files[0];
+    if (!f) return setMsg("请先选择文件", true);
+    const type = _sysInvType();
+    setMsg(`正在导入到 ${INV_TYPE_CN[type] || type} …`);
+    const fd = new FormData(); fd.append("file", f);
+    try {
+      const d = await fetch(`/inventory/import/${type}`, { method: "POST", body: fd }).then((r) => r.json());
+      if (!d.ok) return setMsg(`导入失败：${esc(d.msg || "未知错误")}`, true);
+      setMsg(`导入完成：入库 <b>${d.rows_imported}</b> · 跳过重复 ${d.rows_skipped_duplicate ?? 0} · 新建客户 ${d.new_customers ?? 0} / 供应商 ${d.new_suppliers ?? 0} / SKU ${d.new_skus ?? 0}`);
+      renderRecentImports(); renderSysStatus(); renderScraper();
+    } catch (e) { setMsg(`网络错误：${esc(e.message)}`, true); }
+  });
+}
+
+function initSysRefresh() {
+  $("sysRefresh")?.addEventListener("click", () => { renderSysStatus(); renderScraper(); });
+  $("sysImportsRefresh")?.addEventListener("click", renderRecentImports);
+}
+
+function initCollapsible() {
+  document.querySelectorAll("#pageAdmin .pnl--clps > .pnl-hd").forEach((hd) => {
+    const toggle = (e) => {
+      // header bar 里的交互控件（刷新按钮等）不触发折叠
+      if (e.target.closest("button, a, input, label, select")) return;
+      hd.closest(".pnl")?.classList.toggle("is-collapsed");
+    };
+    hd.addEventListener("click", toggle);
+    hd.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        toggle(e);
+      }
+    });
+  });
+}
+
+function initAdminPage() {
+  renderThemePicker();   // #adminThemePicker 已移除时安全跳过（主题切换在侧栏底部）
+  renderSettings();
+  renderUsers();
+  initAddUser();
+  renderSysStatus();
+  renderScraper();
+  renderRecentImports();
+  initSysUpload();
+  initSysRefresh();
+  initCollapsible();
+}
+
+if (window.Alpine) {
+  Alpine.store("nav").onFirstActivate("admin", initAdminPage);
 } else {
   document.addEventListener("alpine:init", () => {
-    Alpine.store("nav").onFirstActivate("admin", () => {
-      renderThemePicker();
-      renderSettings();
-      renderUsers();
-      initAddUser();
-    });
+    Alpine.store("nav").onFirstActivate("admin", initAdminPage);
   });
 }
