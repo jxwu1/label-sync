@@ -42,8 +42,10 @@
   --r-pill: 999px;
 
   /* transitions */
-  --t-fast: .12s ease;
-  --t-base: .2s ease;
+  /* 统一缓动曲线: 快起慢收的 ease-out, 比浏览器默认 ease 更"奶油"(Apple 手感) */
+  --ease-standard: cubic-bezier(.32, .72, 0, 1);
+  --t-fast: .12s var(--ease-standard);
+  --t-base: .2s var(--ease-standard);
 
   /* z-index */
   --z-base: 0;

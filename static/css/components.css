@@ -808,7 +808,7 @@
   width: 0%;
   background: var(--accent);
   border-radius: var(--r-pill);
-  transition: width 300ms ease;
+  transition: width 300ms var(--ease-standard);
 }
 .pl-stage {
   background: var(--bg-2);
@@ -2012,7 +2012,7 @@
 /* Urgency cell: bar + number (设计稿 .urg) */
 .rs-urg { display: inline-flex; align-items: center; gap: 6px; }
 .rs-urg-bar { width: 48px; height: 5px; background: var(--bg-3); border-radius: 2px; overflow: hidden; flex-shrink: 0; }
-.rs-urg-fill { height: 100%; border-radius: 2px; transition: width .3s ease; }
+.rs-urg-fill { height: 100%; border-radius: 2px; transition: width .3s var(--ease-standard); }
 .rs-urg-fill--high { background: var(--error); }
 .rs-urg-fill--mid  { background: var(--warn); }
 .rs-urg-fill--low  { background: var(--success); }
@@ -2608,7 +2608,7 @@
 .dash-task-label { font-size: var(--fs-md); font-weight: 600; color: var(--ink-0); }
 .dash-task-detail { font-size: var(--fs-sm); color: var(--ink-2); }
 .dash-task-bar { width: 160px; height: 4px; background: var(--bg-3); border-radius: 2px; overflow: hidden; }
-.dash-task-fill { height: 100%; border-radius: 2px; transition: width .3s ease; }
+.dash-task-fill { height: 100%; border-radius: 2px; transition: width .3s var(--ease-standard); }
 .dash-task-fill.accent { background: var(--accent); }
 .dash-task-fill.warn { background: var(--warn); }
 .dash-task-pct { font-family: var(--mono); font-size: var(--fs-xs); font-weight: 600; color: var(--ink-1); min-width: 32px; text-align: right; }
@@ -2704,7 +2704,7 @@
 
 /* Pipeline v2 */
 .pl-progress { height: 3px; background: var(--bg-3); border-radius: 2px; overflow: hidden; margin-bottom: 12px; }
-.pl-progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .4s ease; }
+.pl-progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .4s var(--ease-standard); }
 .pl-stages { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
 .pl-stage-v2 { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px; border-radius: var(--r-sm); text-align: center; position: relative; }
 .pl-stage-v2 .pl-num { font-family: var(--mono); font-size: var(--fs-xs); color: var(--ink-3); font-weight: 600; }
