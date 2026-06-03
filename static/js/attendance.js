@@ -105,7 +105,7 @@
         <div class="pur-modal">
           <div class="pur-modal-hd">特殊日管理（缩短工时）</div>
           <div class="attn-time-row">
-            <input class="attn-inp" id="attnSpecialDate" type="date">
+            <input class="attn-inp" id="attnSpecialDate" type="date" aria-label="特殊日期">
             <input class="attn-inp" id="attnSpecialStart" type="text" placeholder="09:30" maxlength="5">
             <span>—</span>
             <input class="attn-inp" id="attnSpecialEnd" type="text" placeholder="14:30" maxlength="5">
@@ -165,9 +165,9 @@
             区间内每天完全不计入考勤（含周日 / 节假日）。与单日请假不同：单日请假周日仍算 1.0，这里的天周日也不算。
           </div>
           <div class="attn-time-row">
-            <input class="attn-inp" id="attnInactiveFrom" type="date">
+            <input class="attn-inp" id="attnInactiveFrom" type="date" aria-label="不在职起始日期">
             <span>—</span>
-            <input class="attn-inp" id="attnInactiveTo" type="date">
+            <input class="attn-inp" id="attnInactiveTo" type="date" aria-label="不在职结束日期">
             <input class="attn-inp" id="attnInactiveReason" type="text" placeholder="原因（可选）">
             <button class="attn-btn attn-btn-dl" id="attnInactiveAdd">添加</button>
           </div>
@@ -181,12 +181,12 @@
         <div class="pur-modal">
           <div class="pur-modal-hd">节假日管理</div>
           <div class="attn-time-row">
-            <input class="attn-inp" id="attnHolidayInput" type="date">
+            <input class="attn-inp" id="attnHolidayInput" type="date" aria-label="节假日日期">
             <button class="attn-btn attn-btn-dl" id="attnHolidayAdd">添加</button>
           </div>
           <div class="attn-time-row">
             <span class="attn-hint-inline">批量导入希腊法定节假日：</span>
-            <select class="attn-inp" id="attnHolidayYear">
+            <select class="attn-inp" id="attnHolidayYear" aria-label="年份">
               <option value="2025">2025</option>
               <option value="2026" selected>2026</option>
             </select>

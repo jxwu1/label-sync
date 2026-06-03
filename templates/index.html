@@ -131,8 +131,8 @@
       <div class="header-crumb">
         <span class="header-crumb-prefix">DataOps</span>
         <span class="header-crumb-sep">/</span>
-        <span class="header-crumb-title"
-              x-text="($store.nav.pages.find(p => p.id === $store.nav.current) || {}).label"></span>
+        <h1 class="header-crumb-title"
+              x-text="($store.nav.pages.find(p => p.id === $store.nav.current) || {}).label"></h1>
       </div>
       <div class="header-spacer"></div>
       <div class="header-freshness" x-data="{ f: null }"
@@ -168,7 +168,7 @@
             x-text="$store.substrip.stockpileCount === null ? '—' : $store.substrip.stockpileCount.toLocaleString()"></span>
     </div>
 
-    <div class="content">
+    <div class="content" role="main">
 
 <!-- ═══ Dashboard ═══ -->
 <div class="page" id="pageDashboard" x-data="{
@@ -316,7 +316,7 @@
   <section class="pnl">
     <div class="pnl-hd">
       <span class="pnl-code">01</span>
-      <span class="pnl-title">文件投递</span>
+      <span class="pnl-title" role="heading" aria-level="2">文件投递</span>
       <span class="pnl-sub">拖入即处理</span>
       <span class="pnl-spacer"></span>
       <span class="pnl-pill">.xlsx</span>
@@ -338,7 +338,7 @@
   <section class="pnl" id="pipelinePanel">
     <div class="pnl-hd">
       <span class="pnl-code">02</span>
-      <span class="pnl-title">处理管线</span>
+      <span class="pnl-title" role="heading" aria-level="2">处理管线</span>
       <span class="pnl-sub">pipeline</span>
       <span class="pnl-spacer"></span>
       <span class="mono" style="font-size:var(--fs-lg);font-weight:700;color:var(--accent)" id="plPct">0%</span>
@@ -361,7 +361,7 @@
         <div id="exIdle">
           <div class="pnl-hd">
             <span class="pnl-code">03</span>
-            <span class="pnl-title">异常处理</span>
+            <span class="pnl-title" role="heading" aria-level="2">异常处理</span>
             <span class="pnl-sub">exceptions</span>
             <span class="pnl-spacer"></span>
             <span class="pnl-pill" id="exIdlePill">0 待处理</span>
@@ -394,7 +394,7 @@
         <div id="exActive" style="display:none;flex-direction:column;flex:1;min-height:0">
           <div class="pnl-hd">
             <span class="pnl-code">03</span>
-            <span class="pnl-title">异常处理</span>
+            <span class="pnl-title" role="heading" aria-level="2">异常处理</span>
             <span class="pnl-sub">exceptions</span>
             <span class="pnl-spacer"></span>
             <span class="ex-sev-v2 high" id="exSevHigh">HIGH 0</span>
@@ -409,7 +409,7 @@
         <div id="exDone" style="display:none;flex-direction:column;flex:1;min-height:0;">
           <div class="pnl-hd">
             <span class="pnl-code">03</span>
-            <span class="pnl-title">异常处理</span>
+            <span class="pnl-title" role="heading" aria-level="2">异常处理</span>
             <span class="pnl-sub">exceptions</span>
             <span class="pnl-spacer"></span>
             <span class="ex-sev-done">✓ 全部完成</span>
@@ -438,7 +438,7 @@
     <section class="pnl" style="flex-shrink:0" id="filesPanel">
       <div class="pnl-hd">
         <span class="pnl-code">04</span>
-        <span class="pnl-title">文件队列</span>
+        <span class="pnl-title" role="heading" aria-level="2">文件队列</span>
         <span class="pnl-sub" x-data x-text="($store.upload.selected.length + $store.upload.batches.reduce((s,b) => s+b.files.length, 0)) + ' files'">0 files</span>
         <span class="pnl-spacer"></span>
       </div>
@@ -510,7 +510,7 @@
     <section class="pnl" style="flex:1;min-height:0" id="scanStatsPanel">
       <div class="pnl-hd">
         <span class="pnl-code">05</span>
-        <span class="pnl-title">扫描统计</span>
+        <span class="pnl-title" role="heading" aria-level="2">扫描统计</span>
         <span class="pnl-sub">当前批次</span>
         <span class="pnl-spacer"></span>
       </div>
@@ -555,7 +555,7 @@
     <section class="pnl" style="flex-shrink:0" id="activityPanel">
       <div class="pnl-hd">
         <span class="pnl-code">06</span>
-        <span class="pnl-title">活动日志</span>
+        <span class="pnl-title" role="heading" aria-level="2">活动日志</span>
         <span class="pnl-sub">tail · live</span>
         <span class="pnl-spacer"></span>
         <div class="al-live" x-data><span class="al-live-dot"></span>LIVE</div>
@@ -766,7 +766,7 @@
                 <span class="pnl-spacer" style="flex:1"></span>
                 <button class="btn btn--ghost" id="rcModeToggle" data-mode="collapsed" style="font-size:var(--fs-xs);padding:3px 8px;">展开 raw 事件</button>
               </div>
-              <select class="rc-sel" id="rcBatchSelect"></select>
+              <select class="rc-sel" id="rcBatchSelect" aria-label="批次"></select>
               <div id="rcSummary"></div>
               <div class="rc-chips" id="rcChips"></div>
               <div id="rcList"></div>
@@ -776,7 +776,7 @@
               <div class="batch-col-title">
                 <span class="cur-code">SCN</span> 扫描批次
                 <span class="pnl-spacer" style="flex:1"></span>
-                <select id="scanHistoryEmployee" class="rc-sel" style="width:auto;min-width:120px;"><option value="">全部员工</option></select>
+                <select id="scanHistoryEmployee" class="rc-sel" style="width:auto;min-width:120px;" aria-label="员工筛选"><option value="">全部员工</option></select>
               </div>
               <div id="scanHistoryList"><div class="sh-empty">加载中...</div></div>
             </div>
@@ -891,7 +891,7 @@
           <span class="fc-control-title">老外客人月度记录</span>
           <span class="fc-divider"></span>
           <span class="fc-control-label">月份</span>
-          <input class="fc-inp fc-inp--mono" id="fcMonth" type="month">
+          <input class="fc-inp fc-inp--mono" id="fcMonth" type="month" aria-label="月份">
           <button class="fc-cta fc-cta--ghost" id="fcRefresh">↻ 刷新</button>
           <button class="fc-cta fc-cta--ghost" id="fcDownloadPdf">↓ 下载 PDF</button>
           <span class="fc-control-spacer"></span>
@@ -1207,7 +1207,7 @@
                   <span class="rs-cf-pop-title">仅显示可撑 ≤</span>
                   <span class="rs-cf-pop-num"><span id="rsCfPopNum">4</span> 周</span>
                 </div>
-                <input type="range" id="rsCfRange" min="0.5" max="20" step="0.5" value="4">
+                <input type="range" id="rsCfRange" min="0.5" max="20" step="0.5" value="4" aria-label="凑单阈值（周）">
                 <div class="rs-cf-pop-foot">
                   <span class="rs-cf-pop-hint">筛掉库存还能撑很久的 SKU</span>
                   <button class="rs-cf-pop-reset" id="rsCfReset" type="button">不限</button>
@@ -1253,7 +1253,7 @@
                 <th class="rs-num rs-th-sort rs-th-cover" data-sort="weeks_of_cover">可撑 <span class="rs-sort-ind"></span><span class="rs-cover-gear" id="rsCoverGear" title="设置安全周转阈值">⚙</span>
                   <div class="rs-cover-pop" id="rsCoverPop">
                     <div class="rs-cover-pop-title">安全周转阈值 · <span class="rs-cover-pop-val" id="rsCoverThVal">4.0</span> 周</div>
-                    <input type="range" id="rsCoverThRange" min="1" max="20" step="0.5" value="4">
+                    <input type="range" id="rsCoverThRange" min="1" max="20" step="0.5" value="4" aria-label="可撑周数阈值">
                     <div class="rs-cover-pop-hint">低于此线判为需补货并红/黄着色。拖动行内微条的圆点也可临时调整。</div>
                   </div>
                 </th>
@@ -1380,7 +1380,7 @@
           <div class="pnl">
             <div class="pnl-hd">
               <span class="pnl-code">SYS</span>
-              <span class="pnl-title">系统状态</span>
+              <span class="pnl-title" role="heading" aria-level="2">系统状态</span>
               <span class="pnl-spacer"></span>
               <button class="btn btn--ghost" id="sysRefresh">↻ 刷新</button>
             </div>
@@ -1391,7 +1391,7 @@
           <div class="pnl">
             <div class="pnl-hd">
               <span class="pnl-code">SCR</span>
-              <span class="pnl-title">Scraper 状态</span>
+              <span class="pnl-title" role="heading" aria-level="2">Scraper 状态</span>
               <span class="pnl-spacer"></span>
               <span class="pill pill--ghost" id="sysScrPill">数据新鲜度</span>
             </div>
@@ -1405,7 +1405,7 @@
         <div class="pnl">
           <div class="pnl-hd">
             <span class="pnl-code">SET</span>
-            <span class="pnl-title">系统参数</span>
+            <span class="pnl-title" role="heading" aria-level="2">系统参数</span>
             <span class="pnl-spacer"></span>
             <button class="btn btn--primary" id="adminSaveSettings">保存参数</button>
           </div>
@@ -1418,7 +1418,7 @@
         <div class="pnl">
           <div class="pnl-hd">
             <span class="pnl-code">USR</span>
-            <span class="pnl-title">用户管理</span>
+            <span class="pnl-title" role="heading" aria-level="2">用户管理</span>
             <span class="pnl-spacer"></span>
             <button class="btn btn--ghost" id="adminAddUser">+ 新增</button>
           </div>
@@ -1434,7 +1434,7 @@
         <div class="pnl pnl--clps is-collapsed">
           <div class="pnl-hd" role="button" tabindex="0" aria-label="折叠/展开">
             <span class="pnl-code">IO-01</span>
-            <span class="pnl-title">应急手动上传</span>
+            <span class="pnl-title" role="heading" aria-level="2">应急手动上传</span>
             <span class="pnl-sub" style="margin-left:4px;">scraper 失效时用</span>
             <span class="pnl-spacer"></span>
             <span class="pill pill--ghost">.xls (HTML 伪装)</span>
@@ -1459,7 +1459,7 @@
         <div class="pnl pnl--clps is-collapsed">
           <div class="pnl-hd" role="button" tabindex="0" aria-label="折叠/展开">
             <span class="pnl-code">RECENT</span>
-            <span class="pnl-title">近 10 次手动 Import</span>
+            <span class="pnl-title" role="heading" aria-level="2">近 10 次手动 Import</span>
             <span class="pnl-spacer"></span>
             <button class="btn btn--ghost" id="sysImportsRefresh">↻ 刷新</button>
           </div>

@@ -113,7 +113,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
       <section class="pnl" id="purDropFull">
         <div class="pnl-hd">
           <span class="pnl-code">01</span>
-          <span class="pnl-title">文件投递</span>
+          <span class="pnl-title" role="heading" aria-level="2">文件投递</span>
           <span class="pnl-sub">供应商 Excel</span>
           <span class="pnl-spacer"></span>
           <span class="pnl-pill">.xlsx</span>
@@ -147,7 +147,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
       <section class="pnl" id="purResultsPanel">
         <div class="pnl-hd">
           <span class="pnl-code">02</span>
-          <span class="pnl-title">解析结果</span>
+          <span class="pnl-title" role="heading" aria-level="2">解析结果</span>
           <span class="pnl-sub" id="purPanelSub">等待文件</span>
           <span class="pnl-spacer"></span>
           <span class="pill pill--off pill--xs" id="purStatePill">未解析</span>
@@ -170,7 +170,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
       <section class="pnl" id="purNewBox" style="display:none;">
         <div class="pnl-hd">
           <span class="pnl-code">03</span>
-          <span class="pnl-title">新条码</span>
+          <span class="pnl-title" role="heading" aria-level="2">新条码</span>
           <span class="pnl-sub" id="purNewSub">需填写品名后导出</span>
           <span class="pnl-spacer"></span>
           <button class="btn btn--ghost" id="purNewCopyAll" style="font-size:var(--fs-xs);">⎘ 复制条码</button>
@@ -197,7 +197,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
       <!-- 04 HISTORY · 月度总结 -->
       <div class="ms" id="purSummarySection">
         <span class="ms-code">HISTORY · 月度总结</span>
-        <select class="ms-sel" id="purSumMonth"></select>
+        <select class="ms-sel" id="purSumMonth" aria-label="月份"></select>
         <span class="ms-stat" id="purSumCount">— 条记录</span>
         <span class="pnl-spacer"></span>
         <button class="btn btn--ghost" id="purSumAdd">+ 补录</button>
@@ -212,16 +212,16 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
           <div class="modal-bd">
             <div class="mf"><span class="mf-label">供应商名称</span><input class="mf-inp" id="purMsSupplier" placeholder="必填"></div>
             <div class="modal-grid2">
-              <div class="mf"><span class="mf-label">总价 (€)</span><input class="mf-inp" id="purMsTotal" type="number" step="0.01"></div>
+              <div class="mf"><span class="mf-label">总价 (€)</span><input class="mf-inp" id="purMsTotal" type="number" step="0.01" aria-label="发票总价"></div>
               <div class="mf"><span class="mf-label">税金 (€)</span><input class="mf-inp" id="purMsTax" type="number" step="0.01" placeholder="必填"></div>
             </div>
             <div class="modal-grid2">
               <div class="mf"><span class="mf-label">特殊税 (€)</span><input class="mf-inp" id="purMsSpecialTax" type="number" step="0.01" placeholder="可选（如环保税）"></div>
-              <div class="mf"><span class="mf-label">加税总价 (€)</span><input class="mf-inp" id="purMsTotalTax" disabled></div>
+              <div class="mf"><span class="mf-label">加税总价 (€)</span><input class="mf-inp" id="purMsTotalTax" disabled aria-label="总税额"></div>
             </div>
             <div class="modal-grid2">
-              <div class="mf"><span class="mf-label">开票日期</span><input class="mf-inp" id="purMsDate" type="date"></div>
-              <div class="mf"><span class="mf-label">目标月份</span><input class="mf-inp" id="purMsMonth" type="month"></div>
+              <div class="mf"><span class="mf-label">开票日期</span><input class="mf-inp" id="purMsDate" type="date" aria-label="发票日期"></div>
+              <div class="mf"><span class="mf-label">目标月份</span><input class="mf-inp" id="purMsMonth" type="month" aria-label="发票月份"></div>
             </div>
           </div>
           <div class="modal-ft">
