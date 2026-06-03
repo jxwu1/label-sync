@@ -34,6 +34,11 @@ class TaskState:
         with self._lock:
             self._data = TaskSnapshot(running=True)
 
+    def clear(self) -> None:
+        """清回完全空闲状态 (取消/重置卡住的任务用)。"""
+        with self._lock:
+            self._data = TaskSnapshot()
+
     def prepare_phase_two(self) -> None:
         with self._lock:
             self._data.running = True

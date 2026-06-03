@@ -76,6 +76,15 @@ def continue_processing():
     return jsonify({"ok": True})
 
 
+@bp.post("/cancel")
+def cancel():
+    """取消/重置卡住的标签任务 (等待中或出错后)。运行中拒绝, 避免与后台线程竞争。"""
+    if task_state.is_running() and not task_state.is_waiting():
+        return jsonify({"ok": False, "msg": "任务正在运行中，无法取消"}), 400
+    task_state.clear()
+    return jsonify({"ok": True})
+
+
 @bp.get("/status")
 def status():
     snapshot = task_state.snapshot()

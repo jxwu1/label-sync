@@ -291,6 +291,23 @@ window.__reset = () => {
   Alpine.store('term').push("已清空文件队列", "log-dim");
 };
 
+// 取消 / 重置卡住的任务（等待中或出错时可见）：清服务端 task_state + 重置客户端 UI。
+window.__cancel = async () => {
+  try {
+    const data = await (await fetch("/cancel", { method: "POST" })).json();
+    if (!data.ok) {
+      Alpine.store('app').setStatus(data.msg || "无法取消", "error");
+      Alpine.store('term').push("取消失败：" + (data.msg || ""), "log-err");
+      return;
+    }
+    Alpine.store('term').push("已取消并重置任务", "log-dim");
+  } catch (e) {
+    Alpine.store('app').setStatus("取消请求失败：" + e, "error");
+    return;
+  }
+  window.__reset();
+};
+
 async function copyModelsAndDisplay(isUnique, batchId, btnEl) {
   // btnEl：被点击的可见按钮（文件队列里那个）。缺省回退到隐藏的 legacy #copyModels，
   // 否则反馈（复制中/已复制 N）会写到隐藏按钮上、可见按钮毫无反应，看起来像没生效。

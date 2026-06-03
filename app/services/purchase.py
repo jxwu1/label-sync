@@ -45,11 +45,16 @@ def _parse_price(raw) -> tuple[float, bool]:
     return _round_half_up(price), False
 
 
-def _parse_quantity(raw) -> int:
+def _parse_quantity(raw) -> tuple[int, bool]:
+    """返回 (数量, 是否可疑)。无法解析 → (0, True); <=0 → (值, True)。
+
+    可疑标记给前端高亮, 避免数量打错被静默当 0 导致订货短缺。
+    """
     try:
-        return int(float(raw))
+        q = int(float(raw))
     except (ValueError, TypeError):
-        return 0
+        return 0, True
+    return q, (q <= 0)
 
 
 @dataclass
@@ -59,6 +64,7 @@ class PurchaseRow:
     price: float
     quantity: int
     price_flagged: bool
+    quantity_flagged: bool = False
 
     def formatted(self) -> str:
         return f"{self.barcode},{self.price:.4f},,{self.quantity}"
@@ -69,25 +75,34 @@ class PurchaseRow:
             "price": self.price,
             "quantity": self.quantity,
             "price_flagged": self.price_flagged,
+            "quantity_flagged": self.quantity_flagged,
             "formatted": self.formatted(),
         }
 
 
 def parse_purchase_excel(file_bytes: bytes) -> list[PurchaseRow]:
-    df = pd.read_excel(io.BytesIO(file_bytes), header=0, dtype=str, engine="calamine")
+    try:
+        df = pd.read_excel(io.BytesIO(file_bytes), header=0, dtype=str, engine="calamine")
+    except Exception as exc:
+        raise ValueError("无法读取供应商 Excel 文件，请确认上传的是有效的 .xlsx 文件") from exc
     rows = []
     for _, row in df.iterrows():
-        barcode = str(row.iloc[_SUPPLIER_BARCODE_COL]).strip()
-        price_val = row.iloc[_SUPPLIER_PRICE_COL]
-        qty_val = row.iloc[_SUPPLIER_QUANTITY_COL]
+        try:
+            barcode = str(row.iloc[_SUPPLIER_BARCODE_COL]).strip()
+            price_val = row.iloc[_SUPPLIER_PRICE_COL]
+            qty_val = row.iloc[_SUPPLIER_QUANTITY_COL]
+        except IndexError as exc:
+            raise ValueError("供应商 Excel 列数不足，应至少含 条码 / 价格 / 数量 列") from exc
         price, price_flagged = _parse_price(price_val)
+        quantity, quantity_flagged = _parse_quantity(qty_val)
         rows.append(
             PurchaseRow(
                 barcode=barcode,
                 price_raw=str(price_val),
                 price=price,
-                quantity=_parse_quantity(qty_val),
+                quantity=quantity,
                 price_flagged=price_flagged,
+                quantity_flagged=quantity_flagged,
             )
         )
     return rows
@@ -238,8 +253,30 @@ def create_order(
     from datetime import date as date_cls
     from app.models import PurchaseOrder, PurchaseOrderLine, get_session
 
+    from sqlalchemy import select
+
     total_qty = sum(r.quantity for r in rows)
-    total_amount = sum(r.price * r.quantity for r in rows)
+    total_amount = round(sum(r.price * r.quantity for r in rows), 2)
+
+    with get_session() as s:
+        # 幂等防重复: 同文件 + 同总量 + 同总额 且仍未到货(placed) → 视为重复上传,
+        # 返回已有单而非再建一张. 已到货的旧单不拦(那是新一批补货).
+        if source_file:
+            existing = s.execute(
+                select(PurchaseOrder).where(
+                    PurchaseOrder.source_file == source_file,
+                    PurchaseOrder.status == "placed",
+                    PurchaseOrder.total_qty == total_qty,
+                    PurchaseOrder.total_amount == total_amount,
+                ).order_by(PurchaseOrder.id.desc()).limit(1)
+            ).scalar_one_or_none()
+            if existing is not None:
+                return {
+                    "order_id": existing.id,
+                    "total_qty": existing.total_qty,
+                    "total_amount": existing.total_amount,
+                    "duplicate": True,
+                }
 
     with get_session() as s:
         order = PurchaseOrder(
@@ -261,7 +298,12 @@ def create_order(
             ))
         order_id = order.id
 
-    return {"order_id": order_id, "total_qty": total_qty, "total_amount": round(total_amount, 2)}
+    return {
+        "order_id": order_id,
+        "total_qty": total_qty,
+        "total_amount": total_amount,
+        "duplicate": False,
+    }
 
 
 def list_orders(limit: int = 50) -> list[dict]:

@@ -158,8 +158,9 @@ def fill_rates(month: str):
     employees = attendance_service.list_employees()
     try:
         summaries = attendance_service.compute_summaries_batch(employees, month)
-    except Exception:
-        summaries = {}
+    except Exception as exc:
+        # 不静默: 计算失败若吞成空 dict 会让所有人显示 0% 填写率, 误导操作员以为数据丢了
+        return jsonify({"ok": False, "msg": f"填写率计算失败：{exc}"}), 500
     out = []
     for emp in employees:
         summary = summaries.get(emp["id"], {"total_workdays": 0, "absent_days": 0, "detail": []})

@@ -482,6 +482,10 @@
            x-show="$store.app.badgeType !== 'idle'"
            :class="$store.app.statusCls ? `fq-status-bar ${$store.app.statusCls}` : 'fq-status-bar'"
            x-html="$store.app.statusText"></div>
+      <div class="fq-actions" x-data
+           x-show="$store.app.badgeType === 'waiting' || $store.app.badgeType === 'error'">
+        <button class="btn btn-ghost" style="font-size:var(--fs-sm)" @click="__cancel()">取消 / 重置</button>
+      </div>
       <!-- Hidden buttons for JS compatibility -->
       <div style="display:none">
         <button id="upload"></button>

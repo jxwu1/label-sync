@@ -41,14 +41,16 @@ def process():
     except Exception as exc:
         return jsonify({"ok": False, "msg": f"解析失败：{exc}"}), 500
     order_info = None
+    order_error = None
     try:
         order_info = purchase_service.create_order(
             rows,
             supplier_id=suggested_supplier["supplier_id"] if suggested_supplier else None,
             source_file=supplier.filename,
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        # 不静默: 解析结果照常返回, 但明确告知建单失败, 让前端给操作员告警
+        order_error = f"采购单未能记录：{exc}"
 
     return jsonify(
         {
@@ -59,6 +61,7 @@ def process():
             "inactive_barcodes": parsed_inactive,
             "suggested_supplier": suggested_supplier,
             "order": order_info,
+            "order_error": order_error,
         }
     )
 
