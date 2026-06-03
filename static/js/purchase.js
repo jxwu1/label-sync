@@ -9,6 +9,102 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
   let savedNewEntries = [];
   const supplierInfo = { id: '', name: '' };
 
+  // ---- 草稿持久化 (C2): 把已解析行/新品录入/供应商存 localStorage, 刷新/崩溃不丢手填的活 ----
+  // 注意: 原始 Excel 文件无法持久化 → 恢复后导出订单 zip 需重新选择同一个文件。
+  const DRAFT_KEY = 'purchase_draft_v1';
+
+  function saveDraft() {
+    try {
+      if (!rows.length && !newEntries.length) { localStorage.removeItem(DRAFT_KEY); return; }
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        rows,
+        system_barcodes: [...systemBarcodes],
+        inactive_barcodes: [...inactiveBarcodes],
+        newEntries,
+        savedNewEntries,
+        supplierInfo,
+        savedAt: Date.now(),
+      }));
+    } catch (e) { /* localStorage 满/被禁 → 忽略, 不影响主流程 */ }
+  }
+
+  function loadDraft() {
+    try { const s = localStorage.getItem(DRAFT_KEY); return s ? JSON.parse(s) : null; }
+    catch (e) { return null; }
+  }
+
+  function clearDraft() {
+    try { localStorage.removeItem(DRAFT_KEY); } catch (e) { /* ignore */ }
+  }
+
+  function restoreDraft() {
+    const d = loadDraft();
+    if (!d || !Array.isArray(d.rows) || !d.rows.length) return;
+    rows = d.rows;
+    systemBarcodes = new Set(d.system_barcodes || []);
+    inactiveBarcodes = new Set(d.inactive_barcodes || []);
+    newEntries = Array.isArray(d.newEntries) ? d.newEntries : [];
+    savedNewEntries = Array.isArray(d.savedNewEntries) ? d.savedNewEntries : [];
+    supplierInfo.id = (d.supplierInfo || {}).id || '';
+    supplierInfo.name = (d.supplierInfo || {}).name || '';
+    const idInp = document.getElementById('purSupId'); if (idInp) idInp.value = supplierInfo.id;
+    const nameInp = document.getElementById('purSupName'); if (nameInp) nameInp.value = supplierInfo.name;
+    setParsedView(true);
+    renderResults();
+    renderNewBox();
+    updateStrip();
+    showDraftBanner(d.savedAt);
+  }
+
+  function showDraftBanner(savedAt) {
+    const page = document.getElementById('pagePurchase');
+    if (!page || document.getElementById('purDraftBanner')) return;
+    const when = savedAt ? new Date(savedAt).toLocaleString() : '';
+    const bar = document.createElement('div');
+    bar.id = 'purDraftBanner';
+    bar.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 12px;margin-bottom:10px;' +
+      'border-radius:8px;font-size:var(--fs-sm);background:var(--warn-soft,rgba(202,160,0,.12));' +
+      'border:1px solid var(--warn,#caa000);color:var(--ink-1,inherit)';
+    bar.innerHTML =
+      `<span>已恢复未完成的采购草稿${when ? `（${when}）` : ''} · 导出订单 zip 需重新选择同一个原始 Excel</span>` +
+      `<span style="flex:1"></span>` +
+      `<button class="btn btn-ghost" id="purDraftClear" style="font-size:var(--fs-sm)">清空草稿</button>`;
+    page.prepend(bar);
+    const clr = document.getElementById('purDraftClear');
+    if (clr) clr.addEventListener('click', discardDraft);
+  }
+
+  function discardDraft() {
+    clearDraft();
+    rows = []; systemBarcodes = new Set(); inactiveBarcodes = new Set();
+    newEntries = []; savedNewEntries = []; supplierInfo.id = ''; supplierInfo.name = '';
+    storedSupplierFile = null;
+    const b = document.getElementById('purDraftBanner'); if (b) b.remove();
+    const idInp = document.getElementById('purSupId'); if (idInp) idInp.value = '';
+    const nameInp = document.getElementById('purSupName'); if (nameInp) nameInp.value = '';
+    setParsedView(false);
+    renderResults(); renderNewBox(); updateStrip();
+    setStatus('已清空采购草稿');
+  }
+
+  function promptReattachForExport() {
+    // 恢复草稿后无原始文件; 让用户重选同一个 Excel, 只取文件字节, 不重新解析(保留已编辑的行/新品)
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = '.xlsx,.xls,.csv';
+    inp.style.display = 'none';
+    inp.addEventListener('change', () => {
+      if (inp.files && inp.files[0]) {
+        storedSupplierFile = inp.files[0];
+        updateStrip();
+        doExport();
+      }
+      inp.remove();
+    });
+    document.body.appendChild(inp);
+    inp.click();
+  }
+
   function init() {
     const page = document.getElementById('pagePurchase');
     if (!page) return;
@@ -165,8 +261,8 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     document.getElementById('purNewCopyAll').addEventListener('click', copyNewBarcodes);
     document.getElementById('purDl').addEventListener('click', downloadZip);
     document.getElementById('purPricing').addEventListener('click', doPricing);
-    document.getElementById('purSupId').addEventListener('input', (e) => { supplierInfo.id = e.target.value.trim(); updateButtons(); });
-    document.getElementById('purSupName').addEventListener('input', (e) => { supplierInfo.name = e.target.value.trim(); updateButtons(); updateStrip(); });
+    document.getElementById('purSupId').addEventListener('input', (e) => { supplierInfo.id = e.target.value.trim(); updateButtons(); saveDraft(); });
+    document.getElementById('purSupName').addEventListener('input', (e) => { supplierInfo.name = e.target.value.trim(); updateButtons(); updateStrip(); saveDraft(); });
     document.getElementById('purMsTax').addEventListener('input', updateTotalTax);
     document.getElementById('purMsSpecialTax').addEventListener('input', updateTotalTax);
     document.getElementById('purMsTotal').addEventListener('input', updateTotalTax);
@@ -183,6 +279,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     });
     document.getElementById('purMgrSearch').addEventListener('input', renderManageList);
     loadSummaryMonths();
+    restoreDraft();
   }
 
   function setParsedView(parsed) {
@@ -250,6 +347,10 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
       renderResults();
       renderNewBox();
       updateStrip();
+      // 新文件替换了任何旧草稿: 移除恢复横幅并存新草稿
+      const oldBanner = document.getElementById('purDraftBanner');
+      if (oldBanner) oldBanner.remove();
+      saveDraft();
       setStatus(`解析完成`);
     } catch (e) {
       setStatus('解析失败：' + e.message, true);
@@ -392,6 +493,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
         const t = ev.target;
         newEntries[+t.dataset.i][t.dataset.field] = t.value.trim();
         updateButtons();
+        saveDraft();
       });
     });
     list.querySelectorAll('.pur-new-mod').forEach(el => {
@@ -408,6 +510,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
         newEntries[i].name = name;
         newEntries[i].invoice_name = invoice;
         updateButtons();
+        saveDraft();
         btn.textContent = '已保存 ✓';
         btn.classList.add('saved');
         rowEl && rowEl.classList.add('saved-flash');
@@ -437,6 +540,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     renderResults();
     renderNewBox();
     updateStrip();
+    saveDraft();
     setStatus(`已删除条码 ${bc}`);
   }
 
@@ -476,6 +580,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     }
     renderResults();
     renderNewBox();
+    saveDraft();
   }
 
   function onPriceEdit(e) {
@@ -505,6 +610,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     renderFooter();
     updatePanelMeta();
     updateStrip();
+    saveDraft();
   }
 
   function updateButtons() {
@@ -630,7 +736,12 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
   }
 
   async function doExport() {
-    if (!storedSupplierFile) return;
+    if (!storedSupplierFile) {
+      // 草稿恢复后无原始文件: 提示重选同一个 Excel(只取字节, 不重新解析), 再继续导出
+      setStatus('导出订单需要原始 Excel，请重新选择同一个文件', true);
+      promptReattachForExport();
+      return;
+    }
     const btn = document.getElementById('purDl');
     btn.disabled = true;
     const fd = new FormData();
