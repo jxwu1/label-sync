@@ -673,6 +673,32 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
         self.assertTrue(body["ok"])
         self.assertEqual(body["computed"], 1)
 
+    def _count_sku_summary(self) -> int:
+        from sqlalchemy import func, select
+
+        from app.models import SkuSummary
+
+        with stockpile_db._session() as s:
+            return s.execute(
+                select(func.count()).select_from(SkuSummary)
+            ).scalar_one()
+
+    def test_forecast_refresh_rebuilds_sku_summary(self) -> None:
+        """POST /forecast/refresh 后物化表被同步重建（forecast 数据进 payload）。"""
+        self._seed_sku("B1")
+        self.assertEqual(self._count_sku_summary(), 0)
+        resp = self.client.post("/analytics/forecast/refresh")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(self._count_sku_summary(), 1)
+
+    def test_categories_recompute_rebuilds_sku_summary(self) -> None:
+        """POST /categories/recompute 后物化表被同步重建（auto_category 进 payload）。"""
+        self._seed_sku("B1")
+        self.assertEqual(self._count_sku_summary(), 0)
+        resp = self.client.post("/analytics/categories/recompute")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(self._count_sku_summary(), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

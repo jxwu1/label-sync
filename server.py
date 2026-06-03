@@ -27,17 +27,18 @@ def create_app() -> Flask:
     init_auth(app)
     register_routes(app)
 
-    # 2026-05-23: 预热 list_sku_summary 缓存避免冷启动首请求 30s+ 等待.
-    # 后台线程跑, 不阻塞 app 启动 (waitress 立即 accept 请求, 几秒后缓存填好).
+    # 2026-05-23: 预热避免冷启动首请求 30s+ 等待.
+    # 2026-06-03: 改 prewarm_sku_summary —— 物化表空/过期则重建落表, 否则只暖缓存.
+    # 后台线程跑, 不阻塞 app 启动 (waitress 立即 accept 请求, 几秒后表/缓存填好).
     import threading
 
     def _prewarm_cache():
         try:
             from app.services import analytics
-            analytics.list_sku_summary()
+            analytics.prewarm_sku_summary()
         except Exception:
             import logging
-            logging.exception("list_sku_summary prewarm 失败")
+            logging.exception("sku_summary prewarm 失败")
 
     threading.Thread(target=_prewarm_cache, daemon=True, name="cache-prewarm").start()
 

@@ -683,9 +683,13 @@ def compute_restock_snapshot(barcode: str) -> dict[str, Any] | None:
     实现: 调 list_sku_summary 整表算一遍 (含 by-origin pctile), 再 filter 出
     目标 barcode. 是否在批量列表里(active + 非真停用) 都能拉到; 否则返 None.
 
-    性能注意: 整表算 ~2-3s, 后续加 lru_cache (60s TTL) 即可秒回.
-    用户场景: 货号历史页打开单个 SKU 触发, 频率低, 当前可接受.
+    性能: 优先按 PK 读物化表单行 (~1ms); 表空/过期才回退 list_sku_summary
+    (其本身再回退实时计算 + filter). 货号历史页高频开页不再触发整表重算.
     """
+    row = _read_sku_summary_row(barcode, _today())
+    if row is not None:
+        return row
+    # 单行未命中: 表空/过期, 或该货号本就不在汇总 (停用/无主档). 回退批量路径.
     items = list_sku_summary()
     for it in items:
         if it["barcode"] == barcode:
@@ -985,6 +989,51 @@ def clear_list_sku_summary_cache() -> None:
         _LIST_CACHE["ts"] = 0.0
 
 
+def refresh_sku_summary(as_of: date | None = None) -> int:
+    """整表重算 list_sku_summary 并物化进 sku_summary 表 (每 SKU 一行 payload).
+
+    复用 _list_sku_summary_impl, 物化值 == 实时值 (不重写指标数学). 整表重写
+    (先清后批量插), 幂等. 仍拉全量事件进内存算 (几秒), 故只在导入 / cron /
+    启动预热时调, 永不在用户开页跑. 返回写入行数.
+    """
+    from sqlalchemy import delete, insert
+
+    from app.models import SkuSummary
+
+    as_of = as_of or _today()
+    items = _list_sku_summary_impl(as_of)
+    as_of_iso = as_of.isoformat()
+    with stockpile_db._session() as session:
+        session.execute(delete(SkuSummary))
+        if items:
+            session.execute(
+                insert(SkuSummary),
+                [
+                    {
+                        "product_barcode": it["barcode"],
+                        "as_of": as_of_iso,
+                        "payload": it,
+                    }
+                    for it in items
+                ],
+            )
+        session.commit()
+    # 表已换新, 清掉读路径的 60s 内存缓存, 否则会继续吐旧列表.
+    clear_list_sku_summary_cache()
+    return len(items)
+
+
+def prewarm_sku_summary() -> None:
+    """启动预热: 物化表空 / 非当日 → 重建落表; 已是当日数据 → 只暖内存缓存.
+
+    落表很关键: 否则单货号 PK 快路径会一直 miss 到下次 import/cron 才补上.
+    """
+    if _read_sku_summary_table(_today()) is None:
+        refresh_sku_summary()
+    else:
+        list_sku_summary()
+
+
 def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
     """聚合所有 active SKU 的销售汇总（dashboard 列表页用）。
 
@@ -1007,11 +1056,45 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
                 and _LIST_CACHE["value"] is not None
                 and now - _LIST_CACHE["ts"] < _LIST_TTL_SECONDS):
             return _LIST_CACHE["value"]
-        result = _list_sku_summary_impl(as_of)
+        # 表优先: 物化表有当日 as_of 的行就直接用 (避免整表重算 2.9M 事件);
+        # 空表 / as_of≠物化日 → 回退实时计算.
+        result = _read_sku_summary_table(as_of or _today())
+        if result is None:
+            result = _list_sku_summary_impl(as_of)
         _LIST_CACHE["key"] = cache_key
         _LIST_CACHE["value"] = result
         _LIST_CACHE["ts"] = now
         return result
+
+
+def _read_sku_summary_table(as_of: date) -> list[dict[str, Any]] | None:
+    """读物化表, 返回该 as_of 的 payload 列表; 无匹配行返回 None (调用方回退实时)."""
+    from app.models import SkuSummary
+
+    as_of_iso = as_of.isoformat()
+    with stockpile_db._session() as session:
+        rows = session.execute(
+            select(SkuSummary.payload).where(SkuSummary.as_of == as_of_iso)
+        ).all()
+    if not rows:
+        return None
+    return [r[0] for r in rows]
+
+
+def _read_sku_summary_row(barcode: str, as_of: date) -> dict[str, Any] | None:
+    """按 PK 读物化表单行 payload (该 as_of); 无匹配返回 None.
+
+    给单货号场景 (货号历史页) 用, 避免为一个 SKU 加载全表 27k 行 payload.
+    """
+    from app.models import SkuSummary
+
+    with stockpile_db._session() as session:
+        return session.execute(
+            select(SkuSummary.payload).where(
+                SkuSummary.product_barcode == barcode,
+                SkuSummary.as_of == as_of.isoformat(),
+            )
+        ).scalar_one_or_none()
 
 
 def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:

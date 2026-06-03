@@ -18,6 +18,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 from sqlalchemy import (
+    JSON,
     ForeignKey,
     Index,
     Integer,
@@ -474,6 +475,27 @@ class ForecastOutput(Base):
     sigma: Mapped[float] = mapped_column(nullable=False)
     p50: Mapped[float] = mapped_column(nullable=False)
     p98: Mapped[float] = mapped_column(nullable=False)
+    computed_at: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=func.current_timestamp()
+    )
+
+
+class SkuSummary(Base):
+    """物化的 SKU 汇总快照（货号历史/dashboard 列表提速）。
+
+    每 SKU 一行, payload 存 _list_sku_summary_impl 算出的整个 item dict (JSON)。
+    refresh 时整表重写; 读路径查表 + 空表/as_of≠today 回退实时计算。
+    不拆字段: 无消费方需按单指标 SQL 过滤, blob 加字段免迁移, PK 单行查快。
+    """
+
+    __tablename__ = "sku_summary"
+    __table_args__ = (
+        Index("idx_sku_summary_as_of", "as_of"),
+    )
+
+    product_barcode: Mapped[str] = mapped_column(Text, primary_key=True)
+    as_of: Mapped[str] = mapped_column(Text, nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
     computed_at: Mapped[str] = mapped_column(
         Text, nullable=False, server_default=func.current_timestamp()
     )
