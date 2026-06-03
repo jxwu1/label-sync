@@ -23,6 +23,7 @@ _SUPPLIER_QUANTITY_COL = 5
 _TEMPLATE_BARCODE_COLS = (0, 1, 10)
 _TEMPLATE_NAME_COL = 3
 _TEMPLATE_INVOICE_NAME_COL = 4
+_TEMPLATE_ENGLISH_NAME_COL = 5  # 第6列(英语品名): 按业务要求也填发票品名
 _TEMPLATE_SUPPLIER_ID_COL = 38
 _TEMPLATE_SUPPLIER_NAME_COL = 39
 
@@ -215,6 +216,8 @@ def _fill_template_row(entry: dict, n_cols: int) -> list[str]:
         row[_TEMPLATE_NAME_COL] = entry["name"]
     if _TEMPLATE_INVOICE_NAME_COL < n_cols:
         row[_TEMPLATE_INVOICE_NAME_COL] = entry["invoice_name"]
+    if _TEMPLATE_ENGLISH_NAME_COL < n_cols:
+        row[_TEMPLATE_ENGLISH_NAME_COL] = entry["invoice_name"]
     if _TEMPLATE_SUPPLIER_ID_COL < n_cols:
         row[_TEMPLATE_SUPPLIER_ID_COL] = entry["supplier_id"]
     if _TEMPLATE_SUPPLIER_NAME_COL < n_cols:

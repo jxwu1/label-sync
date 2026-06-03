@@ -190,10 +190,11 @@ class TestBuildTemplateCsv(unittest.TestCase):
         self.assertEqual(fields[1], "1234567890123")
         self.assertEqual(fields[3], "测试品")
         self.assertEqual(fields[4], "发票名")
+        self.assertEqual(fields[5], "发票名")  # 第6列(英语品名)也填发票品名
         self.assertEqual(fields[10], "1234567890123")
         self.assertEqual(fields[38], "S01")
         self.assertEqual(fields[39], "某供应商")
-        for i in [2, 5, 6, 7, 8, 9, 11, 12, 37]:
+        for i in [2, 6, 7, 8, 9, 11, 12, 37]:
             self.assertEqual(fields[i], "")
 
     def test_column_count_matches_header(self):
