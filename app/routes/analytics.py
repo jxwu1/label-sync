@@ -58,6 +58,12 @@ def list_skus():
     return jsonify({"ok": True, "items": items, "total": len(items)})
 
 
+@bp.get("/data-freshness")
+def data_freshness():
+    """数据新鲜度: 最近一次灌数日期 + 距今天数 + 是否过期(scraper 可能停了)。"""
+    return jsonify({"ok": True, **analytics_service.get_data_freshness()})
+
+
 @bp.get("/sku/<barcode>")
 def sku_metrics(barcode: str):
     barcode = barcode.strip()

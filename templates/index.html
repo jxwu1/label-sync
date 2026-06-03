@@ -135,6 +135,14 @@
               x-text="($store.nav.pages.find(p => p.id === $store.nav.current) || {}).label"></span>
       </div>
       <div class="header-spacer"></div>
+      <div class="header-freshness" x-data="{ f: null }"
+           x-init="fetch('/analytics/data-freshness').then(r => r.json()).then(d => { if (d && d.ok) f = d; }).catch(() => {})"
+           x-show="f && f.last_import_date"
+           :style="`font-size:var(--fs-sm);margin-right:12px;${f && f.stale ? 'color:var(--error);font-weight:600' : 'color:var(--ink-3)'}`"
+           :title="f ? ('最近灌数时间 ' + f.last_import_at) : ''">
+        <span x-show="f && f.stale">⚠ </span><span
+          x-text="f ? ('数据截止 ' + f.last_import_date + ' · 距今 ' + f.days_since + ' 天' + (f.stale ? '（疑似停更，请检查抓取脚本）' : '')) : ''"></span>
+      </div>
       <div class="header-badge"
            :style="`color: var(--${$store.app.badgeType === 'running' ? 'accent' : ($store.app.badgeType === 'waiting' ? 'warn' : ($store.app.badgeType === 'error' ? 'error' : 'success'))})`">
         <span class="dot"
