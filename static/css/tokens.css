@@ -70,8 +70,9 @@
 
   --ink-0: #EDEDEF;
   --ink-1: #A0A0A6;
-  --ink-2: #6E6E76;
-  --ink-3: #4A4A52;
+  /* ink-2/ink-3 调亮至 WCAG AA 4.5:1 (原 #6E6E76=3.73 / #4A4A52=2.15 不达标), 仍保留层级 */
+  --ink-2: #8C8C94;
+  --ink-3: #80808A;
 
   --accent: #E5484D;
   --accent-dim: #C13B3F;
@@ -121,8 +122,9 @@
 
   --ink-0: #1A1A1E;
   --ink-1: #6B6B76;
-  --ink-2: #9B9BA6;
-  --ink-3: #C0C0C8;
+  /* ink-2/ink-3 调暗至白底 AA 4.5:1 (原 #9B9BA6/#C0C0C8 在白底对比不足) */
+  --ink-2: #6E6E78;
+  --ink-3: #72727B;
 
   --accent: #DC3545;
   --accent-dim: #B52A37;

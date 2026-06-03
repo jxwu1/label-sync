@@ -111,6 +111,18 @@ body[data-grid="off"]::before { display: none; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--bg-4); border-radius: 3px; }
 
+/* 键盘焦点可见 (无障碍): 全站统一焦点环。!important 盖过散落的 outline:none。
+ * :focus-visible 只在键盘导航时出现, 鼠标点击不显示。outline-offset 留 2px 间隙,
+ * 即使焦点元素是强调色(红按钮), 环与元素间也有页面底色分隔, 仍清晰可见。 */
+:focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
 /* 尊重系统「减弱动态」(Apple HIG 无障碍要求): 关掉过渡/动画/平滑滚动 */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
