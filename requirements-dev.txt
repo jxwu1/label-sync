@@ -1,6 +1,10 @@
 # 开发与测试环境额外依赖。生产部署不需要装。
 # 安装：pip install -r requirements-dev.txt && playwright install chromium
 
+# Lint/format：钉死版本与 .pre-commit-config.yaml / CI 一致，避免本地 ruff 漂移
+# （新版 ruff 规则更严会对既有代码大量误报，护栏 hook 也依赖一致的 ruff）
+ruff==0.15.12
+
 # E2E 浏览器烟雾测试
 playwright
 pytest-playwright
