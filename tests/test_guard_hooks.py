@@ -145,10 +145,28 @@ def test_ruff_hook_nonblocking_on_py():
     assert _run("ruff-autoformat.js", file_path="server.py", tool_name="Edit") == 0
 
 
-def test_ruff_hook_does_not_mutate_file(tmp_path):
-    # 核心保证: hook 只读检查, 绝不改写文件(避免单行编辑炸成整文件 reformat 的 churn)
-    bad = tmp_path / "bad.py"
-    original = "import os,sys\nx=1\n"  # 故意格式不规范 + 未排序/未用导入
-    bad.write_text(original, encoding="utf-8")
-    _run("ruff-autoformat.js", file_path=str(bad), tool_name="Edit")
-    assert bad.read_text(encoding="utf-8") == original
+def _ruff_available():
+    root = pathlib.Path(__file__).resolve().parents[1]
+    return (root / ".venv" / "Scripts" / "ruff.exe").exists() or (
+        root / ".venv" / "bin" / "ruff"
+    ).exists()
+
+
+@pytest.mark.skipif(not _ruff_available(), reason="需要 venv 内的 ruff 才能验证自动 format")
+def test_ruff_hook_formats_file(tmp_path):
+    # 全库规范化后: hook 自动 `ruff format <file>`(纯排版安全)。验证空白被规范化、非阻塞 exit 0。
+    target = tmp_path / "messy.py"
+    target.write_text("x=1\n", encoding="utf-8")  # 排版不规范但语法合法
+    rc = _run("ruff-autoformat.js", file_path=str(target), tool_name="Edit")
+    assert rc == 0  # PostToolUse 非阻塞
+    assert target.read_text(encoding="utf-8") == "x = 1\n"  # 已被 ruff format 规范化
+
+
+@pytest.mark.skipif(not _ruff_available(), reason="需要 venv 内的 ruff 才能验证 check 告警")
+def test_ruff_hook_check_warns_but_does_not_fix(tmp_path):
+    # check 只告警不 --fix: 未用导入(F401)被告警但不删除, 且永远 exit 0(per-edit 删导入风险大)。
+    target = tmp_path / "unused.py"
+    target.write_text("import os\n", encoding="utf-8")  # F401 未用导入
+    rc = _run("ruff-autoformat.js", file_path=str(target), tool_name="Edit")
+    assert rc == 0  # 告警不阻塞
+    assert "import os" in target.read_text(encoding="utf-8")  # 未被 --fix 删掉
