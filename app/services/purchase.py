@@ -1,15 +1,14 @@
-from app.config import CONFIG
 import csv
 import io
 import math
 import zipfile
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
-from pathlib import Path
 
 import openpyxl
 import pandas as pd
 
+from app.config import CONFIG
 from app.repositories import stockpile_db
 
 _TEMPLATE_PATH = CONFIG.resource_dir / "static" / "templates" / "产品信息导入模板.csv"
@@ -255,9 +254,10 @@ def create_order(
     source_file: str | None = None,
 ) -> dict:
     from datetime import date as date_cls
-    from app.models import PurchaseOrder, PurchaseOrderLine, get_session
 
     from sqlalchemy import select
+
+    from app.models import PurchaseOrder, PurchaseOrderLine, get_session
 
     total_qty = sum(r.quantity for r in rows)
     total_amount = round(sum(r.price * r.quantity for r in rows), 2)
@@ -317,6 +317,7 @@ def create_order(
 
 def list_orders(limit: int = 50) -> list[dict]:
     from sqlalchemy import select
+
     from app.models import PurchaseOrder, Supplier, get_session
 
     with get_session() as s:
@@ -344,6 +345,7 @@ def list_orders(limit: int = 50) -> list[dict]:
 
 def record_arrival(order_id: int, arrival_date: str) -> dict:
     from sqlalchemy import select
+
     from app.models import PurchaseOrder, PurchaseOrderLine, get_session
 
     with get_session() as s:
@@ -364,9 +366,11 @@ def record_arrival(order_id: int, arrival_date: str) -> dict:
 
 
 def compute_supplier_lead_times(limit: int = 50) -> list[dict]:
-    from statistics import median
-    from sqlalchemy import select
     from datetime import date as date_cls
+    from statistics import median
+
+    from sqlalchemy import select
+
     from app.models import PurchaseOrder, Supplier, get_session
 
     with get_session() as s:

@@ -13,7 +13,9 @@ Examples:
   python scripts/screenshot.py --audit http://127.0.0.1:5000/ --selectors ".fc-control,.fc-stats,.fc-panel,.fc-table th"
 """
 
-import sys, asyncio, os
+import asyncio
+import os
+import sys
 
 
 async def capture(target, output, width=1440, height=900, theme="dark"):
@@ -45,8 +47,8 @@ async def capture(target, output, width=1440, height=900, theme="dark"):
 
 def diff_images(ref_path, live_path, diff_path):
     """Generate a red-highlighted diff image. Returns mismatch percentage."""
-    from PIL import Image, ImageChops
     import numpy as np
+    from PIL import Image, ImageChops
 
     os.makedirs(os.path.dirname(diff_path) or ".", exist_ok=True)
     ref = Image.open(ref_path).convert("RGB")
@@ -132,7 +134,7 @@ async def audit(url, selectors, theme="dark"):
         for sel, vals in results.items():
             print(f"\n  {sel}:")
             if vals == "NOT_FOUND":
-                print(f"    ! NOT FOUND in DOM")
+                print("    ! NOT FOUND in DOM")
                 continue
             for prop, val in vals.items():
                 print(f"    {prop}: {val}")

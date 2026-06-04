@@ -5,8 +5,8 @@ from unittest import mock
 
 from flask import Flask
 
-from app.services import message as message_service
 from app.routes.collab import bp
+from app.services import message as message_service
 
 
 class CollabRoutesTests(unittest.TestCase):

@@ -11,8 +11,8 @@ from unittest import mock
 import pandas as pd
 from sqlalchemy import select
 
-from app.repositories import stockpile_db
 from app.models import Stockpile, StockpileLocation
+from app.repositories import stockpile_db
 
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_stockpile_locations"
 

@@ -21,7 +21,6 @@ from sqlalchemy import insert as sa_insert
 from sqlalchemy.orm import Session
 
 from app.config import CONFIG
-from app.repositories import stockpile_db
 from app.importers.inventory import (
     _clean_barcode_or_model,
     _clean_float,
@@ -29,6 +28,7 @@ from app.importers.inventory import (
     _clean_str,
 )
 from app.models import Stockpile, StockpileSnapshot, Supplier
+from app.repositories import stockpile_db
 from app.services.sku_origin import classify_origin
 
 

@@ -372,8 +372,8 @@ def run_backtest_all_skus(
     """
     from sqlalchemy import insert, select, update
 
-    from app.repositories import stockpile_db
     from app.models import BacktestResult, BacktestRun, Stockpile
+    from app.repositories import stockpile_db
 
     if model_name not in BASELINES:
         raise ValueError(f"unknown model_name: {model_name}; got: {list(BASELINES)}")
@@ -469,8 +469,8 @@ def compare_run_pair(run_id_a: int, run_id_b: int) -> dict:
     """
     from sqlalchemy import select
 
-    from app.repositories import stockpile_db
     from app.models import BacktestResult, BacktestRun
+    from app.repositories import stockpile_db
 
     with stockpile_db._session() as s:
         run_a = s.execute(

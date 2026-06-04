@@ -9,13 +9,13 @@ import pandas as pd
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
-from app.models import Base, Stockpile, Supplier
 from app.importers.product_master import (
     DEFAULT_PRODUCT_MAPPING,
     _is_active_from_web_status,
     _row_to_extra,
     import_product_master,
 )
+from app.models import Base, Stockpile, Supplier
 
 _TEST_DIR = Path(__file__).resolve().parent / "_test_product_master_importer"
 

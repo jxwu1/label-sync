@@ -18,8 +18,8 @@ import numpy as np
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.repositories import stockpile_db
 from app.models import InventoryEvent
+from app.repositories import stockpile_db
 
 _BULK_K_DEFAULT = 3.0
 _MIN_STATS_SAMPLES = 4

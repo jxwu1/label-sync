@@ -13,6 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.config import CONFIG
 from app.models import (
     AttendanceRecord,
     Employee,
@@ -22,7 +23,6 @@ from app.models import (
     SpecialDay,
     get_session,
 )
-from app.config import CONFIG
 
 
 def _read_json(path: Path, default=None):

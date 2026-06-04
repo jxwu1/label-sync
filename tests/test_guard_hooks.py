@@ -6,9 +6,9 @@ exit 0 放行 / exit 2 拦截。这里用子进程喂合成 payload 验证拦放
 
 import json
 import os
+import pathlib
 import shutil
 import subprocess
-import pathlib
 
 import pytest
 

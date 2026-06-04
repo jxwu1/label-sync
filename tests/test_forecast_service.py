@@ -206,7 +206,6 @@ class HoltWintersModelTests(unittest.TestCase):
     def test_refit_overrides(self) -> None:
         m = self._new()
         m.fit([float(i) for i in range(30)])
-        used_first = m.used_path
         m.fit([5.0] * 30)
         # 第二次 fit 状态应替换第一次
         assert m.used_path in ("trend", "mean")

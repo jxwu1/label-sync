@@ -64,7 +64,7 @@ def migrate_table(sqlite_conn: sqlite3.Connection, pg_session: Session, table_na
     inserted = 0
     batch: list[dict] = []
     for row in cur:
-        batch.append(dict(zip(cols, row)))
+        batch.append(dict(zip(cols, row, strict=False)))
         if len(batch) >= BATCH_SIZE:
             pg_session.execute(table.insert(), batch)
             pg_session.commit()

@@ -258,7 +258,8 @@ def fetch_snapshot(snapshot_date: str, retry: int = 2) -> pd.DataFrame | None:
             df = max(tables, key=len)
             df = df.drop(columns=["Unnamed: 0", "Unnamed: 1"], errors="ignore")
             print(
-                f"    响应 {size_mb:.1f} MB, 用时 {elapsed:.1f}s, {len(df)} 行 × {len(df.columns)} 列"
+                f"    响应 {size_mb:.1f} MB, 用时 {elapsed:.1f}s, "
+                f"{len(df)} 行 × {len(df.columns)} 列"
             )
             return df
         except Exception as e:

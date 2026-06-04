@@ -7,8 +7,8 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.models import Base, Employee
 import app.services.scan_session as svc
+from app.models import Base, Employee
 
 
 def _make_test_db():

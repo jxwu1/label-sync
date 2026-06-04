@@ -1,5 +1,6 @@
 import unittest
 from unittest import mock
+
 from flask import Flask
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker

@@ -197,7 +197,7 @@ def main() -> int:
     )
     print(f"  parquet: {output_parquet.stat().st_size / 1024 / 1024:.2f} MB")
 
-    print(f"\n=== 前 3 行 (列名透传) ===")
+    print("\n=== 前 3 行 (列名透传) ===")
     print(df.head(3).to_string(max_cols=10))
     print(f"\n=== 全部列 ({len(df.columns)}) ===")
     print(", ".join(str(c) for c in df.columns))

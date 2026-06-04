@@ -5,8 +5,8 @@ from unittest import mock
 
 from flask import Flask
 
-from app.services import monthly_summary as monthly_summary_service
 from app.routes.monthly_summary import bp
+from app.services import monthly_summary as monthly_summary_service
 
 
 class MonthlySummaryRoutesTests(unittest.TestCase):

@@ -3,7 +3,7 @@
 from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required
 
-from app.auth import check_password, hash_password
+from app.auth import hash_password
 from app.models import SystemSetting, User, get_session
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")

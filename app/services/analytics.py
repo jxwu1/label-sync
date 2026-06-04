@@ -26,10 +26,10 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.config import CONFIG
-from app.repositories import stockpile_db
-from app.utils.categorizer import classify_from_sales
 from app.models import Customer, InventoryEvent, Stockpile, StockpileInventorySnapshot
+from app.repositories import stockpile_db
 from app.services.sku_origin import classify_origin
+from app.utils.categorizer import classify_from_sales
 
 _TREND_WEEKS = 12  # 趋势斜率窗口（plan 锁定 12 周）
 _VELOCITY_WEEKS = 26  # 周销速窗口（补货决策面板用，固定 26 周）
@@ -301,8 +301,8 @@ def compute_weekly_timeline(
                每周返回 EUR cost (chart 用) + 原始 RMB 单价 (tooltip 用)
     无销售/采购时对应字段为 0 / None.
     """
-    from datetime import timedelta
     import json
+    from datetime import timedelta
 
     as_of = as_of or _today()
     rows = _fetch_all_rows(barcode, session)
@@ -403,7 +403,6 @@ def compute_monthly_sales(
 
     按 (year, month) 桶聚合, retail 单独算 (零售=document_no MB* 或 '0').
     """
-    from datetime import timedelta
 
     as_of = as_of or _today()
     rows = _fetch_all_rows_with_doc_no(barcode, session)
@@ -972,7 +971,7 @@ def _lookup_qty(qty_by_model: dict[str, int], barcode: str, model: str | None) -
 # list_sku_summary 60s 内存缓存 (2026-05-23): 整表计算 ~2-3s, 货号历史 / 补货决策
 # 每次开页都触发. 60s TTL 平衡新鲜度和延迟. tests setUp 显式 clear_cache 防泄漏.
 # Lock 防 thundering herd: 冷启动多个 panel 并发命中, 不加锁会重复计算 N 次.
-import threading as _threading
+import threading as _threading  # noqa: E402
 
 _LIST_CACHE: dict = {"key": None, "value": None, "ts": 0.0}
 _LIST_TTL_SECONDS = 60.0
@@ -1273,7 +1272,8 @@ def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
     ) in sp_rows:
         sales = by_bc.get(bc, [])
         # 批发/零售分流: document_no 以 'MB' 开头或 = '0' 算零售, 不进批发聚合.
-        # 零售只做透明展示 (retail_qty_26w / retail_revenue_26w), 不污染 weekly_velocity/sale_net_avg.
+        # 零售只做透明展示 (retail_qty_26w / retail_revenue_26w),
+        # 不污染 weekly_velocity/sale_net_avg.
         # 5206753040071 case: 单笔零售 €8.4677 拉爆批发均价 → 这里干掉.
         wholesale_sales = [
             r for r in sales if not _is_retail_customer(r.customer_id, r.customer_name)
@@ -1387,7 +1387,8 @@ def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
 
         # 零售价派生 (2026-05-23): ERP 端点只导一个批发 sale_price tier.
         # 启发式: 大部分 SKU 零售=批发×2 (用户验证).
-        # 优先用历史观测: 26 周内零售实际笔数 >= retail_observed_min_qty 时, 用 retail_revenue/retail_qty.
+        # 优先用历史观测: 26 周内零售实际笔数 >= retail_observed_min_qty 时,
+        # 用 retail_revenue/retail_qty.
         # 单笔异常 (5206753040071 €8.4677) 因门槛 >=3 被剥离.
         retail_price_observed: float | None = None
         if retail_qty_26w >= CONFIG.retail_observed_min_qty and retail_revenue_26w > 0:

@@ -22,11 +22,14 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from werkzeug.utils import secure_filename
 
-from app.repositories import stockpile_db
 from app.importers.inventory import (
     DEFAULT_MAPPING,
     INTERNAL_FIELDS,
     import_events,
+)
+from app.importers.product_master import (
+    DEFAULT_PRODUCT_MAPPING,
+    import_product_master,
 )
 from app.models import (
     Customer,
@@ -36,14 +39,11 @@ from app.models import (
     Stockpile,
     Supplier,
 )
-from app.utils.path_safety import safe_filename
-from app.importers.product_master import (
-    DEFAULT_PRODUCT_MAPPING,
-    import_product_master,
-)
-from app.utils.route_helpers import parse_body
-from app.state import INPUT_DIR
 from app.parsers.xls_html import XlsHtmlParseError, parse_xls_html
+from app.repositories import stockpile_db
+from app.state import INPUT_DIR
+from app.utils.path_safety import safe_filename
+from app.utils.route_helpers import parse_body
 
 bp = Blueprint("inventory", __name__, url_prefix="/inventory")
 

@@ -2,6 +2,7 @@ import unittest
 from unittest import mock
 
 from werkzeug.exceptions import Forbidden, Unauthorized
+
 import app.auth as authmod
 
 

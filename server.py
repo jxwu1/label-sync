@@ -2,11 +2,11 @@ import socket
 
 from flask import Flask
 
-from app.services import monthly_summary as monthly_summary_service
-from app.repositories import stockpile_db
-from app.services import storage as storage_service
 from app.config import CONFIG
+from app.repositories import stockpile_db
 from app.routes import register_routes
+from app.services import monthly_summary as monthly_summary_service
+from app.services import storage as storage_service
 from app.state import INPUT_DIR, OUTPUT_DIR, TRANSFER_DIR
 
 

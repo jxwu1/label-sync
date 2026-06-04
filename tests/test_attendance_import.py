@@ -6,7 +6,6 @@ import unittest
 from unittest import mock
 
 import openpyxl
-
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool

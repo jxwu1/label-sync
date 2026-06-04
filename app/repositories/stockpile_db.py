@@ -16,7 +16,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
 from app.config import CONFIG
-from app.parsers.location import parse_to_locations
 from app.models import (
     Base,
     SchemaMeta,
@@ -25,6 +24,7 @@ from app.models import (
     StockpileLocation,
     StockpileSnapshot,
 )
+from app.parsers.location import parse_to_locations
 
 DB_PATH = CONFIG.stockpile_db
 SCHEMA_VERSION = 2

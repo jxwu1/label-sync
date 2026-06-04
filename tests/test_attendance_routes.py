@@ -13,8 +13,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.models import Base
-from app.services import attendance as attendance_service
 from app.routes.attendance import bp
+from app.services import attendance as attendance_service
 
 
 class AttendanceRoutesTests(unittest.TestCase):

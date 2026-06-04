@@ -8,7 +8,7 @@ from calendar import monthrange
 from datetime import date as date_cls
 from datetime import datetime, timedelta
 
-from sqlalchemy import select, delete, func
+from sqlalchemy import delete, func, select
 
 from app.models import (
     AttendanceRecord,
@@ -20,7 +20,6 @@ from app.models import (
     SystemSetting,
     get_session,
 )
-
 
 STANDARD_HOURS = 10.5
 STANDARD_END = "20:00"

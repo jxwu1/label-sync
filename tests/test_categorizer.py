@@ -14,8 +14,8 @@ from unittest import mock
 import numpy as np
 from sqlalchemy import insert
 
-from app.repositories import stockpile_db
 from app.models import InventoryEvent
+from app.repositories import stockpile_db
 
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_categorizer"
 

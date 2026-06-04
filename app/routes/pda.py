@@ -7,9 +7,9 @@ from pathlib import Path
 
 from flask import Blueprint, jsonify, render_template, request
 
+import app.services.scan_session as scan_svc
 from app.auth import require_role
 from app.models import Employee, get_session
-import app.services.scan_session as scan_svc
 
 bp = Blueprint("pda", __name__, url_prefix="/pda")
 

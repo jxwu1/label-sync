@@ -13,7 +13,8 @@ from app.repositories import stockpile_db
 from app.services import analytics as analytics_service
 
 # xlsx 列序（1-indexed）
-# 图片 条码 中文品名 数量 | 旧进价 新进价 现售价 老利润率 推荐新售价 | 修改 改后利润率 热度 | 建议批发价 建议利润率
+# 图片 条码 中文品名 数量 | 旧进价 新进价 现售价 老利润率 推荐新售价
+# | 修改 改后利润率 热度 | 建议批发价 建议利润率
 _COL_IMG, _COL_BARCODE, _COL_NAME, _COL_QTY = 1, 2, 3, 4
 _COL_OLD, _COL_NEW, _COL_SALE = 5, 6, 7
 _COL_OLD_MARGIN, _COL_SUGGEST_SALE = 8, 9
@@ -149,7 +150,8 @@ def build_pricing_items(
 
     # 完全无历史的"幽灵"产品：在主档但既无历史进价(baseline=None)、又无销售价格(sale_price=None)。
     # 既进不了调价段(无基准被 skip)、又不在新条码段(已入主档) → 否则会彻底消失。
-    # 把它们当新品拉进表(用主档品名、平均利润率定价)。有 sale_price 的真老品不在此列、仍按 skip 处理。
+    # 把它们当新品拉进表(用主档品名、平均利润率定价)。
+    # 有 sale_price 的真老品不在此列、仍按 skip 处理。
     changed_bcs = {c["barcode"] for c in changed_raw}
     phantom_count = 0
     seen_phantom: set[str] = set()

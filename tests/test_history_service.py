@@ -478,8 +478,8 @@ def test_build_response_injects_split_into_current(memdb):
     用 stockpile_db.import_from_dataframe 走正常 dual-write 路径填子表。"""
     import pandas as pd
 
-    from app.services import history as history_service
     from app.repositories import stockpile_db
+    from app.services import history as history_service
 
     stockpile_db.import_from_dataframe(
         pd.DataFrame(
@@ -503,8 +503,8 @@ def test_build_response_current_with_unknown_prefix(memdb):
     """子表中的 unknown kind 出现在 current.unknown_locations。"""
     import pandas as pd
 
-    from app.services import history as history_service
     from app.repositories import stockpile_db
+    from app.services import history as history_service
 
     stockpile_db.import_from_dataframe(
         pd.DataFrame(

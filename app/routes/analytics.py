@@ -11,9 +11,9 @@ from flask import Blueprint, jsonify
 from pydantic import BaseModel
 from sqlalchemy import select, update
 
-from app.services import analytics as analytics_service
-from app.repositories import stockpile_db
 from app.models import Stockpile
+from app.repositories import stockpile_db
+from app.services import analytics as analytics_service
 from app.utils.route_helpers import OptionalStr, parse_body
 
 bp = Blueprint("analytics", __name__, url_prefix="/analytics")
@@ -29,7 +29,8 @@ def sku_timeline(barcode: str):
     """单 SKU 时间线: 156 周进价线 (event 精度) + 36 月销量柱 (聚合).
 
     2026-05-23 起返回:
-      timeline:        156 周, 每周 {week_start, sale_qty, purchase_unit_price, raw_unit_price_local, currency_local}
+      timeline:        156 周, 每周 {week_start, sale_qty, purchase_unit_price,
+                       raw_unit_price_local, currency_local}
       monthly_sales:   36 月, 每月 {month_start, sale_qty (批发), retail_qty}
     前端: 销量柱用 monthly_sales (36 根宽柱), 进价线/点用 timeline (event 精度).
     """
@@ -347,7 +348,7 @@ def sales_top():
     import csv
     import io
 
-    from flask import request, Response
+    from flask import Response, request
     from sqlalchemy import text
 
     from app.services.sku_origin import ORIGIN_CTE_SQL
@@ -498,7 +499,7 @@ def forecast_top():
     import csv
     import io
 
-    from flask import request, Response
+    from flask import Response, request
     from sqlalchemy import text
 
     from app.services.sku_origin import ORIGIN_CTE_SQL
@@ -719,9 +720,10 @@ def data_upload():
     # product_master 分支: parquet → DataFrame → 复用现有 importer
     try:
         import pandas as pd
+
         from app.importers.product_master import (
-            import_product_master,
             DEFAULT_PRODUCT_MAPPING,
+            import_product_master,
         )
 
         df = pd.read_parquet(saved)
@@ -759,6 +761,7 @@ def data_dedup_purchase_events():
     """
     import os
     import secrets
+
     from flask import request
     from sqlalchemy import text
 

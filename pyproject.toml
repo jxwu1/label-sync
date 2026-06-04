@@ -20,6 +20,8 @@ select = ["E", "F", "I", "B", "UP"]
 "tests/*" = ["E501"]
 # alembic env.py 是模板生成，不强求
 "alembic/env.py" = ["E501", "F401"]
+# screenshot.py docstring 里是示例命令行 URL，折行会破坏可复制性
+"scripts/screenshot.py" = ["E501"]
 
 [tool.ruff.format]
 quote-style = "double"

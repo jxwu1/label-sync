@@ -7,6 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from app.config import CONFIG
+from app.services.storage import package_latest_output
 from app.state import (
     BARCODE_WARNING_PATTERN,
     LOCATION_WARNING_PATTERN,
@@ -19,7 +20,6 @@ from app.state import (
     PHASE_EXIT_REVIEW_REQUIRED,
     task_state,
 )
-from app.services.storage import package_latest_output
 
 LineHandler = Callable[[str], None]
 ReturnCodeHandler = Callable[[int], bool]

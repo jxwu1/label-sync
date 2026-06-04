@@ -8,9 +8,9 @@ from app.config import CONFIG
 from app.services import barcode as barcode_service
 from app.services import storage as storage_service
 from app.services import task as task_service
+from app.state import INPUT_DIR, task_state
 from app.utils.response_builder import json_result
 from app.utils.route_helpers import NonEmptyStr, parse_body
-from app.state import INPUT_DIR, task_state
 
 bp = Blueprint("pages_tasks", __name__)
 

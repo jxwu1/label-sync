@@ -14,13 +14,13 @@ import pandas as pd
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
+from app.models import Base, Customer, InventoryEvent, Stockpile, Supplier
 from etl.parquet_importer import (
     PURCHASE_MAPPING,
     SALE_MAPPING,
     import_cleaned_parquet,
     import_dataframe,
 )
-from app.models import Base, Customer, InventoryEvent, Stockpile, Supplier
 
 _TEST_DIR = Path(__file__).resolve().parent / "_test_parquet_importer"
 

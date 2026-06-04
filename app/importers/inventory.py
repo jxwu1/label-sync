@@ -33,9 +33,9 @@ def _dialect_insert(session: Session):
     return sqlite_insert
 
 
-from app.utils.customer_classifier import classify_customer
-from app.parsers.erp_category import parse_erp_category
-from app.models import Customer, InventoryEvent, Stockpile, Supplier
+from app.models import Customer, InventoryEvent, Stockpile, Supplier  # noqa: E402
+from app.parsers.erp_category import parse_erp_category  # noqa: E402
+from app.utils.customer_classifier import classify_customer  # noqa: E402
 
 # === 内部字段名常量 ===
 # 映射目标只能是这些值之一（或 'ignore'）。多了 / 少了由列映射向导校验。

@@ -8,8 +8,8 @@ from unittest import mock
 from flask import Flask
 from sqlalchemy import insert
 
-from app.repositories import stockpile_db
 from app.models import StockpileChange, StockpileSnapshot
+from app.repositories import stockpile_db
 from app.routes.recent_changes import bp
 
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_recent_changes_routes"

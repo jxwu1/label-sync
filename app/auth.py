@@ -4,11 +4,11 @@ import os
 import secrets
 from functools import wraps
 
+import bcrypt
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
-import bcrypt
 
-from app.models import User, SystemSetting, get_session
+from app.models import SystemSetting, User, get_session
 
 login_manager = LoginManager()
 login_manager.login_view = "auth.login"

@@ -6,8 +6,8 @@ from unittest import mock
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-import app.models as models_mod
 import app.auth as auth_mod
+import app.models as models_mod
 
 
 def _make_in_memory():

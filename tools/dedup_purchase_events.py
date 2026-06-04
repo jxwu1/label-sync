@@ -32,7 +32,6 @@ from sqlalchemy import text  # noqa: E402
 
 from app.repositories import stockpile_db  # noqa: E402
 
-
 # 找出待删的 NULL-price 行 (有匹配带价行的)
 _FIND_DUPS_SQL = """
 SELECT e_null.id, e_null.product_barcode, e_null.event_at, e_null.qty,

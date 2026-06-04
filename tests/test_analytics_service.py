@@ -16,8 +16,8 @@ from unittest import mock
 
 from sqlalchemy import insert
 
-from app.repositories import stockpile_db
 from app.models import Customer, InventoryEvent
+from app.repositories import stockpile_db
 
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_analytics"
 
@@ -293,8 +293,8 @@ class RecomputeCategoriesTests(_Base):
             s.commit()
 
     def test_recompute_writes_auto_category(self) -> None:
-        from app.services.analytics import recompute_categories
         from app.models import Stockpile
+        from app.services.analytics import recompute_categories
 
         # SKU 1: 新品（最近一笔）
         self._add_stockpile("NEW1")
@@ -1219,6 +1219,7 @@ class WeeklyTimelineOriginAwareTests(_Base):
         """CN 货 purchase event unit_price=1.85 RMB, 配 (240 件/箱, 0.115m³)
         → 应转 (1000×0.115/240 + 1.85)/7.8 = €0.2986 落地价."""
         import json
+
         from app.services.analytics import compute_weekly_timeline
 
         self._add_sku(
