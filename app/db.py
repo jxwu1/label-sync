@@ -73,6 +73,10 @@ def get_engine() -> Engine:
 
 @contextmanager
 def get_session() -> Iterator[Session]:
+    """提供事务性 Session：正常退出自动 commit，异常 rollback，最后 close。
+
+    注意：commit-on-exit 是契约的一部分，测试 setUp 的 seed 依赖它持久化(load-bearing)。
+    """
     session = Session(get_engine(), expire_on_commit=False)
     try:
         yield session

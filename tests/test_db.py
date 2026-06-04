@@ -61,3 +61,42 @@ def test_get_sqlite_path_raises_for_non_sqlite(monkeypatch):
     db.reset_engine()
     with pytest.raises(RuntimeError, match="requires sqlite backend"):
         db.get_sqlite_path()
+
+
+def test_db_reset_engine_no_stale_across_layers(monkeypatch, tmp_path):
+    """reset 到 A 写 user → reset 到 B：db / stockpile_db / models 三层都查 B，看不到 A。"""
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    from app import db
+    from app.models import User, get_session
+    from app.repositories import stockpile_db
+
+    # A 库：建 schema + 插一个 user
+    db.reset_engine(tmp_path / "A.db")
+    db.ensure_db()
+    with db.get_session() as s:
+        s.add(
+            User(
+                username="alice",
+                password_hash="x",
+                display_name="A",
+                theme="light",
+                role="admin",
+            )
+        )
+
+    # 切到 B 库
+    url_b = db.reset_engine(tmp_path / "B.db")
+    db.ensure_db()
+    assert url_b.endswith("B.db")
+
+    # ① db.get_engine() 反映新 URL
+    assert str(db.get_engine().url).endswith("B.db")
+    # ② db.get_session() 查 B（无 alice）
+    with db.get_session() as s:
+        assert s.query(User).count() == 0
+    # ③ stockpile_db._session() 也查 B
+    with stockpile_db._session() as s:
+        assert s.query(User).count() == 0
+    # ④ models.get_session() lazy wrapper 也查 B
+    with get_session() as s:
+        assert s.query(User).count() == 0
