@@ -141,10 +141,16 @@ class ImportProductMasterTests(_Base):
         """CN 公式回归: 国内同事公式 (18645 鞋垫 case).
         (1000 RMB/m³ × 0.115 m³ / 240 件 + 1.85 RMB) / 7.8 = 0.2986 EUR.
         ERP 截图实际显示 €0.2986, 完全一致."""
-        df = pd.DataFrame([self._row(
-            provider_id="CN0531", stock_price=1.85,
-            unit_quantity=240, pack_volume=0.115,
-        )])
+        df = pd.DataFrame(
+            [
+                self._row(
+                    provider_id="CN0531",
+                    stock_price=1.85,
+                    unit_quantity=240,
+                    pack_volume=0.115,
+                )
+            ]
+        )
         with Session(self.engine) as session:
             import_product_master(df, DEFAULT_PRODUCT_MAPPING, session)
             session.commit()
@@ -154,10 +160,16 @@ class ImportProductMasterTests(_Base):
     def test_cn_landed_cost_formula_matches_erp_18686(self) -> None:
         """CN 公式回归 2: 18686 黄色PU运动鞋垫 (装箱 96, 体积 0.083).
         (1000 × 0.083 / 96 + 6.30) / 7.8 ≈ 0.9185."""
-        df = pd.DataFrame([self._row(
-            provider_id="CN0531", stock_price=6.30,
-            unit_quantity=96, pack_volume=0.083,
-        )])
+        df = pd.DataFrame(
+            [
+                self._row(
+                    provider_id="CN0531",
+                    stock_price=6.30,
+                    unit_quantity=96,
+                    pack_volume=0.083,
+                )
+            ]
+        )
         with Session(self.engine) as session:
             import_product_master(df, DEFAULT_PRODUCT_MAPPING, session)
             session.commit()
@@ -167,10 +179,16 @@ class ImportProductMasterTests(_Base):
     def test_cn_zero_volume_falls_back_to_pure_exchange(self) -> None:
         """CN 体积=0 (无包装数据) → 海运分摊归 0, 仅做汇率换算.
         与 ERP 截图第 2 行 8433392186458 (体积 0.000, 成本 = 采购) 一致."""
-        df = pd.DataFrame([self._row(
-            provider_id="CN0001", stock_price=7.80,
-            unit_quantity=100, pack_volume=0,
-        )])
+        df = pd.DataFrame(
+            [
+                self._row(
+                    provider_id="CN0001",
+                    stock_price=7.80,
+                    unit_quantity=100,
+                    pack_volume=0,
+                )
+            ]
+        )
         with Session(self.engine) as session:
             import_product_master(df, DEFAULT_PRODUCT_MAPPING, session)
             session.commit()
@@ -180,10 +198,16 @@ class ImportProductMasterTests(_Base):
 
     def test_cn_missing_unit_quantity_skips_shipping(self) -> None:
         """unit_quantity 缺失 → 同上, 退化到纯汇率换算."""
-        df = pd.DataFrame([self._row(
-            provider_id="CN0001", stock_price=15.6,
-            unit_quantity=None, pack_volume=0.5,
-        )])
+        df = pd.DataFrame(
+            [
+                self._row(
+                    provider_id="CN0001",
+                    stock_price=15.6,
+                    unit_quantity=None,
+                    pack_volume=0.5,
+                )
+            ]
+        )
         with Session(self.engine) as session:
             import_product_master(df, DEFAULT_PRODUCT_MAPPING, session)
             session.commit()

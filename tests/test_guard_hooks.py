@@ -3,6 +3,7 @@
 每个 hook 是独立 Node 脚本，读 stdin JSON {tool_name, tool_input}，
 exit 0 放行 / exit 2 拦截。这里用子进程喂合成 payload 验证拦放行为。
 """
+
 import json
 import os
 import shutil
@@ -13,9 +14,7 @@ import pytest
 
 HOOKS = pathlib.Path(__file__).resolve().parents[1] / ".claude" / "hooks"
 
-pytestmark = pytest.mark.skipif(
-    shutil.which("node") is None, reason="需要 node 运行 hook 脚本"
-)
+pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="需要 node 运行 hook 脚本")
 
 
 def _run(hook, *, command=None, file_path=None, tool_name="Bash", env=None):
@@ -46,13 +45,17 @@ def test_push_blocked_when_on_main():
 
 
 def test_push_feat_branch_allowed():
-    assert _run("block-push-main.js", command="git push -u origin feat/x",
-                env=_env_branch("feat/x")) == 0
+    assert (
+        _run("block-push-main.js", command="git push -u origin feat/x", env=_env_branch("feat/x"))
+        == 0
+    )
 
 
 def test_explicit_push_to_main_blocked_from_feat():
-    assert _run("block-push-main.js", command="git push origin feat/x:main",
-                env=_env_branch("feat/x")) == 2
+    assert (
+        _run("block-push-main.js", command="git push origin feat/x:main", env=_env_branch("feat/x"))
+        == 2
+    )
 
 
 def test_non_push_git_allowed_on_main():
@@ -61,9 +64,14 @@ def test_non_push_git_allowed_on_main():
 
 def test_main_word_in_later_segment_not_blocked():
     # "main" 仅出现在 push 之后的独立段（管道/echo），不应误拦（回归：扫整行的 bug）
-    assert _run("block-push-main.js",
-                command='git push origin feat/x | echo "deploy to main later"',
-                env=_env_branch("feat/x")) == 0
+    assert (
+        _run(
+            "block-push-main.js",
+            command='git push origin feat/x | echo "deploy to main later"',
+            env=_env_branch("feat/x"),
+        )
+        == 0
+    )
 
 
 # ── 护栏② guard-stockpile-destructive ────────────────────────────────────
@@ -76,8 +84,10 @@ def test_drop_master_table_blocked():
 
 
 def test_delete_from_stockpile_blocked():
-    assert _run("guard-stockpile-destructive.js",
-                command='psql -c "DELETE FROM stockpile WHERE 1=1"') == 2
+    assert (
+        _run("guard-stockpile-destructive.js", command='psql -c "DELETE FROM stockpile WHERE 1=1"')
+        == 2
+    )
 
 
 def test_alembic_upgrade_allowed_by_destructive_guard():
@@ -94,8 +104,13 @@ def test_alembic_upgrade_without_temp_db_blocked():
 
 
 def test_alembic_with_inline_sqlite_allowed():
-    assert _run("migration-temp-db-guard.js",
-                command="LABEL_SYNC_DB_PATH=/tmp/t.db alembic upgrade head") == 0
+    assert (
+        _run(
+            "migration-temp-db-guard.js",
+            command="LABEL_SYNC_DB_PATH=/tmp/t.db alembic upgrade head",
+        )
+        == 0
+    )
 
 
 def test_alembic_history_allowed():
@@ -104,25 +119,25 @@ def test_alembic_history_allowed():
 
 # ── 护栏④ env-file-guard ─────────────────────────────────────────────────
 def test_edit_env_blocked():
-    assert _run("env-file-guard.js", file_path="/c/Dev/label-sync/.env",
-                tool_name="Edit") == 2
+    assert _run("env-file-guard.js", file_path="/c/Dev/label-sync/.env", tool_name="Edit") == 2
 
 
 def test_edit_env_example_allowed():
-    assert _run("env-file-guard.js", file_path="/c/Dev/label-sync/.env.example",
-                tool_name="Edit") == 0
+    assert (
+        _run("env-file-guard.js", file_path="/c/Dev/label-sync/.env.example", tool_name="Edit") == 0
+    )
 
 
 def test_edit_normal_py_allowed():
-    assert _run("env-file-guard.js", file_path="/c/Dev/label-sync/server.py",
-                tool_name="Write") == 0
+    assert (
+        _run("env-file-guard.js", file_path="/c/Dev/label-sync/server.py", tool_name="Write") == 0
+    )
 
 
 # ── 护栏⑤ ruff-autoformat（PostToolUse，非阻塞，仅对 .py 动作）────────────
 def test_ruff_hook_skips_non_py():
     # 非 .py 文件：直接放行 exit 0，不尝试 ruff
-    assert _run("ruff-autoformat.js", file_path="static/js/app.js",
-                tool_name="Edit") == 0
+    assert _run("ruff-autoformat.js", file_path="static/js/app.js", tool_name="Edit") == 0
 
 
 def test_ruff_hook_nonblocking_on_py():

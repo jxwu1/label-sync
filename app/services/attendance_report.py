@@ -21,6 +21,7 @@ from reportlab.platypus import (
 )
 
 from app.services import attendance as attendance_service
+
 _FONT_NAME = "AttnSC"
 _FONT_REGISTERED = False
 _FONT_CANDIDATES = [

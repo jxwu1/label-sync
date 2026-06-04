@@ -37,10 +37,15 @@ class _Base(unittest.TestCase):
 
     def _add_event(self, imported_at: str, *, barcode: str = "B1") -> None:
         with stockpile_db._session() as s:
-            s.execute(insert(InventoryEvent).values(
-                event_at="2026-05-01", event_type="sale",
-                product_barcode=barcode, qty=1, imported_at=imported_at,
-            ))
+            s.execute(
+                insert(InventoryEvent).values(
+                    event_at="2026-05-01",
+                    event_type="sale",
+                    product_barcode=barcode,
+                    qty=1,
+                    imported_at=imported_at,
+                )
+            )
             s.commit()
 
 
@@ -96,6 +101,7 @@ class TestDataFreshnessRoute(_Base):
         from flask import Flask
 
         from app.routes.analytics import bp
+
         app = Flask(__name__)
         app.config["TESTING"] = True
         app.register_blueprint(bp)

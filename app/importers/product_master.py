@@ -57,8 +57,10 @@ def _master_stock_price_to_eur(
         return float(stock_p)
     if origin in ("CN", "HZ"):
         if (
-            pack_volume is not None and pack_volume > 0
-            and unit_quantity is not None and unit_quantity > 0
+            pack_volume is not None
+            and pack_volume > 0
+            and unit_quantity is not None
+            and unit_quantity > 0
         ):
             shipping_rmb_per_unit = (
                 CONFIG.cn_shipping_rate_rmb_per_m3 * float(pack_volume) / float(unit_quantity)
@@ -70,6 +72,7 @@ def _master_stock_price_to_eur(
             return None
         return round((float(stock_p) + shipping_rmb_per_unit) / rate, 4)
     return None
+
 
 # 默认列映射：product.csv 的列名 → 内部字段。
 # 整列吃掉，复杂字段（包装尺寸 / 价格折扣等）进 stockpile.extra json。
@@ -250,8 +253,11 @@ def import_product_master(
         unit_qty = _clean_int(extra_dict.get("unit_quantity"))
         pack_vol = _clean_float(extra_dict.get("pack_volume"))
         master_price_eur = _master_stock_price_to_eur(
-            stock_p, supplier_id, model,
-            unit_quantity=unit_qty, pack_volume=pack_vol,
+            stock_p,
+            supplier_id,
+            model,
+            unit_quantity=unit_qty,
+            pack_volume=pack_vol,
         )
         # 统一走 stockpile_db._upsert：自动维护 stockpile_changes + stockpile_locations 子表
         stockpile_db._upsert(

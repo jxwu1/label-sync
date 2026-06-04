@@ -12,7 +12,9 @@ Examples:
   python scripts/screenshot.py --diff screenshots/ref-06.png screenshots/live-06.png screenshots/diff-06.png
   python scripts/screenshot.py --audit http://127.0.0.1:5000/ --selectors ".fc-control,.fc-stats,.fc-panel,.fc-table th"
 """
+
 import sys, asyncio, os
+
 
 async def capture(target, output, width=1440, height=900, theme="dark"):
     """Screenshot a URL or local HTML file."""
@@ -94,7 +96,8 @@ async def audit(url, selectors, theme="dark"):
 
         selector_list = [s.strip() for s in selectors.split(",")]
 
-        results = await page.evaluate("""(selectors) => {
+        results = await page.evaluate(
+            """(selectors) => {
             const out = {};
             for (const sel of selectors) {
                 const el = document.querySelector(sel);
@@ -118,7 +121,9 @@ async def audit(url, selectors, theme="dark"):
                 };
             }
             return out;
-        }""", selector_list)
+        }""",
+            selector_list,
+        )
 
         await browser.close()
 
@@ -126,7 +131,7 @@ async def audit(url, selectors, theme="dark"):
         print("=" * 70)
         for sel, vals in results.items():
             print(f"\n  {sel}:")
-            if vals == 'NOT_FOUND':
+            if vals == "NOT_FOUND":
                 print(f"    ! NOT FOUND in DOM")
                 continue
             for prop, val in vals.items():
@@ -153,7 +158,8 @@ if __name__ == "__main__":
         selectors = args[sel_idx + 1]
         theme = "dark"
         for a in args:
-            if a.startswith("--theme="): theme = a.split("=")[1]
+            if a.startswith("--theme="):
+                theme = a.split("=")[1]
         asyncio.run(audit(url, selectors, theme))
 
     else:
@@ -161,7 +167,10 @@ if __name__ == "__main__":
         output = args[1]
         width, height, theme = 1440, 900, "dark"
         for a in args[2:]:
-            if a.startswith("--width="): width = int(a.split("=")[1])
-            if a.startswith("--height="): height = int(a.split("=")[1])
-            if a.startswith("--theme="): theme = a.split("=")[1]
+            if a.startswith("--width="):
+                width = int(a.split("=")[1])
+            if a.startswith("--height="):
+                height = int(a.split("=")[1])
+            if a.startswith("--theme="):
+                theme = a.split("=")[1]
         asyncio.run(capture(target, output, width, height, theme))

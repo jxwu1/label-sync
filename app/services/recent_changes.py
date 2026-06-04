@@ -205,7 +205,7 @@ def get_batch_changes(
         barcodes = list({r.product_barcode for r in rows})
         models: dict[str, str] = {}
         for i in range(0, len(barcodes), 900):
-            chunk = barcodes[i:i + 900]
+            chunk = barcodes[i : i + 900]
             for bc, m in session.execute(
                 select(Stockpile.product_barcode, Stockpile.product_model).where(
                     Stockpile.product_barcode.in_(chunk)

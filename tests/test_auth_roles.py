@@ -16,6 +16,7 @@ class RequireRoleTests(unittest.TestCase):
         @authmod.require_role("admin")
         def _view():
             return "ok"
+
         return _view
 
     def test_admin_allowed(self):

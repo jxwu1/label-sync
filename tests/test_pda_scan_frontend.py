@@ -4,6 +4,7 @@
 一个隐藏的、屏幕外输入框——手机浏览器拒绝给不可见输入自动聚焦，于是扫了没地方落、
 表格永远空。修复：整页 document 级捕获 + 预渲染空表格 + 静态资源版本号防缓存。
 """
+
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -76,11 +77,11 @@ def test_process_picks_up_task_on_main():
 
 def test_inline_edit_overwrites_via_tap():
     # 库位/条码扫错：点该行 → 下一次扫描就地覆盖，免一个个撤销或重开新表重扫
-    assert "editingSeq" in PDA_JS            # 「待覆盖」状态标志
-    assert "update-item" in PDA_JS           # 覆盖走专用端点，不再 append 新行
-    assert "data-seq" in PDA_JS              # 行带 seq，点行按 seq 定位覆盖目标
+    assert "editingSeq" in PDA_JS  # 「待覆盖」状态标志
+    assert "update-item" in PDA_JS  # 覆盖走专用端点，不再 append 新行
+    assert "data-seq" in PDA_JS  # 行带 seq，点行按 seq 定位覆盖目标
     assert "onRowTap" in PDA_JS
-    assert "overwriting" in PDA_JS           # 防重入锁：armed 时快速连扫不并发 POST
+    assert "overwriting" in PDA_JS  # 防重入锁：armed 时快速连扫不并发 POST
     # 不能破坏旧不变量：点表格仍聚焦扫描框（扫描枪要有处可落）
     assert "addEventListener('click', focusScan)" in PDA_JS
     # 顶部「待覆盖」提示条（防呆：明确下一次扫描改哪行 + 怎么取消）

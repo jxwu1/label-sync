@@ -74,20 +74,24 @@ def migrate(attendance_dir: Path) -> dict:
 
         # ── Public holidays ──
         for date_str in holidays_data:
-            s.merge(PublicHoliday(
-                holiday_date=date_str,
-                name="希腊法定节假日",
-                is_paid=1,
-            ))
+            s.merge(
+                PublicHoliday(
+                    holiday_date=date_str,
+                    name="希腊法定节假日",
+                    is_paid=1,
+                )
+            )
             stats["holidays"] += 1
 
         # ── Special days ──
         for date_str, info in special_days_data.items():
-            s.merge(SpecialDay(
-                special_date=date_str,
-                label=info.get("label") or info.get("start"),
-                end_time=info.get("end"),
-            ))
+            s.merge(
+                SpecialDay(
+                    special_date=date_str,
+                    label=info.get("label") or info.get("start"),
+                    end_time=info.get("end"),
+                )
+            )
             stats["special_days"] += 1
 
         # ── Monthly attendance + leaves ──

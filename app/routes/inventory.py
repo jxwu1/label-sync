@@ -318,23 +318,22 @@ def stats() -> tuple:
         }
         # 各事件类型最新日期 (推断 scraper 是否在跑)
         totals["latest_sale_at"] = session.scalar(
-            select(func.max(InventoryEvent.event_at))
-            .where(InventoryEvent.event_type == "sale")
+            select(func.max(InventoryEvent.event_at)).where(InventoryEvent.event_type == "sale")
         )
         totals["latest_purchase_at"] = session.scalar(
-            select(func.max(InventoryEvent.event_at))
-            .where(InventoryEvent.event_type == "purchase")
+            select(func.max(InventoryEvent.event_at)).where(InventoryEvent.event_type == "purchase")
         )
         totals["last_sale_import"] = session.scalar(
-            select(func.max(InventoryEvent.imported_at))
-            .where(InventoryEvent.event_type == "sale")
+            select(func.max(InventoryEvent.imported_at)).where(InventoryEvent.event_type == "sale")
         )
         totals["last_purchase_import"] = session.scalar(
-            select(func.max(InventoryEvent.imported_at))
-            .where(InventoryEvent.event_type == "purchase")
+            select(func.max(InventoryEvent.imported_at)).where(
+                InventoryEvent.event_type == "purchase"
+            )
         )
         # 库存快照 & 产品总档最新日期 (单独表)
         from app.models import StockpileInventorySnapshot, StockpileSnapshot
+
         totals["latest_inventory_snapshot_at"] = session.scalar(
             select(func.max(StockpileInventorySnapshot.snapshot_date))
         )
@@ -342,8 +341,9 @@ def stats() -> tuple:
             select(func.max(StockpileInventorySnapshot.imported_at))
         )
         totals["latest_product_master_at"] = session.scalar(
-            select(func.max(StockpileSnapshot.taken_at))
-            .where(StockpileSnapshot.trigger == "import")
+            select(func.max(StockpileSnapshot.taken_at)).where(
+                StockpileSnapshot.trigger == "import"
+            )
         )
         # 按客户类型分布
         type_rows = session.execute(

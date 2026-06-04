@@ -257,11 +257,13 @@ def coverage_p98(actual: list[float], p98: list[float]) -> float:
 
 def _empirical_quantile():
     from app.services.forecast import EmpiricalQuantileModel
+
     return EmpiricalQuantileModel()
 
 
 def _holt_winters():
     from app.services.forecast import HoltWintersModel
+
     return HoltWintersModel()
 
 

@@ -36,20 +36,18 @@ TABLE_ORDER: tuple[str, ...] = (
     "customers",
     "foreign_customer_records",
     "stockpile",
-    "stockpile_locations",        # FK → stockpile
+    "stockpile_locations",  # FK → stockpile
     "stockpile_changes",
     "inventory_imports",
-    "inventory_events",           # 主表 ~1.36M 行
+    "inventory_events",  # 主表 ~1.36M 行
     "backtest_runs",
-    "backtest_results",           # FK → backtest_runs
+    "backtest_results",  # FK → backtest_runs
 )
 
 BATCH_SIZE = 50_000
 
 
-def migrate_table(
-    sqlite_conn: sqlite3.Connection, pg_session: Session, table_name: str
-) -> int:
+def migrate_table(sqlite_conn: sqlite3.Connection, pg_session: Session, table_name: str) -> int:
     cur = sqlite_conn.cursor()
     cur.execute(f'SELECT COUNT(*) FROM "{table_name}"')
     total = cur.fetchone()[0]
@@ -155,8 +153,7 @@ def main() -> int:
             session.execute(text("SELECT 1 FROM schema_meta LIMIT 1"))
         except Exception as e:
             print(
-                f"ERROR: 目标 PG 没找到 schema_meta 表 — 请先跑 alembic upgrade head\n"
-                f"  详情: {e}",
+                f"ERROR: 目标 PG 没找到 schema_meta 表 — 请先跑 alembic upgrade head\n  详情: {e}",
                 file=sys.stderr,
             )
             return 3

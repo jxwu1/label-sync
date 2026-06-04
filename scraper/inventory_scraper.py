@@ -17,6 +17,7 @@ boson ERP 库存快照抓取 (point-in-time 全量, 不按月切片).
 v1 不做 schema 转换. 跑完后看打印的列名 + 头几行, 跟 sales/purchase 对一下,
 再决定标准化映射. 长期落 stockpile_inventory_snapshot 表 (新表).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -42,6 +43,7 @@ def _strip_stop_marker(value):
     cleaned = _STOP_MARKER_RE.sub("", s).strip() or None
     was_marked = cleaned != s
     return cleaned, was_marked
+
 
 _HERE = Path(__file__).resolve().parent
 _REPO_ROOT = _HERE.parent
@@ -96,33 +98,75 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # form_data 跟 sales/purchase 共用 99%, 只有触发字段 stockpile=库存 不同
 form_data_template = {
-    "root_kind_length": "", "search_time_type": "", "classify_kind_id": "",
-    "sign_type": "", "product_kind_id": "", "product_kind_name": "",
-    "stack_kind_id": "", "stack_kind_name": "", "product_model": "",
-    "document_valid_grade": ">=1", "audit_status": "", "document_kind_id": "",
-    "store_id": "", "begin_product_model": "", "end_product_model": "",
-    "valid_grade_range": "", "product_batch": "", "valid_grade_symbol": ">=",
-    "valid_grade": "0", "produce_type": "", "product_barcode": "",
-    "sequence_number": "", "begin_product_barcode": "", "end_product_barcode": "",
-    "client_model": "", "provider_model": "", "begin_unit_price": "",
-    "end_unit_price": "", "begin_stockpile_quantity": "",
-    "end_stockpile_quantity": "", "product_description": "",
-    "description_length": "15", "stockpile_shelf": "", "stockpile_location": "",
-    "product_color": "", "product_size": "", "material_description": "",
-    "spec_description": "", "document_id": "", "client_document_id": "",
-    "product_brand": "", "produce_area": "", "item_remark": "",
-    "document_remark": "", "payment_kind_id": "", "source_kind_id": "",
-    "industry_kind_id": "", "handler_id": "", "handler_name": "",
-    "creator_id": "", "creator_name": "", "web_status_select": "",
-    "recommend_status_select": "", "invoice_limit_select": "",
-    "discount_limit_select": "", "client_valid_grade_range": "",
-    "group_kind_id": "", "money_rate_id": "103", "client_id": "",
-    "client_name": "", "client_title": "", "content_type": ".php",
+    "root_kind_length": "",
+    "search_time_type": "",
+    "classify_kind_id": "",
+    "sign_type": "",
+    "product_kind_id": "",
+    "product_kind_name": "",
+    "stack_kind_id": "",
+    "stack_kind_name": "",
+    "product_model": "",
+    "document_valid_grade": ">=1",
+    "audit_status": "",
+    "document_kind_id": "",
+    "store_id": "",
+    "begin_product_model": "",
+    "end_product_model": "",
+    "valid_grade_range": "",
+    "product_batch": "",
+    "valid_grade_symbol": ">=",
+    "valid_grade": "0",
+    "produce_type": "",
+    "product_barcode": "",
+    "sequence_number": "",
+    "begin_product_barcode": "",
+    "end_product_barcode": "",
+    "client_model": "",
+    "provider_model": "",
+    "begin_unit_price": "",
+    "end_unit_price": "",
+    "begin_stockpile_quantity": "",
+    "end_stockpile_quantity": "",
+    "product_description": "",
+    "description_length": "15",
+    "stockpile_shelf": "",
+    "stockpile_location": "",
+    "product_color": "",
+    "product_size": "",
+    "material_description": "",
+    "spec_description": "",
+    "document_id": "",
+    "client_document_id": "",
+    "product_brand": "",
+    "produce_area": "",
+    "item_remark": "",
+    "document_remark": "",
+    "payment_kind_id": "",
+    "source_kind_id": "",
+    "industry_kind_id": "",
+    "handler_id": "",
+    "handler_name": "",
+    "creator_id": "",
+    "creator_name": "",
+    "web_status_select": "",
+    "recommend_status_select": "",
+    "invoice_limit_select": "",
+    "discount_limit_select": "",
+    "client_valid_grade_range": "",
+    "group_kind_id": "",
+    "money_rate_id": "103",
+    "client_id": "",
+    "client_name": "",
+    "client_title": "",
+    "content_type": ".php",
     "language_id": "101",
     # 库存查询的触发字段 (来自 F12 cURL 抓包, 2026-05-20):
     "stockpile": "库存",
     "interval_days": "1",
-    "document_list_report": "", "time_type": "month", "limit_sum": "",
+    "document_list_report": "",
+    "time_type": "month",
+    "limit_sum": "",
 }
 
 
@@ -148,19 +192,23 @@ def to_standard_schema(df: pd.DataFrame, snapshot_date: str) -> pd.DataFrame:
     """ERP raw 库存表 → 标准 schema. 砍多余列 + 改名 + 类型规整."""
     missing = [c for c in _KEEP_COLS if c not in df.columns]
     if missing:
-        raise ValueError(
-            f"ERP 库存表缺列: {missing}; 拿到的列: {list(df.columns)}"
-        )
+        raise ValueError(f"ERP 库存表缺列: {missing}; 拿到的列: {list(df.columns)}")
     std = df[list(_KEEP_COLS)].copy()
     std.columns = list(_KEEP_COLS.values())
 
     std.insert(0, "snapshot_date", snapshot_date)
 
     # 字符串列
-    for col in ("product_model", "product_name_zh", "erp_category_code",
-                "erp_category_raw", "last_purchase_at", "last_arrival_at"):
-        std[col] = std[col].astype("string").replace(
-            {"": None, "nan": None, "None": None, "<NA>": None}
+    for col in (
+        "product_model",
+        "product_name_zh",
+        "erp_category_code",
+        "erp_category_raw",
+        "last_purchase_at",
+        "last_arrival_at",
+    ):
+        std[col] = (
+            std[col].astype("string").replace({"": None, "nan": None, "None": None, "<NA>": None})
         )
 
     # 剥离 product_model 末尾的 (停用) 标记, 保留 ERP 等级=0 信号到新列
@@ -190,8 +238,7 @@ def fetch_snapshot(snapshot_date: str, retry: int = 2) -> pd.DataFrame | None:
     for attempt in range(retry + 1):
         try:
             t0 = time.time()
-            r = requests.post(URL, data=form_data, headers=HEADERS,
-                              cookies=COOKIES, timeout=600)
+            r = requests.post(URL, data=form_data, headers=HEADERS, cookies=COOKIES, timeout=600)
             r.encoding = "utf-8"
             size_mb = len(r.content) / 1024 / 1024
             elapsed = time.time() - t0
@@ -209,8 +256,10 @@ def fetch_snapshot(snapshot_date: str, retry: int = 2) -> pd.DataFrame | None:
                 return None
 
             df = max(tables, key=len)
-            df = df.drop(columns=['Unnamed: 0', 'Unnamed: 1'], errors='ignore')
-            print(f"    响应 {size_mb:.1f} MB, 用时 {elapsed:.1f}s, {len(df)} 行 × {len(df.columns)} 列")
+            df = df.drop(columns=["Unnamed: 0", "Unnamed: 1"], errors="ignore")
+            print(
+                f"    响应 {size_mb:.1f} MB, 用时 {elapsed:.1f}s, {len(df)} 行 × {len(df.columns)} 列"
+            )
             return df
         except Exception as e:
             print(f"    ❌ 第 {attempt + 1} 次失败: {e}")
@@ -225,7 +274,9 @@ def main() -> int:
         epilog="cookie 失效时去 scraper/cookie.txt 换 PHPSESSID",
     )
     parser.add_argument(
-        "--date", dest="snapshot_date", type=date.fromisoformat,
+        "--date",
+        dest="snapshot_date",
+        type=date.fromisoformat,
         default=date.today(),
         help="快照日期 YYYY-MM-DD (默认: 今天)",
     )
@@ -258,8 +309,9 @@ def main() -> int:
     print(df_std.head(5).to_string())
 
     print("\n=== 写 parquet ===")
-    df_std.to_parquet(output_parquet, index=False, engine="pyarrow",
-                      compression="zstd", compression_level=9)
+    df_std.to_parquet(
+        output_parquet, index=False, engine="pyarrow", compression="zstd", compression_level=9
+    )
     print(f"  {output_parquet.stat().st_size / 1024 / 1024:.1f} MB")
 
     print("\n=== 写 xlsx (人工核对用) ===")

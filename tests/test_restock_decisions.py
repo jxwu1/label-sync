@@ -1,4 +1,5 @@
 """restock_decisions service 测试."""
+
 from __future__ import annotations
 
 import shutil
@@ -27,8 +28,13 @@ def _item(barcode="B1", urgency=80, **kw):
         "origin": "FOREIGN",
         "supplier_id": "GR0001",
         "urgency_breakdown": {
-            "velocity": 24, "cover": 22.5, "recency": 6, "margin": 27,
-            "velocity_pctile": 0.8, "margin_pctile": 0.9, "margin_missing": False,
+            "velocity": 24,
+            "cover": 22.5,
+            "recency": 6,
+            "margin": 27,
+            "velocity_pctile": 0.8,
+            "margin_pctile": 0.9,
+            "margin_missing": False,
             "margin_source": "purchase",
         },
     }
@@ -100,9 +106,13 @@ class ListAndStatsTests(_Base):
         with stockpile_db._session() as s:
             svc.record_decision(s, "B1", "ordered", _item(urgency=80, supplier_id="GR0001"))
             svc.record_decision(s, "B2", "ordered", _item(urgency=75, supplier_id="GR0001"))
-            svc.record_decision(s, "B3", "skipped",
-                                _item(urgency=70, supplier_id="CN0001", origin="CN"),
-                                reason="r1")
+            svc.record_decision(
+                s,
+                "B3",
+                "skipped",
+                _item(urgency=70, supplier_id="CN0001", origin="CN"),
+                reason="r1",
+            )
             svc.record_decision(s, "B4", "overridden", _item(urgency=30, supplier_id="GR0002"))
             s.commit()
 

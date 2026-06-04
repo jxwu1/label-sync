@@ -1,4 +1,5 @@
 """扫描会话服务：生命周期 + 物化现有格式扫描 .xlsx。"""
+
 from __future__ import annotations
 
 import re

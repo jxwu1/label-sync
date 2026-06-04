@@ -49,10 +49,16 @@ class _DBTestCase(unittest.TestCase):
         self.engine.dispose()
 
     def _rows(self, qty=10, price=1.0):
-        return [PurchaseRow(
-            barcode="B1", price_raw=str(price), price=price,
-            quantity=qty, price_flagged=False, quantity_flagged=False,
-        )]
+        return [
+            PurchaseRow(
+                barcode="B1",
+                price_raw=str(price),
+                price=price,
+                quantity=qty,
+                price_flagged=False,
+                quantity_flagged=False,
+            )
+        ]
 
 
 class TestCreateOrderIdempotency(_DBTestCase):

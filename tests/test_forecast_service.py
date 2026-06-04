@@ -19,6 +19,7 @@ class EmpiricalQuantileModelTests(unittest.TestCase):
 
     def _new(self):
         from app.services.forecast import EmpiricalQuantileModel
+
         return EmpiricalQuantileModel()
 
     def test_protocol_attrs(self) -> None:
@@ -27,6 +28,7 @@ class EmpiricalQuantileModelTests(unittest.TestCase):
 
     def test_predict_returns_forecast_dist(self) -> None:
         from app.services.backtest import ForecastDist
+
         m = self._new()
         m.fit([1.0, 2.0, 3.0])
         d = m.predict()
@@ -121,6 +123,7 @@ class HoltWintersModelTests(unittest.TestCase):
 
     def _new(self):
         from app.services.forecast import HoltWintersModel
+
         return HoltWintersModel()
 
     def test_protocol_attrs(self) -> None:
@@ -333,9 +336,7 @@ class RefreshForecastOutputTests(unittest.TestCase):
             )
             s.commit()
 
-        result = refresh_forecast_output(
-            end_date=date(2026, 5, 13), barcodes=["EMPTY"]
-        )
+        result = refresh_forecast_output(end_date=date(2026, 5, 13), barcodes=["EMPTY"])
         assert result["n_written"] == 0
         assert result["n_skipped"] == 1
         with stockpile_db._session() as s:

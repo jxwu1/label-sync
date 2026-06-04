@@ -14,6 +14,7 @@ boson ERP 产品总档抓取 (替代月度手动 import).
 输出: SCRAPE_OUTPUT_DIR/product_master_<date>.parquet (原始列名透传, 给
       server 端 product_master.py importer 用 DEFAULT_PRODUCT_MAPPING).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -130,8 +131,7 @@ def fetch_product_master(retry: int = 2) -> pd.DataFrame | None:
     for attempt in range(retry + 1):
         try:
             t0 = time.time()
-            r = requests.get(URL, params=PARAMS, headers=HEADERS,
-                             cookies=COOKIES, timeout=600)
+            r = requests.get(URL, params=PARAMS, headers=HEADERS, cookies=COOKIES, timeout=600)
             elapsed = time.time() - t0
             size_mb = len(r.content) / 1024 / 1024
             ct = r.headers.get("content-type", "")
@@ -167,7 +167,9 @@ def main() -> int:
         epilog="cookie 失效时去 scraper/cookie.txt 换 PHPSESSID",
     )
     parser.add_argument(
-        "--date", dest="snapshot_date", type=date.fromisoformat,
+        "--date",
+        dest="snapshot_date",
+        type=date.fromisoformat,
         default=date.today(),
         help="文件名日期标签 YYYY-MM-DD (默认: 今天)",
     )
@@ -190,8 +192,9 @@ def main() -> int:
 
     # 列名透传, server 端 product_master.py 用 DEFAULT_PRODUCT_MAPPING (英文列名) 解析,
     # 跟现有月度手动 import 路径一致.
-    df.to_parquet(output_parquet, index=False, engine="pyarrow",
-                  compression="zstd", compression_level=9)
+    df.to_parquet(
+        output_parquet, index=False, engine="pyarrow", compression="zstd", compression_level=9
+    )
     print(f"  parquet: {output_parquet.stat().st_size / 1024 / 1024:.2f} MB")
 
     print(f"\n=== 前 3 行 (列名透传) ===")

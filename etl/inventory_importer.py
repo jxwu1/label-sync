@@ -3,6 +3,7 @@
 幂等策略: 同 snapshot_date 整体替换 (DELETE + INSERT). 重复 import 同一份
 parquet 不会爆 UNIQUE, 不会留陈旧行.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -30,9 +31,7 @@ def import_inventory_snapshot(path: Path, session: Session) -> dict:
     snap_date = str(df["snapshot_date"].iloc[0])
     unique_dates = df["snapshot_date"].astype(str).unique()
     if len(unique_dates) > 1:
-        raise ValueError(
-            f"inventory parquet 同时含多个 snapshot_date: {sorted(unique_dates)}"
-        )
+        raise ValueError(f"inventory parquet 同时含多个 snapshot_date: {sorted(unique_dates)}")
 
     result = session.execute(
         delete(StockpileInventorySnapshot).where(

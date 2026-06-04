@@ -32,6 +32,7 @@ def _dialect_insert(session: Session):
         return pg_insert
     return sqlite_insert
 
+
 from app.utils.customer_classifier import classify_customer
 from app.parsers.erp_category import parse_erp_category
 from app.models import Customer, InventoryEvent, Stockpile, Supplier

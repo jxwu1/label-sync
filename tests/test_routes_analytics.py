@@ -27,6 +27,7 @@ class AnalyticsRoutesTests(unittest.TestCase):
         stockpile_db._engine_cache.clear()
         stockpile_db.ensure_db()
         from app.services import analytics as _ans
+
         _ans.clear_list_sku_summary_cache()
 
         self.app = Flask(__name__)
@@ -428,6 +429,7 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
 
     def test_upload_missing_token_env_returns_500(self) -> None:
         import os
+
         os.environ.pop("UPLOAD_TOKEN", None)
         resp = self.client.post("/analytics/data/upload")
         self.assertEqual(resp.status_code, 500)
@@ -435,6 +437,7 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
 
     def test_upload_bad_token_returns_401(self) -> None:
         import os
+
         os.environ["UPLOAD_TOKEN"] = "secret_token_abc"
         try:
             resp = self.client.post(
@@ -447,6 +450,7 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
 
     def test_upload_no_file_returns_400(self) -> None:
         import os
+
         os.environ["UPLOAD_TOKEN"] = "secret_token_abc"
         try:
             resp = self.client.post(
@@ -469,15 +473,17 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
 
         os.environ["UPLOAD_TOKEN"] = "secret_token_abc"
         self._seed_sku("B1")  # seed stockpile, 让回填有目标
-        df = pd.DataFrame({
-            "event_at": ["2026-04-01"],
-            "event_type": ["purchase"],
-            "product_barcode": ["B1"],
-            "qty": [10],
-            "unit_price": [1.23],
-            "discount_pct": [10.0],   # 折后净 = 1.23 * 0.9 = 1.107
-            "document_no": ["DOC1"],
-        })
+        df = pd.DataFrame(
+            {
+                "event_at": ["2026-04-01"],
+                "event_type": ["purchase"],
+                "product_barcode": ["B1"],
+                "qty": [10],
+                "unit_price": [1.23],
+                "discount_pct": [10.0],  # 折后净 = 1.23 * 0.9 = 1.107
+                "document_no": ["DOC1"],
+            }
+        )
         with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as tmp:
             df.to_parquet(tmp.name, engine="pyarrow")
             tmp_path = tmp.name
@@ -494,6 +500,7 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
             self.assertTrue(resp.get_json()["ok"])
 
             from app.models import Stockpile
+
             with stockpile_db._session() as s:
                 row = s.execute(
                     stockpile_db.select(Stockpile).where(Stockpile.product_barcode == "B1")
@@ -507,6 +514,7 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
     def test_upload_rejects_non_events_filename(self) -> None:
         import io
         import os
+
         os.environ["UPLOAD_TOKEN"] = "secret_token_abc"
         try:
             resp = self.client.post(
@@ -530,20 +538,22 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
         import pandas as pd
 
         os.environ["UPLOAD_TOKEN"] = "secret_token_abc"
-        df = pd.DataFrame({
-            "snapshot_date": ["2026-05-20"] * 2,
-            "product_model": ["10110", "10111"],
-            "product_name_zh": ["渔具工具 弹弓", "渔具 钓鱼 报警器"],
-            "erp_category_code": ["A001-0904", "A001-0101"],
-            "erp_category_raw": ["渔具-工具 弹弓", "渔具-渔具 配件"],
-            "last_purchase_at": ["2026-01-19", "2023-03-11"],
-            "last_arrival_at": ["2026-04-11", "2023-04-24"],
-            "qty_store": [294, 195],
-            "qty_total": [294, 195],
-            "reorder_min": [180, 640],
-            "reorder_max": [540, 1920],
-            "is_discontinued_in_erp": [False, False],
-        })
+        df = pd.DataFrame(
+            {
+                "snapshot_date": ["2026-05-20"] * 2,
+                "product_model": ["10110", "10111"],
+                "product_name_zh": ["渔具工具 弹弓", "渔具 钓鱼 报警器"],
+                "erp_category_code": ["A001-0904", "A001-0101"],
+                "erp_category_raw": ["渔具-工具 弹弓", "渔具-渔具 配件"],
+                "last_purchase_at": ["2026-01-19", "2023-03-11"],
+                "last_arrival_at": ["2026-04-11", "2023-04-24"],
+                "qty_store": [294, 195],
+                "qty_total": [294, 195],
+                "reorder_min": [180, 640],
+                "reorder_max": [540, 1920],
+                "is_discontinued_in_erp": [False, False],
+            }
+        )
         with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as tmp:
             df.to_parquet(tmp.name, engine="pyarrow")
             tmp_path = tmp.name
@@ -565,6 +575,7 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
         finally:
             os.environ.pop("UPLOAD_TOKEN", None)
             import pathlib
+
             pathlib.Path(tmp_path).unlink(missing_ok=True)
 
     def test_upload_inventory_replaces_existing(self) -> None:
@@ -575,20 +586,22 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
         import pandas as pd
 
         os.environ["UPLOAD_TOKEN"] = "secret_token_abc"
-        df = pd.DataFrame({
-            "snapshot_date": ["2026-05-20"],
-            "product_model": ["10110"],
-            "product_name_zh": ["test"],
-            "erp_category_code": [None],
-            "erp_category_raw": [None],
-            "last_purchase_at": [None],
-            "last_arrival_at": [None],
-            "qty_store": [10],
-            "qty_total": [10],
-            "reorder_min": [None],
-            "reorder_max": [None],
-            "is_discontinued_in_erp": [False],
-        })
+        df = pd.DataFrame(
+            {
+                "snapshot_date": ["2026-05-20"],
+                "product_model": ["10110"],
+                "product_name_zh": ["test"],
+                "erp_category_code": [None],
+                "erp_category_raw": [None],
+                "last_purchase_at": [None],
+                "last_arrival_at": [None],
+                "qty_store": [10],
+                "qty_total": [10],
+                "reorder_min": [None],
+                "reorder_max": [None],
+                "is_discontinued_in_erp": [False],
+            }
+        )
         with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as tmp:
             df.to_parquet(tmp.name, engine="pyarrow")
             tmp_path = tmp.name
@@ -612,6 +625,7 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
         finally:
             os.environ.pop("UPLOAD_TOKEN", None)
             import pathlib
+
             pathlib.Path(tmp_path).unlink(missing_ok=True)
 
     def test_upload_inventory_missing_snapshot_date_column(self) -> None:
@@ -623,10 +637,12 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
 
         os.environ["UPLOAD_TOKEN"] = "secret_token_abc"
         # 故意不放 snapshot_date 列
-        df = pd.DataFrame({
-            "product_model": ["10110"],
-            "qty_total": [10],
-        })
+        df = pd.DataFrame(
+            {
+                "product_model": ["10110"],
+                "qty_total": [10],
+            }
+        )
         with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as tmp:
             df.to_parquet(tmp.name, engine="pyarrow")
             tmp_path = tmp.name
@@ -644,6 +660,7 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
         finally:
             os.environ.pop("UPLOAD_TOKEN", None)
             import pathlib
+
             pathlib.Path(tmp_path).unlink(missing_ok=True)
 
     def test_forecast_refresh_returns_stats(self) -> None:
@@ -679,9 +696,7 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
         from app.models import SkuSummary
 
         with stockpile_db._session() as s:
-            return s.execute(
-                select(func.count()).select_from(SkuSummary)
-            ).scalar_one()
+            return s.execute(select(func.count()).select_from(SkuSummary)).scalar_one()
 
     def test_forecast_refresh_rebuilds_sku_summary(self) -> None:
         """POST /forecast/refresh 后物化表被同步重建（forecast 数据进 payload）。"""

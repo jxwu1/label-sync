@@ -1,4 +1,5 @@
 """PDA 扫描端 + PC 待处理端路由。"""
+
 from __future__ import annotations
 
 import hashlib
@@ -99,6 +100,7 @@ def session_finalize(session_id: int):
 
 
 # ---- PC 待处理端（admin only） ----
+
 
 @bp.get("/pending")
 @require_role("admin")

@@ -281,12 +281,9 @@ def _build_sys(stats: dict) -> list[dict]:
 
     try:
         with get_session() as session:
-            latest_run = (
-                session.execute(
-                    select(BacktestRun).order_by(BacktestRun.id.desc()).limit(1)
-                )
-                .scalar()
-            )
+            latest_run = session.execute(
+                select(BacktestRun).order_by(BacktestRun.id.desc()).limit(1)
+            ).scalar()
         if latest_run:
             scored = latest_run.n_skus_scored
             total = latest_run.n_skus_total
@@ -295,7 +292,13 @@ def _build_sys(stats: dict) -> list[dict]:
                 rows.append({"status": "running", "label": "Backtest", "value": f"运行中 {pct}%"})
             else:
                 ts = (latest_run.created_at or "")[:10]
-                rows.append({"status": "ok", "label": "Backtest", "value": f"{latest_run.model_name} · {ts}"})
+                rows.append(
+                    {
+                        "status": "ok",
+                        "label": "Backtest",
+                        "value": f"{latest_run.model_name} · {ts}",
+                    }
+                )
     except Exception:
         pass
 

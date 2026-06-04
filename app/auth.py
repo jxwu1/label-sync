@@ -40,7 +40,9 @@ def require_role(role: str):
             if getattr(current_user, "role", None) != role:
                 abort(403)
             return fn(*args, **kwargs)
+
         return wrapped
+
     return deco
 
 
@@ -93,9 +95,18 @@ def _seed_scanner():
         if s.query(User).filter_by(role="scanner").count() > 0:
             return
         pw = os.environ.get("PDA_SEED_PASSWORD") or secrets.token_urlsafe(12)
-        s.add(User(username="pda", password_hash=hash_password(pw),
-                   display_name="PDA 扫描", theme="light", role="scanner"))
-        print(f"[pda-seed] 已创建扫描账号 'pda'，初始密码: {pw}（请在系统管理里尽快修改）", flush=True)
+        s.add(
+            User(
+                username="pda",
+                password_hash=hash_password(pw),
+                display_name="PDA 扫描",
+                theme="light",
+                role="scanner",
+            )
+        )
+        print(
+            f"[pda-seed] 已创建扫描账号 'pda'，初始密码: {pw}（请在系统管理里尽快修改）", flush=True
+        )
 
 
 def _seed_admin():

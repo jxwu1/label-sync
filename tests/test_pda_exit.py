@@ -4,6 +4,7 @@
 before_request 限制只能访问 /pda，导致"完全退不出去"。/logout（auth.* 白名单）
 始终可达，缺的只是页面上的入口按钮 —— 这两条断言守住入口存在且指向 /logout。
 """
+
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]

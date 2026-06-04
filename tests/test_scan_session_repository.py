@@ -10,7 +10,9 @@ import app.repositories.scan_session as repo
 
 
 def _make_test_db():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    engine = create_engine(
+        "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
 
     @event.listens_for(engine, "connect")
     def _fk(dbapi_conn, _):
@@ -23,15 +25,22 @@ def _make_test_db():
 class ScanRepoTests(unittest.TestCase):
     def setUp(self):
         import app.models as m
+
         self.engine, self.Session = _make_test_db()
-        self.pe = mock.patch.object(m, "_engine", self.engine); self.pe.start()
-        self.ps = mock.patch.object(m, "_SessionFactory", self.Session); self.ps.start()
+        self.pe = mock.patch.object(m, "_engine", self.engine)
+        self.pe.start()
+        self.ps = mock.patch.object(m, "_SessionFactory", self.Session)
+        self.ps.start()
         s = self.Session()
-        s.add(Employee(employee_id="e001", name="张三", active=1)); s.commit(); s.close()
+        s.add(Employee(employee_id="e001", name="张三", active=1))
+        s.commit()
+        s.close()
 
     def tearDown(self):
-        self.ps.stop(); self.pe.stop()
-        Base.metadata.drop_all(self.engine); self.engine.dispose()
+        self.ps.stop()
+        self.pe.stop()
+        Base.metadata.drop_all(self.engine)
+        self.engine.dispose()
 
     def test_create_and_append_assigns_seq_and_kind(self):
         sid = repo.create_session("e001", "张三")
@@ -60,7 +69,7 @@ class ScanRepoTests(unittest.TestCase):
 
     def test_update_item_by_seq_changes_value_keeps_others(self):
         sid = repo.create_session("e001", "张三")
-        repo.append_item(sid, "C08-12-03")      # seq 1, location（扫错的库位）
+        repo.append_item(sid, "C08-12-03")  # seq 1, location（扫错的库位）
         repo.append_item(sid, "5828079343379")  # seq 2, barcode
         repo.append_item(sid, "5828079343386")  # seq 3, barcode
         self.assertTrue(repo.update_item_by_seq(sid, 1, "D09-01-02"))

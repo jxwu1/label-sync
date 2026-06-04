@@ -1,4 +1,5 @@
 """企业微信考勤导入：解析层 + 服务 + 计划层单测。"""
+
 import io
 import os
 import unittest
@@ -106,15 +107,18 @@ class BindIgnoreTests(unittest.TestCase):
         self.engine, self.Session = _make_memory_db()
         self.p1 = mock.patch.object(models_mod, "_engine", self.engine)
         self.p2 = mock.patch.object(models_mod, "_SessionFactory", self.Session)
-        self.p1.start(); self.p2.start()
+        self.p1.start()
+        self.p2.start()
         with self.Session() as s:
             s.add(Employee(employee_id="e001", name="翁福源"))
             s.add(Employee(employee_id="e002", name="陈建华"))
             s.commit()
 
     def tearDown(self):
-        self.p2.stop(); self.p1.stop()
-        Base.metadata.drop_all(self.engine); self.engine.dispose()
+        self.p2.stop()
+        self.p1.stop()
+        Base.metadata.drop_all(self.engine)
+        self.engine.dispose()
 
     def test_bind_then_map(self):
         imp.bind_account("WengFuYuan", "e001")
@@ -149,38 +153,56 @@ class BindIgnoreTests(unittest.TestCase):
 class BuildPlanCoreTests(unittest.TestCase):
     def test_matched_to_write_and_single(self):
         rows = [
-            {"account": "WengFuYuan", "name": "翁福源",
-             "days": {1: ("ok", "09:25", "20:00"), 2: ("single", "09:40")}},
-            {"account": "ZhangYuePing", "name": "张月萍",
-             "days": {1: ("ok", "09:29", "17:35")}},      # 已忽略
-            {"account": "NewGuy", "name": "新人",
-             "days": {1: ("ok", "09:30", "20:00")}},       # 未绑定,无重名建议
+            {
+                "account": "WengFuYuan",
+                "name": "翁福源",
+                "days": {1: ("ok", "09:25", "20:00"), 2: ("single", "09:40")},
+            },
+            {
+                "account": "ZhangYuePing",
+                "name": "张月萍",
+                "days": {1: ("ok", "09:29", "17:35")},
+            },  # 已忽略
+            {
+                "account": "NewGuy",
+                "name": "新人",
+                "days": {1: ("ok", "09:30", "20:00")},
+            },  # 未绑定,无重名建议
         ]
         plan = imp._build_plan_core(
-            rows, "2026-05",
+            rows,
+            "2026-05",
             account_map={"WengFuYuan": "e001"},
             ignored={"ZhangYuePing"},
             name_by_id={"e001": "翁福源"},
-            month_data={},          # 无已有考勤
+            month_data={},  # 无已有考勤
             leaves_by_emp={},
         )
         matched = {m["employee_id"]: m for m in plan["matched"]}
-        self.assertEqual(matched["e001"]["to_write"],
-                         [{"date": "2026-05-01", "start": "09:25", "end": "20:00"}])
+        self.assertEqual(
+            matched["e001"]["to_write"], [{"date": "2026-05-01", "start": "09:25", "end": "20:00"}]
+        )
         self.assertEqual(matched["e001"]["skip_single"], 1)
         self.assertNotIn("e002", matched)  # 张月萍 已忽略 → 不出现
-        self.assertEqual(plan["needs_manual"],
-                         [{"employee_id": "e001", "name": "翁福源", "date": "2026-05-02", "time": "09:40"}])
-        self.assertEqual(plan["unbound"],
-                         [{"account": "NewGuy", "name": "新人", "suggested_employee_id": None}])
-        self.assertEqual(plan["ignored"],
-                         [{"account": "ZhangYuePing", "name": "张月萍"}])
+        self.assertEqual(
+            plan["needs_manual"],
+            [{"employee_id": "e001", "name": "翁福源", "date": "2026-05-02", "time": "09:40"}],
+        )
+        self.assertEqual(
+            plan["unbound"], [{"account": "NewGuy", "name": "新人", "suggested_employee_id": None}]
+        )
+        self.assertEqual(plan["ignored"], [{"account": "ZhangYuePing", "name": "张月萍"}])
         self.assertEqual(plan["counts"]["ignored"], 1)
 
     def test_fill_blank_only_skips_existing(self):
         plan = imp._build_plan_core(
-            [{"account": "WengFuYuan", "name": "翁福源",
-              "days": {1: ("ok", "09:25", "20:00"), 2: ("ok", "09:30", "20:00")}}],
+            [
+                {
+                    "account": "WengFuYuan",
+                    "name": "翁福源",
+                    "days": {1: ("ok", "09:25", "20:00"), 2: ("ok", "09:30", "20:00")},
+                }
+            ],
             "2026-05",
             account_map={"WengFuYuan": "e001"},
             ignored=set(),
@@ -199,6 +221,7 @@ class BuildPlanCoreTests(unittest.TestCase):
             account_map={},
             ignored=set(),
             name_by_id={"e001": "翁福源"},
-            month_data={}, leaves_by_emp={},
+            month_data={},
+            leaves_by_emp={},
         )
         self.assertEqual(plan["unbound"][0]["suggested_employee_id"], "e001")

@@ -1,4 +1,5 @@
 """企业微信导入路由集成测:preview→bind→ignore→apply。"""
+
 import io
 import unittest
 from unittest import mock
@@ -77,8 +78,9 @@ class WecomImportRoutesTests(unittest.TestCase):
         self.assertIn("NewGuy", accs)
 
     def test_bind_then_preview_matches(self):
-        self.client.post("/attendance/import/bind",
-                         json={"account": "WengFuYuan", "employee_id": "e001"})
+        self.client.post(
+            "/attendance/import/bind", json={"account": "WengFuYuan", "employee_id": "e001"}
+        )
         body = self._upload("/attendance/import/preview").get_json()
         matched = {m["employee_id"] for m in body["matched"]}
         self.assertIn("e001", matched)
@@ -102,13 +104,14 @@ class WecomImportRoutesTests(unittest.TestCase):
         self.assertEqual(body2["ignored"], [])
 
     def test_apply_writes_only_ok_days(self):
-        self.client.post("/attendance/import/bind",
-                         json={"account": "WengFuYuan", "employee_id": "e001"})
+        self.client.post(
+            "/attendance/import/bind", json={"account": "WengFuYuan", "employee_id": "e001"}
+        )
         rv = self._upload("/attendance/import/apply", month="2026-05")
         body = rv.get_json()
         self.assertTrue(body["ok"])
-        self.assertEqual(body["written"], 1)        # 1 号写入
-        self.assertEqual(body["skipped_single"], 1) # 2 号单次跳过
+        self.assertEqual(body["written"], 1)  # 1 号写入
+        self.assertEqual(body["skipped_single"], 1)  # 2 号单次跳过
         summ = self.client.get("/attendance/month/e001/2026-05").get_json()
         day1 = next(d for d in summ["detail"] if d["date"] == "2026-05-01")
         self.assertEqual(day1["start"], "09:25")

@@ -1,4 +1,5 @@
 """ScanSession / ScanItem 数据访问层。"""
+
 from __future__ import annotations
 
 from app.models import ScanItem, ScanSession, get_session
@@ -28,7 +29,9 @@ def get_session_row(session_id: int) -> ScanSession | None:
 
 def get_active_session() -> ScanSession | None:
     with get_session() as s:
-        return s.query(ScanSession).filter_by(status="active").order_by(ScanSession.id.desc()).first()
+        return (
+            s.query(ScanSession).filter_by(status="active").order_by(ScanSession.id.desc()).first()
+        )
 
 
 def append_item(session_id: int, raw: str) -> ScanItem:
@@ -69,9 +72,7 @@ def update_item_by_seq(session_id: int, seq: int, raw: str) -> bool:
 
 def list_items(session_id: int) -> list[ScanItem]:
     with get_session() as s:
-        return (
-            s.query(ScanItem).filter_by(session_id=session_id).order_by(ScanItem.seq.asc()).all()
-        )
+        return s.query(ScanItem).filter_by(session_id=session_id).order_by(ScanItem.seq.asc()).all()
 
 
 def set_status(session_id: int, status: str) -> None:
@@ -81,4 +82,6 @@ def set_status(session_id: int, status: str) -> None:
 
 def list_pending() -> list[ScanSession]:
     with get_session() as s:
-        return s.query(ScanSession).filter_by(status="pending").order_by(ScanSession.id.desc()).all()
+        return (
+            s.query(ScanSession).filter_by(status="pending").order_by(ScanSession.id.desc()).all()
+        )

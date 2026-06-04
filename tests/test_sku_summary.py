@@ -29,6 +29,7 @@ class _Base(unittest.TestCase):
         stockpile_db._engine_cache.clear()
         stockpile_db.ensure_db()
         from app.services import analytics as _ans
+
         _ans.clear_list_sku_summary_cache()
 
     def tearDown(self) -> None:
@@ -87,9 +88,7 @@ class _Base(unittest.TestCase):
 
         with stockpile_db._session() as s:
             s.execute(
-                insert(SkuSummary).values(
-                    product_barcode=barcode, as_of=as_of, payload=payload
-                )
+                insert(SkuSummary).values(product_barcode=barcode, as_of=as_of, payload=payload)
             )
             s.commit()
 
@@ -131,13 +130,14 @@ class TestRefreshSkuSummary(_Base):
             refresh_sku_summary,
         )
 
-        self._add_sku("S1", supplier_id="GR0001", sale_price=2.0,
-                      last_purchase_unit_price=1.0)
-        self._add_event(barcode="S1", event_at="2026-05-10", qty=5,
-                        unit_price=2.0, document_no="W1")
+        self._add_sku("S1", supplier_id="GR0001", sale_price=2.0, last_purchase_unit_price=1.0)
+        self._add_event(
+            barcode="S1", event_at="2026-05-10", qty=5, unit_price=2.0, document_no="W1"
+        )
         self._add_sku("S2", supplier_id="GR0001", sale_price=3.0)
-        self._add_event(barcode="S2", event_at="2026-05-12", qty=2,
-                        unit_price=3.0, document_no="W2")
+        self._add_event(
+            barcode="S2", event_at="2026-05-12", qty=2, unit_price=3.0, document_no="W2"
+        )
 
         as_of = date(2026, 5, 21)
         golden = {it["barcode"]: it for it in _list_sku_summary_impl(as_of=as_of)}
@@ -174,8 +174,9 @@ class TestRefreshSkuSummary(_Base):
         from app.services.analytics import refresh_sku_summary
 
         self._add_sku("S1", supplier_id="GR0001", sale_price=2.0)
-        self._add_event(barcode="S1", event_at="2026-05-10", qty=5,
-                        unit_price=2.0, document_no="W1")
+        self._add_event(
+            barcode="S1", event_at="2026-05-10", qty=5, unit_price=2.0, document_no="W1"
+        )
 
         as_of = date(2026, 5, 21)
         refresh_sku_summary(as_of=as_of)
@@ -204,8 +205,9 @@ class TestListSkuSummaryReadsTable(_Base):
         from app.services.analytics import list_sku_summary
 
         self._add_sku("S1", supplier_id="GR0001", sale_price=2.0)
-        self._add_event(barcode="S1", event_at="2026-05-10", qty=5,
-                        unit_price=2.0, document_no="W1")
+        self._add_event(
+            barcode="S1", event_at="2026-05-10", qty=5, unit_price=2.0, document_no="W1"
+        )
         result = list_sku_summary(as_of=date(2026, 5, 21))
         self.assertTrue(any(it["barcode"] == "S1" for it in result))
 
@@ -215,8 +217,9 @@ class TestListSkuSummaryReadsTable(_Base):
 
         self._insert_summary("OLD", "2026-01-01", {"barcode": "OLD", "sentinel": True})
         self._add_sku("S1", supplier_id="GR0001", sale_price=2.0)
-        self._add_event(barcode="S1", event_at="2026-05-10", qty=5,
-                        unit_price=2.0, document_no="W1")
+        self._add_event(
+            barcode="S1", event_at="2026-05-10", qty=5, unit_price=2.0, document_no="W1"
+        )
         result = list_sku_summary(as_of=date(2026, 5, 21))
         barcodes = {it["barcode"] for it in result}
         self.assertIn("S1", barcodes)
@@ -253,7 +256,8 @@ class TestRestockSnapshotUsesTable(_Base):
         payload = {"barcode": "S1", "urgency_score": 7}
         self._insert_summary("S1", _today().isoformat(), payload)
         with mock.patch.object(
-            analytics, "_list_sku_summary_impl",
+            analytics,
+            "_list_sku_summary_impl",
             side_effect=AssertionError("compute_restock_snapshot 不应整表重算"),
         ):
             result = compute_restock_snapshot("S1")

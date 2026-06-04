@@ -18,6 +18,7 @@
 
 脱敏后的文件可以安全上服务器, 原始 staging/ 留本地.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -104,8 +105,9 @@ def sanitize_file(input_path: Path, output_path: Path) -> tuple[int, int]:
     else:
         df_clean = sanitize_dataframe(df)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    df_clean.to_parquet(output_path, index=False, engine="pyarrow",
-                        compression="zstd", compression_level=9)
+    df_clean.to_parquet(
+        output_path, index=False, engine="pyarrow", compression="zstd", compression_level=9
+    )
     n_out = len(df_clean)
     return n_in, n_out
 
@@ -144,7 +146,9 @@ def main() -> int:
         + list(STAGING_DIR.glob("product_master_*.parquet"))
     )
     if not files:
-        print(f"⚠️  staging 目录里没有 events_*.parquet / inventory_snapshot_*.parquet: {STAGING_DIR}")
+        print(
+            f"⚠️  staging 目录里没有 events_*.parquet / inventory_snapshot_*.parquet: {STAGING_DIR}"
+        )
         return 0
 
     print(f"批量脱敏 {len(files)} 个文件")

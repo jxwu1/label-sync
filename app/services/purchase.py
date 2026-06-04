@@ -247,6 +247,7 @@ def build_zip(purchase_xlsx: bytes, template_csv: bytes | None, date_str: str) -
 
 # ── Purchase Order tracking ─────────────────────────────────────────
 
+
 def create_order(
     rows: list[PurchaseRow],
     *,
@@ -266,12 +267,15 @@ def create_order(
         # 返回已有单而非再建一张. 已到货的旧单不拦(那是新一批补货).
         if source_file:
             existing = s.execute(
-                select(PurchaseOrder).where(
+                select(PurchaseOrder)
+                .where(
                     PurchaseOrder.source_file == source_file,
                     PurchaseOrder.status == "placed",
                     PurchaseOrder.total_qty == total_qty,
                     PurchaseOrder.total_amount == total_amount,
-                ).order_by(PurchaseOrder.id.desc()).limit(1)
+                )
+                .order_by(PurchaseOrder.id.desc())
+                .limit(1)
             ).scalar_one_or_none()
             if existing is not None:
                 return {
@@ -293,12 +297,14 @@ def create_order(
         s.add(order)
         s.flush()
         for r in rows:
-            s.add(PurchaseOrderLine(
-                order_id=order.id,
-                product_barcode=r.barcode,
-                qty_ordered=r.quantity,
-                unit_price=r.price,
-            ))
+            s.add(
+                PurchaseOrderLine(
+                    order_id=order.id,
+                    product_barcode=r.barcode,
+                    qty_ordered=r.quantity,
+                    unit_price=r.price,
+                )
+            )
         order_id = order.id
 
     return {
@@ -346,9 +352,11 @@ def record_arrival(order_id: int, arrival_date: str) -> dict:
             raise ValueError(f"订单不存在：{order_id}")
         order.arrival_date = arrival_date
         order.status = "arrived"
-        lines = s.execute(
-            select(PurchaseOrderLine).where(PurchaseOrderLine.order_id == order_id)
-        ).scalars().all()
+        lines = (
+            s.execute(select(PurchaseOrderLine).where(PurchaseOrderLine.order_id == order_id))
+            .scalars()
+            .all()
+        )
         for line in lines:
             line.qty_arrived = line.qty_ordered
 
@@ -386,12 +394,14 @@ def compute_supplier_lead_times(limit: int = 50) -> list[dict]:
                 except (ValueError, TypeError):
                     continue
             if lts:
-                results.append({
-                    "supplier_id": sid,
-                    "supplier_name": sname,
-                    "n_samples": len(lts),
-                    "median_days": median(lts),
-                    "min_days": min(lts),
-                    "max_days": max(lts),
-                })
+                results.append(
+                    {
+                        "supplier_id": sid,
+                        "supplier_name": sname,
+                        "n_samples": len(lts),
+                        "median_days": median(lts),
+                        "min_days": min(lts),
+                        "max_days": max(lts),
+                    }
+                )
         return results

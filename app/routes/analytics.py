@@ -170,6 +170,7 @@ def backtest_run():
     from datetime import datetime
 
     from app.services import backtest as backtest_service
+
     body, err = parse_body(_BacktestRunBody)
     if err:
         return err
@@ -234,6 +235,7 @@ def backtest_compare():
     from flask import request
 
     from app.services import backtest as backtest_service
+
     raw_a = request.args.get("run_a")
     raw_b = request.args.get("run_b")
     if not raw_a or not raw_b:
@@ -271,9 +273,7 @@ def backtest_summary():
     origin_upper = (request.args.get("origin") or "all").strip().upper()
     _ORIGIN_MAP = {"ALL": "all", "FOREIGN": "FOREIGN", "CN": "CN", "UNKNOWN": "unknown"}
     if origin_upper not in _ORIGIN_MAP:
-        return jsonify(
-            {"ok": False, "msg": "origin 必须是 FOREIGN / CN / unknown / all"}
-        ), 400
+        return jsonify({"ok": False, "msg": "origin 必须是 FOREIGN / CN / unknown / all"}), 400
     origin_filter = _ORIGIN_MAP[origin_upper]
     if not raw:
         return jsonify({"ok": False, "msg": "缺少 run_id"}), 400
@@ -283,7 +283,9 @@ def backtest_summary():
         return jsonify({"ok": False, "msg": "run_id 必须是整数"}), 400
 
     where_origin = "" if origin_filter == "all" else "AND so.origin = :origin"
-    sql = ORIGIN_CTE_SQL + f"""
+    sql = (
+        ORIGIN_CTE_SQL
+        + f"""
 SELECT
     COUNT(*) AS n,
     percentile_cont(0.5) WITHIN GROUP (ORDER BY br.mape) AS med_mape,
@@ -294,6 +296,7 @@ FROM backtest_results br
 JOIN sku_origin so ON so.product_barcode = br.product_barcode
 WHERE br.run_id = :run_id {where_origin}
 """
+    )
     params: dict = {"run_id": run_id}
     if origin_filter != "all":
         params["origin"] = origin_filter
@@ -352,9 +355,7 @@ def sales_top():
     origin_upper = (request.args.get("origin") or "FOREIGN").strip().upper()
     _ORIGIN_MAP = {"ALL": "all", "FOREIGN": "FOREIGN", "CN": "CN", "UNKNOWN": "unknown"}
     if origin_upper not in _ORIGIN_MAP:
-        return jsonify(
-            {"ok": False, "msg": "origin 必须是 FOREIGN / CN / unknown / all"}
-        ), 400
+        return jsonify({"ok": False, "msg": "origin 必须是 FOREIGN / CN / unknown / all"}), 400
     origin_filter = _ORIGIN_MAP[origin_upper]
 
     try:
@@ -379,7 +380,9 @@ def sales_top():
 
     where_origin = "" if origin_filter == "all" else "AND so.origin = :origin"
     where_disc = "AND s.is_truly_discontinued = false" if exclude_discontinued else ""
-    sql = ORIGIN_CTE_SQL + f""",
+    sql = (
+        ORIGIN_CTE_SQL
+        + f""",
 sales_agg AS (
     SELECT
         product_barcode,
@@ -413,6 +416,7 @@ WHERE s.is_active = 1
 ORDER BY sa.total_qty DESC
 LIMIT :limit
 """
+    )
     params: dict = {"weeks": weeks, "limit": limit, "min_active_weeks": min_active_weeks}
     if origin_filter != "all":
         params["origin"] = origin_filter
@@ -433,7 +437,8 @@ LIMIT :limit
             "n_active_weeks": int(r.n_active_weeks),
             "mean_qty_per_active_week": (
                 float(r.mean_qty_per_active_week)
-                if r.mean_qty_per_active_week is not None else None
+                if r.mean_qty_per_active_week is not None
+                else None
             ),
             "sale_price": float(r.sale_price) if r.sale_price is not None else None,
         }
@@ -441,17 +446,28 @@ LIMIT :limit
     ]
 
     if fmt == "json":
-        return jsonify({
-            "ok": True, "origin": origin_filter, "weeks": weeks,
-            "n": len(items), "items": items,
-        })
+        return jsonify(
+            {
+                "ok": True,
+                "origin": origin_filter,
+                "weeks": weeks,
+                "n": len(items),
+                "items": items,
+            }
+        )
 
     buf = io.StringIO()
     fields = [
-        "product_barcode", "product_model",
-        "product_name_zh", "product_name_local",
-        "erp_category_raw", "origin", "auto_category",
-        "total_qty", "n_active_weeks", "mean_qty_per_active_week",
+        "product_barcode",
+        "product_model",
+        "product_name_zh",
+        "product_name_local",
+        "erp_category_raw",
+        "origin",
+        "auto_category",
+        "total_qty",
+        "n_active_weeks",
+        "mean_qty_per_active_week",
         "sale_price",
     ]
     writer = csv.DictWriter(buf, fieldnames=fields)
@@ -490,9 +506,7 @@ def forecast_top():
     origin_upper = (request.args.get("origin") or "FOREIGN").strip().upper()
     _ORIGIN_MAP = {"ALL": "all", "FOREIGN": "FOREIGN", "CN": "CN", "UNKNOWN": "unknown"}
     if origin_upper not in _ORIGIN_MAP:
-        return jsonify(
-            {"ok": False, "msg": "origin 必须是 FOREIGN / CN / unknown / all"}
-        ), 400
+        return jsonify({"ok": False, "msg": "origin 必须是 FOREIGN / CN / unknown / all"}), 400
     origin_filter = _ORIGIN_MAP[origin_upper]
 
     try:
@@ -513,7 +527,9 @@ def forecast_top():
 
     where_origin = "" if origin_filter == "all" else "AND so.origin = :origin"
     where_disc = "AND s.is_truly_discontinued = false" if exclude_discontinued else ""
-    sql = ORIGIN_CTE_SQL + f"""
+    sql = (
+        ORIGIN_CTE_SQL
+        + f"""
 SELECT
     f.product_barcode,
     s.product_model,
@@ -534,6 +550,7 @@ WHERE s.is_active = 1 {where_origin} {where_disc}
 ORDER BY f.p50 DESC
 LIMIT :limit
 """
+    )
     params: dict = {"limit": limit}
     if origin_filter != "all":
         params["origin"] = origin_filter
@@ -564,11 +581,18 @@ LIMIT :limit
 
     buf = io.StringIO()
     fields = [
-        "product_barcode", "product_model",
-        "product_name_zh", "product_name_local",
-        "erp_category_raw", "origin", "sku_type",
-        "model_used", "n_weeks_history",
-        "p50", "mu", "sale_price",
+        "product_barcode",
+        "product_model",
+        "product_name_zh",
+        "product_name_local",
+        "erp_category_raw",
+        "origin",
+        "sku_type",
+        "model_used",
+        "n_weeks_history",
+        "p50",
+        "mu",
+        "sale_price",
     ]
     writer = csv.DictWriter(buf, fieldnames=fields)
     writer.writeheader()
@@ -624,10 +648,12 @@ def data_upload():
     is_inventory = fname.startswith("inventory_snapshot_")
     is_product_master = fname.startswith("product_master_")
     if not (is_events or is_inventory or is_product_master):
-        return jsonify({
-            "ok": False,
-            "msg": "文件名必须以 events_ / inventory_snapshot_ / product_master_ 开头",
-        }), 400
+        return jsonify(
+            {
+                "ok": False,
+                "msg": "文件名必须以 events_ / inventory_snapshot_ / product_master_ 开头",
+            }
+        ), 400
 
     upload_dir = Path(CONFIG.base_dir) / "scrape_uploads"
     upload_dir.mkdir(parents=True, exist_ok=True)
@@ -638,6 +664,7 @@ def data_upload():
     if is_events:
         try:
             from etl.parquet_importer import import_cleaned_parquet
+
             with stockpile_db._session() as session:
                 sale_r, purchase_r = import_cleaned_parquet(saved, session)
                 session.commit()
@@ -645,29 +672,32 @@ def data_upload():
             return jsonify({"ok": False, "msg": f"导入失败: {exc}"}), 500
         # 数据变了, 清 list_sku_summary 缓存让下次请求拿新数据
         analytics_service.refresh_sku_summary()
-        return jsonify({
-            "ok": True,
-            "kind": "events",
-            "filename": saved.name,
-            "sale": {
-                "imported": sale_r.rows_imported,
-                "dup_skipped": sale_r.rows_skipped_duplicate,
-                "missing_skipped": sale_r.rows_skipped_missing_key,
-                "new_customers": sale_r.new_customers,
-                "new_skus": sale_r.new_skus,
-            },
-            "purchase": {
-                "imported": purchase_r.rows_imported,
-                "dup_skipped": purchase_r.rows_skipped_duplicate,
-                "missing_skipped": purchase_r.rows_skipped_missing_key,
-                "new_suppliers": purchase_r.new_suppliers,
-                "new_skus": purchase_r.new_skus,
-            },
-        })
+        return jsonify(
+            {
+                "ok": True,
+                "kind": "events",
+                "filename": saved.name,
+                "sale": {
+                    "imported": sale_r.rows_imported,
+                    "dup_skipped": sale_r.rows_skipped_duplicate,
+                    "missing_skipped": sale_r.rows_skipped_missing_key,
+                    "new_customers": sale_r.new_customers,
+                    "new_skus": sale_r.new_skus,
+                },
+                "purchase": {
+                    "imported": purchase_r.rows_imported,
+                    "dup_skipped": purchase_r.rows_skipped_duplicate,
+                    "missing_skipped": purchase_r.rows_skipped_missing_key,
+                    "new_suppliers": purchase_r.new_suppliers,
+                    "new_skus": purchase_r.new_skus,
+                },
+            }
+        )
 
     if is_inventory:
         try:
             from etl.inventory_importer import import_inventory_snapshot
+
             with stockpile_db._session() as session:
                 stats = import_inventory_snapshot(saved, session)
                 session.commit()
@@ -677,12 +707,14 @@ def data_upload():
         except Exception as exc:
             return jsonify({"ok": False, "msg": f"导入失败: {exc}"}), 500
         analytics_service.refresh_sku_summary()
-        return jsonify({
-            "ok": True,
-            "kind": "inventory_snapshot",
-            "filename": saved.name,
-            **stats,
-        })
+        return jsonify(
+            {
+                "ok": True,
+                "kind": "inventory_snapshot",
+                "filename": saved.name,
+                **stats,
+            }
+        )
 
     # product_master 分支: parquet → DataFrame → 复用现有 importer
     try:
@@ -691,6 +723,7 @@ def data_upload():
             import_product_master,
             DEFAULT_PRODUCT_MAPPING,
         )
+
         df = pd.read_parquet(saved)
         with stockpile_db._session() as session:
             result = import_product_master(df, DEFAULT_PRODUCT_MAPPING, session)
@@ -698,16 +731,18 @@ def data_upload():
     except Exception as exc:
         return jsonify({"ok": False, "msg": f"product_master 导入失败: {exc}"}), 500
     analytics_service.refresh_sku_summary()
-    return jsonify({
-        "ok": True,
-        "kind": "product_master",
-        "filename": saved.name,
-        "rows_imported": result.rows_imported,
-        "rows_updated": result.rows_updated,
-        "rows_skipped_missing_barcode": result.rows_skipped_missing_barcode,
-        "rows_skipped_duplicate_barcode": result.rows_skipped_duplicate_barcode,
-        "new_suppliers": result.new_suppliers,
-    })
+    return jsonify(
+        {
+            "ok": True,
+            "kind": "product_master",
+            "filename": saved.name,
+            "rows_imported": result.rows_imported,
+            "rows_updated": result.rows_updated,
+            "rows_skipped_missing_barcode": result.rows_skipped_missing_barcode,
+            "rows_skipped_duplicate_barcode": result.rows_skipped_duplicate_barcode,
+            "new_suppliers": result.new_suppliers,
+        }
+    )
 
 
 @bp.post("/data/dedup-purchase-events")
@@ -771,29 +806,33 @@ def data_dedup_purchase_events():
         priced_dup_ids = [r[0] for r in session.execute(find_priced_dup_sql).all()]
         all_ids = null_ids + priced_dup_ids
         if not execute:
-            return jsonify({
-                "ok": True,
-                "mode": "dry-run",
-                "phase1_null_price_deletable": len(null_ids),
-                "phase2_priced_dup_deletable": len(priced_dup_ids),
-                "total_deletable": len(all_ids),
-            })
+            return jsonify(
+                {
+                    "ok": True,
+                    "mode": "dry-run",
+                    "phase1_null_price_deletable": len(null_ids),
+                    "phase2_priced_dup_deletable": len(priced_dup_ids),
+                    "total_deletable": len(all_ids),
+                }
+            )
         BATCH = 500
         for i in range(0, len(all_ids), BATCH):
-            chunk = all_ids[i:i + BATCH]
+            chunk = all_ids[i : i + BATCH]
             session.execute(
                 text("DELETE FROM inventory_events WHERE id = ANY(:ids)"),
                 {"ids": chunk},
             )
         session.commit()
         analytics_service.refresh_sku_summary()
-        return jsonify({
-            "ok": True,
-            "mode": "execute",
-            "phase1_null_price_deleted": len(null_ids),
-            "phase2_priced_dup_deleted": len(priced_dup_ids),
-            "total_deleted": len(all_ids),
-        })
+        return jsonify(
+            {
+                "ok": True,
+                "mode": "execute",
+                "phase1_null_price_deleted": len(null_ids),
+                "phase2_priced_dup_deleted": len(priced_dup_ids),
+                "total_deleted": len(all_ids),
+            }
+        )
 
 
 @bp.post("/forecast/refresh")

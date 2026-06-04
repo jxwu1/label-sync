@@ -24,6 +24,7 @@ def create_app() -> Flask:
     stockpile_db.ensure_db()
     monthly_summary_service.cleanup_expired()
     from app.auth import init_auth
+
     init_auth(app)
     register_routes(app)
 
@@ -35,9 +36,11 @@ def create_app() -> Flask:
     def _prewarm_cache():
         try:
             from app.services import analytics
+
             analytics.prewarm_sku_summary()
         except Exception:
             import logging
+
             logging.exception("sku_summary prewarm 失败")
 
     threading.Thread(target=_prewarm_cache, daemon=True, name="cache-prewarm").start()
