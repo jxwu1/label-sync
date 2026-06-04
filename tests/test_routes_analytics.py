@@ -1,9 +1,6 @@
 """routes_analytics 单测。HTTP 层薄包装，重点覆盖参数与 404 路径。"""
 
-import shutil
 import unittest
-from pathlib import Path
-from unittest import mock
 
 from flask import Flask
 from sqlalchemy import insert
@@ -12,20 +9,10 @@ from app.models import InventoryEvent, Stockpile
 from app.repositories import stockpile_db
 from app.routes.analytics import bp
 
-TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_routes_analytics"
-
 
 class AnalyticsRoutesTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.test_dir = TEST_TMP_DIR / self._testMethodName
-        shutil.rmtree(self.test_dir, ignore_errors=True)
-        self.test_dir.mkdir(parents=True, exist_ok=True)
-        self.test_db = self.test_dir / "test.db"
-        self.patch = mock.patch.object(stockpile_db, "DB_PATH", self.test_db)
-        self.patch.start()
-        self.addCleanup(self.patch.stop)
-        stockpile_db._engine_cache.clear()
-        stockpile_db.ensure_db()
+        # DB 隔离由 conftest autouse _isolate_db 负责（unified engine 指向 tmp db_path）
         from app.services import analytics as _ans
 
         _ans.clear_list_sku_summary_cache()
@@ -33,10 +20,6 @@ class AnalyticsRoutesTests(unittest.TestCase):
         self.app = Flask(__name__)
         self.app.register_blueprint(bp)
         self.client = self.app.test_client()
-
-    def tearDown(self) -> None:
-        stockpile_db._engine_cache.clear()
-        shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def _seed_sku(self, barcode: str = "B1", **fields) -> None:
         values = {

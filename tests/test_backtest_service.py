@@ -2,18 +2,13 @@
 
 from __future__ import annotations
 
-import shutil
 import unittest
 from datetime import date
-from pathlib import Path
-from unittest import mock
 
 from sqlalchemy import insert, select
 
 from app.models import BacktestResult, BacktestRun, InventoryEvent, Stockpile
 from app.repositories import stockpile_db
-
-_TMP = Path(__file__).resolve().parent / "_test_backtest_service"
 
 
 class ForecastDistTests(unittest.TestCase):
@@ -244,20 +239,7 @@ class WalkForwardTests(unittest.TestCase):
 class _DBBase(unittest.TestCase):
     """DB 集成测试基类: 在临时 SQLite 上 seed 一个高频零售 SKU."""
 
-    def setUp(self) -> None:
-        self.test_dir = _TMP / self._testMethodName
-        shutil.rmtree(self.test_dir, ignore_errors=True)
-        self.test_dir.mkdir(parents=True, exist_ok=True)
-        self.test_db = self.test_dir / "test.db"
-        self.patch = mock.patch.object(stockpile_db, "DB_PATH", self.test_db)
-        self.patch.start()
-        self.addCleanup(self.patch.stop)
-        stockpile_db._engine_cache.clear()
-        stockpile_db.ensure_db()
-
-    def tearDown(self) -> None:
-        stockpile_db._engine_cache.clear()
-        shutil.rmtree(self.test_dir, ignore_errors=True)
+    # DB 隔离由 conftest autouse _isolate_db 负责（unified engine 指向 tmp db_path）
 
     def _seed_stockpile(self, barcode: str) -> None:
         with stockpile_db._session() as s:

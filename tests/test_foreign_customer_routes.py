@@ -1,9 +1,6 @@
 """老外客人 routes 测试。"""
 
-import shutil
 import unittest
-from pathlib import Path
-from unittest import mock
 
 from flask import Flask
 
@@ -11,21 +8,10 @@ from app.models import Customer
 from app.repositories import stockpile_db
 from app.routes.foreign_customers import bp
 
-_TEST_DIR = Path(__file__).resolve().parent / "_test_foreign_customer_routes"
-
 
 class _Base(unittest.TestCase):
     def setUp(self) -> None:
-        self.test_dir = _TEST_DIR / self._testMethodName
-        shutil.rmtree(self.test_dir, ignore_errors=True)
-        self.test_dir.mkdir(parents=True, exist_ok=True)
-        self.test_db = self.test_dir / "test.db"
-        self.patch = mock.patch.object(stockpile_db, "DB_PATH", self.test_db)
-        self.patch.start()
-        self.addCleanup(self.patch.stop)
-        stockpile_db._engine_cache.clear()
-        stockpile_db.ensure_db()
-
+        # DB 隔离由 conftest autouse _isolate_db 负责（unified engine 指向 tmp db_path）
         with stockpile_db._session() as session:
             session.add(
                 Customer(customer_id="F1", customer_name="ΑΝΔΡΕΟΥ", customer_type="foreign")
@@ -36,10 +22,6 @@ class _Base(unittest.TestCase):
         app = Flask(__name__)
         app.register_blueprint(bp)
         self.client = app.test_client()
-
-    def tearDown(self) -> None:
-        stockpile_db._engine_cache.clear()
-        shutil.rmtree(self.test_dir, ignore_errors=True)
 
 
 class CustomerListRouteTests(_Base):

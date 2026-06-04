@@ -1,40 +1,15 @@
 import json
-import shutil
 import unittest
-from pathlib import Path
-from unittest import mock
 
 import pandas as pd
 
+from app import db
 from app.repositories import stockpile_db
-
-TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_stockpile_db"
-
-
-def _clean_tables() -> None:
-    stockpile_db.ensure_db()
-    conn = stockpile_db._connect()
-    conn.execute("DELETE FROM stockpile")
-    conn.execute("DELETE FROM stockpile_changes")
-    conn.execute("DELETE FROM schema_meta")
-    conn.commit()
-    conn.close()
 
 
 class StockpileDbTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.test_dir = TEST_TMP_DIR / f"_test_stockpile_db_{self._testMethodName}"
-        shutil.rmtree(self.test_dir, ignore_errors=True)
-        self.test_dir.mkdir(parents=True, exist_ok=True)
-        self.test_db = self.test_dir / "test_stockpile.db"
-        self.patch = mock.patch.object(stockpile_db, "DB_PATH", self.test_db)
-        self.patch.start()
-        self.addCleanup(self.patch.stop)
-        _clean_tables()
-
-    def tearDown(self) -> None:
-        _clean_tables()
-        shutil.rmtree(self.test_dir, ignore_errors=True)
+    # DB 隔离由 conftest autouse _isolate_db 负责（unified engine 指向 tmp db_path）
+    pass
 
     def test_ensure_db_creates_tables(self) -> None:
         stockpile_db.ensure_db()
@@ -54,7 +29,7 @@ class StockpileDbTests(unittest.TestCase):
 
     def test_get_schema_version_returns_current_version(self) -> None:
         stockpile_db.ensure_db()
-        self.assertEqual(stockpile_db.get_schema_version(), stockpile_db.SCHEMA_VERSION)
+        self.assertEqual(stockpile_db.get_schema_version(), db.SCHEMA_VERSION)
 
     def test_is_initialized_returns_false_for_empty_db(self) -> None:
         stockpile_db.ensure_db()

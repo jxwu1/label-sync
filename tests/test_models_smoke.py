@@ -5,31 +5,23 @@
 """
 
 import json
-import shutil
 import sqlite3
 import unittest
-from pathlib import Path
-from unittest import mock
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session
 
+from app import db
 from app.repositories import stockpile_db
-
-TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_models_smoke"
 
 
 class ModelsSmokeTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.test_dir = TEST_TMP_DIR / self._testMethodName
-        shutil.rmtree(self.test_dir, ignore_errors=True)
-        self.test_dir.mkdir(parents=True, exist_ok=True)
-        self.test_db = self.test_dir / "test.db"
-        self.patch = mock.patch.object(stockpile_db, "DB_PATH", self.test_db)
-        self.patch.start()
-        self.addCleanup(self.patch.stop)
+        # DB 隔离由 conftest autouse _isolate_db 负责（unified engine 指向 tmp db_path）；
+        # ensure_db 在该 tmp 文件建表，本测试另起 automap engine 指向同一文件做对拍。
         stockpile_db.ensure_db()
+        self.test_db = db.get_sqlite_path()
 
         self.engine = create_engine(f"sqlite:///{self.test_db}", future=True)
         Base = automap_base()
@@ -39,7 +31,6 @@ class ModelsSmokeTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.engine.dispose()
-        shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def _raw_insert(self, **kwargs) -> None:
         cols = ", ".join(kwargs.keys())

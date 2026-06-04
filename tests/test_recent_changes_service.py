@@ -1,9 +1,6 @@
 """recent_changes_service 单测。"""
 
-import shutil
 import unittest
-from pathlib import Path
-from unittest import mock
 
 from sqlalchemy import insert
 
@@ -11,24 +8,9 @@ from app.models import StockpileChange, StockpileSnapshot
 from app.repositories import stockpile_db
 from app.services import recent_changes as recent_changes_service
 
-TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_recent_changes"
-
 
 class RecentChangesTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.test_dir = TEST_TMP_DIR / self._testMethodName
-        shutil.rmtree(self.test_dir, ignore_errors=True)
-        self.test_dir.mkdir(parents=True, exist_ok=True)
-        self.test_db = self.test_dir / "test.db"
-        self.patch = mock.patch.object(stockpile_db, "DB_PATH", self.test_db)
-        self.patch.start()
-        self.addCleanup(self.patch.stop)
-        stockpile_db._engine_cache.clear()
-        stockpile_db.ensure_db()
-
-    def tearDown(self) -> None:
-        stockpile_db._engine_cache.clear()
-        shutil.rmtree(self.test_dir, ignore_errors=True)
+    # DB 隔离由 conftest autouse _isolate_db 负责（unified engine 指向 tmp db_path）
 
     def _insert_snapshot(self, taken_at: str, trigger: str = "import", **kwargs) -> int:
         """直接 INSERT snapshot 返回 id。便于测试控制 taken_at。"""

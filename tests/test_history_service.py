@@ -15,16 +15,10 @@ import pytest
 
 
 @pytest.fixture
-def memdb(db_path, monkeypatch):
-    """history 经 stockpile_db 读，故把 stockpile_db.DB_PATH 对齐到 conftest 的 db_path。
-
-    conftest autouse 已用 app.db 在 db_path 建表；这里让 stockpile_db 的 engine 也指向
-    同一 tmp 文件，使裸 sqlite3 写入与 stockpile_db 读取一致。
+def memdb(db_path):
+    """conftest autouse 已用 app.db 在 db_path 建表并把统一 engine 指向同一 tmp 文件，
+    故 stockpile_db 读取与本文件裸 sqlite3 写入天然一致。直接返回 db_path 即可。
     """
-    from app.repositories import stockpile_db
-
-    monkeypatch.setattr(stockpile_db, "DB_PATH", db_path)
-    stockpile_db.ensure_db()
     return db_path
 
 
