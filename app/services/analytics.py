@@ -442,6 +442,7 @@ def compute_sku_extras(
     barcode: str,
     as_of: date | None = None,
     session: Session | None = None,
+    rows: list | None = None,
 ) -> dict[str, Any]:
     """货号历史扩展数据 (2026-05-23): 退货率 / 价格波动 / 客户 TOP10 / 首尾日期.
 
@@ -456,7 +457,7 @@ def compute_sku_extras(
       is_history_truncated: first_event_at <= '2021-06-01' (ETL 边界)
     """
     as_of = as_of or _today()
-    rows = _fetch_all_rows_with_doc_no(barcode, session)
+    rows = rows if rows is not None else _fetch_all_rows_with_doc_no(barcode, session)
 
     # 1. 退货率 (qty 件数口径)
     pos_qty = sum(r.qty for r in rows if r.event_type == "sale" and r.qty > 0)
@@ -607,6 +608,7 @@ def _compute_top_customers_split(
 def compute_avg_holding_days(
     barcode: str,
     session: Session | None = None,
+    rows: list | None = None,
 ) -> dict[str, Any]:
     """平均持仓周期 (FIFO 简化): 每件货从进货到卖出经历几天.
 
@@ -619,7 +621,7 @@ def compute_avg_holding_days(
       oldest_held_days: 当前仓库里最早进的那件已经放了多少天 (压货预警)
       None 表示无法算 (无 purchase 或无 sale).
     """
-    rows = _fetch_all_rows_with_doc_no(barcode, session)
+    rows = rows if rows is not None else _fetch_all_rows_with_doc_no(barcode, session)
     purchases = sorted(
         [r for r in rows if r.event_type == "purchase" and r.qty > 0],
         key=lambda r: r.event_at,
@@ -672,6 +674,7 @@ def compute_monthly_heatmap(
     years: int = 4,
     as_of: date | None = None,
     session: Session | None = None,
+    rows: list | None = None,
 ) -> dict[str, Any]:
     """月度销量热力图: years 年 × 12 月 矩阵.
 
@@ -683,7 +686,7 @@ def compute_monthly_heatmap(
     用于看季节性 (哪个月卖得多) 和年增长 (跨年对比同月).
     """
     as_of = as_of or _today()
-    rows = _fetch_all_rows_with_doc_no(barcode, session)
+    rows = rows if rows is not None else _fetch_all_rows_with_doc_no(barcode, session)
     current_year = as_of.year
     year_list = [str(y) for y in range(current_year - years + 1, current_year + 1)]
     matrix: dict[str, list[int]] = {y: [0] * 12 for y in year_list}
@@ -776,6 +779,15 @@ def _fetch_all_rows_with_doc_no(barcode: str, session: Session | None):
         return session.execute(stmt).all()
     with stockpile_db._session() as s:
         return s.execute(stmt).all()
+
+
+def fetch_event_rows(barcode: str, session: Session | None = None):
+    """全事件行的公开入口: 路由层一次取数, 传给 extras/holding/heatmap 复用去重。
+
+    返回与各 compute_* 内部取数一致的 Row 序列 (event_at/event_type/qty/
+    unit_price/discount_pct/document_no/customer_id/customer_name)。
+    """
+    return _fetch_all_rows_with_doc_no(barcode, session)
 
 
 def _attach_urgency_scores(items: list[dict[str, Any]]) -> None:
