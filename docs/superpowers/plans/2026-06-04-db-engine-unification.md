@@ -35,9 +35,6 @@
 ```python
 """app.db 单一 engine 真源测试。"""
 
-import os
-
-import pytest
 from sqlalchemy import text
 
 
@@ -111,7 +108,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 from sqlalchemy import create_engine, event, select
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
@@ -207,15 +204,17 @@ def get_sqlite_path() -> str:
 
     必须从 effective URL 解析(而非直接返回 DB_PATH)，否则 DATABASE_URL=sqlite:///其他文件
     时, engine 指 URL 文件而裸 sqlite3 指 DB_PATH → 分裂。非 sqlite(PG) 直接报错。
+    用 make_url 解析(而非切前缀)，兼容 sqlite+pysqlite:///... 等合法 driver 变体。
     """
-    url = _effective_url()
-    if not url.startswith("sqlite"):
+    parsed = make_url(_effective_url())
+    if parsed.get_backend_name() != "sqlite":
         raise RuntimeError(
-            f"get_sqlite_path() requires sqlite backend; effective URL is {url}. "
+            f"get_sqlite_path() requires sqlite backend; effective URL is {parsed}. "
             "Rewrite caller to use SQLAlchemy session."
         )
-    # sqlite:///abs/path or sqlite:///relative — 去掉 'sqlite:///' 前缀
-    return url[len("sqlite:///") :]
+    if not parsed.database:
+        raise RuntimeError(f"sqlite URL has no database file: {parsed}")
+    return parsed.database
 ```
 
 - [ ] **Step 4: 跑测试确认通过**
