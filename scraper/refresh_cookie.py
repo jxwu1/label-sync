@@ -59,7 +59,10 @@ def main() -> int:
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
-        print("缺依赖 playwright: pip install playwright && playwright install chromium", file=sys.stderr)
+        print(
+            "缺依赖 playwright: pip install playwright && playwright install chromium",
+            file=sys.stderr,
+        )
         return 1
 
     with sync_playwright() as pw:

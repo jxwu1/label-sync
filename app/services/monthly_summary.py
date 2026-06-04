@@ -1,4 +1,3 @@
-from app.config import CONFIG
 import io
 import json
 import os
@@ -13,6 +12,8 @@ from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+from app.config import CONFIG
 
 _SUMMARY_DIR = CONFIG.base_dir / "monthly_summary"
 

@@ -75,12 +75,8 @@ class Stockpile(Base):
     is_active: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("1"))
     extra: Mapped[str | None] = mapped_column(Text, server_default=text("'{}'"))
     source: Mapped[str | None] = mapped_column(Text, server_default=text("'system_export'"))
-    created_at: Mapped[str | None] = mapped_column(
-        Text, server_default=func.current_timestamp()
-    )
-    updated_at: Mapped[str | None] = mapped_column(
-        Text, server_default=func.current_timestamp()
-    )
+    created_at: Mapped[str | None] = mapped_column(Text, server_default=func.current_timestamp())
+    updated_at: Mapped[str | None] = mapped_column(Text, server_default=func.current_timestamp())
 
     # 阶段 4 新增（2026-05-05）
     # 产品名（区别于 product_model 那个数字 SKU 码）
@@ -146,9 +142,7 @@ class StockpileLocation(Base):
     location: Mapped[str] = mapped_column(Text, nullable=False)
     kind: Mapped[str] = mapped_column(Text, nullable=False)  # store / warehouse / unknown
     position: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
-    created_at: Mapped[str | None] = mapped_column(
-        Text, server_default=func.current_timestamp()
-    )
+    created_at: Mapped[str | None] = mapped_column(Text, server_default=func.current_timestamp())
 
     stockpile: Mapped[Stockpile] = relationship("Stockpile", back_populates="locations")
 
@@ -163,9 +157,7 @@ class StockpileChange(Base):
     old_value: Mapped[str | None] = mapped_column(Text)
     new_value: Mapped[str | None] = mapped_column(Text)
     change_type: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[str | None] = mapped_column(
-        Text, server_default=func.current_timestamp()
-    )
+    created_at: Mapped[str | None] = mapped_column(Text, server_default=func.current_timestamp())
 
 
 class SchemaMeta(Base):
@@ -357,9 +349,7 @@ class ForeignCustomerRecord(Base):
     payment_date: Mapped[str | None] = mapped_column(Text)
     shipping_date: Mapped[str | None] = mapped_column(Text)
     notes: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[str | None] = mapped_column(
-        Text, server_default=func.current_timestamp()
-    )
+    created_at: Mapped[str | None] = mapped_column(Text, server_default=func.current_timestamp())
 
 
 class ImportProfile(Base):
@@ -382,9 +372,7 @@ class BacktestRun(Base):
     __tablename__ = "backtest_runs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    created_at: Mapped[str | None] = mapped_column(
-        Text, server_default=func.current_timestamp()
-    )
+    created_at: Mapped[str | None] = mapped_column(Text, server_default=func.current_timestamp())
     model_name: Mapped[str] = mapped_column(Text, nullable=False)
     view: Mapped[str] = mapped_column(Text, nullable=False)  # 'all' / 'base_demand'
     window_train: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -463,9 +451,7 @@ class ForecastOutput(Base):
     """
 
     __tablename__ = "forecast_output"
-    __table_args__ = (
-        Index("idx_forecast_output_computed_at", "computed_at"),
-    )
+    __table_args__ = (Index("idx_forecast_output_computed_at", "computed_at"),)
 
     product_barcode: Mapped[str] = mapped_column(Text, primary_key=True)
     model_used: Mapped[str] = mapped_column(Text, nullable=False)
@@ -489,9 +475,7 @@ class SkuSummary(Base):
     """
 
     __tablename__ = "sku_summary"
-    __table_args__ = (
-        Index("idx_sku_summary_as_of", "as_of"),
-    )
+    __table_args__ = (Index("idx_sku_summary_as_of", "as_of"),)
 
     product_barcode: Mapped[str] = mapped_column(Text, primary_key=True)
     as_of: Mapped[str] = mapped_column(Text, nullable=False)
@@ -546,9 +530,7 @@ class User(Base):
     display_name: Mapped[str | None] = mapped_column(Text)
     theme: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'dark'"))
     role: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'admin'"))
-    created_at: Mapped[str | None] = mapped_column(
-        Text, server_default=func.current_timestamp()
-    )
+    created_at: Mapped[str | None] = mapped_column(Text, server_default=func.current_timestamp())
 
     @property
     def is_authenticated(self) -> bool:
@@ -571,13 +553,12 @@ class SystemSetting(Base):
 
     key: Mapped[str] = mapped_column(Text, primary_key=True)
     value: Mapped[str] = mapped_column(Text, nullable=False)
-    updated_at: Mapped[str | None] = mapped_column(
-        Text, server_default=func.current_timestamp()
-    )
+    updated_at: Mapped[str | None] = mapped_column(Text, server_default=func.current_timestamp())
     updated_by: Mapped[str | None] = mapped_column(Text)
 
 
 # ── Attendance ──────────────────────────────────────────────────────
+
 
 class Employee(Base):
     __tablename__ = "employees"
@@ -590,9 +571,15 @@ class Employee(Base):
     wecom_account: Mapped[str | None] = mapped_column(Text)
     is_scanner: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
 
-    attendance_records = relationship("AttendanceRecord", back_populates="employee", cascade="all, delete-orphan")
-    leave_records = relationship("LeaveRecord", back_populates="employee", cascade="all, delete-orphan")
-    inactive_periods = relationship("InactivePeriod", back_populates="employee", cascade="all, delete-orphan")
+    attendance_records = relationship(
+        "AttendanceRecord", back_populates="employee", cascade="all, delete-orphan"
+    )
+    leave_records = relationship(
+        "LeaveRecord", back_populates="employee", cascade="all, delete-orphan"
+    )
+    inactive_periods = relationship(
+        "InactivePeriod", back_populates="employee", cascade="all, delete-orphan"
+    )
 
 
 class AttendanceRecord(Base):
@@ -603,7 +590,9 @@ class AttendanceRecord(Base):
         Index("idx_attendance_emp_month", "employee_id", "work_date"),
     )
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    employee_id: Mapped[str] = mapped_column(Text, ForeignKey("employees.employee_id"), nullable=False)
+    employee_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("employees.employee_id"), nullable=False
+    )
     work_date: Mapped[str] = mapped_column(Text, nullable=False)
     start_time: Mapped[str | None] = mapped_column(Text)
     end_time: Mapped[str | None] = mapped_column(Text)
@@ -622,7 +611,9 @@ class LeaveRecord(Base):
         Index("idx_leave_date", "start_date"),
     )
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    employee_id: Mapped[str] = mapped_column(Text, ForeignKey("employees.employee_id"), nullable=False)
+    employee_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("employees.employee_id"), nullable=False
+    )
     start_date: Mapped[str] = mapped_column(Text, nullable=False)
     end_date: Mapped[str | None] = mapped_column(Text)
     leave_type: Mapped[str] = mapped_column(Text, nullable=False, server_default="full")
@@ -636,7 +627,9 @@ class InactivePeriod(Base):
     __tablename__ = "inactive_periods"
     __table_args__ = (Index("idx_inactive_emp", "employee_id"),)
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    employee_id: Mapped[str] = mapped_column(Text, ForeignKey("employees.employee_id"), nullable=False)
+    employee_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("employees.employee_id"), nullable=False
+    )
     start_date: Mapped[str] = mapped_column(Text, nullable=False)
     end_date: Mapped[str | None] = mapped_column(Text)
     reason: Mapped[str | None] = mapped_column(Text)
@@ -673,7 +666,9 @@ class ScanSession(Base):
     finalized_at: Mapped[str | None] = mapped_column(Text)
 
     items = relationship(
-        "ScanItem", back_populates="session", cascade="all, delete-orphan",
+        "ScanItem",
+        back_populates="session",
+        cascade="all, delete-orphan",
         order_by="ScanItem.seq",
     )
 
@@ -682,9 +677,7 @@ class ScanItem(Base):
     __tablename__ = "scan_items"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    session_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("scan_sessions.id"), nullable=False
-    )
+    session_id: Mapped[int] = mapped_column(Integer, ForeignKey("scan_sessions.id"), nullable=False)
     seq: Mapped[int] = mapped_column(Integer, nullable=False)
     raw: Mapped[str] = mapped_column(Text, nullable=False)
     kind: Mapped[str] = mapped_column(Text, nullable=False)

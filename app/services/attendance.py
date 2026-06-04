@@ -8,7 +8,7 @@ from calendar import monthrange
 from datetime import date as date_cls
 from datetime import datetime, timedelta
 
-from sqlalchemy import select, delete, func
+from sqlalchemy import delete, func, select
 
 from app.models import (
     AttendanceRecord,
@@ -20,7 +20,6 @@ from app.models import (
     SystemSetting,
     get_session,
 )
-
 
 STANDARD_HOURS = 10.5
 STANDARD_END = "20:00"
@@ -61,11 +60,11 @@ def day_fraction(start: str, end: str, standard_hours: float = STANDARD_HOURS) -
 
 def list_employees() -> list[dict]:
     with get_session() as s:
-        emps = s.execute(
-            select(Employee)
-            .where(Employee.active == 1)
-            .order_by(Employee.employee_id)
-        ).scalars().all()
+        emps = (
+            s.execute(select(Employee).where(Employee.active == 1).order_by(Employee.employee_id))
+            .scalars()
+            .all()
+        )
         result = []
         for emp in emps:
             d = {
@@ -76,10 +75,7 @@ def list_employees() -> list[dict]:
             }
             if emp.start_date:
                 d["start_date"] = emp.start_date
-            periods = [
-                _inactive_period_to_dict(ip)
-                for ip in emp.inactive_periods
-            ]
+            periods = [_inactive_period_to_dict(ip) for ip in emp.inactive_periods]
             if periods:
                 d["inactive_periods"] = periods
             result.append(d)
@@ -161,9 +157,11 @@ def set_scanner(employee_id: str, value: bool) -> None:
 
 def list_holidays() -> list[str]:
     with get_session() as s:
-        rows = s.execute(
-            select(PublicHoliday.holiday_date).order_by(PublicHoliday.holiday_date)
-        ).scalars().all()
+        rows = (
+            s.execute(select(PublicHoliday.holiday_date).order_by(PublicHoliday.holiday_date))
+            .scalars()
+            .all()
+        )
         return list(rows)
 
 
@@ -249,13 +247,8 @@ def import_holidays_for_year(year: int) -> dict:
 
 def list_special_days() -> dict:
     with get_session() as s:
-        rows = s.execute(
-            select(SpecialDay).order_by(SpecialDay.special_date)
-        ).scalars().all()
-        return {
-            sd.special_date: {"start": sd.label or "", "end": sd.end_time or ""}
-            for sd in rows
-        }
+        rows = s.execute(select(SpecialDay).order_by(SpecialDay.special_date)).scalars().all()
+        return {sd.special_date: {"start": sd.label or "", "end": sd.end_time or ""} for sd in rows}
 
 
 def set_special_day(date: str, start: str, end: str) -> None:
@@ -282,11 +275,13 @@ def load_month(month: str) -> dict:
     """返回 {emp_id: {date: {"start": "HH:MM", "end": "HH:MM"}}}"""
     date_prefix = month  # "YYYY-MM"
     with get_session() as s:
-        rows = s.execute(
-            select(AttendanceRecord).where(
-                AttendanceRecord.work_date.like(f"{date_prefix}%")
+        rows = (
+            s.execute(
+                select(AttendanceRecord).where(AttendanceRecord.work_date.like(f"{date_prefix}%"))
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         result: dict[str, dict[str, dict]] = {}
         for r in rows:
             emp_data = result.setdefault(r.employee_id, {})
@@ -309,12 +304,14 @@ def set_day(employee_id: str, date: str, times: dict) -> None:
             existing.start_time = times["start"]
             existing.end_time = times["end"]
         else:
-            s.add(AttendanceRecord(
-                employee_id=employee_id,
-                work_date=date,
-                start_time=times["start"],
-                end_time=times["end"],
-            ))
+            s.add(
+                AttendanceRecord(
+                    employee_id=employee_id,
+                    work_date=date,
+                    start_time=times["start"],
+                    end_time=times["end"],
+                )
+            )
 
 
 def clear_day(employee_id: str, date: str) -> None:
@@ -334,11 +331,11 @@ def list_leaves(month: str) -> dict:
     """{employee_id: {date: {type, start?, end?, hours}}}"""
     date_prefix = month  # "YYYY-MM"
     with get_session() as s:
-        rows = s.execute(
-            select(LeaveRecord).where(
-                LeaveRecord.start_date.like(f"{date_prefix}%")
-            )
-        ).scalars().all()
+        rows = (
+            s.execute(select(LeaveRecord).where(LeaveRecord.start_date.like(f"{date_prefix}%")))
+            .scalars()
+            .all()
+        )
         result: dict[str, dict[str, dict]] = {}
         for r in rows:
             entry: dict = {"type": r.leave_type, "hours": r.hours or 0.0}
@@ -418,13 +415,15 @@ def set_leave(employee_id: str, date: str, leave_type: str, start: str = "", end
             existing.hours = round(hours, 3)
             existing.notes = notes
         else:
-            s.add(LeaveRecord(
-                employee_id=employee_id,
-                start_date=date,
-                leave_type=leave_type,
-                hours=round(hours, 3),
-                notes=notes,
-            ))
+            s.add(
+                LeaveRecord(
+                    employee_id=employee_id,
+                    start_date=date,
+                    leave_type=leave_type,
+                    hours=round(hours, 3),
+                    notes=notes,
+                )
+            )
     return entry
 
 

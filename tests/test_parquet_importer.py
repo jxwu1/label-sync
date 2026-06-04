@@ -14,13 +14,13 @@ import pandas as pd
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
+from app.models import Base, Customer, InventoryEvent, Stockpile, Supplier
 from etl.parquet_importer import (
     PURCHASE_MAPPING,
     SALE_MAPPING,
     import_cleaned_parquet,
     import_dataframe,
 )
-from app.models import Base, Customer, InventoryEvent, Stockpile, Supplier
 
 _TEST_DIR = Path(__file__).resolve().parent / "_test_parquet_importer"
 
@@ -105,15 +105,20 @@ class ParquetImporterTest(unittest.TestCase):
 
     def test_purchase_backfills_stockpile_last_purchase_unit_price(self):
         """import_dataframe 后 stockpile.last_purchase_unit_price = 折后净价 (round 4)."""
-        df = pd.DataFrame([
-            _row(
-                event_type="purchase",
-                customer_id=None, customer_name=None,
-                supplier_id="V001", supplier_name="X",
-                unit_price=1.23, discount_pct=10.0,  # 净 = 1.107
-                document_no="P_BACK",
-            )
-        ])
+        df = pd.DataFrame(
+            [
+                _row(
+                    event_type="purchase",
+                    customer_id=None,
+                    customer_name=None,
+                    supplier_id="V001",
+                    supplier_name="X",
+                    unit_price=1.23,
+                    discount_pct=10.0,  # 净 = 1.107
+                    document_no="P_BACK",
+                )
+            ]
+        )
         with Session(self.engine) as session:
             import_dataframe(df, session)
             session.commit()
@@ -125,14 +130,32 @@ class ParquetImporterTest(unittest.TestCase):
 
     def test_last_purchase_unit_price_picks_most_recent(self):
         """两次 purchase, 取 event_at desc 排序的第一个."""
-        df = pd.DataFrame([
-            _row(event_type="purchase", customer_id=None, customer_name=None,
-                 supplier_id="V001", supplier_name="X",
-                 event_at="2025-06-01", unit_price=1.0, discount_pct=0.0, document_no="P1"),
-            _row(event_type="purchase", customer_id=None, customer_name=None,
-                 supplier_id="V001", supplier_name="X",
-                 event_at="2025-08-15", unit_price=2.0, discount_pct=0.0, document_no="P2"),
-        ])
+        df = pd.DataFrame(
+            [
+                _row(
+                    event_type="purchase",
+                    customer_id=None,
+                    customer_name=None,
+                    supplier_id="V001",
+                    supplier_name="X",
+                    event_at="2025-06-01",
+                    unit_price=1.0,
+                    discount_pct=0.0,
+                    document_no="P1",
+                ),
+                _row(
+                    event_type="purchase",
+                    customer_id=None,
+                    customer_name=None,
+                    supplier_id="V001",
+                    supplier_name="X",
+                    event_at="2025-08-15",
+                    unit_price=2.0,
+                    discount_pct=0.0,
+                    document_no="P2",
+                ),
+            ]
+        )
         with Session(self.engine) as session:
             import_dataframe(df, session)
             session.commit()
@@ -145,17 +168,46 @@ class ParquetImporterTest(unittest.TestCase):
     def test_last_purchase_unit_price_skips_invalid_rows(self):
         """qty<=0 (退货) 或 unit_price<=0 (赠品) 不参与回填,
         应该用更早的合法行 (1.5) 而不是最新的退货 (10.0)."""
-        df = pd.DataFrame([
-            _row(event_type="purchase", customer_id=None, customer_name=None,
-                 supplier_id="V001", supplier_name="X",
-                 event_at="2025-06-01", qty=10, unit_price=1.5, discount_pct=0.0, document_no="P_OK"),
-            _row(event_type="purchase", customer_id=None, customer_name=None,
-                 supplier_id="V001", supplier_name="X",
-                 event_at="2025-08-15", qty=-3, unit_price=10.0, discount_pct=0.0, document_no="P_RET"),
-            _row(event_type="purchase", customer_id=None, customer_name=None,
-                 supplier_id="V001", supplier_name="X",
-                 event_at="2025-09-01", qty=5, unit_price=0.0, discount_pct=0.0, document_no="P_GIFT"),
-        ])
+        df = pd.DataFrame(
+            [
+                _row(
+                    event_type="purchase",
+                    customer_id=None,
+                    customer_name=None,
+                    supplier_id="V001",
+                    supplier_name="X",
+                    event_at="2025-06-01",
+                    qty=10,
+                    unit_price=1.5,
+                    discount_pct=0.0,
+                    document_no="P_OK",
+                ),
+                _row(
+                    event_type="purchase",
+                    customer_id=None,
+                    customer_name=None,
+                    supplier_id="V001",
+                    supplier_name="X",
+                    event_at="2025-08-15",
+                    qty=-3,
+                    unit_price=10.0,
+                    discount_pct=0.0,
+                    document_no="P_RET",
+                ),
+                _row(
+                    event_type="purchase",
+                    customer_id=None,
+                    customer_name=None,
+                    supplier_id="V001",
+                    supplier_name="X",
+                    event_at="2025-09-01",
+                    qty=5,
+                    unit_price=0.0,
+                    discount_pct=0.0,
+                    document_no="P_GIFT",
+                ),
+            ]
+        )
         with Session(self.engine) as session:
             import_dataframe(df, session)
             session.commit()

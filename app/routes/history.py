@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 
 from app.services import history as history_service
+
 bp = Blueprint("history", __name__, url_prefix="/history")
 
 

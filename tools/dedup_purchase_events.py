@@ -32,7 +32,6 @@ from sqlalchemy import text  # noqa: E402
 
 from app.repositories import stockpile_db  # noqa: E402
 
-
 # 找出待删的 NULL-price 行 (有匹配带价行的)
 _FIND_DUPS_SQL = """
 SELECT e_null.id, e_null.product_barcode, e_null.event_at, e_null.qty,
@@ -70,6 +69,7 @@ def main() -> int:
             return 0
         print(f"找到 {len(rows)} 行待删 NULL-price purchase events:")
         from collections import defaultdict
+
         by_bc: dict[str, list] = defaultdict(list)
         for r in rows:
             by_bc[r.product_barcode].append(r)
@@ -77,8 +77,10 @@ def main() -> int:
             total_qty = sum(it.qty for it in items)
             print(f"  {bc}: {len(items)} 行 / {total_qty} 件双计")
             for it in items[:5]:
-                print(f"    - {it.event_at} qty={it.qty} (delete id={it.id}, "
-                      f"keep id={it.keep_id} unit_price={it.unit_price})")
+                print(
+                    f"    - {it.event_at} qty={it.qty} (delete id={it.id}, "
+                    f"keep id={it.keep_id} unit_price={it.unit_price})"
+                )
             if len(items) > 5:
                 print(f"    ... 还有 {len(items) - 5} 行")
         if args.dry_run:
@@ -88,7 +90,7 @@ def main() -> int:
         BATCH = 500
         deleted = 0
         for i in range(0, len(ids), BATCH):
-            chunk = ids[i:i + BATCH]
+            chunk = ids[i : i + BATCH]
             s.execute(
                 text("DELETE FROM inventory_events WHERE id = ANY(:ids)"),
                 {"ids": chunk},

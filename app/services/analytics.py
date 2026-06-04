@@ -26,10 +26,10 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.config import CONFIG
-from app.repositories import stockpile_db
-from app.utils.categorizer import classify_from_sales
 from app.models import Customer, InventoryEvent, Stockpile, StockpileInventorySnapshot
+from app.repositories import stockpile_db
 from app.services.sku_origin import classify_origin
+from app.utils.categorizer import classify_from_sales
 
 _TREND_WEEKS = 12  # 趋势斜率窗口（plan 锁定 12 周）
 _VELOCITY_WEEKS = 26  # 周销速窗口（补货决策面板用，固定 26 周）
@@ -58,8 +58,12 @@ def get_data_freshness(as_of: date | None = None) -> dict[str, Any]:
     with stockpile_db._session() as session:
         last = session.execute(select(func.max(InventoryEvent.imported_at))).scalar()
     if not last:
-        return {"last_import_at": None, "last_import_date": None,
-                "days_since": None, "stale": False}
+        return {
+            "last_import_at": None,
+            "last_import_date": None,
+            "days_since": None,
+            "stale": False,
+        }
     last_date = _parse_date(str(last))
     days = (as_of - last_date).days
     return {
@@ -176,10 +180,11 @@ def compute_purchase_metrics(
 
 def _origin_aware_margin_pct(barcode: str, session: Session | None) -> float | None:
     """Origin-aware margin (与 list_sku_summary 一致):
-      sale: 优先 stockpile.sale_price (主档稳定), 退批发 events 净均价
-      cost: FOREIGN 优先 last_purchase_unit_price (EUR), 退 master_stock_price_eur
-            CN/HZ 仅 master_stock_price_eur (last_purchase 是 RMB, 不可用)
+    sale: 优先 stockpile.sale_price (主档稳定), 退批发 events 净均价
+    cost: FOREIGN 优先 last_purchase_unit_price (EUR), 退 master_stock_price_eur
+          CN/HZ 仅 master_stock_price_eur (last_purchase 是 RMB, 不可用)
     """
+
     def _query(s: Session) -> float | None:
         sp = s.execute(
             select(
@@ -296,8 +301,8 @@ def compute_weekly_timeline(
                每周返回 EUR cost (chart 用) + 原始 RMB 单价 (tooltip 用)
     无销售/采购时对应字段为 0 / None.
     """
-    from datetime import timedelta
     import json
+    from datetime import timedelta
 
     as_of = as_of or _today()
     rows = _fetch_all_rows(barcode, session)
@@ -305,8 +310,9 @@ def compute_weekly_timeline(
     # 查 stockpile 主档拿 origin + 包装信息 (CN 公式参数)
     def _query_stockpile(s: Session) -> tuple[str | None, int | None, float | None]:
         sp = s.execute(
-            select(Stockpile.supplier_id, Stockpile.product_model, Stockpile.extra)
-            .where(Stockpile.product_barcode == barcode)
+            select(Stockpile.supplier_id, Stockpile.product_model, Stockpile.extra).where(
+                Stockpile.product_barcode == barcode
+            )
         ).first()
         if sp is None:
             return None, None, None
@@ -397,7 +403,7 @@ def compute_monthly_sales(
 
     按 (year, month) 桶聚合, retail 单独算 (零售=document_no MB* 或 '0').
     """
-    from datetime import timedelta
+
     as_of = as_of or _today()
     rows = _fetch_all_rows_with_doc_no(barcode, session)
 
@@ -483,7 +489,7 @@ def compute_sku_extras(
         # 总体标准差 (n 分母, 不是 n-1; 全样本统计描述用)
         if len(wholesale_prices) > 1:
             var_p = sum((p - mean_p) ** 2 for p in wholesale_prices) / len(wholesale_prices)
-            std_p = var_p ** 0.5
+            std_p = var_p**0.5
         else:
             std_p = 0.0
         price_stats: dict[str, float | int | None] = {
@@ -502,11 +508,14 @@ def compute_sku_extras(
     top_cn, top_foreign = _compute_top_customers_split(barcode, session)
 
     # 4. 零售汇总 (单独显示, 不进 TOP10): MB700 单 + customer_id='0'.
-    retail_events = [r for r in rows if r.event_type == "sale" and _is_retail_customer(r.customer_id, r.customer_name)]
+    retail_events = [
+        r
+        for r in rows
+        if r.event_type == "sale" and _is_retail_customer(r.customer_id, r.customer_name)
+    ]
     retail_qty_lifetime = sum(r.qty for r in retail_events)
     retail_revenue_lifetime = sum(
-        r.qty * _net_unit(r.unit_price, r.discount_pct)
-        for r in retail_events if r.unit_price
+        r.qty * _net_unit(r.unit_price, r.discount_pct) for r in retail_events if r.unit_price
     )
     retail_n_transactions = len(retail_events)
     retail_last_at: str | None = None
@@ -518,7 +527,8 @@ def compute_sku_extras(
         "n_transactions": retail_n_transactions,
         "last_at": retail_last_at,
         "avg_ticket_qty": round(retail_qty_lifetime / retail_n_transactions, 1)
-            if retail_n_transactions > 0 else None,
+        if retail_n_transactions > 0
+        else None,
     }
 
     # 5. 首尾日期 + 完整性
@@ -736,6 +746,7 @@ def compute_forecast_snapshot(
     quarter_* = 周值 × 13 (3 个月口径). 无记录返 None.
     """
     from app.models import ForecastOutput
+
     def _q(s: Session):
         row = s.execute(
             select(ForecastOutput).where(ForecastOutput.product_barcode == barcode)
@@ -753,6 +764,7 @@ def compute_forecast_snapshot(
             "quarter_p98": round(float(row.p98) * 13, 0),
             "computed_at": row.computed_at,
         }
+
     if session is not None:
         return _q(session)
     with stockpile_db._session() as s:
@@ -846,7 +858,8 @@ def _attach_urgency_scores(items: list[dict[str, Any]]) -> None:
         )
         it["urgency_score"] = breakdown["total"]
         it["urgency_breakdown"] = (
-            None if breakdown["total"] is None
+            None
+            if breakdown["total"] is None
             else {
                 "velocity": breakdown["velocity"],
                 "cover": breakdown["cover"],
@@ -892,8 +905,12 @@ def _compute_urgency_score(
     """
     if is_new_item:
         return {
-            "total": None, "velocity": None, "cover": None,
-            "recency": None, "margin": None, "demand_validity": None,
+            "total": None,
+            "velocity": None,
+            "cover": None,
+            "recency": None,
+            "margin": None,
+            "demand_validity": None,
         }
 
     # demand_validity: 26 周内有销售周数 / 4. 长尾死货 (n_active_weeks=1) → 0.25,
@@ -954,7 +971,7 @@ def _lookup_qty(qty_by_model: dict[str, int], barcode: str, model: str | None) -
 # list_sku_summary 60s 内存缓存 (2026-05-23): 整表计算 ~2-3s, 货号历史 / 补货决策
 # 每次开页都触发. 60s TTL 平衡新鲜度和延迟. tests setUp 显式 clear_cache 防泄漏.
 # Lock 防 thundering herd: 冷启动多个 panel 并发命中, 不加锁会重复计算 N 次.
-import threading as _threading
+import threading as _threading  # noqa: E402
 
 _LIST_CACHE: dict = {"key": None, "value": None, "ts": 0.0}
 _LIST_TTL_SECONDS = 60.0
@@ -969,6 +986,7 @@ def _round_up_to_pack(qty: int | None, pack: int | None) -> int | None:
     if qty is None or qty <= 0 or not pack or pack <= 1:
         return qty
     import math
+
     return math.ceil(qty / pack) * pack
 
 
@@ -983,6 +1001,7 @@ def _restock_recommendation(
     """计算推荐补货量: 优先预测模型 p50/p98, 回退销速, 再回退上次进货量.
     结果向上凑整到中包倍数 (middle_qty)。"""
     import math
+
     target = _RESTOCK_TARGET_WEEKS
     last_pq = last_purchase_qty_by_bc.get(barcode)
     fc = forecast_by_bc.get(barcode)
@@ -1079,20 +1098,25 @@ def list_sku_summary(as_of: date | None = None) -> list[dict[str, Any]]:
     只有一个线程算, 其他线程等结果, 避免重复算 N 次.
     """
     import time
+
     cache_key = (as_of,)
     # 快速路径: 缓存命中无锁返回 (race 也安全, dict 读单字段是原子的)
     now = time.time()
-    if (_LIST_CACHE["key"] == cache_key
-            and _LIST_CACHE["value"] is not None
-            and now - _LIST_CACHE["ts"] < _LIST_TTL_SECONDS):
+    if (
+        _LIST_CACHE["key"] == cache_key
+        and _LIST_CACHE["value"] is not None
+        and now - _LIST_CACHE["ts"] < _LIST_TTL_SECONDS
+    ):
         return _LIST_CACHE["value"]
     # 慢路径: 拿锁. 拿到后再 check 一次 (double-checked locking),
     # 因为可能在等锁期间另一线程已经填好缓存.
     with _LIST_LOCK:
         now = time.time()
-        if (_LIST_CACHE["key"] == cache_key
-                and _LIST_CACHE["value"] is not None
-                and now - _LIST_CACHE["ts"] < _LIST_TTL_SECONDS):
+        if (
+            _LIST_CACHE["key"] == cache_key
+            and _LIST_CACHE["value"] is not None
+            and now - _LIST_CACHE["ts"] < _LIST_TTL_SECONDS
+        ):
             return _LIST_CACHE["value"]
         # 表优先: 物化表有当日 as_of 的行就直接用 (避免整表重算 2.9M 事件);
         # 空表 / as_of≠物化日 → 回退实时计算.
@@ -1187,6 +1211,7 @@ def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
             ).where(InventoryEvent.event_type == "purchase")
         ).all()
         from app.models import ForecastOutput
+
         forecast_rows = session.execute(
             select(
                 ForecastOutput.product_barcode,
@@ -1218,6 +1243,7 @@ def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
         )
 
     import json as _json
+
     mid_qty_by_bc: dict[str, int] = {}
     for _r in sp_rows:
         if _r.extra:
@@ -1230,12 +1256,28 @@ def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
                 pass
 
     items: list[dict[str, Any]] = []
-    for bc, model, name_zh, auto_cat, manual_cat, grade, is_disc, sp_supplier_id, last_pp, master_pp, master_sp, _extra in sp_rows:
+    for (
+        bc,
+        model,
+        name_zh,
+        auto_cat,
+        manual_cat,
+        grade,
+        is_disc,
+        sp_supplier_id,
+        last_pp,
+        master_pp,
+        master_sp,
+        _extra,
+    ) in sp_rows:
         sales = by_bc.get(bc, [])
         # 批发/零售分流: document_no 以 'MB' 开头或 = '0' 算零售, 不进批发聚合.
-        # 零售只做透明展示 (retail_qty_26w / retail_revenue_26w), 不污染 weekly_velocity/sale_net_avg.
+        # 零售只做透明展示 (retail_qty_26w / retail_revenue_26w),
+        # 不污染 weekly_velocity/sale_net_avg.
         # 5206753040071 case: 单笔零售 €8.4677 拉爆批发均价 → 这里干掉.
-        wholesale_sales = [r for r in sales if not _is_retail_customer(r.customer_id, r.customer_name)]
+        wholesale_sales = [
+            r for r in sales if not _is_retail_customer(r.customer_id, r.customer_name)
+        ]
         retail_sales = [r for r in sales if _is_retail_customer(r.customer_id, r.customer_name)]
         total_qty = int(sum(r.qty for r in wholesale_sales))
         if wholesale_sales:
@@ -1291,9 +1333,7 @@ def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
             weeks_of_cover = None  # 销速 0 → 不缺货也不紧迫；无 snapshot → 未知
         lp = last_purchase.get(bc)
         last_purchase_at = lp[0] if lp else None
-        last_purchase_days_ago = (
-            (as_of - _parse_date(lp[0])).days if lp else None
-        )
+        last_purchase_days_ago = (as_of - _parse_date(lp[0])).days if lp else None
         last_purchase_supplier = lp[1] if lp else None
         # ERP 主档优先 (覆盖"标了供应商但还没产生 purchase event"的 SKU),
         # fallback 到最近 purchase event 的 supplier_id (兼容旧数据)
@@ -1347,7 +1387,8 @@ def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
 
         # 零售价派生 (2026-05-23): ERP 端点只导一个批发 sale_price tier.
         # 启发式: 大部分 SKU 零售=批发×2 (用户验证).
-        # 优先用历史观测: 26 周内零售实际笔数 >= retail_observed_min_qty 时, 用 retail_revenue/retail_qty.
+        # 优先用历史观测: 26 周内零售实际笔数 >= retail_observed_min_qty 时,
+        # 用 retail_revenue/retail_qty.
         # 单笔异常 (5206753040071 €8.4677) 因门槛 >=3 被剥离.
         retail_price_observed: float | None = None
         if retail_qty_26w >= CONFIG.retail_observed_min_qty and retail_revenue_26w > 0:
@@ -1393,9 +1434,7 @@ def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
         # 实现利润 = 全历史累计销售额 - 已售成本
         # 假设: cost 用当前估算反推历史投入 (FIFO 简化, 不追多批次进价变化).
         lifetime_sale_qty = sum(r.qty for r in sales)
-        lifetime_sale_revenue = sum(
-            r.qty * _net_unit(r.unit_price, r.discount_pct) for r in sales
-        )
+        lifetime_sale_revenue = sum(r.qty * _net_unit(r.unit_price, r.discount_pct) for r in sales)
         first_event_at = None
         if sales:
             first_event_at = min(_parse_date(r.event_at) for r in sales).isoformat()
@@ -1435,9 +1474,7 @@ def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
             inventory_imbalance_pct = round(abs(diff) / lifetime_purchase_qty * 100.0, 1)
         # ETL 窗口起点保守取 2021-06-01: 早于此的 first_event 标"数据不全"
         # (运营人员判断"已回本"时心里有数, 窗口外的销售/采购可能没纳入)
-        is_history_truncated = (
-            first_event_at is not None and first_event_at <= "2021-06-01"
-        )
+        is_history_truncated = first_event_at is not None and first_event_at <= "2021-06-01"
         items.append(
             {
                 "barcode": bc,
@@ -1489,8 +1526,11 @@ def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
                 "cn_qty": cn_qty,
                 "fo_qty": fo_qty,
                 **_restock_recommendation(
-                    bc, qty_total, weekly_velocity,
-                    forecast_by_bc, last_purchase_qty_by_bc,
+                    bc,
+                    qty_total,
+                    weekly_velocity,
+                    forecast_by_bc,
+                    last_purchase_qty_by_bc,
                     middle_qty=mid_qty_by_bc.get(bc),
                 ),
             }

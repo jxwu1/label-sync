@@ -684,15 +684,28 @@ class StockpileDbTests(unittest.TestCase):
 
     def test_query_products_by_barcodes_returns_known_only(self) -> None:
         from app.models import Stockpile
+
         with stockpile_db._session() as s:
-            s.add(Stockpile(
-                product_barcode="A1", product_model="M1", stockpile_location="L1",
-                product_name_zh="陶瓷碗", sale_price=1.98, last_purchase_unit_price=1.05,
-            ))
-            s.add(Stockpile(
-                product_barcode="A2", product_model="M2", stockpile_location="L2",
-                product_name_zh=None, sale_price=None, last_purchase_unit_price=None,
-            ))
+            s.add(
+                Stockpile(
+                    product_barcode="A1",
+                    product_model="M1",
+                    stockpile_location="L1",
+                    product_name_zh="陶瓷碗",
+                    sale_price=1.98,
+                    last_purchase_unit_price=1.05,
+                )
+            )
+            s.add(
+                Stockpile(
+                    product_barcode="A2",
+                    product_model="M2",
+                    stockpile_location="L2",
+                    product_name_zh=None,
+                    sale_price=None,
+                    last_purchase_unit_price=None,
+                )
+            )
             s.commit()
         out = stockpile_db.query_products_by_barcodes(["A1", "A2", "NOPE"])
         self.assertEqual(set(out.keys()), {"A1", "A2"})  # 不在主档的 NOPE 不出现

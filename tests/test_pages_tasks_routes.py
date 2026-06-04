@@ -10,9 +10,9 @@ from unittest import mock
 
 from flask import Flask
 
-from app.services import barcode as barcode_service
 from app.routes.pages_tasks import bp
 from app.schemas import ServiceResult
+from app.services import barcode as barcode_service
 
 
 def _ok() -> ServiceResult:

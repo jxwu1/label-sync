@@ -1,6 +1,5 @@
 """考勤报表：PDF（详情 + 工资单总览）。"""
 
-from app.config import CONFIG
 import io
 from pathlib import Path
 
@@ -20,7 +19,9 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from app.config import CONFIG
 from app.services import attendance as attendance_service
+
 _FONT_NAME = "AttnSC"
 _FONT_REGISTERED = False
 _FONT_CANDIDATES = [

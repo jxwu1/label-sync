@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from app.repositories import stockpile_db
 from app.config import CONFIG
+from app.repositories import stockpile_db
 from app.utils.file_io import read_csv
 
 INPUT_DIR = CONFIG.input_dir

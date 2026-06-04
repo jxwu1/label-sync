@@ -6,6 +6,7 @@ GET  /restock/decisions/recent?limit=200&decision=skipped
 GET  /restock/decisions/stats?days=30
 GET  /restock/decisions/stale  现算 14 天高分未处理的, 不入库
 """
+
 from __future__ import annotations
 
 from flask import Blueprint, jsonify, request

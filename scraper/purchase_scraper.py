@@ -15,6 +15,7 @@ boson ERP 采购明细抓取 (按月切片 + 缓存 + parquet/xlsx 输出).
 输出: SCRAPE_OUTPUT_DIR/events_purchase_<from>_<to>.parquet|xlsx
 缓存: SCRAPE_OUTPUT_DIR/_cache/purchase/<begin>_<end>.parquet
 """
+
 import argparse
 import os
 import re
@@ -91,31 +92,74 @@ OUTPUT_PARQUET = OUTPUT_DIR / f"events_purchase_{DATE_FROM}_{DATE_TO}.parquet"
 OUTPUT_XLSX = OUTPUT_DIR / f"events_purchase_{DATE_FROM}_{DATE_TO}.xlsx"
 
 form_data_template = {
-    "root_kind_length": "", "search_time_type": "", "classify_kind_id": "",
-    "sign_type": "", "product_kind_id": "", "product_kind_name": "",
-    "stack_kind_id": "", "stack_kind_name": "", "product_model": "",
-    "document_valid_grade": ">=1", "audit_status": "", "document_kind_id": "",
-    "store_id": "", "begin_product_model": "", "end_product_model": "",
-    "valid_grade_range": "", "product_batch": "", "valid_grade_symbol": "=",
-    "valid_grade": "", "produce_type": "", "product_barcode": "",
-    "sequence_number": "", "begin_product_barcode": "", "end_product_barcode": "",
-    "client_model": "", "provider_model": "", "begin_unit_price": "",
-    "end_unit_price": "", "begin_stockpile_quantity": "",
-    "end_stockpile_quantity": "", "product_description": "",
-    "description_length": "15", "stockpile_shelf": "", "stockpile_location": "",
-    "product_color": "", "product_size": "", "material_description": "",
-    "spec_description": "", "document_id": "", "client_document_id": "",
-    "product_brand": "", "produce_area": "", "item_remark": "",
-    "document_remark": "", "payment_kind_id": "", "source_kind_id": "",
-    "industry_kind_id": "", "handler_id": "", "handler_name": "",
-    "creator_id": "", "creator_name": "", "web_status_select": "",
-    "recommend_status_select": "", "invoice_limit_select": "",
-    "discount_limit_select": "", "client_valid_grade_range": "",
-    "group_kind_id": "", "money_rate_id": "103", "client_id": "",
-    "client_name": "", "client_title": "", "content_type": ".php",
+    "root_kind_length": "",
+    "search_time_type": "",
+    "classify_kind_id": "",
+    "sign_type": "",
+    "product_kind_id": "",
+    "product_kind_name": "",
+    "stack_kind_id": "",
+    "stack_kind_name": "",
+    "product_model": "",
+    "document_valid_grade": ">=1",
+    "audit_status": "",
+    "document_kind_id": "",
+    "store_id": "",
+    "begin_product_model": "",
+    "end_product_model": "",
+    "valid_grade_range": "",
+    "product_batch": "",
+    "valid_grade_symbol": "=",
+    "valid_grade": "",
+    "produce_type": "",
+    "product_barcode": "",
+    "sequence_number": "",
+    "begin_product_barcode": "",
+    "end_product_barcode": "",
+    "client_model": "",
+    "provider_model": "",
+    "begin_unit_price": "",
+    "end_unit_price": "",
+    "begin_stockpile_quantity": "",
+    "end_stockpile_quantity": "",
+    "product_description": "",
+    "description_length": "15",
+    "stockpile_shelf": "",
+    "stockpile_location": "",
+    "product_color": "",
+    "product_size": "",
+    "material_description": "",
+    "spec_description": "",
+    "document_id": "",
+    "client_document_id": "",
+    "product_brand": "",
+    "produce_area": "",
+    "item_remark": "",
+    "document_remark": "",
+    "payment_kind_id": "",
+    "source_kind_id": "",
+    "industry_kind_id": "",
+    "handler_id": "",
+    "handler_name": "",
+    "creator_id": "",
+    "creator_name": "",
+    "web_status_select": "",
+    "recommend_status_select": "",
+    "invoice_limit_select": "",
+    "discount_limit_select": "",
+    "client_valid_grade_range": "",
+    "group_kind_id": "",
+    "money_rate_id": "103",
+    "client_id": "",
+    "client_name": "",
+    "client_title": "",
+    "content_type": ".php",
     "language_id": "101",
-    "operation_item": "业务明细", "interval_days": "1",
-    "document_list_report": "", "time_type": "month", "limit_sum": "",
+    "operation_item": "业务明细",
+    "interval_days": "1",
+    "document_list_report": "",
+    "time_type": "month",
+    "limit_sum": "",
 }
 
 # 采购真值: range[12]=store_pass_in (采购入库)
@@ -146,8 +190,7 @@ def fetch_month(begin_str, end_str, range_key="range[12]", range_value="store_pa
     for attempt in range(retry + 1):
         try:
             t0 = time.time()
-            r = requests.post(URL, data=form_data, headers=HEADERS,
-                              cookies=COOKIES, timeout=600)
+            r = requests.post(URL, data=form_data, headers=HEADERS, cookies=COOKIES, timeout=600)
             r.encoding = "utf-8"
             size_mb = len(r.content) / 1024 / 1024
             elapsed = time.time() - t0
@@ -164,7 +207,7 @@ def fetch_month(begin_str, end_str, range_key="range[12]", range_value="store_pa
                 return None
 
             df = max(tables, key=len)
-            df = df.drop(columns=['Unnamed: 0', 'Unnamed: 1'], errors='ignore')
+            df = df.drop(columns=["Unnamed: 0", "Unnamed: 1"], errors="ignore")
             print(f"    响应 {size_mb:.1f} MB, 用时 {elapsed:.1f}s, {len(df)} 行")
             return df
         except Exception as e:
@@ -184,78 +227,91 @@ def generate_months(start, end):
         actual_end = min(month_end, end)
         actual_begin = cur
         months.append((actual_begin.isoformat(), actual_end.isoformat()))
-        cur = (cur.replace(day=1) + relativedelta(months=1))
+        cur = cur.replace(day=1) + relativedelta(months=1)
     return months
 
 
 def clean_raw_dataframe(df):
-    int_cols = ['数量', '差数', '等级']
+    int_cols = ["数量", "差数", "等级"]
     for col in int_cols:
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce').astype('Int64')
+            df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
 
-    price_cols = ['单价', '折扣', '金额(€)']
+    price_cols = ["单价", "折扣", "金额(€)"]
     for col in price_cols:
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
     numeric_cols = set(int_cols + price_cols)
     for col in df.columns:
         if col not in numeric_cols:
             df[col] = df[col].apply(
-                lambda x: '' if pd.isna(x)
-                else str(int(x)) if isinstance(x, float) and x.is_integer()
-                else str(x).strip()
+                lambda x: (
+                    ""
+                    if pd.isna(x)
+                    else str(int(x))
+                    if isinstance(x, float) and x.is_integer()
+                    else str(x).strip()
+                )
             )
     return df
 
 
 # ============ Schema 转换 ============
 def extract_category_code(s):
-    if not s or pd.isna(s) or s == '':
+    if not s or pd.isna(s) or s == "":
         return None
     s = str(s).strip()
-    m = re.match(r'^([A-Za-z0-9]+(?:-[A-Za-z0-9]+)?)', s)
+    m = re.match(r"^([A-Za-z0-9]+(?:-[A-Za-z0-9]+)?)", s)
     return m.group(1) if m else None
 
 
 def clean_stop_marker(s):
-    if s is None or pd.isna(s) or s == '':
+    if s is None or pd.isna(s) or s == "":
         return None
-    return re.sub(r'\s*\(停用\)\s*$', '', str(s)).strip() or None
+    return re.sub(r"\s*\(停用\)\s*$", "", str(s)).strip() or None
 
 
 def to_standard_schema(df):
     std = pd.DataFrame()
-    std['event_at'] = pd.to_datetime(df['日期'], errors='coerce').dt.strftime('%Y-%m-%d')
-    std['event_type'] = 'purchase'
-    std['product_barcode'] = df['条形码'].apply(clean_stop_marker).astype('string')
-    qty_series = pd.to_numeric(df['数量'], errors='coerce').fillna(0)
-    std['qty'] = qty_series.astype('int32')
-    std['unit_price'] = pd.to_numeric(df['单价'], errors='coerce').astype('float64')
-    std['discount_pct'] = pd.to_numeric(df['折扣'], errors='coerce').fillna(0.0).astype('float64')
-    std['document_no'] = df['单号'].astype('string')
+    std["event_at"] = pd.to_datetime(df["日期"], errors="coerce").dt.strftime("%Y-%m-%d")
+    std["event_type"] = "purchase"
+    std["product_barcode"] = df["条形码"].apply(clean_stop_marker).astype("string")
+    qty_series = pd.to_numeric(df["数量"], errors="coerce").fillna(0)
+    std["qty"] = qty_series.astype("int32")
+    std["unit_price"] = pd.to_numeric(df["单价"], errors="coerce").astype("float64")
+    std["discount_pct"] = pd.to_numeric(df["折扣"], errors="coerce").fillna(0.0).astype("float64")
+    std["document_no"] = df["单号"].astype("string")
 
     # 采购单: ID号/名称 = 供应商
-    std['customer_id'] = pd.Series([None] * len(df), dtype='string')
-    std['customer_name'] = pd.Series([None] * len(df), dtype='string')
-    std['supplier_id'] = df['ID号'].astype('string')
-    std['supplier_name'] = df['名称'].astype('string')
+    std["customer_id"] = pd.Series([None] * len(df), dtype="string")
+    std["customer_name"] = pd.Series([None] * len(df), dtype="string")
+    std["supplier_id"] = df["ID号"].astype("string")
+    std["supplier_name"] = df["名称"].astype("string")
 
-    std['erp_category_raw'] = df['产品种类'].astype('string')
-    std['erp_category_code'] = df['产品种类'].apply(extract_category_code).astype('string')
-    std['warehouse'] = (df['仓库'].astype('string') if '仓库' in df.columns
-                        else pd.Series([None] * len(df), dtype='string'))
-    std['product_name_zh'] = (df['品名'].astype('string') if '品名' in df.columns
-                              else pd.Series([None] * len(df), dtype='string'))
-    std['product_name_local'] = (df['本地品名'].astype('string') if '本地品名' in df.columns
-                                 else pd.Series([None] * len(df), dtype='string'))
-    std['shipping_doc'] = pd.Series([None] * len(df), dtype='string')
+    std["erp_category_raw"] = df["产品种类"].astype("string")
+    std["erp_category_code"] = df["产品种类"].apply(extract_category_code).astype("string")
+    std["warehouse"] = (
+        df["仓库"].astype("string")
+        if "仓库" in df.columns
+        else pd.Series([None] * len(df), dtype="string")
+    )
+    std["product_name_zh"] = (
+        df["品名"].astype("string")
+        if "品名" in df.columns
+        else pd.Series([None] * len(df), dtype="string")
+    )
+    std["product_name_local"] = (
+        df["本地品名"].astype("string")
+        if "本地品名" in df.columns
+        else pd.Series([None] * len(df), dtype="string")
+    )
+    std["shipping_doc"] = pd.Series([None] * len(df), dtype="string")
 
-    for col in std.select_dtypes(include='string').columns:
-        std[col] = std[col].replace({'': None, 'nan': None, 'None': None, '<NA>': None})
+    for col in std.select_dtypes(include="string").columns:
+        std[col] = std[col].replace({"": None, "nan": None, "None": None, "<NA>": None})
 
-    required = ['event_at', 'product_barcode', 'document_no', 'qty', 'unit_price']
+    required = ["event_at", "product_barcode", "document_no", "qty", "unit_price"]
     before = len(std)
     std = std.dropna(subset=required)
     if len(std) < before:
@@ -338,8 +394,9 @@ def main() -> int:
 
     print(f"\n[1/2] 写 parquet → {OUTPUT_PARQUET.name}")
     t = time.time()
-    df_std.to_parquet(OUTPUT_PARQUET, index=False, engine='pyarrow',
-                      compression='zstd', compression_level=9)
+    df_std.to_parquet(
+        OUTPUT_PARQUET, index=False, engine="pyarrow", compression="zstd", compression_level=9
+    )
     pq_size = OUTPUT_PARQUET.stat().st_size / 1024 / 1024
     print(f"    用时 {time.time() - t:.1f}s, 大小 {pq_size:.1f} MB")
 
@@ -353,14 +410,20 @@ def main() -> int:
         print(f"    ⚠️ {len(df_std)} 行超过单 sheet 上限,分多个 sheet")
         with pd.ExcelWriter(OUTPUT_XLSX, engine="openpyxl") as writer:
             for i in range(0, len(df_std), EXCEL_MAX_ROWS):
-                chunk = df_std.iloc[i:i + EXCEL_MAX_ROWS]
+                chunk = df_std.iloc[i : i + EXCEL_MAX_ROWS]
                 chunk.to_excel(writer, sheet_name=f"data_{i // EXCEL_MAX_ROWS + 1}", index=False)
 
     wb = load_workbook(OUTPUT_XLSX)
     formats = {
-        'event_at': '@', 'product_barcode': '@', 'document_no': '@',
-        'customer_id': '@', 'supplier_id': '@', 'erp_category_code': '@',
-        'qty': '0', 'unit_price': '0.0000', 'discount_pct': '0.00',
+        "event_at": "@",
+        "product_barcode": "@",
+        "document_no": "@",
+        "customer_id": "@",
+        "supplier_id": "@",
+        "erp_category_code": "@",
+        "qty": "0",
+        "unit_price": "0.0000",
+        "discount_pct": "0.00",
     }
     header_font = Font(bold=True, size=11)
     header_fill = PatternFill("solid", fgColor="E8E8E8")
@@ -405,12 +468,20 @@ if __name__ == "__main__":
         epilog="cookie 失效时去 scraper/cookie.txt 换 PHPSESSID",
     )
     _today = date.today()
-    parser.add_argument("--from", dest="date_from", type=date.fromisoformat,
-                        default=_today - relativedelta(years=1),
-                        help="起始日期 YYYY-MM-DD (默认: 今天往前 1 年)")
-    parser.add_argument("--to", dest="date_to", type=date.fromisoformat,
-                        default=_today,
-                        help="结束日期 YYYY-MM-DD (默认: 今天)")
+    parser.add_argument(
+        "--from",
+        dest="date_from",
+        type=date.fromisoformat,
+        default=_today - relativedelta(years=1),
+        help="起始日期 YYYY-MM-DD (默认: 今天往前 1 年)",
+    )
+    parser.add_argument(
+        "--to",
+        dest="date_to",
+        type=date.fromisoformat,
+        default=_today,
+        help="结束日期 YYYY-MM-DD (默认: 今天)",
+    )
     args = parser.parse_args()
     if args.date_from > args.date_to:
         parser.error(f"--from ({args.date_from}) 不能晚于 --to ({args.date_to})")

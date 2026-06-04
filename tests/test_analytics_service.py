@@ -16,8 +16,8 @@ from unittest import mock
 
 from sqlalchemy import insert
 
-from app.repositories import stockpile_db
 from app.models import Customer, InventoryEvent
+from app.repositories import stockpile_db
 
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_analytics"
 
@@ -35,6 +35,7 @@ class _Base(unittest.TestCase):
         stockpile_db.ensure_db()
         # list_sku_summary 有 60s 缓存, 测试间清掉避免数据泄漏
         from app.services import analytics as _ans
+
         _ans.clear_list_sku_summary_cache()
 
     def tearDown(self) -> None:
@@ -192,13 +193,17 @@ class PurchaseMetricsTests(_Base):
 
         # 给 B1 加 stockpile master 数据 (新口径需要)
         with stockpile_db._session() as s:
-            s.execute(insert(Stockpile).values(
-                product_barcode="B1", product_model="B1",
-                stockpile_location="", is_active=1,
-                supplier_id="GR0001",       # FOREIGN
-                sale_price=10.0,            # 主档售价
-                last_purchase_unit_price=6.0,  # 主档进价
-            ))
+            s.execute(
+                insert(Stockpile).values(
+                    product_barcode="B1",
+                    product_model="B1",
+                    stockpile_location="",
+                    is_active=1,
+                    supplier_id="GR0001",  # FOREIGN
+                    sale_price=10.0,  # 主档售价
+                    last_purchase_unit_price=6.0,  # 主档进价
+                )
+            )
             s.commit()
         self._add_event(event_type="purchase", event_at="2026-01-01", qty=10, unit_price=6.0)
         self._add_event(event_type="sale", event_at="2026-02-01", qty=5, unit_price=10.0)
@@ -288,8 +293,8 @@ class RecomputeCategoriesTests(_Base):
             s.commit()
 
     def test_recompute_writes_auto_category(self) -> None:
-        from app.services.analytics import recompute_categories
         from app.models import Stockpile
+        from app.services.analytics import recompute_categories
 
         # SKU 1: 新品（最近一笔）
         self._add_stockpile("NEW1")
@@ -326,8 +331,12 @@ class UrgencyScoreTests(unittest.TestCase):
 
         out = _compute_urgency_score(0.9, 2.0, 30, margin_pctile=0.5, is_new_item=True)
         assert out == {
-            "total": None, "velocity": None, "cover": None,
-            "recency": None, "margin": None, "demand_validity": None,
+            "total": None,
+            "velocity": None,
+            "cover": None,
+            "recency": None,
+            "margin": None,
+            "demand_validity": None,
         }
 
     def test_sold_out_top_seller_long_no_purchase_maxes_out(self) -> None:
@@ -335,8 +344,11 @@ class UrgencyScoreTests(unittest.TestCase):
         from app.services.analytics import _compute_urgency_score
 
         out = _compute_urgency_score(
-            velocity_pctile=1.0, weeks_of_cover=0.0, last_purchase_days=200,
-            margin_pctile=1.0, n_active_weeks=4,
+            velocity_pctile=1.0,
+            weeks_of_cover=0.0,
+            last_purchase_days=200,
+            margin_pctile=1.0,
+            n_active_weeks=4,
         )
         assert out["velocity"] == 30.0
         assert out["cover"] == 30.0
@@ -349,7 +361,10 @@ class UrgencyScoreTests(unittest.TestCase):
         from app.services.analytics import _compute_urgency_score
 
         out = _compute_urgency_score(
-            velocity_pctile=0.5, weeks_of_cover=10.0, last_purchase_days=0, n_active_weeks=4,
+            velocity_pctile=0.5,
+            weeks_of_cover=10.0,
+            last_purchase_days=0,
+            n_active_weeks=4,
         )
         assert out["velocity"] == 15.0  # 0.5 * 30
         assert out["cover"] == 0.0
@@ -361,11 +376,18 @@ class UrgencyScoreTests(unittest.TestCase):
         from app.services.analytics import _compute_urgency_score
 
         out = _compute_urgency_score(
-            velocity_pctile=0.0, weeks_of_cover=None, last_purchase_days=None, n_active_weeks=0,
+            velocity_pctile=0.0,
+            weeks_of_cover=None,
+            last_purchase_days=None,
+            n_active_weeks=0,
         )
         assert out == {
-            "total": 0.0, "velocity": 0.0, "cover": 0.0,
-            "recency": 0.0, "margin": 0.0, "demand_validity": 0.0,
+            "total": 0.0,
+            "velocity": 0.0,
+            "cover": 0.0,
+            "recency": 0.0,
+            "margin": 0.0,
+            "demand_validity": 0.0,
         }
 
     def test_negative_weeks_of_cover_caps_at_max_not_overflow(self) -> None:
@@ -373,7 +395,10 @@ class UrgencyScoreTests(unittest.TestCase):
         from app.services.analytics import _compute_urgency_score
 
         out = _compute_urgency_score(
-            velocity_pctile=0.5, weeks_of_cover=-62.1, last_purchase_days=0, n_active_weeks=4,
+            velocity_pctile=0.5,
+            weeks_of_cover=-62.1,
+            last_purchase_days=0,
+            n_active_weeks=4,
         )
         assert out["cover"] == 30.0
         assert out["total"] <= 100.0
@@ -383,7 +408,10 @@ class UrgencyScoreTests(unittest.TestCase):
         from app.services.analytics import _compute_urgency_score
 
         out = _compute_urgency_score(
-            velocity_pctile=0.8, weeks_of_cover=50.0, last_purchase_days=10, n_active_weeks=4,
+            velocity_pctile=0.8,
+            weeks_of_cover=50.0,
+            last_purchase_days=10,
+            n_active_weeks=4,
         )
         assert out["cover"] == 0.0
 
@@ -392,8 +420,11 @@ class UrgencyScoreTests(unittest.TestCase):
         from app.services.analytics import _compute_urgency_score
 
         out = _compute_urgency_score(
-            velocity_pctile=0.0, weeks_of_cover=None, last_purchase_days=None,
-            margin_pctile=1.0, n_active_weeks=4,
+            velocity_pctile=0.0,
+            weeks_of_cover=None,
+            last_purchase_days=None,
+            margin_pctile=1.0,
+            n_active_weeks=4,
         )
         assert out["margin"] == 30.0
         assert out["total"] == 30.0
@@ -403,12 +434,15 @@ class UrgencyScoreTests(unittest.TestCase):
         from app.services.analytics import _compute_urgency_score
 
         out = _compute_urgency_score(
-            velocity_pctile=0.8, weeks_of_cover=2.0, last_purchase_days=100,
-            margin_pctile=None, n_active_weeks=4,
+            velocity_pctile=0.8,
+            weeks_of_cover=2.0,
+            last_purchase_days=100,
+            margin_pctile=None,
+            n_active_weeks=4,
         )
         # v 24 + c (1-2/8)*30=22.5 + r (100/180)*10≈5.56 + m 0
         assert out["margin"] == 0.0
-        assert out["total"] == round(24.0 + 22.5 + 100/180*10, 1)
+        assert out["total"] == round(24.0 + 22.5 + 100 / 180 * 10, 1)
 
     def test_demand_validity_long_tail_suppresses_cover_and_recency(self) -> None:
         """长尾死货 (n_active_weeks=1, dv=0.25) → cover/recency 砍到 1/4.
@@ -416,8 +450,11 @@ class UrgencyScoreTests(unittest.TestCase):
         from app.services.analytics import _compute_urgency_score
 
         out = _compute_urgency_score(
-            velocity_pctile=0.3, weeks_of_cover=0.0, last_purchase_days=180,
-            margin_pctile=0.2, n_active_weeks=1,
+            velocity_pctile=0.3,
+            weeks_of_cover=0.0,
+            last_purchase_days=180,
+            margin_pctile=0.2,
+            n_active_weeks=1,
         )
         # dv = 1/4 = 0.25; cover 30*0.25=7.5, recency 10*0.25=2.5
         assert out["demand_validity"] == 0.25
@@ -432,12 +469,18 @@ class UrgencyScoreTests(unittest.TestCase):
         from app.services.analytics import _compute_urgency_score
 
         a = _compute_urgency_score(
-            velocity_pctile=0.5, weeks_of_cover=0.0, last_purchase_days=180,
-            margin_pctile=0.5, n_active_weeks=4,
+            velocity_pctile=0.5,
+            weeks_of_cover=0.0,
+            last_purchase_days=180,
+            margin_pctile=0.5,
+            n_active_weeks=4,
         )
         b = _compute_urgency_score(
-            velocity_pctile=0.5, weeks_of_cover=0.0, last_purchase_days=180,
-            margin_pctile=0.5, n_active_weeks=20,
+            velocity_pctile=0.5,
+            weeks_of_cover=0.0,
+            last_purchase_days=180,
+            margin_pctile=0.5,
+            n_active_weeks=20,
         )
         # >=4 周后 dv=1.0 封顶
         assert a["demand_validity"] == 1.0
@@ -481,8 +524,12 @@ class ListSkuSummaryRestockFieldsTests(_Base):
         self._add_sku("12345", model="12345")
         self._add_event(barcode="12345", event_at="2026-04-20", qty=10, document_no="S1")
         self._add_event(
-            barcode="12345", event_type="purchase",
-            event_at="2026-03-01", qty=50, supplier_id="GR01", document_no="P1",
+            barcode="12345",
+            event_type="purchase",
+            event_at="2026-03-01",
+            qty=50,
+            supplier_id="GR01",
+            document_no="P1",
         )
         self._add_snapshot("2026-05-19", "12345", 8)
 
@@ -525,8 +572,12 @@ class ListSkuSummaryRestockFieldsTests(_Base):
 
         self._add_sku("SKU_M", model="SKU_M", supplier_id="GR0099")
         self._add_event(
-            barcode="SKU_M", event_type="purchase",
-            event_at="2026-03-01", qty=10, supplier_id="ES0001", document_no="P1",
+            barcode="SKU_M",
+            event_type="purchase",
+            event_at="2026-03-01",
+            qty=10,
+            supplier_id="ES0001",
+            document_no="P1",
         )
 
         items = list_sku_summary(as_of=date(2026, 5, 21))
@@ -539,8 +590,12 @@ class ListSkuSummaryRestockFieldsTests(_Base):
 
         self._add_sku("SKU_N", model="SKU_N")  # supplier_id 默认 None
         self._add_event(
-            barcode="SKU_N", event_type="purchase",
-            event_at="2026-03-01", qty=10, supplier_id="CN0036", document_no="P2",
+            barcode="SKU_N",
+            event_type="purchase",
+            event_at="2026-03-01",
+            qty=10,
+            supplier_id="CN0036",
+            document_no="P2",
         )
 
         items = list_sku_summary(as_of=date(2026, 5, 21))
@@ -563,10 +618,22 @@ class ListSkuSummaryRestockFieldsTests(_Base):
 
         self._add_sku("REV1", model="REV1")
         # 同一 ISO 周, 2 笔: 10件×2.5×(1-0%) + 4件×3×(1-50%) = 25 + 6 = 31, n_active_weeks=1
-        self._add_event(barcode="REV1", event_at="2026-05-04", qty=10,
-                        unit_price=2.5, discount_pct=0.0, document_no="S1")
-        self._add_event(barcode="REV1", event_at="2026-05-05", qty=4,
-                        unit_price=3.0, discount_pct=50.0, document_no="S2")
+        self._add_event(
+            barcode="REV1",
+            event_at="2026-05-04",
+            qty=10,
+            unit_price=2.5,
+            discount_pct=0.0,
+            document_no="S1",
+        )
+        self._add_event(
+            barcode="REV1",
+            event_at="2026-05-05",
+            qty=4,
+            unit_price=3.0,
+            discount_pct=50.0,
+            document_no="S2",
+        )
 
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "REV1")
@@ -589,10 +656,22 @@ class ListSkuSummaryRestockFieldsTests(_Base):
         self._add_sku("M1", model="M1", last_purchase_unit_price=2.0)
         # 销售净加权均价 = (10*5.0 + 5*5.0) / 15 = 5.0
         # margin = (5.0 - 2.0) / 5.0 * 100 = 60.0
-        self._add_event(barcode="M1", event_at="2026-05-04", qty=10,
-                        unit_price=5.0, discount_pct=0.0, document_no="S1")
-        self._add_event(barcode="M1", event_at="2026-05-11", qty=5,
-                        unit_price=5.0, discount_pct=0.0, document_no="S2")
+        self._add_event(
+            barcode="M1",
+            event_at="2026-05-04",
+            qty=10,
+            unit_price=5.0,
+            discount_pct=0.0,
+            document_no="S1",
+        )
+        self._add_event(
+            barcode="M1",
+            event_at="2026-05-11",
+            qty=5,
+            unit_price=5.0,
+            discount_pct=0.0,
+            document_no="S2",
+        )
 
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "M1")
@@ -604,8 +683,9 @@ class ListSkuSummaryRestockFieldsTests(_Base):
         from app.services.analytics import list_sku_summary
 
         self._add_sku("M2", model="M2")
-        self._add_event(barcode="M2", event_at="2026-05-04", qty=10,
-                        unit_price=5.0, document_no="S1")
+        self._add_event(
+            barcode="M2", event_at="2026-05-04", qty=10, unit_price=5.0, document_no="S1"
+        )
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "M2")
         assert it["margin_pct"] is None
@@ -617,10 +697,16 @@ class ListSkuSummaryRestockFieldsTests(_Base):
         """缺 last_purchase 但 master_stock_price_eur 有值 → margin 用 master 兜底, source='master'."""
         from app.services.analytics import list_sku_summary
 
-        self._add_sku("MFB", model="MFB", supplier_id="GR0001",
-                      last_purchase_unit_price=None, master_stock_price_eur=2.0)
-        self._add_event(barcode="MFB", event_at="2026-05-04", qty=10,
-                        unit_price=5.0, document_no="S1")
+        self._add_sku(
+            "MFB",
+            model="MFB",
+            supplier_id="GR0001",
+            last_purchase_unit_price=None,
+            master_stock_price_eur=2.0,
+        )
+        self._add_event(
+            barcode="MFB", event_at="2026-05-04", qty=10, unit_price=5.0, document_no="S1"
+        )
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "MFB")
         # margin = (5.0 - 2.0) / 5.0 * 100 = 60
@@ -631,10 +717,16 @@ class ListSkuSummaryRestockFieldsTests(_Base):
         """两路都有 → last_purchase 优先 (更准, source='purchase')."""
         from app.services.analytics import list_sku_summary
 
-        self._add_sku("MPR", model="MPR", supplier_id="GR0001",
-                      last_purchase_unit_price=2.5, master_stock_price_eur=10.0)
-        self._add_event(barcode="MPR", event_at="2026-05-04", qty=10,
-                        unit_price=5.0, document_no="S1")
+        self._add_sku(
+            "MPR",
+            model="MPR",
+            supplier_id="GR0001",
+            last_purchase_unit_price=2.5,
+            master_stock_price_eur=10.0,
+        )
+        self._add_event(
+            barcode="MPR", event_at="2026-05-04", qty=10, unit_price=5.0, document_no="S1"
+        )
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "MPR")
         # margin 用 last_purchase 2.5: (5-2.5)/5*100 = 50
@@ -649,18 +741,26 @@ class ListSkuSummaryRestockFieldsTests(_Base):
         # 同 recency (无 purchase event 都是 None),
         # 只差 margin: HIGH_MARGIN margin=80%, LOW_MARGIN margin=10%
         # 但 LOW_MARGIN revenue 大 (件数*单价更大)
-        self._add_sku("LOW_MARGIN", model="LOW_MARGIN",
-                      supplier_id="GR0001", last_purchase_unit_price=4.5)
-        self._add_sku("HIGH_MARGIN", model="HIGH_MARGIN",
-                      supplier_id="GR0001", last_purchase_unit_price=1.0)
+        self._add_sku(
+            "LOW_MARGIN", model="LOW_MARGIN", supplier_id="GR0001", last_purchase_unit_price=4.5
+        )
+        self._add_sku(
+            "HIGH_MARGIN", model="HIGH_MARGIN", supplier_id="GR0001", last_purchase_unit_price=1.0
+        )
         # LOW_MARGIN: 100件×5€ = 500€/周, margin=(5-4.5)/5=10%
-        for i, dt in enumerate(["2026-04-13", "2026-04-20", "2026-04-27", "2026-05-04", "2026-05-11"]):
-            self._add_event(barcode="LOW_MARGIN", event_at=dt, qty=100,
-                            unit_price=5.0, document_no=f"SL{i}")
+        for i, dt in enumerate(
+            ["2026-04-13", "2026-04-20", "2026-04-27", "2026-05-04", "2026-05-11"]
+        ):
+            self._add_event(
+                barcode="LOW_MARGIN", event_at=dt, qty=100, unit_price=5.0, document_no=f"SL{i}"
+            )
         # HIGH_MARGIN: 10件×5€ = 50€/周, margin=(5-1)/5=80%
-        for i, dt in enumerate(["2026-04-13", "2026-04-20", "2026-04-27", "2026-05-04", "2026-05-11"]):
-            self._add_event(barcode="HIGH_MARGIN", event_at=dt, qty=10,
-                            unit_price=5.0, document_no=f"SH{i}")
+        for i, dt in enumerate(
+            ["2026-04-13", "2026-04-20", "2026-04-27", "2026-05-04", "2026-05-11"]
+        ):
+            self._add_event(
+                barcode="HIGH_MARGIN", event_at=dt, qty=10, unit_price=5.0, document_no=f"SH{i}"
+            )
 
         items = list_sku_summary(as_of=date(2026, 5, 21))
         low = next(x for x in items if x["barcode"] == "LOW_MARGIN")
@@ -684,19 +784,28 @@ class ListSkuSummaryRestockFieldsTests(_Base):
 
         self._add_sku("EXPENSIVE", model="EXPENSIVE", supplier_id="GR0001")
         self._add_sku("CHEAP", model="CHEAP", supplier_id="GR0001")
-        for i, dt in enumerate(["2026-04-13", "2026-04-20", "2026-04-27", "2026-05-04", "2026-05-11"]):
-            self._add_event(barcode="EXPENSIVE", event_at=dt, qty=2,
-                            unit_price=50.0, document_no=f"SE{i}")
-        for i, dt in enumerate(["2026-04-13", "2026-04-20", "2026-04-27", "2026-05-04", "2026-05-11"]):
-            self._add_event(barcode="CHEAP", event_at=dt, qty=100,
-                            unit_price=0.5, document_no=f"SC{i}")
+        for i, dt in enumerate(
+            ["2026-04-13", "2026-04-20", "2026-04-27", "2026-05-04", "2026-05-11"]
+        ):
+            self._add_event(
+                barcode="EXPENSIVE", event_at=dt, qty=2, unit_price=50.0, document_no=f"SE{i}"
+            )
+        for i, dt in enumerate(
+            ["2026-04-13", "2026-04-20", "2026-04-27", "2026-05-04", "2026-05-11"]
+        ):
+            self._add_event(
+                barcode="CHEAP", event_at=dt, qty=100, unit_price=0.5, document_no=f"SC{i}"
+            )
 
         items = list_sku_summary(as_of=date(2026, 5, 21))
         expensive = next(x for x in items if x["barcode"] == "EXPENSIVE")
         cheap = next(x for x in items if x["barcode"] == "CHEAP")
         assert cheap["weekly_velocity"] > expensive["weekly_velocity"]
         assert expensive["weekly_revenue"] > cheap["weekly_revenue"]
-        assert expensive["urgency_breakdown"]["velocity_pctile"] > cheap["urgency_breakdown"]["velocity_pctile"]
+        assert (
+            expensive["urgency_breakdown"]["velocity_pctile"]
+            > cheap["urgency_breakdown"]["velocity_pctile"]
+        )
 
 
 class RetailPriceAndInventoryValueTests(_Base):
@@ -704,6 +813,7 @@ class RetailPriceAndInventoryValueTests(_Base):
 
     def _add_sku(self, barcode: str, **fields) -> None:
         from app.models import Stockpile
+
         values = {
             "product_barcode": barcode,
             "product_model": barcode,
@@ -717,21 +827,26 @@ class RetailPriceAndInventoryValueTests(_Base):
 
     def _add_snapshot(self, snapshot_date: str, model: str, qty: int) -> None:
         from app.models import StockpileInventorySnapshot
+
         with stockpile_db._session() as s:
-            s.execute(insert(StockpileInventorySnapshot).values(
-                snapshot_date=snapshot_date, product_model=model, qty_total=qty,
-            ))
+            s.execute(
+                insert(StockpileInventorySnapshot).values(
+                    snapshot_date=snapshot_date,
+                    product_model=model,
+                    qty_total=qty,
+                )
+            )
             s.commit()
 
     def test_retail_price_uses_x2_estimate_when_no_retail_history(self) -> None:
         """无零售销售 → retail_price = sale_price × 2, source='estimate'."""
         from app.services.analytics import list_sku_summary
 
-        self._add_sku("RP1", supplier_id="GR0001", sale_price=0.50,
-                      last_purchase_unit_price=0.20)
+        self._add_sku("RP1", supplier_id="GR0001", sale_price=0.50, last_purchase_unit_price=0.20)
         # 仅批发销售
-        self._add_event(barcode="RP1", event_at="2026-05-01", qty=10,
-                        unit_price=0.50, document_no="W1")
+        self._add_event(
+            barcode="RP1", event_at="2026-05-01", qty=10, unit_price=0.50, document_no="W1"
+        )
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "RP1")
         assert it["retail_price_estimate"] == 1.0
@@ -743,12 +858,19 @@ class RetailPriceAndInventoryValueTests(_Base):
         """26 周内 ≥3 笔零售 → 用 retail_revenue/retail_qty 实际均价."""
         from app.services.analytics import list_sku_summary
 
-        self._add_sku("RP2", supplier_id="GR0001", sale_price=0.50,
-                      last_purchase_unit_price=0.20)
+        self._add_sku("RP2", supplier_id="GR0001", sale_price=0.50, last_purchase_unit_price=0.20)
         # 5 笔零售 (customer_id=0) 均价 €0.95
-        for i, dt in enumerate(["2026-04-01","2026-04-10","2026-04-20","2026-05-01","2026-05-10"]):
-            self._add_event(barcode="RP2", event_at=dt, qty=2,
-                            unit_price=0.95, customer_id="0", document_no=f"MB700{i}")
+        for i, dt in enumerate(
+            ["2026-04-01", "2026-04-10", "2026-04-20", "2026-05-01", "2026-05-10"]
+        ):
+            self._add_event(
+                barcode="RP2",
+                event_at=dt,
+                qty=2,
+                unit_price=0.95,
+                customer_id="0",
+                document_no=f"MB700{i}",
+            )
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "RP2")
         assert it["retail_price_observed"] == 0.95
@@ -761,10 +883,10 @@ class RetailPriceAndInventoryValueTests(_Base):
         retail_price 应继续用 ×2 估算, observed=None."""
         from app.services.analytics import list_sku_summary
 
-        self._add_sku("RP3", supplier_id="GR0001", sale_price=0.50,
-                      last_purchase_unit_price=0.20)
-        self._add_event(barcode="RP3", event_at="2026-05-01", qty=1,
-                        unit_price=8.4677, document_no="0")  # 单笔零售异常
+        self._add_sku("RP3", supplier_id="GR0001", sale_price=0.50, last_purchase_unit_price=0.20)
+        self._add_event(
+            barcode="RP3", event_at="2026-05-01", qty=1, unit_price=8.4677, document_no="0"
+        )  # 单笔零售异常
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "RP3")
         assert it["retail_price_observed"] is None
@@ -776,14 +898,20 @@ class RetailPriceAndInventoryValueTests(_Base):
         20 库存 + 历史 30% 零售 + 批发 0.50 + 零售 1.00 → 6×1.0 + 14×0.5 = 13.0."""
         from app.services.analytics import list_sku_summary
 
-        self._add_sku("INV1", supplier_id="GR0001", sale_price=0.50,
-                      last_purchase_unit_price=0.20)
+        self._add_sku("INV1", supplier_id="GR0001", sale_price=0.50, last_purchase_unit_price=0.20)
         # 7 件批发 (event 一次 7 件), 3 件零售 (3 笔 × 1 件 = 满足 ≥3 门槛)
-        self._add_event(barcode="INV1", event_at="2026-05-01", qty=7,
-                        unit_price=0.50, document_no="W1")
-        for i, dt in enumerate(["2026-05-02","2026-05-03","2026-05-04"]):
-            self._add_event(barcode="INV1", event_at=dt, qty=1,
-                            unit_price=1.0, customer_id="0", document_no=f"MB700{i}")
+        self._add_event(
+            barcode="INV1", event_at="2026-05-01", qty=7, unit_price=0.50, document_no="W1"
+        )
+        for i, dt in enumerate(["2026-05-02", "2026-05-03", "2026-05-04"]):
+            self._add_event(
+                barcode="INV1",
+                event_at=dt,
+                qty=1,
+                unit_price=1.0,
+                customer_id="0",
+                document_no=f"MB700{i}",
+            )
         self._add_snapshot("2026-05-19", "INV1", 20)
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "INV1")
@@ -796,8 +924,7 @@ class RetailPriceAndInventoryValueTests(_Base):
         """库存成本 = qty_total × cost (优先 last_purchase, fallback master)."""
         from app.services.analytics import list_sku_summary
 
-        self._add_sku("INV2", supplier_id="GR0001", sale_price=1.0,
-                      last_purchase_unit_price=0.40)
+        self._add_sku("INV2", supplier_id="GR0001", sale_price=1.0, last_purchase_unit_price=0.40)
         self._add_snapshot("2026-05-19", "INV2", 50)
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "INV2")
@@ -807,8 +934,7 @@ class RetailPriceAndInventoryValueTests(_Base):
         """qty_total 缺失 (无 snapshot) → inventory_* 全 None."""
         from app.services.analytics import list_sku_summary
 
-        self._add_sku("INV3", supplier_id="GR0001", sale_price=1.0,
-                      last_purchase_unit_price=0.40)
+        self._add_sku("INV3", supplier_id="GR0001", sale_price=1.0, last_purchase_unit_price=0.40)
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "INV3")
         assert it["inventory_sale_value_eur"] is None
@@ -820,6 +946,7 @@ class LifetimeProfitTests(_Base):
 
     def _add_sku(self, barcode: str, **fields) -> None:
         from app.models import Stockpile
+
         values = {
             "product_barcode": barcode,
             "product_model": barcode,
@@ -833,21 +960,26 @@ class LifetimeProfitTests(_Base):
 
     def _add_snapshot(self, snapshot_date: str, model: str, qty: int) -> None:
         from app.models import StockpileInventorySnapshot
+
         with stockpile_db._session() as s:
-            s.execute(insert(StockpileInventorySnapshot).values(
-                snapshot_date=snapshot_date, product_model=model, qty_total=qty,
-            ))
+            s.execute(
+                insert(StockpileInventorySnapshot).values(
+                    snapshot_date=snapshot_date,
+                    product_model=model,
+                    qty_total=qty,
+                )
+            )
             s.commit()
 
     def test_realized_profit_positive_when_revenue_beats_sold_cost(self) -> None:
         """卖了 10 件 €100 + cost €5/件 → 实现利润 €100 - 10×5 = €50."""
         from app.services.analytics import list_sku_summary
 
-        self._add_sku("LP1", supplier_id="GR0001", sale_price=10.0,
-                      last_purchase_unit_price=5.0)
+        self._add_sku("LP1", supplier_id="GR0001", sale_price=10.0, last_purchase_unit_price=5.0)
         # 10 件 × €10 = €100 收入
-        self._add_event(barcode="LP1", event_at="2025-01-01", qty=10,
-                        unit_price=10.0, document_no="W1")
+        self._add_event(
+            barcode="LP1", event_at="2025-01-01", qty=10, unit_price=10.0, document_no="W1"
+        )
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "LP1")
         assert it["lifetime_sale_qty"] == 10
@@ -860,10 +992,10 @@ class LifetimeProfitTests(_Base):
         """卖了 10 件 €30 (亏本甩卖) + cost €5/件 → 实现利润 -€20."""
         from app.services.analytics import list_sku_summary
 
-        self._add_sku("LP2", supplier_id="GR0001", sale_price=10.0,
-                      last_purchase_unit_price=5.0)
-        self._add_event(barcode="LP2", event_at="2025-01-01", qty=10,
-                        unit_price=3.0, document_no="W1")
+        self._add_sku("LP2", supplier_id="GR0001", sale_price=10.0, last_purchase_unit_price=5.0)
+        self._add_event(
+            barcode="LP2", event_at="2025-01-01", qty=10, unit_price=3.0, document_no="W1"
+        )
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "LP2")
         assert it["lifetime_sale_revenue_eur"] == 30.0
@@ -873,13 +1005,19 @@ class LifetimeProfitTests(_Base):
         """累计销量+销售额 同时包括批发和零售事件."""
         from app.services.analytics import list_sku_summary
 
-        self._add_sku("LP3", supplier_id="GR0001", sale_price=2.0,
-                      last_purchase_unit_price=1.0)
+        self._add_sku("LP3", supplier_id="GR0001", sale_price=2.0, last_purchase_unit_price=1.0)
         # 5 件批发 € 2 + 3 件零售 €4 = 8 件 + €22
-        self._add_event(barcode="LP3", event_at="2025-01-01", qty=5,
-                        unit_price=2.0, document_no="W1")
-        self._add_event(barcode="LP3", event_at="2025-02-01", qty=3,
-                        unit_price=4.0, customer_id="0", document_no="MB7001")
+        self._add_event(
+            barcode="LP3", event_at="2025-01-01", qty=5, unit_price=2.0, document_no="W1"
+        )
+        self._add_event(
+            barcode="LP3",
+            event_at="2025-02-01",
+            qty=3,
+            unit_price=4.0,
+            customer_id="0",
+            document_no="MB7001",
+        )
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "LP3")
         assert it["lifetime_sale_qty"] == 8  # 5+3
@@ -890,10 +1028,10 @@ class LifetimeProfitTests(_Base):
         """first_event_at <= 2021-06-01 → is_history_truncated=True (ETL 窗口边界)."""
         from app.services.analytics import list_sku_summary
 
-        self._add_sku("LP4", supplier_id="GR0001", sale_price=2.0,
-                      last_purchase_unit_price=1.0)
-        self._add_event(barcode="LP4", event_at="2021-01-01", qty=5,
-                        unit_price=2.0, document_no="W1")
+        self._add_sku("LP4", supplier_id="GR0001", sale_price=2.0, last_purchase_unit_price=1.0)
+        self._add_event(
+            barcode="LP4", event_at="2021-01-01", qty=5, unit_price=2.0, document_no="W1"
+        )
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "LP4")
         assert it["first_event_at"] == "2021-01-01"
@@ -906,9 +1044,13 @@ class LifetimeProfitTests(_Base):
         from app.services.analytics import list_sku_summary
 
         # CN 货: last_pp=1.85 (RMB), master=0.30 (EUR 落地价)
-        self._add_sku("CN1", supplier_id="CN0001", sale_price=0.5,
-                      last_purchase_unit_price=1.85,
-                      master_stock_price_eur=0.30)
+        self._add_sku(
+            "CN1",
+            supplier_id="CN0001",
+            sale_price=0.5,
+            last_purchase_unit_price=1.85,
+            master_stock_price_eur=0.30,
+        )
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "CN1")
         # cost 应取 master (0.30), 不是 last_pp (1.85)
@@ -921,9 +1063,13 @@ class LifetimeProfitTests(_Base):
         不会再用 last_pp RMB 当 EUR 算出假亏损."""
         from app.services.analytics import list_sku_summary
 
-        self._add_sku("CN2", supplier_id="CN0001", sale_price=0.5,
-                      last_purchase_unit_price=1.85,
-                      master_stock_price_eur=None)
+        self._add_sku(
+            "CN2",
+            supplier_id="CN0001",
+            sale_price=0.5,
+            last_purchase_unit_price=1.85,
+            master_stock_price_eur=None,
+        )
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "CN2")
         assert it["margin_pct"] is None
@@ -933,9 +1079,13 @@ class LifetimeProfitTests(_Base):
         """FOREIGN 货逻辑保持: purchase event 就是 EUR, 优先 last_pp."""
         from app.services.analytics import list_sku_summary
 
-        self._add_sku("FR1", supplier_id="GR0001", sale_price=10.0,
-                      last_purchase_unit_price=4.0,
-                      master_stock_price_eur=5.0)
+        self._add_sku(
+            "FR1",
+            supplier_id="GR0001",
+            sale_price=10.0,
+            last_purchase_unit_price=4.0,
+            master_stock_price_eur=5.0,
+        )
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "FR1")
         # FOREIGN 优先 last_pp 4.0
@@ -948,13 +1098,19 @@ class LifetimeProfitTests(_Base):
         → FIFO 给 5107 (假设 3581 件还在某处), 净现金流给 3852 (更真实)."""
         from app.services.analytics import list_sku_summary
 
-        self._add_sku("CF1", supplier_id="GR0001", sale_price=1.0,
-                      last_purchase_unit_price=0.35)
-        self._add_event(barcode="CF1", event_type="purchase",
-                        event_at="2024-01-01", qty=12000,
-                        unit_price=0.35, supplier_id="GR0001", document_no="P1")
-        self._add_event(barcode="CF1", event_at="2025-01-01", qty=8419,
-                        unit_price=0.957, document_no="W1")
+        self._add_sku("CF1", supplier_id="GR0001", sale_price=1.0, last_purchase_unit_price=0.35)
+        self._add_event(
+            barcode="CF1",
+            event_type="purchase",
+            event_at="2024-01-01",
+            qty=12000,
+            unit_price=0.35,
+            supplier_id="GR0001",
+            document_no="P1",
+        )
+        self._add_event(
+            barcode="CF1", event_at="2025-01-01", qty=8419, unit_price=0.957, document_no="W1"
+        )
         self._add_snapshot("2026-05-19", "CF1", 0)
 
         items = list_sku_summary(as_of=date(2026, 5, 21))
@@ -969,13 +1125,19 @@ class LifetimeProfitTests(_Base):
         """qty_total > 0 → FIFO. 库存按 cost 算回资产, realized = sale - sold_qty*cost."""
         from app.services.analytics import list_sku_summary
 
-        self._add_sku("FIFO1", supplier_id="GR0001", sale_price=10.0,
-                      last_purchase_unit_price=5.0)
-        self._add_event(barcode="FIFO1", event_type="purchase",
-                        event_at="2024-01-01", qty=100, unit_price=5.0,
-                        supplier_id="GR0001", document_no="P1")
-        self._add_event(barcode="FIFO1", event_at="2025-01-01", qty=30,
-                        unit_price=10.0, document_no="W1")
+        self._add_sku("FIFO1", supplier_id="GR0001", sale_price=10.0, last_purchase_unit_price=5.0)
+        self._add_event(
+            barcode="FIFO1",
+            event_type="purchase",
+            event_at="2024-01-01",
+            qty=100,
+            unit_price=5.0,
+            supplier_id="GR0001",
+            document_no="P1",
+        )
+        self._add_event(
+            barcode="FIFO1", event_at="2025-01-01", qty=30, unit_price=10.0, document_no="W1"
+        )
         self._add_snapshot("2026-05-19", "FIFO1", 70)
 
         items = list_sku_summary(as_of=date(2026, 5, 21))
@@ -990,14 +1152,23 @@ class LifetimeProfitTests(_Base):
         进 30 件 + 进 20 件 = 50 件 × €5 = €250 投入."""
         from app.services.analytics import list_sku_summary
 
-        self._add_sku("LP6", supplier_id="GR0001", sale_price=10.0,
-                      last_purchase_unit_price=5.0)
-        self._add_event(barcode="LP6", event_type="purchase",
-                        event_at="2024-01-01", qty=30, supplier_id="GR0001",
-                        document_no="P1")
-        self._add_event(barcode="LP6", event_type="purchase",
-                        event_at="2024-06-01", qty=20, supplier_id="GR0001",
-                        document_no="P2")
+        self._add_sku("LP6", supplier_id="GR0001", sale_price=10.0, last_purchase_unit_price=5.0)
+        self._add_event(
+            barcode="LP6",
+            event_type="purchase",
+            event_at="2024-01-01",
+            qty=30,
+            supplier_id="GR0001",
+            document_no="P1",
+        )
+        self._add_event(
+            barcode="LP6",
+            event_type="purchase",
+            event_at="2024-06-01",
+            qty=20,
+            supplier_id="GR0001",
+            document_no="P2",
+        )
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "LP6")
         assert it["lifetime_purchase_qty"] == 50
@@ -1007,8 +1178,7 @@ class LifetimeProfitTests(_Base):
         """无 purchase 事件 → lifetime_invested=None, lifetime_purchase_qty=0."""
         from app.services.analytics import list_sku_summary
 
-        self._add_sku("LP7", supplier_id="GR0001", sale_price=2.0,
-                      last_purchase_unit_price=1.0)
+        self._add_sku("LP7", supplier_id="GR0001", sale_price=2.0, last_purchase_unit_price=1.0)
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "LP7")
         assert it["lifetime_purchase_qty"] == 0
@@ -1019,8 +1189,9 @@ class LifetimeProfitTests(_Base):
         from app.services.analytics import list_sku_summary
 
         self._add_sku("LP5", supplier_id="GR0001", sale_price=2.0)  # 无 last_purchase, 无 master
-        self._add_event(barcode="LP5", event_at="2025-01-01", qty=5,
-                        unit_price=2.0, document_no="W1")
+        self._add_event(
+            barcode="LP5", event_at="2025-01-01", qty=5, unit_price=2.0, document_no="W1"
+        )
         items = list_sku_summary(as_of=date(2026, 5, 21))
         it = next(x for x in items if x["barcode"] == "LP5")
         assert it["lifetime_sale_qty"] == 5
@@ -1032,6 +1203,7 @@ class WeeklyTimelineOriginAwareTests(_Base):
 
     def _add_sku(self, barcode: str, **fields) -> None:
         from app.models import Stockpile
+
         values = {
             "product_barcode": barcode,
             "product_model": barcode,
@@ -1047,19 +1219,29 @@ class WeeklyTimelineOriginAwareTests(_Base):
         """CN 货 purchase event unit_price=1.85 RMB, 配 (240 件/箱, 0.115m³)
         → 应转 (1000×0.115/240 + 1.85)/7.8 = €0.2986 落地价."""
         import json
+
         from app.services.analytics import compute_weekly_timeline
 
-        self._add_sku("WT1", supplier_id="CN0531",
-                      extra=json.dumps({"unit_quantity": "240", "pack_volume": "0.115"}))
-        self._add_event(barcode="WT1", event_type="purchase",
-                        event_at="2026-05-10", qty=240, unit_price=1.85,
-                        supplier_id="CN0531", document_no="P1")
+        self._add_sku(
+            "WT1",
+            supplier_id="CN0531",
+            extra=json.dumps({"unit_quantity": "240", "pack_volume": "0.115"}),
+        )
+        self._add_event(
+            barcode="WT1",
+            event_type="purchase",
+            event_at="2026-05-10",
+            qty=240,
+            unit_price=1.85,
+            supplier_id="CN0531",
+            document_no="P1",
+        )
         tl = compute_weekly_timeline("WT1", weeks=4, as_of=date(2026, 5, 21))
         priced = [w for w in tl if w["purchase_unit_price"] is not None]
         assert len(priced) == 1
         wk = priced[0]
         assert wk["purchase_unit_price"] == 0.2986  # EUR 落地价
-        assert wk["raw_unit_price_local"] == 1.85    # RMB 原始
+        assert wk["raw_unit_price_local"] == 1.85  # RMB 原始
         assert wk["currency_local"] == "RMB"
 
     def test_foreign_purchase_price_passthrough_eur(self) -> None:
@@ -1067,9 +1249,15 @@ class WeeklyTimelineOriginAwareTests(_Base):
         from app.services.analytics import compute_weekly_timeline
 
         self._add_sku("WT2", supplier_id="GR0001")
-        self._add_event(barcode="WT2", event_type="purchase",
-                        event_at="2026-05-10", qty=10, unit_price=3.5,
-                        supplier_id="GR0001", document_no="P2")
+        self._add_event(
+            barcode="WT2",
+            event_type="purchase",
+            event_at="2026-05-10",
+            qty=10,
+            unit_price=3.5,
+            supplier_id="GR0001",
+            document_no="P2",
+        )
         tl = compute_weekly_timeline("WT2", weeks=4, as_of=date(2026, 5, 21))
         priced = [w for w in tl if w["purchase_unit_price"] is not None]
         assert len(priced) == 1
@@ -1082,9 +1270,15 @@ class WeeklyTimelineOriginAwareTests(_Base):
         from app.services.analytics import compute_weekly_timeline
 
         self._add_sku("WT3", supplier_id="CN0001")  # 无 extra → 无 unit_quantity/pack_volume
-        self._add_event(barcode="WT3", event_type="purchase",
-                        event_at="2026-05-10", qty=10, unit_price=7.8,
-                        supplier_id="CN0001", document_no="P3")
+        self._add_event(
+            barcode="WT3",
+            event_type="purchase",
+            event_at="2026-05-10",
+            qty=10,
+            unit_price=7.8,
+            supplier_id="CN0001",
+            document_no="P3",
+        )
         tl = compute_weekly_timeline("WT3", weeks=4, as_of=date(2026, 5, 21))
         priced = [w for w in tl if w["purchase_unit_price"] is not None]
         assert len(priced) == 1
@@ -1098,6 +1292,7 @@ class SkuExtrasTests(_Base):
 
     def _add_sku(self, barcode: str, **fields) -> None:
         from app.models import Stockpile
+
         values = {
             "product_barcode": barcode,
             "product_model": barcode,
@@ -1114,10 +1309,12 @@ class SkuExtrasTests(_Base):
         from app.services.analytics import compute_sku_extras
 
         self._add_sku("EX1")
-        self._add_event(barcode="EX1", event_at="2026-04-01", qty=10,
-                        unit_price=5.0, document_no="W1")
-        self._add_event(barcode="EX1", event_at="2026-04-15", qty=-2,
-                        unit_price=5.0, document_no="W2")
+        self._add_event(
+            barcode="EX1", event_at="2026-04-01", qty=10, unit_price=5.0, document_no="W1"
+        )
+        self._add_event(
+            barcode="EX1", event_at="2026-04-15", qty=-2, unit_price=5.0, document_no="W2"
+        )
         e = compute_sku_extras("EX1", as_of=date(2026, 5, 1))
         assert e["total_sale_qty_gross"] == 10
         assert e["return_qty"] == 2
@@ -1130,14 +1327,26 @@ class SkuExtrasTests(_Base):
         self._add_sku("EX2")
         # 3 笔批发: €5 / €6 / €7
         for i, p in enumerate([5.0, 6.0, 7.0]):
-            self._add_event(barcode="EX2", event_at=f"2026-04-0{i+1}",
-                            qty=10, unit_price=p, document_no=f"W{i}")
+            self._add_event(
+                barcode="EX2",
+                event_at=f"2026-04-0{i + 1}",
+                qty=10,
+                unit_price=p,
+                document_no=f"W{i}",
+            )
         # 1 笔零售 (customer_id=0) - 应被排除
-        self._add_event(barcode="EX2", event_at="2026-04-10", qty=2,
-                        unit_price=15.0, customer_id="0", document_no="MB7001")
+        self._add_event(
+            barcode="EX2",
+            event_at="2026-04-10",
+            qty=2,
+            unit_price=15.0,
+            customer_id="0",
+            document_no="MB7001",
+        )
         # 1 笔退货 - 应被排除
-        self._add_event(barcode="EX2", event_at="2026-04-12", qty=-1,
-                        unit_price=99.0, document_no="W9")
+        self._add_event(
+            barcode="EX2", event_at="2026-04-12", qty=-1, unit_price=99.0, document_no="W9"
+        )
         e = compute_sku_extras("EX2", as_of=date(2026, 5, 1))
         assert e["price_stats"]["n"] == 3
         assert e["price_stats"]["mean"] == 6.0  # (5+6+7)/3
@@ -1153,12 +1362,15 @@ class SkuExtrasTests(_Base):
         self._add_customer("C1", "chinese", "客户1")
         self._add_customer("C2", "foreign", "ANDREOU GR")
         # C1 买 20, 退 5 → 净 15. C2 买 10
-        self._add_event(barcode="EX3", event_at="2026-04-01", qty=20,
-                        customer_id="C1", document_no="W1")
-        self._add_event(barcode="EX3", event_at="2026-04-15", qty=-5,
-                        customer_id="C1", document_no="W2")
-        self._add_event(barcode="EX3", event_at="2026-04-10", qty=10,
-                        customer_id="C2", document_no="W3")
+        self._add_event(
+            barcode="EX3", event_at="2026-04-01", qty=20, customer_id="C1", document_no="W1"
+        )
+        self._add_event(
+            barcode="EX3", event_at="2026-04-15", qty=-5, customer_id="C1", document_no="W2"
+        )
+        self._add_event(
+            barcode="EX3", event_at="2026-04-10", qty=10, customer_id="C2", document_no="W3"
+        )
         e = compute_sku_extras("EX3", as_of=date(2026, 5, 1))
         assert len(e["top_customers_cn"]) == 1
         assert e["top_customers_cn"][0]["customer_id"] == "C1"
@@ -1174,10 +1386,12 @@ class SkuExtrasTests(_Base):
         self._add_sku("EXR")
         self._add_customer("C100", "foreign", "REAL CUSTOMER")
         self._add_customer("0", "foreign", "零售")
-        self._add_event(barcode="EXR", event_at="2026-04-01", qty=30,
-                        customer_id="C100", document_no="W1")
-        self._add_event(barcode="EXR", event_at="2026-04-10", qty=5,
-                        customer_id="0", document_no="W2")
+        self._add_event(
+            barcode="EXR", event_at="2026-04-01", qty=30, customer_id="C100", document_no="W1"
+        )
+        self._add_event(
+            barcode="EXR", event_at="2026-04-10", qty=5, customer_id="0", document_no="W2"
+        )
         e = compute_sku_extras("EXR", as_of=date(2026, 5, 1))
         assert len(e["top_customers_foreign"]) == 1
         assert e["top_customers_foreign"][0]["customer_id"] == "C100"
@@ -1192,10 +1406,12 @@ class SkuExtrasTests(_Base):
         self._add_sku("EXR2")
         self._add_customer("C200", "foreign", "REAL")
         self._add_customer("C999", "foreign", "零售客户")  # 名字含"零售"
-        self._add_event(barcode="EXR2", event_at="2026-04-01", qty=50,
-                        customer_id="C200", document_no="W1")
-        self._add_event(barcode="EXR2", event_at="2026-04-10", qty=3,
-                        customer_id="C999", document_no="W2")
+        self._add_event(
+            barcode="EXR2", event_at="2026-04-01", qty=50, customer_id="C200", document_no="W1"
+        )
+        self._add_event(
+            barcode="EXR2", event_at="2026-04-10", qty=3, customer_id="C999", document_no="W2"
+        )
         e = compute_sku_extras("EXR2", as_of=date(2026, 5, 1))
         assert len(e["top_customers_foreign"]) == 1
         assert e["top_customers_foreign"][0]["customer_id"] == "C200"
@@ -1209,8 +1425,9 @@ class SkuExtrasTests(_Base):
         self._add_sku("EX3B")
         # 故意把"中国老板"标成 foreign (模拟 stored 误归类)
         self._add_customer("CB", "foreign", "中国老板希腊店面 ΟΕ")
-        self._add_event(barcode="EX3B", event_at="2026-04-01", qty=50,
-                        customer_id="CB", document_no="W1")
+        self._add_event(
+            barcode="EX3B", event_at="2026-04-01", qty=50, customer_id="CB", document_no="W1"
+        )
         e = compute_sku_extras("EX3B", as_of=date(2026, 5, 1))
         # 应该归 CN, 不依赖 stored 'foreign'
         assert len(e["top_customers_cn"]) == 1
@@ -1223,8 +1440,9 @@ class SkuExtrasTests(_Base):
         from app.services.analytics import compute_sku_extras
 
         self._add_sku("EX4")
-        self._add_event(barcode="EX4", event_at="2021-01-01", qty=5,
-                        unit_price=1.0, document_no="W1")
+        self._add_event(
+            barcode="EX4", event_at="2021-01-01", qty=5, unit_price=1.0, document_no="W1"
+        )
         e = compute_sku_extras("EX4", as_of=date(2026, 5, 1))
         assert e["first_event_at"] == "2021-01-01"
         assert e["is_history_truncated"] is True
@@ -1247,6 +1465,7 @@ class HoldingAndHeatmapTests(_Base):
 
     def _add_sku(self, barcode: str, **fields) -> None:
         from app.models import Stockpile
+
         values = {
             "product_barcode": barcode,
             "product_model": barcode,
@@ -1264,8 +1483,9 @@ class HoldingAndHeatmapTests(_Base):
         from app.services.analytics import compute_avg_holding_days
 
         self._add_sku("HD1")
-        self._add_event(barcode="HD1", event_type="purchase",
-                        event_at="2026-01-01", qty=100, document_no="P1")
+        self._add_event(
+            barcode="HD1", event_type="purchase", event_at="2026-01-01", qty=100, document_no="P1"
+        )
         self._add_event(barcode="HD1", event_at="2026-02-01", qty=30, document_no="W1")
         h = compute_avg_holding_days("HD1")
         assert h["avg_days"] == 31.0
@@ -1286,20 +1506,28 @@ class HoldingAndHeatmapTests(_Base):
         from app.services.analytics import compute_monthly_heatmap
 
         self._add_sku("HM1")
-        self._add_event(barcode="HM1", event_at="2026-03-15", qty=50,
-                        unit_price=2.0, document_no="W1")
-        self._add_event(barcode="HM1", event_at="2025-12-10", qty=30,
-                        unit_price=2.0, document_no="W2")
+        self._add_event(
+            barcode="HM1", event_at="2026-03-15", qty=50, unit_price=2.0, document_no="W1"
+        )
+        self._add_event(
+            barcode="HM1", event_at="2025-12-10", qty=30, unit_price=2.0, document_no="W2"
+        )
         # 零售不进热力图 (customer_id=0)
-        self._add_event(barcode="HM1", event_at="2026-03-20", qty=5,
-                        unit_price=2.0, customer_id="0", document_no="MB7001")
+        self._add_event(
+            barcode="HM1",
+            event_at="2026-03-20",
+            qty=5,
+            unit_price=2.0,
+            customer_id="0",
+            document_no="MB7001",
+        )
         h = compute_monthly_heatmap("HM1", years=4, as_of=date(2026, 5, 21))
         assert len(h["years"]) == 4
         assert "2026" in h["years"]
         assert "2025" in h["years"]
-        assert h["matrix"]["2026"][2] == 50   # March (index 2) 2026
+        assert h["matrix"]["2026"][2] == 50  # March (index 2) 2026
         assert h["matrix"]["2025"][11] == 30  # December 2025
-        assert h["matrix"]["2026"][3] == 0    # 没数据
+        assert h["matrix"]["2026"][3] == 0  # 没数据
         assert h["max_qty"] == 50
 
 

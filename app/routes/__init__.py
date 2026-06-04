@@ -6,7 +6,6 @@
 
 from app.config import CONFIG
 from app.routes.admin import bp as admin_bp
-from app.routes.pda import bp as pda_bp
 from app.routes.analytics import bp as analytics_bp
 from app.routes.attendance import bp as attendance_bp
 from app.routes.dashboard import bp as dashboard_bp
@@ -16,6 +15,7 @@ from app.routes.history import bp as history_bp
 from app.routes.inventory import bp as inventory_bp
 from app.routes.monthly_summary import bp as monthly_summary_bp
 from app.routes.pages_tasks import bp as pages_tasks_bp
+from app.routes.pda import bp as pda_bp
 from app.routes.purchase import bp as purchase_bp
 from app.routes.query import bp as query_bp
 from app.routes.recent_changes import bp as recent_changes_bp

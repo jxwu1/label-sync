@@ -16,13 +16,13 @@
 import pandas as pd
 from sqlalchemy import func, select
 
-from app.repositories import stockpile_db
 from app.models import (
     Stockpile,
     StockpileChange,
     StockpileInventorySnapshot,
     StockpileLocation,
 )
+from app.repositories import stockpile_db
 
 _FLIPPER_THRESHOLD = 4  # location 变更次数 ≥ 该值才算 flipper
 _FLIPPER_TOP_N = 50  # 最多返回 Top N
@@ -326,29 +326,36 @@ def _negative_stock(session) -> dict:
     for snap_model, qty in snap_rows:
         hit = by_model.get(snap_model) or by_short5.get(snap_model)
         if hit is None:
-            samples.append({
-                "barcode": "",
-                "model": snap_model,
-                "product_name": "(未关联到 stockpile)",
-                "qty": int(qty),
-            })
+            samples.append(
+                {
+                    "barcode": "",
+                    "model": snap_model,
+                    "product_name": "(未关联到 stockpile)",
+                    "qty": int(qty),
+                }
+            )
         else:
             bc, model, name = hit
-            samples.append({
-                "barcode": bc,
-                "model": model or snap_model,
-                "product_name": name or "",
-                "qty": int(qty),
-            })
+            samples.append(
+                {
+                    "barcode": bc,
+                    "model": model or snap_model,
+                    "product_name": name or "",
+                    "qty": int(qty),
+                }
+            )
 
-    total = session.execute(
-        select(func.count())
-        .select_from(StockpileInventorySnapshot)
-        .where(
-            (StockpileInventorySnapshot.snapshot_date == latest_date)
-            & (StockpileInventorySnapshot.qty_total < 0)
-        )
-    ).scalar() or 0
+    total = (
+        session.execute(
+            select(func.count())
+            .select_from(StockpileInventorySnapshot)
+            .where(
+                (StockpileInventorySnapshot.snapshot_date == latest_date)
+                & (StockpileInventorySnapshot.qty_total < 0)
+            )
+        ).scalar()
+        or 0
+    )
     return {"count": total, "samples": samples, "snapshot_date": latest_date}
 
 

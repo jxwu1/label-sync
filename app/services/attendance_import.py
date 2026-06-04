@@ -2,6 +2,7 @@
 
 解析层为纯函数(无 DB);计划层只读 DB,核心逻辑 _build_plan_core 接受注入数据以便测试。
 """
+
 import json
 import re
 from io import BytesIO
@@ -78,7 +79,7 @@ def parse_workbook(xlsx_bytes: bytes, filename: str = "") -> dict:
                 if m:
                     day_cols[ci] = int(m.group(1))
         rows = []
-        for r in grid[_HEADER_ROW + 1:]:
+        for r in grid[_HEADER_ROW + 1 :]:
             if not r:
                 continue
             raw_acct = r[_ACCOUNT_COL] if len(r) > _ACCOUNT_COL else None
@@ -119,9 +120,7 @@ def bind_account(account: str, employee_id: str) -> None:
         if not emp:
             raise ValueError(f"员工不存在：{employee_id}")
         s.execute(
-            update(Employee)
-            .where(Employee.wecom_account == account)
-            .values(wecom_account=None)
+            update(Employee).where(Employee.wecom_account == account).values(wecom_account=None)
         )
         emp.wecom_account = account
 

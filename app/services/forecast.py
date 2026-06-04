@@ -126,9 +126,7 @@ def refresh_forecast_output(
 
             # SQLite 不支持原生 ON CONFLICT for SQLAlchemy core 跨方言; delete+insert
             # 简单可靠. PG/SQLite 行为一致.
-            s.execute(
-                delete(ForecastOutput).where(ForecastOutput.product_barcode == bc)
-            )
+            s.execute(delete(ForecastOutput).where(ForecastOutput.product_barcode == bc))
             s.execute(
                 insert(ForecastOutput).values(
                     product_barcode=bc,

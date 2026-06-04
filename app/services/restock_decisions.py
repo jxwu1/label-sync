@@ -13,6 +13,7 @@ GET  /restock/decisions/stale → list_stale_high_score() (现算, 不入库)
   - 'stale_high_score': urgency>=70 持续 >=14 天且 14 天内无 ordered 决策
                        (按需扫出, list_stale_high_score 返回, 不入库)
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -74,21 +75,28 @@ def classify_ordered(item: dict[str, Any]) -> str:
     return "ordered"
 
 
-def list_recent(session: Session, limit: int = 200, decision: str | None = None) -> list[dict[str, Any]]:
+def list_recent(
+    session: Session, limit: int = 200, decision: str | None = None
+) -> list[dict[str, Any]]:
     stmt = select(RestockDecision).order_by(desc(RestockDecision.decided_at)).limit(limit)
     if decision:
-        stmt = select(RestockDecision).where(
-            RestockDecision.decision == decision
-        ).order_by(desc(RestockDecision.decided_at)).limit(limit)
+        stmt = (
+            select(RestockDecision)
+            .where(RestockDecision.decision == decision)
+            .order_by(desc(RestockDecision.decided_at))
+            .limit(limit)
+        )
     rows = session.execute(stmt).scalars().all()
     return [_row_to_dict(r) for r in rows]
 
 
 def aggregate_stats(session: Session, days: int = 30) -> dict[str, Any]:
     cutoff = (datetime.now(UTC) - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
-    rows = session.execute(
-        select(RestockDecision).where(RestockDecision.decided_at >= cutoff)
-    ).scalars().all()
+    rows = (
+        session.execute(select(RestockDecision).where(RestockDecision.decided_at >= cutoff))
+        .scalars()
+        .all()
+    )
     by_decision: dict[str, int] = {}
     by_origin_skipped: dict[str, int] = {}
     by_origin_ordered: dict[str, int] = {}
@@ -107,27 +115,29 @@ def aggregate_stats(session: Session, days: int = 30) -> dict[str, Any]:
         "by_decision": by_decision,
         "by_origin_skipped": by_origin_skipped,
         "by_origin_ordered": by_origin_ordered,
-        "avg_urgency_by_decision": {
-            k: round(sum(v) / len(v), 1) for k, v in avg_urgency.items()
-        },
+        "avg_urgency_by_decision": {k: round(sum(v) / len(v), 1) for k, v in avg_urgency.items()},
     }
 
 
 def list_stale_high_score(session: Session, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """从当前 items 筛出 urgency>=70 且 14 天内无 ordered/overridden 决策的 SKU. 不入库."""
-    cutoff = (datetime.now(UTC) - timedelta(days=STALE_HIGH_SCORE_DAYS)).strftime("%Y-%m-%d %H:%M:%S")
+    cutoff = (datetime.now(UTC) - timedelta(days=STALE_HIGH_SCORE_DAYS)).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
     recent_ordered_barcodes = set(
         session.execute(
             select(RestockDecision.barcode).where(
                 (RestockDecision.decision.in_(("ordered", "overridden")))
                 & (RestockDecision.decided_at >= cutoff)
             )
-        ).scalars().all()
+        )
+        .scalars()
+        .all()
     )
     return [
-        it for it in items
-        if (it.get("urgency_score") or 0) >= 70
-        and it["barcode"] not in recent_ordered_barcodes
+        it
+        for it in items
+        if (it.get("urgency_score") or 0) >= 70 and it["barcode"] not in recent_ordered_barcodes
     ]
 
 

@@ -11,9 +11,9 @@ from datetime import datetime
 
 from sqlalchemy import or_, select
 
-from app.repositories import stockpile_db
-from app.parsers.location import parse_to_locations
 from app.models import InventoryEvent, Stockpile, StockpileChange, StockpileLocation
+from app.parsers.location import parse_to_locations
+from app.repositories import stockpile_db
 
 _AGGREGATE_WINDOW_SECONDS = 5
 

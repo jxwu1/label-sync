@@ -13,7 +13,8 @@ from app.repositories import stockpile_db
 from app.services import analytics as analytics_service
 
 # xlsx 列序（1-indexed）
-# 图片 条码 中文品名 数量 | 旧进价 新进价 现售价 老利润率 推荐新售价 | 修改 改后利润率 热度 | 建议批发价 建议利润率
+# 图片 条码 中文品名 数量 | 旧进价 新进价 现售价 老利润率 推荐新售价
+# | 修改 改后利润率 热度 | 建议批发价 建议利润率
 _COL_IMG, _COL_BARCODE, _COL_NAME, _COL_QTY = 1, 2, 3, 4
 _COL_OLD, _COL_NEW, _COL_SALE = 5, 6, 7
 _COL_OLD_MARGIN, _COL_SUGGEST_SALE = 8, 9
@@ -54,7 +55,9 @@ def _prices_equal(a: float, b: float) -> bool:
     return round(a, _PRICE_DECIMALS) == round(b, _PRICE_DECIMALS)
 
 
-def detect_changed_old(rows: list[dict], baselines: dict[str, float | None]) -> tuple[list[dict], int]:
+def detect_changed_old(
+    rows: list[dict], baselines: dict[str, float | None]
+) -> tuple[list[dict], int]:
     """上传行中、在 baselines（=主档已知）里且进价 ≠ 最近采购净价的老品。
 
     baselines: {barcode: last_purchase_unit_price|None}。值为 None=无基准→跳过并计数。
@@ -74,12 +77,14 @@ def detect_changed_old(rows: list[dict], baselines: dict[str, float | None]) -> 
             continue
         new_price = float(r["price"])
         if not _prices_equal(new_price, float(baseline)):
-            changed.append({
-                "barcode": bc,
-                "old_price": float(baseline),
-                "new_price": new_price,
-                "quantity": int(r["quantity"]),
-            })
+            changed.append(
+                {
+                    "barcode": bc,
+                    "old_price": float(baseline),
+                    "new_price": new_price,
+                    "quantity": int(r["quantity"]),
+                }
+            )
     return changed, skipped_no_baseline
 
 
@@ -110,11 +115,18 @@ def build_pricing_items(
             continue
         seen_new.add(bc)
         rr = row_by_bc.get(bc, {"price": 0.0, "quantity": 0})
-        new_items.append({
-            "section": "new", "barcode": bc, "name_zh": e.get("name") or "",
-            "quantity": rr["quantity"], "old_price": None, "new_price": rr["price"],
-            "sale_price": None, "urgency": None,
-        })
+        new_items.append(
+            {
+                "section": "new",
+                "barcode": bc,
+                "name_zh": e.get("name") or "",
+                "quantity": rr["quantity"],
+                "old_price": None,
+                "new_price": rr["price"],
+                "sale_price": None,
+                "urgency": None,
+            }
+        )
 
     baselines = {bc: p.get("last_purchase_unit_price") for bc, p in products_by_barcode.items()}
     changed_raw, skipped = detect_changed_old(rows, baselines)
@@ -123,15 +135,23 @@ def build_pricing_items(
         bc = c["barcode"]
         prod = products_by_barcode.get(bc, {})
         summ = summary_by_barcode.get(bc, {})
-        changed_items.append({
-            "section": "changed", "barcode": bc, "name_zh": prod.get("name_zh") or "",
-            "quantity": c["quantity"], "old_price": c["old_price"], "new_price": c["new_price"],
-            "sale_price": prod.get("sale_price"), "urgency": summ.get("urgency_score"),
-        })
+        changed_items.append(
+            {
+                "section": "changed",
+                "barcode": bc,
+                "name_zh": prod.get("name_zh") or "",
+                "quantity": c["quantity"],
+                "old_price": c["old_price"],
+                "new_price": c["new_price"],
+                "sale_price": prod.get("sale_price"),
+                "urgency": summ.get("urgency_score"),
+            }
+        )
 
     # 完全无历史的"幽灵"产品：在主档但既无历史进价(baseline=None)、又无销售价格(sale_price=None)。
     # 既进不了调价段(无基准被 skip)、又不在新条码段(已入主档) → 否则会彻底消失。
-    # 把它们当新品拉进表(用主档品名、平均利润率定价)。有 sale_price 的真老品不在此列、仍按 skip 处理。
+    # 把它们当新品拉进表(用主档品名、平均利润率定价)。
+    # 有 sale_price 的真老品不在此列、仍按 skip 处理。
     changed_bcs = {c["barcode"] for c in changed_raw}
     phantom_count = 0
     seen_phantom: set[str] = set()
@@ -146,23 +166,42 @@ def build_pricing_items(
             seen_phantom.add(bc)
             phantom_count += 1
             rr = row_by_bc.get(bc, {"price": 0.0, "quantity": 0})
-            new_items.append({
-                "section": "new", "barcode": bc, "name_zh": prod.get("name_zh") or "",
-                "quantity": rr["quantity"], "old_price": None, "new_price": rr["price"],
-                "sale_price": None, "urgency": None,
-            })
+            new_items.append(
+                {
+                    "section": "new",
+                    "barcode": bc,
+                    "name_zh": prod.get("name_zh") or "",
+                    "quantity": rr["quantity"],
+                    "old_price": None,
+                    "new_price": rr["price"],
+                    "sale_price": None,
+                    "urgency": None,
+                }
+            )
 
     # 救起的幽灵已列入(新品)，从"未列入"计数里扣除；剩余=真老品缺进价(有 sale_price)仍未列入
     return {
-        "new": new_items, "changed": changed_items,
+        "new": new_items,
+        "changed": changed_items,
         "skipped_no_baseline": max(0, skipped - phantom_count),
     }
 
 
 _HEADERS = [
-    "图片", "条码", "中文品名", "数量", "旧进价", "新进价", "现售价",
-    "老利润率", "推荐新售价", "修改", "改后利润率", "热度",
-    "建议批发价", "建议利润率",
+    "图片",
+    "条码",
+    "中文品名",
+    "数量",
+    "旧进价",
+    "新进价",
+    "现售价",
+    "老利润率",
+    "推荐新售价",
+    "修改",
+    "改后利润率",
+    "热度",
+    "建议批发价",
+    "建议利润率",
 ]
 
 
@@ -182,33 +221,37 @@ def _write_item_row(ws, r: int, item: dict) -> None:
 
     # 建议批发价 M = 新进价/(1-目标利润率)；建议利润率 N = (M-新进价)/M
     # 统一用 B2 目标利润率（供应商平均），所有行都填——新品的主推荐价，老品的参考价。
-    ws.cell(row=r, column=_COL_SUGGEST_WS, value=f"=F{r}/(1-{_TARGET_CELL})").number_format = _EUR_FMT
-    ws.cell(row=r, column=_COL_SUGGEST_MARGIN,
-            value=f'=IF(M{r},(M{r}-F{r})/M{r},"")').number_format = _PCT_FMT
+    ws.cell(
+        row=r, column=_COL_SUGGEST_WS, value=f"=F{r}/(1-{_TARGET_CELL})"
+    ).number_format = _EUR_FMT
+    ws.cell(
+        row=r, column=_COL_SUGGEST_MARGIN, value=f'=IF(M{r},(M{r}-F{r})/M{r},"")'
+    ).number_format = _PCT_FMT
 
     # 老利润率 H / 推荐新售价 I：
     #   调价老品且现售价+旧进价齐 → 真实历史利润率，倒推保住老赚头的新售价；
     #   否则（新品 / 缺现售价）→ 镜像建议列（老利润率←N、推荐新售价←M），四列同数据、对齐凑齐。
     # 现售价/旧进价 任一为 None 或 0（free goods / 主档脏数据）都算不出真实历史利润率
     # → 落入镜像分支，避免该行 老利润率/推荐新售价 两列空白。
-    has_old_margin = (
-        not is_new and bool(item["sale_price"]) and bool(item["old_price"])
-    )
+    has_old_margin = not is_new and bool(item["sale_price"]) and bool(item["old_price"])
     if has_old_margin:
         # 老利润率 = (现售价 - 旧进价)/现售价  ←用旧进价 E，反映以前实际赚多少
-        ws.cell(row=r, column=_COL_OLD_MARGIN,
-                value=f'=IF(AND(G{r},E{r}),(G{r}-E{r})/G{r},"")').number_format = _PCT_FMT
+        ws.cell(
+            row=r, column=_COL_OLD_MARGIN, value=f'=IF(AND(G{r},E{r}),(G{r}-E{r})/G{r},"")'
+        ).number_format = _PCT_FMT
         # 推荐新售价 = 新进价 / (1 - 老利润率)  ←保住老利润率倒推
-        ws.cell(row=r, column=_COL_SUGGEST_SALE,
-                value=f'=IF(H{r}<>"",F{r}/(1-H{r}),"")').number_format = _EUR_FMT
+        ws.cell(
+            row=r, column=_COL_SUGGEST_SALE, value=f'=IF(H{r}<>"",F{r}/(1-H{r}),"")'
+        ).number_format = _EUR_FMT
     else:
         ws.cell(row=r, column=_COL_OLD_MARGIN, value=f"=N{r}").number_format = _PCT_FMT
         ws.cell(row=r, column=_COL_SUGGEST_SALE, value=f"=M{r}").number_format = _EUR_FMT
 
     # 修改（空，老板填）+ 改后利润率 K = (修改-新进价)/修改
     ws.cell(row=r, column=_COL_EDIT).number_format = _EUR_FMT
-    ws.cell(row=r, column=_COL_EDIT_MARGIN,
-            value=f'=IF(J{r},(J{r}-F{r})/J{r},"")').number_format = _PCT_FMT
+    ws.cell(
+        row=r, column=_COL_EDIT_MARGIN, value=f'=IF(J{r},(J{r}-F{r})/J{r},"")'
+    ).number_format = _PCT_FMT
 
     # 热度
     if is_new:
@@ -226,7 +269,9 @@ def _write_section_header(ws, r: int, title: str, fill: PatternFill) -> None:
     cell.alignment = Alignment(horizontal="left", vertical="center")
 
 
-def build_pricing_xlsx(items: dict, target_fraction: float, supplier_name: str, date_str: str) -> bytes:
+def build_pricing_xlsx(
+    items: dict, target_fraction: float, supplier_name: str, date_str: str
+) -> bytes:
     """生成定价表 xlsx（bytes）。target_fraction 是小数（0.30），写入 B2 并被公式引用。"""
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -270,8 +315,22 @@ def build_pricing_xlsx(items: dict, target_fraction: float, supplier_name: str, 
             r += 1
 
     # 列宽 + 冻结表头
-    widths = {1: 18, 2: 16, 3: 22, 4: 6, 5: 10, 6: 10, 7: 10, 8: 9, 9: 11,
-              10: 10, 11: 10, 12: 7, 13: 11, 14: 9}
+    widths = {
+        1: 18,
+        2: 16,
+        3: 22,
+        4: 6,
+        5: 10,
+        6: 10,
+        7: 10,
+        8: 9,
+        9: 11,
+        10: 10,
+        11: 10,
+        12: 7,
+        13: 11,
+        14: 9,
+    }
     for col_idx, w in widths.items():
         ws.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = w
     ws.freeze_panes = "A5"
@@ -303,8 +362,12 @@ def preview_pricing(rows: list[dict], new_entries: list[dict], supplier_id: str)
 
 
 def export_pricing_bytes(
-    rows: list[dict], new_entries: list[dict], supplier_id: str,
-    supplier_name: str, target_margin_pct: float, date_str: str,
+    rows: list[dict],
+    new_entries: list[dict],
+    supplier_id: str,
+    supplier_name: str,
+    target_margin_pct: float,
+    date_str: str,
 ) -> bytes:
     _, items = _gather(rows, new_entries, supplier_id)
     target_fraction = float(target_margin_pct) / 100.0

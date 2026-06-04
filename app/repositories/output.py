@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from app.utils.path_safety import safe_filename
 from app.state import OUTPUT_DIR
+from app.utils.path_safety import safe_filename
 
 
 def list_output_dirs() -> list[Path]:

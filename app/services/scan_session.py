@@ -1,4 +1,5 @@
 """扫描会话服务：生命周期 + 物化现有格式扫描 .xlsx。"""
+
 from __future__ import annotations
 
 import re
@@ -7,9 +8,9 @@ from pathlib import Path
 
 from openpyxl import Workbook
 
+import app.repositories.scan_session as repo
 from app.models import Employee, ScanSession, get_session
 from app.state import INPUT_DIR
-import app.repositories.scan_session as repo
 
 _SAFE = re.compile(r"[\\/:*?\"<>|]+")
 

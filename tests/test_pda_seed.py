@@ -1,12 +1,13 @@
 """幂等 scanner seed 测试：_seed_scanner() 调两次只建一条记录。"""
+
 import unittest
 from unittest import mock
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-import app.models as models_mod
 import app.auth as auth_mod
+import app.models as models_mod
 
 
 def _make_in_memory():
@@ -52,13 +53,15 @@ class SeedScannerTests(unittest.TestCase):
     def test_seed_skips_when_scanner_already_exists(self):
         """如果已有 scanner（非 pda），不应再新建。"""
         with models_mod.get_session() as s:
-            s.add(models_mod.User(
-                username="other_scanner",
-                password_hash=auth_mod.hash_password("x"),
-                display_name="Other",
-                theme="light",
-                role="scanner",
-            ))
+            s.add(
+                models_mod.User(
+                    username="other_scanner",
+                    password_hash=auth_mod.hash_password("x"),
+                    display_name="Other",
+                    theme="light",
+                    role="scanner",
+                )
+            )
         auth_mod._seed_scanner()
         self.assertEqual(self._scanner_count(), 1)
 

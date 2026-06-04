@@ -19,9 +19,7 @@ _ALPINE_SETTLE_MS = 300
 
 def _login(page, base_url: str, username: str, password: str) -> None:
     """通过 request 上下文登录（cookie 与同一 page 的后续导航共享）。"""
-    resp = page.request.post(
-        base_url + "/login", form={"username": username, "password": password}
-    )
+    resp = page.request.post(base_url + "/login", form={"username": username, "password": password})
     assert resp.ok, f"登录失败 {resp.status}"
 
 
@@ -58,8 +56,10 @@ def test_pda_scan_to_pending_smoke(live_server, page_with_console) -> None:
     # 点一下输入框激活（取得光标），再 fill+Enter 模拟一次扫描。
     scan = page.locator("#scanInput")
     scan.click()
-    scan.fill("C08-12-03"); scan.press("Enter")
-    scan.fill("5828079343379"); scan.press("Enter")
+    scan.fill("C08-12-03")
+    scan.press("Enter")
+    scan.fill("5828079343379")
+    scan.press("Enter")
     page.wait_for_timeout(_ALPINE_SETTLE_MS)
 
     # 表格累积出 2 条真实行（库位 + 条码）；空占位行 tr.empty 不计

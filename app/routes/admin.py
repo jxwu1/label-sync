@@ -3,7 +3,7 @@
 from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required
 
-from app.auth import check_password, hash_password
+from app.auth import hash_password
 from app.models import SystemSetting, User, get_session
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -11,16 +11,24 @@ bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 # ── 用户管理 ──────────────────────────────────────────
 
+
 @bp.route("/api/users", methods=["GET"])
 @login_required
 def list_users():
     with get_session() as s:
         users = s.query(User).order_by(User.id).all()
-        return jsonify([
-            {"id": u.id, "username": u.username, "display_name": u.display_name,
-             "theme": u.theme, "created_at": u.created_at}
-            for u in users
-        ])
+        return jsonify(
+            [
+                {
+                    "id": u.id,
+                    "username": u.username,
+                    "display_name": u.display_name,
+                    "theme": u.theme,
+                    "created_at": u.created_at,
+                }
+                for u in users
+            ]
+        )
 
 
 @bp.route("/api/users", methods=["POST"])
@@ -37,8 +45,9 @@ def create_user():
     with get_session() as s:
         if s.query(User).filter_by(username=username).first():
             return jsonify(ok=False, error="用户名已存在"), 409
-        u = User(username=username, password_hash=hash_password(password),
-                 display_name=display_name)
+        u = User(
+            username=username, password_hash=hash_password(password), display_name=display_name
+        )
         s.add(u)
         s.flush()
         return jsonify(ok=True, id=u.id)
@@ -74,6 +83,7 @@ def delete_user(uid):
 
 # ── 系统参数 ──────────────────────────────────────────
 
+
 @bp.route("/api/settings", methods=["GET"])
 @login_required
 def get_settings():
@@ -98,6 +108,7 @@ def update_settings():
 
 
 # ── 当前用户主题 ──────────────────────────────────────
+
 
 @bp.route("/api/theme", methods=["PUT"])
 @login_required

@@ -50,10 +50,12 @@ class _DBTestCase(unittest.TestCase):
         Base.metadata.drop_all(self.engine)
         self.engine.dispose()
 
-    def _ensure_employee(self, emp_id: str, name: str = "test",
-                         start_date: str | None = None) -> None:
+    def _ensure_employee(
+        self, emp_id: str, name: str = "test", start_date: str | None = None
+    ) -> None:
         """Insert or update an employee directly via ORM (bypasses service ID generation)."""
         from datetime import datetime
+
         session = self.Session()
         try:
             existing = session.get(Employee, emp_id)
@@ -61,13 +63,15 @@ class _DBTestCase(unittest.TestCase):
                 existing.name = name
                 existing.start_date = start_date
             else:
-                session.add(Employee(
-                    employee_id=emp_id,
-                    name=name,
-                    created_at=datetime.now().isoformat(timespec="seconds"),
-                    start_date=start_date,
-                    active=1,
-                ))
+                session.add(
+                    Employee(
+                        employee_id=emp_id,
+                        name=name,
+                        created_at=datetime.now().isoformat(timespec="seconds"),
+                        start_date=start_date,
+                        active=1,
+                    )
+                )
             session.commit()
         except Exception:
             session.rollback()
@@ -109,12 +113,14 @@ class TestEmployeeCrud(_DBTestCase):
         emp = svc.create_employee("有记录的人")
         session = self.Session()
         try:
-            session.add(AttendanceRecord(
-                employee_id=emp["id"],
-                work_date="2026-05-01",
-                start_time="09:30",
-                end_time="20:00",
-            ))
+            session.add(
+                AttendanceRecord(
+                    employee_id=emp["id"],
+                    work_date="2026-05-01",
+                    start_time="09:30",
+                    end_time="20:00",
+                )
+            )
             session.commit()
         finally:
             session.close()
@@ -128,8 +134,7 @@ class TestEmployeeCrud(_DBTestCase):
         # 历史考勤记录保留（UI 文案承诺"历史考勤数据保留"）
         session = self.Session()
         try:
-            kept = session.query(AttendanceRecord).filter_by(
-                employee_id=emp["id"]).count()
+            kept = session.query(AttendanceRecord).filter_by(employee_id=emp["id"]).count()
         finally:
             session.close()
         self.assertEqual(kept, 1)

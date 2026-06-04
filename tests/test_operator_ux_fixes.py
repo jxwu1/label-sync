@@ -55,17 +55,11 @@ class TestProcessOrderErrorSurfaced(unittest.TestCase):
         app.register_blueprint(bp)
         self.client = app.test_client()
 
-    @patch("app.routes.purchase.purchase_service.create_order",
-           side_effect=RuntimeError("db down"))
-    @patch("app.routes.purchase.purchase_service.lookup_dominant_supplier",
-           return_value=None)
-    @patch("app.routes.purchase.stockpile_db.query_zero_grade_barcodes_set",
-           return_value=set())
-    @patch("app.routes.purchase.stockpile_db.query_all_barcodes_set",
-           return_value={"EXIST"})
-    def test_order_failure_surfaced_not_swallowed(
-        self, _q_all, _q_zero, _lookup, _create
-    ) -> None:
+    @patch("app.routes.purchase.purchase_service.create_order", side_effect=RuntimeError("db down"))
+    @patch("app.routes.purchase.purchase_service.lookup_dominant_supplier", return_value=None)
+    @patch("app.routes.purchase.stockpile_db.query_zero_grade_barcodes_set", return_value=set())
+    @patch("app.routes.purchase.stockpile_db.query_all_barcodes_set", return_value={"EXIST"})
+    def test_order_failure_surfaced_not_swallowed(self, _q_all, _q_zero, _lookup, _create) -> None:
         resp = self.client.post(
             "/purchase/process",
             data={"files": (io.BytesIO(_excel_bytes()), "supplier.xlsx")},
@@ -91,8 +85,7 @@ class TestProcessBadFileMessage(unittest.TestCase):
         app.register_blueprint(bp)
         self.client = app.test_client()
 
-    @patch("app.routes.purchase.stockpile_db.query_all_barcodes_set",
-           return_value=set())
+    @patch("app.routes.purchase.stockpile_db.query_all_barcodes_set", return_value=set())
     def test_garbage_file_gives_readable_message(self, _q) -> None:
         resp = self.client.post(
             "/purchase/process",
@@ -114,10 +107,14 @@ class TestFillRatesNoSilentSwallow(unittest.TestCase):
         app.register_blueprint(bp)
         self.client = app.test_client()
 
-    @patch("app.routes.attendance.attendance_service.compute_summaries_batch",
-           side_effect=RuntimeError("calc boom"))
-    @patch("app.routes.attendance.attendance_service.list_employees",
-           return_value=[{"id": "E1", "name": "甲"}])
+    @patch(
+        "app.routes.attendance.attendance_service.compute_summaries_batch",
+        side_effect=RuntimeError("calc boom"),
+    )
+    @patch(
+        "app.routes.attendance.attendance_service.list_employees",
+        return_value=[{"id": "E1", "name": "甲"}],
+    )
     def test_compute_failure_returns_error_not_zeros(self, _emps, _calc) -> None:
         resp = self.client.get("/attendance/fill-rates/2026-06")
         body = resp.get_json()

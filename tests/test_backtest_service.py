@@ -10,8 +10,8 @@ from unittest import mock
 
 from sqlalchemy import insert, select
 
-from app.repositories import stockpile_db
 from app.models import BacktestResult, BacktestRun, InventoryEvent, Stockpile
+from app.repositories import stockpile_db
 
 _TMP = Path(__file__).resolve().parent / "_test_backtest_service"
 

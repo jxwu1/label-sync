@@ -7,6 +7,7 @@
   - event_type='sale' 行的 unit_price 一直保留
   - 输入 df 不被修改 (copy-on-write)
 """
+
 from __future__ import annotations
 
 import unittest
@@ -37,6 +38,7 @@ class HashNameTests(unittest.TestCase):
 
     def test_nan_returns_none(self) -> None:
         import math
+
         assert self._h(math.nan) is None
 
     def test_empty_string_returns_none(self) -> None:
@@ -70,59 +72,71 @@ class SanitizeDataframeTests(unittest.TestCase):
         return sanitize_dataframe(df)
 
     def test_customer_name_hashed(self) -> None:
-        df = pd.DataFrame({
-            "event_type": ["sale"],
-            "customer_name": ["张三"],
-        })
+        df = pd.DataFrame(
+            {
+                "event_type": ["sale"],
+                "customer_name": ["张三"],
+            }
+        )
         out = self._sanitize(df)
         assert out.loc[0, "customer_name"] != "张三"
         assert len(out.loc[0, "customer_name"]) == 16
 
     def test_supplier_name_hashed(self) -> None:
-        df = pd.DataFrame({
-            "event_type": ["purchase"],
-            "supplier_name": ["GR05 SomeSupplier Ltd"],
-        })
+        df = pd.DataFrame(
+            {
+                "event_type": ["purchase"],
+                "supplier_name": ["GR05 SomeSupplier Ltd"],
+            }
+        )
         out = self._sanitize(df)
         assert out.loc[0, "supplier_name"] != "GR05 SomeSupplier Ltd"
         assert len(out.loc[0, "supplier_name"]) == 16
 
     def test_purchase_unit_price_kept(self) -> None:
         """2026-05-21 起策略变更, purchase.unit_price 也保留 (不再 NULL out)."""
-        df = pd.DataFrame({
-            "event_type": ["purchase", "purchase"],
-            "unit_price": [1.23, 4.56],
-        })
+        df = pd.DataFrame(
+            {
+                "event_type": ["purchase", "purchase"],
+                "unit_price": [1.23, 4.56],
+            }
+        )
         out = self._sanitize(df)
         assert out.loc[0, "unit_price"] == 1.23
         assert out.loc[1, "unit_price"] == 4.56
 
     def test_sale_unit_price_kept(self) -> None:
-        df = pd.DataFrame({
-            "event_type": ["sale", "sale"],
-            "unit_price": [1.23, 4.56],
-        })
+        df = pd.DataFrame(
+            {
+                "event_type": ["sale", "sale"],
+                "unit_price": [1.23, 4.56],
+            }
+        )
         out = self._sanitize(df)
         assert out.loc[0, "unit_price"] == 1.23
         assert out.loc[1, "unit_price"] == 4.56
 
     def test_mixed_sale_and_purchase_both_kept(self) -> None:
         """2026-05-21 起 sale + purchase 的 unit_price 都保留."""
-        df = pd.DataFrame({
-            "event_type": ["sale", "purchase", "sale"],
-            "unit_price": [1.0, 2.0, 3.0],
-        })
+        df = pd.DataFrame(
+            {
+                "event_type": ["sale", "purchase", "sale"],
+                "unit_price": [1.0, 2.0, 3.0],
+            }
+        )
         out = self._sanitize(df)
         assert out.loc[0, "unit_price"] == 1.0
         assert out.loc[1, "unit_price"] == 2.0
         assert out.loc[2, "unit_price"] == 3.0
 
     def test_input_not_modified(self) -> None:
-        df = pd.DataFrame({
-            "event_type": ["sale"],
-            "customer_name": ["张三"],
-            "unit_price": [9.99],
-        })
+        df = pd.DataFrame(
+            {
+                "event_type": ["sale"],
+                "customer_name": ["张三"],
+                "unit_price": [9.99],
+            }
+        )
         df_before = df.copy()
         _ = self._sanitize(df)
         assert df.loc[0, "customer_name"] == "张三"
@@ -130,19 +144,23 @@ class SanitizeDataframeTests(unittest.TestCase):
         pd.testing.assert_frame_equal(df, df_before)
 
     def test_missing_columns_no_crash(self) -> None:
-        df = pd.DataFrame({
-            "event_type": ["sale"],
-            "qty": [5],
-        })
+        df = pd.DataFrame(
+            {
+                "event_type": ["sale"],
+                "qty": [5],
+            }
+        )
         out = self._sanitize(df)
         assert "qty" in out.columns
         assert out.loc[0, "qty"] == 5
 
     def test_none_customer_name_stays_none(self) -> None:
-        df = pd.DataFrame({
-            "event_type": ["sale", "sale"],
-            "customer_name": [None, "张三"],
-        })
+        df = pd.DataFrame(
+            {
+                "event_type": ["sale", "sale"],
+                "customer_name": [None, "张三"],
+            }
+        )
         out = self._sanitize(df)
         assert pd.isna(out.loc[0, "customer_name"])
         assert len(out.loc[1, "customer_name"]) == 16

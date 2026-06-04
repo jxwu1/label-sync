@@ -1,4 +1,5 @@
 """PDA 扫描端 + PC 待处理端路由。"""
+
 from __future__ import annotations
 
 import hashlib
@@ -6,9 +7,9 @@ from pathlib import Path
 
 from flask import Blueprint, jsonify, render_template, request
 
+import app.services.scan_session as scan_svc
 from app.auth import require_role
 from app.models import Employee, get_session
-import app.services.scan_session as scan_svc
 
 bp = Blueprint("pda", __name__, url_prefix="/pda")
 
@@ -99,6 +100,7 @@ def session_finalize(session_id: int):
 
 
 # ---- PC 待处理端（admin only） ----
+
 
 @bp.get("/pending")
 @require_role("admin")

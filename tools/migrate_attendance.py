@@ -13,6 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.config import CONFIG
 from app.models import (
     AttendanceRecord,
     Employee,
@@ -22,7 +23,6 @@ from app.models import (
     SpecialDay,
     get_session,
 )
-from app.config import CONFIG
 
 
 def _read_json(path: Path, default=None):
@@ -74,20 +74,24 @@ def migrate(attendance_dir: Path) -> dict:
 
         # ── Public holidays ──
         for date_str in holidays_data:
-            s.merge(PublicHoliday(
-                holiday_date=date_str,
-                name="希腊法定节假日",
-                is_paid=1,
-            ))
+            s.merge(
+                PublicHoliday(
+                    holiday_date=date_str,
+                    name="希腊法定节假日",
+                    is_paid=1,
+                )
+            )
             stats["holidays"] += 1
 
         # ── Special days ──
         for date_str, info in special_days_data.items():
-            s.merge(SpecialDay(
-                special_date=date_str,
-                label=info.get("label") or info.get("start"),
-                end_time=info.get("end"),
-            ))
+            s.merge(
+                SpecialDay(
+                    special_date=date_str,
+                    label=info.get("label") or info.get("start"),
+                    end_time=info.get("end"),
+                )
+            )
             stats["special_days"] += 1
 
         # ── Monthly attendance + leaves ──

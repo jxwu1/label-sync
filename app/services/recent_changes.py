@@ -9,8 +9,8 @@ from typing import Literal
 
 from sqlalchemy import and_, func, select
 
-from app.repositories import stockpile_db
 from app.models import Stockpile, StockpileChange, StockpileSnapshot
+from app.repositories import stockpile_db
 
 _RECENT_IMPORTS_LIMIT = 10
 _EPOCH = "1970-01-01 00:00:00"
@@ -205,7 +205,7 @@ def get_batch_changes(
         barcodes = list({r.product_barcode for r in rows})
         models: dict[str, str] = {}
         for i in range(0, len(barcodes), 900):
-            chunk = barcodes[i:i + 900]
+            chunk = barcodes[i : i + 900]
             for bc, m in session.execute(
                 select(Stockpile.product_barcode, Stockpile.product_model).where(
                     Stockpile.product_barcode.in_(chunk)

@@ -1,15 +1,14 @@
-from app.config import CONFIG
 import csv
 import io
 import math
 import zipfile
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
-from pathlib import Path
 
 import openpyxl
 import pandas as pd
 
+from app.config import CONFIG
 from app.repositories import stockpile_db
 
 _TEMPLATE_PATH = CONFIG.resource_dir / "static" / "templates" / "产品信息导入模板.csv"
@@ -247,6 +246,7 @@ def build_zip(purchase_xlsx: bytes, template_csv: bytes | None, date_str: str) -
 
 # ── Purchase Order tracking ─────────────────────────────────────────
 
+
 def create_order(
     rows: list[PurchaseRow],
     *,
@@ -254,9 +254,10 @@ def create_order(
     source_file: str | None = None,
 ) -> dict:
     from datetime import date as date_cls
-    from app.models import PurchaseOrder, PurchaseOrderLine, get_session
 
     from sqlalchemy import select
+
+    from app.models import PurchaseOrder, PurchaseOrderLine, get_session
 
     total_qty = sum(r.quantity for r in rows)
     total_amount = round(sum(r.price * r.quantity for r in rows), 2)
@@ -266,12 +267,15 @@ def create_order(
         # 返回已有单而非再建一张. 已到货的旧单不拦(那是新一批补货).
         if source_file:
             existing = s.execute(
-                select(PurchaseOrder).where(
+                select(PurchaseOrder)
+                .where(
                     PurchaseOrder.source_file == source_file,
                     PurchaseOrder.status == "placed",
                     PurchaseOrder.total_qty == total_qty,
                     PurchaseOrder.total_amount == total_amount,
-                ).order_by(PurchaseOrder.id.desc()).limit(1)
+                )
+                .order_by(PurchaseOrder.id.desc())
+                .limit(1)
             ).scalar_one_or_none()
             if existing is not None:
                 return {
@@ -293,12 +297,14 @@ def create_order(
         s.add(order)
         s.flush()
         for r in rows:
-            s.add(PurchaseOrderLine(
-                order_id=order.id,
-                product_barcode=r.barcode,
-                qty_ordered=r.quantity,
-                unit_price=r.price,
-            ))
+            s.add(
+                PurchaseOrderLine(
+                    order_id=order.id,
+                    product_barcode=r.barcode,
+                    qty_ordered=r.quantity,
+                    unit_price=r.price,
+                )
+            )
         order_id = order.id
 
     return {
@@ -311,6 +317,7 @@ def create_order(
 
 def list_orders(limit: int = 50) -> list[dict]:
     from sqlalchemy import select
+
     from app.models import PurchaseOrder, Supplier, get_session
 
     with get_session() as s:
@@ -338,6 +345,7 @@ def list_orders(limit: int = 50) -> list[dict]:
 
 def record_arrival(order_id: int, arrival_date: str) -> dict:
     from sqlalchemy import select
+
     from app.models import PurchaseOrder, PurchaseOrderLine, get_session
 
     with get_session() as s:
@@ -346,9 +354,11 @@ def record_arrival(order_id: int, arrival_date: str) -> dict:
             raise ValueError(f"订单不存在：{order_id}")
         order.arrival_date = arrival_date
         order.status = "arrived"
-        lines = s.execute(
-            select(PurchaseOrderLine).where(PurchaseOrderLine.order_id == order_id)
-        ).scalars().all()
+        lines = (
+            s.execute(select(PurchaseOrderLine).where(PurchaseOrderLine.order_id == order_id))
+            .scalars()
+            .all()
+        )
         for line in lines:
             line.qty_arrived = line.qty_ordered
 
@@ -356,9 +366,11 @@ def record_arrival(order_id: int, arrival_date: str) -> dict:
 
 
 def compute_supplier_lead_times(limit: int = 50) -> list[dict]:
-    from statistics import median
-    from sqlalchemy import select
     from datetime import date as date_cls
+    from statistics import median
+
+    from sqlalchemy import select
+
     from app.models import PurchaseOrder, Supplier, get_session
 
     with get_session() as s:
@@ -386,12 +398,14 @@ def compute_supplier_lead_times(limit: int = 50) -> list[dict]:
                 except (ValueError, TypeError):
                     continue
             if lts:
-                results.append({
-                    "supplier_id": sid,
-                    "supplier_name": sname,
-                    "n_samples": len(lts),
-                    "median_days": median(lts),
-                    "min_days": min(lts),
-                    "max_days": max(lts),
-                })
+                results.append(
+                    {
+                        "supplier_id": sid,
+                        "supplier_name": sname,
+                        "n_samples": len(lts),
+                        "median_days": median(lts),
+                        "min_days": min(lts),
+                        "max_days": max(lts),
+                    }
+                )
         return results

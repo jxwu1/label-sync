@@ -222,7 +222,9 @@ class StockpileRoutesTests(unittest.TestCase):
                 {"product_barcode": "X1", "product_model": "M", "stockpile_location": "L"},
             ]
         )
-        with mock.patch("app.repositories.stockpile_db.import_from_dataframe", side_effect=RuntimeError("boom")):
+        with mock.patch(
+            "app.repositories.stockpile_db.import_from_dataframe", side_effect=RuntimeError("boom")
+        ):
             with self.assertRaises(RuntimeError):
                 self.client.post(
                     "/stockpile/init",

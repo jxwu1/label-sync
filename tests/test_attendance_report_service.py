@@ -6,8 +6,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.models import Base
-from app.services import attendance_report as rpt
 from app.services import attendance as svc
+from app.services import attendance_report as rpt
 
 
 class _DBTestCase(unittest.TestCase):

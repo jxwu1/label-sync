@@ -7,8 +7,8 @@ from unittest import mock
 
 import pandas as pd
 
-from app.services import data_quality as data_quality_service
 from app.repositories import stockpile_db
+from app.services import data_quality as data_quality_service
 
 TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_data_quality"
 
@@ -271,17 +271,12 @@ class DataQualityTests(unittest.TestCase):
 
     def test_scanned_count_includes_active_and_inactive(self) -> None:
         """扫描范围 = 主档全部行数（active + inactive），供状态栏「扫描范围 N 条」。"""
-        self._import(
-            [{"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A1"}]
-        )
+        self._import([{"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A1"}])
         stockpile_db.apply_export_updates(pd.DataFrame([]))  # B1 → inactive
-        self._import(
-            [{"product_barcode": "B2", "product_model": "M2", "stockpile_location": "A2"}]
-        )
+        self._import([{"product_barcode": "B2", "product_model": "M2", "stockpile_location": "A2"}])
         report = data_quality_service.build_report()
         # B1(inactive) + B2(active) 都算入扫描范围
         self.assertEqual(report["scanned_count"], 2)
-
 
     def _add_snapshot(self, snapshot_date: str, product_model: str, qty_total: int) -> None:
         from sqlalchemy import insert
@@ -311,7 +306,7 @@ class DataQualityTests(unittest.TestCase):
             ]
         )
         self._add_snapshot("2026-05-21", "M1", -5)
-        self._add_snapshot("2026-05-21", "M2", 0)   # 不算
+        self._add_snapshot("2026-05-21", "M2", 0)  # 不算
         self._add_snapshot("2026-05-21", "M3", -1)  # 关联不到 stockpile, 仍列出
 
         report = data_quality_service.build_report()
@@ -340,9 +335,11 @@ class DataQualityTests(unittest.TestCase):
         self.assertEqual(sample["qty"], -3)
 
     def test_negative_stock_only_uses_latest_snapshot_date(self) -> None:
-        self._import([
-            {"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A1"},
-        ])
+        self._import(
+            [
+                {"product_barcode": "B1", "product_model": "M1", "stockpile_location": "A1"},
+            ]
+        )
         self._add_snapshot("2026-05-19", "M1", -99)
         self._add_snapshot("2026-05-21", "M1", 5)
         report = data_quality_service.build_report()

@@ -76,11 +76,20 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         dump = str(Path(tmp) / "prod.dump")
         # custom format，便于 pg_restore --clean
-        _run(["pg_dump", "--format=custom", "--no-owner", "--no-privileges",
-              "--file", dump, prod])
+        _run(["pg_dump", "--format=custom", "--no-owner", "--no-privileges", "--file", dump, prod])
         # --clean --if-exists：先删本地同名对象再灌，得到与线上一致的镜像
-        _run(["pg_restore", "--clean", "--if-exists", "--no-owner",
-              "--no-privileges", "--dbname", local, dump])
+        _run(
+            [
+                "pg_restore",
+                "--clean",
+                "--if-exists",
+                "--no-owner",
+                "--no-privileges",
+                "--dbname",
+                local,
+                dump,
+            ]
+        )
 
     print("\n✓ 本地 PG 已替换为线上数据快照。`./dev.ps1` 起服务即可用真实数据复现/调试。")
 
