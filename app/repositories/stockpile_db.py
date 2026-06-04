@@ -61,6 +61,8 @@ class Source:
 # === Engine / session / schema bootstrap（委托 app.db 单一真源） ===
 
 
+# 下列函数体内 lazy `from app import db`：app.db 顶层 import 本仓库链路较早, 用函数内
+# 延迟 import 规避潜在 import 顺序/循环问题。勿改成 top-level import。
 def _engine():
     from app import db
 
@@ -74,7 +76,12 @@ def ensure_db() -> None:
 
 
 def _connect() -> sqlite3.Connection:
-    """raw sqlite3 连接，仅供需绕过 ORM 的旧测试 / 维护脚本。"""
+    """raw sqlite3 连接，仅供需绕过 ORM 的旧测试 / 维护脚本使用。
+
+    自动先调 app.db.ensure_db()（幂等）确保 schema 存在。
+    注意：仅在 SQLite 后端可用。PG 配置下 (DATABASE_URL=postgres...) 调用会 RuntimeError，
+    立即暴露漏改的依赖点——调用方必须改走 SQLAlchemy session。
+    """
     from app import db
 
     db.ensure_db()

@@ -27,7 +27,6 @@ def _monday(d: date) -> date:
 
 class _Base(unittest.TestCase):
     # DB 隔离由 conftest autouse _isolate_db 负责（unified engine 指向 tmp db_path）
-    pass
 
     def _add_event(
         self,

@@ -9,7 +9,6 @@ from app.repositories import stockpile_db
 
 class StockpileDbTests(unittest.TestCase):
     # DB 隔离由 conftest autouse _isolate_db 负责（unified engine 指向 tmp db_path）
-    pass
 
     def test_ensure_db_creates_tables(self) -> None:
         stockpile_db.ensure_db()
