@@ -200,6 +200,22 @@ def reset_engine(db_path=None) -> str:
     if db_path is not None:
         DB_PATH = db_path
     return _effective_url()
+
+
+def get_sqlite_path() -> str:
+    """raw sqlite3 连接用：从 effective URL 解析真实 sqlite 文件路径。
+
+    必须从 effective URL 解析(而非直接返回 DB_PATH)，否则 DATABASE_URL=sqlite:///其他文件
+    时, engine 指 URL 文件而裸 sqlite3 指 DB_PATH → 分裂。非 sqlite(PG) 直接报错。
+    """
+    url = _effective_url()
+    if not url.startswith("sqlite"):
+        raise RuntimeError(
+            f"get_sqlite_path() requires sqlite backend; effective URL is {url}. "
+            "Rewrite caller to use SQLAlchemy session."
+        )
+    # sqlite:///abs/path or sqlite:///relative — 去掉 'sqlite:///' 前缀
+    return url[len("sqlite:///") :]
 ```
 
 - [ ] **Step 4: 跑测试确认通过**
@@ -220,7 +236,9 @@ git commit -m "feat(db): app/db.py 单一 engine/session 真源 + reset_engine"
 
 ## Task 2: 建 `tests/conftest.py` autouse 隔离
 
-此任务 additive：models/stockpile_db 尚未委托 db，autouse 对它们暂无作用，但 `delenv DATABASE_URL` 安全（CI 无该变量；本地修掉避免误连 PG），全量套件应仍全绿。
+此任务 additive：models/stockpile_db 尚未委托 db，autouse 只重定向 db.py 的 engine，对它们**暂无作用**。`delenv DATABASE_URL` 安全（CI 无该变量；本地修掉避免误连 PG）。
+
+⚠️ **不要在此任务跑全量套件断言隔离生效**：此时旧 seam（models._SessionFactory / stockpile_db 自持 engine）仍在，全量"绿"是旧机制在撑，属**假绿**，证明不了 conftest 接管。全量绿的真实验收放到 Task 3/4（届时 models/stockpile_db 已委托 db）。本任务只验证 conftest 不破坏 db 层测试 + 不崩 collection。
 
 **Files:**
 - Create: `tests/conftest.py`
@@ -256,10 +274,15 @@ def _isolate_db(db_path, monkeypatch):
     db.reset_engine(db_path)  # 收尾 dispose，防止 tmp 文件句柄泄漏
 ```
 
-- [ ] **Step 2: 跑全量确认仍绿**
+- [ ] **Step 2: 只验证 conftest 不破坏 db 层 + 不崩 collection**
 
-Run: `python -m pytest tests/ -q`
-Expected: ≥1002 passed, 0 failed（autouse 暂不影响旧 engine；history 3 个仍走最小 app）
+Run: `python -m pytest tests/test_db.py -q`
+Expected: 3 passed（conftest autouse 不干扰 db 层测试）
+
+Run: `python -m pytest tests/ --collect-only -q > $null; echo "collect exit=$LASTEXITCODE"`（PowerShell；bash 用 `python -m pytest tests/ --collect-only -q >/dev/null; echo "collect exit=$?"`）
+Expected: collect exit=0（conftest 不破坏任何文件的收集/导入）
+
+注：此处**不跑全量断言隔离**——见任务开头 ⚠️。全量绿验收在 Task 3/4。
 
 - [ ] **Step 3: 提交**
 
@@ -479,13 +502,15 @@ def _connect() -> sqlite3.Connection:
             "_connect() requires SQLite backend; current engine is "
             f"{db.get_engine().dialect.name}. Rewrite caller to use SQLAlchemy session."
         )
-    conn = sqlite3.connect(str(db.DB_PATH))
+    # 从 effective URL 解析真实 sqlite 文件(处理 DATABASE_URL=sqlite:///x 场景)，
+    # 不能直接用 db.DB_PATH 否则与 engine 分裂。
+    conn = sqlite3.connect(db.get_sqlite_path())
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     return conn
 ```
 
-清理本文件不再使用的 import：`create_engine` / `event` / `NullPool` / `select`（若仅 bootstrap 用）。Step 6 ruff 兜底。
+清理本文件不再使用的 import（如 `create_engine` / `event` / `NullPool`）。**注意**：`select` / `func` / `delete` 等被 repository 查询大量使用，**不要机械删除**——一律以 Step 6 `ruff check` 报出的 F401 为准，按提示删，不靠肉眼猜。
 
 - [ ] **Step 2: 验证 stockpile_db 委托可用**
 
@@ -565,9 +590,21 @@ from app.models import Base
 
 - [ ] **Step 2: 验证 offline 渲染 + 临时库 upgrade**
 
+PowerShell（当前默认环境）：
+
+```powershell
+python -m alembic upgrade --sql head > $null; if ($LASTEXITCODE -eq 0) { "offline ok" }
+$env:LABEL_SYNC_DB_PATH = Join-Path $env:TEMP "alembic_test.db"
+python -m alembic upgrade head; if ($LASTEXITCODE -eq 0) { "online tmp ok" }
+Remove-Item Env:LABEL_SYNC_DB_PATH    # 清理，避免污染后续命令
+Remove-Item $env:TEMP\alembic_test.db -ErrorAction SilentlyContinue
+```
+
+bash 等价：
+
 ```bash
-python -m alembic upgrade --sql head > /dev/null && echo "offline ok"
-LABEL_SYNC_DB_PATH=$(python -c "import tempfile,os;print(os.path.join(tempfile.gettempdir(),'alembic_test.db'))") python -m alembic upgrade head && echo "online tmp ok"
+python -m alembic upgrade --sql head >/dev/null && echo "offline ok"
+LABEL_SYNC_DB_PATH="$(python -c "import tempfile,os;print(os.path.join(tempfile.gettempdir(),'alembic_test.db'))")" python -m alembic upgrade head && echo "online tmp ok"
 ```
 Expected: 打印 `offline ok` 与 `online tmp ok`（migration-temp-db-guard hook 要求 online 必带 LABEL_SYNC_DB_PATH，符合）。
 
