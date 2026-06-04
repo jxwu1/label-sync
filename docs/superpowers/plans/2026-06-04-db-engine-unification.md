@@ -587,25 +587,18 @@ from app.models import Base
 
 `run_migrations_online()` 里 `get_engine()`（line 74）与 `LABEL_SYNC_DB_PATH` 覆盖逻辑（`_env_db_url` + line 70-72 自建 NullPool engine）保持不变。
 
-- [ ] **Step 2: 验证 offline 渲染 + 临时库 upgrade**
+- [ ] **Step 2: 验证 env.py 的 engine 接线**
 
-PowerShell（当前默认环境）：
+⚠️ **不要用"空库 `alembic upgrade head` 成功"作为验收**：既有迁移 `2385c879eb58_add_stockpile_locations_subtable` 在 `upgrade()` 里做数据迁移 `SELECT id, stockpile_location FROM stockpile`，**假设 stockpile 表已存在**——空库从头 upgrade 时该表尚未建，offline `--sql` 渲染时 `op.get_bind()` 为 None，两者都会失败。这是**与本任务无关的既有迁移 bug**（本重构 Non-goals: 不改 alembic 迁移），记 backlog，不在此修。
 
-```powershell
-python -m alembic upgrade --sql head > $null; if ($LASTEXITCODE -eq 0) { "offline ok" }
-$env:LABEL_SYNC_DB_PATH = Join-Path $env:TEMP "alembic_test.db"
-python -m alembic upgrade head; if ($LASTEXITCODE -eq 0) { "online tmp ok" }
-Remove-Item Env:LABEL_SYNC_DB_PATH    # 清理，避免污染后续命令
-Remove-Item $env:TEMP\alembic_test.db -ErrorAction SilentlyContinue
+本任务只改了 `get_engine` 的来源（models → app.db），验收限于接线正确：
+
 ```
-
-bash 等价：
-
-```bash
-python -m alembic upgrade --sql head >/dev/null && echo "offline ok"
-LABEL_SYNC_DB_PATH="$(python -c "import tempfile,os;print(os.path.join(tempfile.gettempdir(),'alembic_test.db'))")" python -m alembic upgrade head && echo "online tmp ok"
+.venv/Scripts/python.exe -c "from app.db import get_engine; from app.models import Base; print('imports ok')"
 ```
-Expected: 打印 `offline ok` 与 `online tmp ok`（migration-temp-db-guard hook 要求 online 必带 LABEL_SYNC_DB_PATH，符合）。
+Expected: 打印 `imports ok`（env.py 的两个 import 均可解析；`get_engine` 来自 app.db）。
+
+注：env.py 的 `LABEL_SYNC_DB_PATH` 覆盖块（online mode 自建 NullPool sqlite engine）保持不变；`migration-temp-db-guard` hook 仍要求 online alembic 必带 `LABEL_SYNC_DB_PATH`。真正跑迁移要在**已有 schema 的库**上增量执行，而非空库 from-scratch。
 
 - [ ] **Step 3: ruff + 提交**
 
