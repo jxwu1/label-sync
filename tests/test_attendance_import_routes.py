@@ -2,16 +2,11 @@
 
 import io
 import unittest
-from unittest import mock
 
 import openpyxl
 from flask import Flask
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-import app.models as models_mod
-from app.models import Base, Employee
+from app.models import Employee, get_session
 from app.routes.attendance import bp
 
 
@@ -33,34 +28,12 @@ def _xlsx_bytes():
 
 class WecomImportRoutesTests(unittest.TestCase):
     def setUp(self):
-        self.engine = create_engine(
-            "sqlite:///:memory:",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
-
-        @event.listens_for(self.engine, "connect")
-        def _fk(dbapi_conn, _):
-            dbapi_conn.cursor().execute("PRAGMA foreign_keys=ON")
-
-        Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine, future=True, expire_on_commit=False)
-        self.p1 = mock.patch.object(models_mod, "_engine", self.engine)
-        self.p2 = mock.patch.object(models_mod, "_SessionFactory", self.Session)
-        self.p1.start()
-        self.p2.start()
-        with self.Session() as s:
+        # DB 隔离由 conftest autouse 提供；这里只 seed 员工 + 建最小 app。
+        with get_session() as s:
             s.add(Employee(employee_id="e001", name="翁福源"))
-            s.commit()
         self.app = Flask(__name__)
         self.app.register_blueprint(bp)
         self.client = self.app.test_client()
-
-    def tearDown(self):
-        self.p2.stop()
-        self.p1.stop()
-        Base.metadata.drop_all(self.engine)
-        self.engine.dispose()
 
     def _upload(self, url, **form):
         data = {"file": (io.BytesIO(_xlsx_bytes()), "wecom_20260501-20260502.xlsx")}

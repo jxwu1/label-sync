@@ -1,34 +1,13 @@
 """幂等 scanner seed 测试：_seed_scanner() 调两次只建一条记录。"""
 
 import unittest
-from unittest import mock
-
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 import app.auth as auth_mod
 import app.models as models_mod
 
 
-def _make_in_memory():
-    engine = create_engine("sqlite:///:memory:", future=True)
-    models_mod.Base.metadata.create_all(engine)
-    factory = sessionmaker(bind=engine, future=True, expire_on_commit=False)
-    return engine, factory
-
-
 class SeedScannerTests(unittest.TestCase):
-    def setUp(self):
-        self.engine, self.factory = _make_in_memory()
-        self._patch_engine = mock.patch.object(models_mod, "_engine", self.engine)
-        self._patch_factory = mock.patch.object(models_mod, "_SessionFactory", self.factory)
-        self._patch_engine.start()
-        self._patch_factory.start()
-
-    def tearDown(self):
-        self._patch_engine.stop()
-        self._patch_factory.stop()
-        self.engine.dispose()
+    # DB 隔离由 conftest autouse 提供（tmp sqlite，经 app.db engine）。
 
     def _scanner_count(self):
         with models_mod.get_session() as s:

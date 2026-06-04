@@ -1,54 +1,23 @@
 import unittest
-from unittest import mock
 
-from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
-from app.models import Base, Employee
+from app.models import Employee
 from app.services import attendance as svc
 
 
-def _make_test_db():
-    """Create an in-memory SQLite engine with FK enforcement and all tables.
-
-    Uses StaticPool so all connections share the same in-memory DB.
-    """
-    from sqlalchemy.pool import StaticPool
-
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-
-    @event.listens_for(engine, "connect")
-    def _enable_fk(dbapi_conn, _):
-        cursor = dbapi_conn.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
-
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine, future=True, expire_on_commit=False)
-    return engine, Session
-
-
 class _DBTestCase(unittest.TestCase):
-    """Base class that patches app.models to use an in-memory SQLite DB."""
+    """Base class依赖 conftest autouse 的 tmp DB 隔离。
+
+    self.Session 绑到 conftest 当前 engine（app.db.get_engine()），供需要直接 ORM
+    写入的测试/辅助方法使用，与 service 走同一个 tmp 库。
+    """
 
     def setUp(self):
-        import app.models as models_mod
+        from app import db
 
-        self.engine, self.Session = _make_test_db()
-        self.patch_engine = mock.patch.object(models_mod, "_engine", self.engine)
-        self.patch_session = mock.patch.object(models_mod, "_SessionFactory", self.Session)
-        self.patch_engine.start()
-        self.patch_session.start()
-
-    def tearDown(self):
-        self.patch_session.stop()
-        self.patch_engine.stop()
-        Base.metadata.drop_all(self.engine)
-        self.engine.dispose()
+        self.engine = db.get_engine()
+        self.Session = sessionmaker(bind=self.engine, future=True, expire_on_commit=False)
 
     def _ensure_employee(
         self, emp_id: str, name: str = "test", start_date: str | None = None

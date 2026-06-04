@@ -3,44 +3,21 @@
 import io
 import os
 import unittest
-from unittest import mock
 
 import openpyxl
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-import app.models as models_mod
-from app.models import Base, Employee
+from app.models import Employee, get_session
 from app.services import attendance_import as imp
-
-
-def _make_memory_db():
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-
-    @event.listens_for(engine, "connect")
-    def _fk(dbapi_conn, _):
-        dbapi_conn.cursor().execute("PRAGMA foreign_keys=ON")
-
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine, future=True, expire_on_commit=False)
-    return engine, Session
 
 
 class WecomAccountColumnTests(unittest.TestCase):
     def test_employee_has_wecom_account(self):
-        engine, Session = _make_memory_db()
-        with Session() as s:
+        # DB 隔离由 conftest autouse 提供（tmp sqlite，经 app.db engine）。
+        with get_session() as s:
             s.add(Employee(employee_id="e001", name="张三", wecom_account="ZhangSan"))
-            s.commit()
-        with Session() as s:
+        with get_session() as s:
             emp = s.get(Employee, "e001")
             self.assertEqual(emp.wecom_account, "ZhangSan")
-        engine.dispose()
 
 
 class ParseCellTests(unittest.TestCase):
@@ -103,21 +80,10 @@ class ParseWorkbookTests(unittest.TestCase):
 
 class BindIgnoreTests(unittest.TestCase):
     def setUp(self):
-        self.engine, self.Session = _make_memory_db()
-        self.p1 = mock.patch.object(models_mod, "_engine", self.engine)
-        self.p2 = mock.patch.object(models_mod, "_SessionFactory", self.Session)
-        self.p1.start()
-        self.p2.start()
-        with self.Session() as s:
+        # DB 隔离由 conftest autouse 提供；这里只 seed 员工。
+        with get_session() as s:
             s.add(Employee(employee_id="e001", name="翁福源"))
             s.add(Employee(employee_id="e002", name="陈建华"))
-            s.commit()
-
-    def tearDown(self):
-        self.p2.stop()
-        self.p1.stop()
-        Base.metadata.drop_all(self.engine)
-        self.engine.dispose()
 
     def test_bind_then_map(self):
         imp.bind_account("WengFuYuan", "e001")
