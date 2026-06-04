@@ -25,11 +25,15 @@ from sqlalchemy.pool import NullPool
 from app.config import CONFIG
 from app.models import Base, SchemaMeta
 
+# schema_meta.schema_version 行的目标值；与 Alembic 的 alembic_version 表是两套独立机制，
+# 改 schema 时走 alembic revision，不要在这里乱加。
 SCHEMA_VERSION = 2
 
 # 默认指向 CONFIG.stockpile_db；测试经 reset_engine 重定向。
 DB_PATH = CONFIG.stockpile_db
 
+# 非线程安全(check-then-act): 并发 cache-miss 可能各建一个 engine, 多余的会被 GC(NullPool
+# 不持连接, 无害)。reset_engine 仅测试用。本工具内网低并发, 暂不加锁。
 _engine_cache: dict[str, Engine] = {}
 
 
@@ -40,7 +44,7 @@ def _effective_url() -> str:
 
 def _build_engine(url: str) -> Engine:
     # pool 按方言：sqlite→NullPool(避线程锁/长连接状态)，其它(PG)→默认 QueuePool
-    if url.startswith("sqlite"):
+    if make_url(url).get_backend_name() == "sqlite":
         engine = create_engine(url, future=True, poolclass=NullPool)
     else:
         engine = create_engine(url, future=True)
@@ -69,7 +73,7 @@ def get_engine() -> Engine:
 
 @contextmanager
 def get_session() -> Iterator[Session]:
-    session = Session(bind=get_engine(), expire_on_commit=False)
+    session = Session(get_engine(), expire_on_commit=False)
     try:
         yield session
         session.commit()

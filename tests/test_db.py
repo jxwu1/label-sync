@@ -42,3 +42,22 @@ def test_sqlite_uses_nullpool(monkeypatch, tmp_path):
 
     db.reset_engine(tmp_path / "a.db")
     assert isinstance(db.get_engine().pool, NullPool)
+
+
+def test_get_sqlite_path_returns_db_file(monkeypatch, tmp_path):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    from app import db
+
+    db.reset_engine(tmp_path / "x.db")
+    assert db.get_sqlite_path().endswith("x.db")
+
+
+def test_get_sqlite_path_raises_for_non_sqlite(monkeypatch):
+    import pytest
+
+    from app import db
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pw@localhost/db")
+    db.reset_engine()
+    with pytest.raises(RuntimeError, match="requires sqlite backend"):
+        db.get_sqlite_path()
