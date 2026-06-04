@@ -275,6 +275,22 @@ def test_build_response_no_fuzzy_when_exact_hit(memdb):
     assert "fuzzy_matches" not in resp
 
 
+def _history_client():
+    """最小 Flask app，只挂 history 蓝图。
+
+    绕开 server 全栈(server.py 导入即 create_app→init_auth→_seed_admin 查 User，
+    且全局 before_request 强制登录会把未登录请求 302)。只依赖 memdb 重定向的
+    stockpile_db tmp 库，hermetic、无真实 DB 副作用。与 test_routes_analytics 同范式。
+    """
+    from flask import Flask
+
+    from app.routes.history import bp
+
+    app = Flask(__name__)
+    app.register_blueprint(bp)
+    return app.test_client()
+
+
 def test_route_history_returns_json(memdb):
     """用 Flask test client 验证 GET /history 工作。"""
     _insert_stockpile(
@@ -285,9 +301,7 @@ def test_route_history_returns_json(memdb):
         is_active=1,
         source="scan_import",
     )
-    from server import app
-
-    client = app.test_client()
+    client = _history_client()
     resp = client.get("/history?q=10024")
     assert resp.status_code == 200
     body = resp.get_json()
@@ -297,18 +311,14 @@ def test_route_history_returns_json(memdb):
 
 
 def test_route_history_missing_q_returns_400(memdb):
-    from server import app
-
-    client = app.test_client()
+    client = _history_client()
     resp = client.get("/history")
     assert resp.status_code == 400
     assert resp.get_json()["ok"] is False
 
 
 def test_route_history_not_found(memdb):
-    from server import app
-
-    client = app.test_client()
+    client = _history_client()
     resp = client.get("/history?q=nope")
     assert resp.status_code == 200
     body = resp.get_json()
