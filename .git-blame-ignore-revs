@@ -1,0 +1,6 @@
+# git blame 忽略的修订(纯排版, 无语义改动)。
+# 启用: git config blame.ignoreRevsFile .git-blame-ignore-revs
+# GitHub 网页 blame 自动识别本文件。
+
+# chore: ruff format 全库排版规范化(无业务改动)
+591c001efb4871fca4f02f3ba0800b147d1e1c29
