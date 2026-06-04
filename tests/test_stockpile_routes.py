@@ -25,9 +25,8 @@ class StockpileRoutesTests(unittest.TestCase):
         self.test_dir = _TEST_DIR / f"_test_stockpile_routes_{self._testMethodName}"
         shutil.rmtree(self.test_dir, ignore_errors=True)
         self.test_dir.mkdir(parents=True, exist_ok=True)
-        self.test_db = self.test_dir / "test.db"
+        # DB 隔离由 conftest autouse _isolate_db 负责（unified engine 指向 tmp db_path）
         self._patches = [
-            mock.patch.object(stockpile_db, "DB_PATH", self.test_db),
             mock.patch("app.routes.stockpile.INPUT_DIR", self.test_dir),
         ]
         for p in self._patches:
@@ -213,7 +212,9 @@ class StockpileRoutesTests(unittest.TestCase):
         res = self.client.get("/stockpile/schema")
 
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.get_json()["version"], stockpile_db.SCHEMA_VERSION)
+        from app import db
+
+        self.assertEqual(res.get_json()["version"], db.SCHEMA_VERSION)
 
     def test_temp_file_cleaned_when_handler_raises(self):
         # 注入异常确认 finally 清理生效

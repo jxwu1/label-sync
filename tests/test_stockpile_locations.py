@@ -3,18 +3,13 @@
 主表 stockpile_location 字符串保留作为月度比对源，子表是派生视图。
 """
 
-import shutil
 import unittest
-from pathlib import Path
-from unittest import mock
 
 import pandas as pd
 from sqlalchemy import select
 
 from app.models import Stockpile, StockpileLocation
 from app.repositories import stockpile_db
-
-TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_stockpile_locations"
 
 
 def _import(rows: list[dict]) -> int:
@@ -44,21 +39,7 @@ def _get_raw_location(barcode: str) -> str:
 
 
 class StockpileLocationsTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.test_dir = TEST_TMP_DIR / self._testMethodName
-        shutil.rmtree(self.test_dir, ignore_errors=True)
-        self.test_dir.mkdir(parents=True, exist_ok=True)
-        self.test_db = self.test_dir / "test.db"
-        self.patch = mock.patch.object(stockpile_db, "DB_PATH", self.test_db)
-        self.patch.start()
-        self.addCleanup(self.patch.stop)
-        # 引擎缓存可能含其他测试的旧 path，强制清掉
-        stockpile_db._engine_cache.clear()
-        stockpile_db.ensure_db()
-
-    def tearDown(self) -> None:
-        stockpile_db._engine_cache.clear()
-        shutil.rmtree(self.test_dir, ignore_errors=True)
+    # DB 隔离由 conftest autouse _isolate_db 负责（unified engine 指向 tmp db_path）
 
     def test_single_store_location_creates_one_subtable_row(self) -> None:
         _import(

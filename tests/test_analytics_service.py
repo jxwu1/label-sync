@@ -8,39 +8,22 @@
 
 from __future__ import annotations
 
-import shutil
 import unittest
 from datetime import date, timedelta
-from pathlib import Path
-from unittest import mock
 
 from sqlalchemy import insert
 
 from app.models import Customer, InventoryEvent
 from app.repositories import stockpile_db
 
-TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_analytics"
-
 
 class _Base(unittest.TestCase):
     def setUp(self) -> None:
-        self.test_dir = TEST_TMP_DIR / self._testMethodName
-        shutil.rmtree(self.test_dir, ignore_errors=True)
-        self.test_dir.mkdir(parents=True, exist_ok=True)
-        self.test_db = self.test_dir / "test.db"
-        self.patch = mock.patch.object(stockpile_db, "DB_PATH", self.test_db)
-        self.patch.start()
-        self.addCleanup(self.patch.stop)
-        stockpile_db._engine_cache.clear()
-        stockpile_db.ensure_db()
+        # DB 隔离由 conftest autouse _isolate_db 负责（unified engine 指向 tmp db_path）
         # list_sku_summary 有 60s 缓存, 测试间清掉避免数据泄漏
         from app.services import analytics as _ans
 
         _ans.clear_list_sku_summary_cache()
-
-    def tearDown(self) -> None:
-        stockpile_db._engine_cache.clear()
-        shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def _add_event(
         self,

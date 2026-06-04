@@ -5,48 +5,19 @@
 """
 
 import unittest
-from unittest import mock
 
 from flask import Flask
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from app.models import Base
 from app.routes.attendance import bp
 from app.services import attendance as attendance_service
 
 
 class AttendanceRoutesTests(unittest.TestCase):
     def setUp(self) -> None:
-        import app.models as models_mod
-
-        self.engine = create_engine(
-            "sqlite:///:memory:",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
-
-        @event.listens_for(self.engine, "connect")
-        def _enable_fk(dbapi_conn, _):
-            dbapi_conn.cursor().execute("PRAGMA foreign_keys=ON")
-
-        Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine, future=True, expire_on_commit=False)
-        self.patch_engine = mock.patch.object(models_mod, "_engine", self.engine)
-        self.patch_session = mock.patch.object(models_mod, "_SessionFactory", self.Session)
-        self.patch_engine.start()
-        self.patch_session.start()
-
+        # DB 隔离由 conftest autouse 提供；这里只建最小 app。
         self.app = Flask(__name__)
         self.app.register_blueprint(bp)
         self.client = self.app.test_client()
-
-    def tearDown(self) -> None:
-        self.patch_session.stop()
-        self.patch_engine.stop()
-        Base.metadata.drop_all(self.engine)
-        self.engine.dispose()
 
     # ---------- /employees ----------
 

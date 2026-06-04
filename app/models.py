@@ -13,7 +13,6 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 
@@ -24,8 +23,6 @@ from sqlalchemy import (
     Integer,
     Text,
     UniqueConstraint,
-    create_engine,
-    event,
     func,
     text,
 )
@@ -36,25 +33,7 @@ from sqlalchemy.orm import (
     Session,
     mapped_column,
     relationship,
-    sessionmaker,
 )
-
-from app.config import CONFIG
-
-# DATABASE_URL 环境变量优先（PG 迁移用），回退 SQLite 文件
-DB_URL = os.environ.get("DATABASE_URL") or f"sqlite:///{CONFIG.stockpile_db}"
-
-_engine: Engine = create_engine(DB_URL, future=True)
-
-
-@event.listens_for(_engine, "connect")
-def _enable_wal(dbapi_conn, _) -> None:
-    # WAL 是 SQLite 专属；PG 不需要这个 PRAGMA
-    if _engine.dialect.name != "sqlite":
-        return
-    cursor = dbapi_conn.cursor()
-    cursor.execute("PRAGMA journal_mode=WAL")
-    cursor.close()
 
 
 class Base(DeclarativeBase):
@@ -688,21 +667,19 @@ class ScanItem(Base):
     __table_args__ = (Index("idx_scan_items_session", "session_id", "seq"),)
 
 
-_SessionFactory = sessionmaker(bind=_engine, future=True, expire_on_commit=False)
+# engine/session 真源在 app.db；以下为兼容 wrapper(函数内 lazy import 避免循环：
+# app.db 顶层 from app.models import Base, SchemaMeta，models 顶层不得 import app.db)。
 
 
 @contextmanager
 def get_session() -> Iterator[Session]:
-    session = _SessionFactory()
-    try:
+    from app.db import get_session as _db_get_session
+
+    with _db_get_session() as session:
         yield session
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
 
 
 def get_engine() -> Engine:
-    return _engine
+    from app.db import get_engine as _db_get_engine
+
+    return _db_get_engine()

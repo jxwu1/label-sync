@@ -10,14 +10,10 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 import pandas as pd
-from sqlalchemy import create_engine, delete, event, func, select
-from sqlalchemy.engine import Engine
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
-from sqlalchemy.pool import NullPool
 
-from app.config import CONFIG
 from app.models import (
-    Base,
     SchemaMeta,
     Stockpile,
     StockpileChange,
@@ -25,10 +21,6 @@ from app.models import (
     StockpileSnapshot,
 )
 from app.parsers.location import parse_to_locations
-
-DB_PATH = CONFIG.stockpile_db
-SCHEMA_VERSION = 2
-
 
 _KNOWN_COLS = frozenset({"product_barcode", "product_model", "stockpile_location"})
 
@@ -66,75 +58,39 @@ class Source:
     SCAN_IMPORT = "scan_import"
 
 
-# === Engine / session / schema bootstrap ===
-
-_engine_cache: dict[str, Engine] = {}
+# === Engine / session / schema bootstrap（委托 app.db 单一真源） ===
 
 
-def _build_engine(db_path: str) -> Engine:
-    # DATABASE_URL 优先（PG 迁移用），回退 SQLite 文件
-    import os
+# 下列函数体内 lazy `from app import db`：app.db 顶层 import 本仓库链路较早, 用函数内
+# 延迟 import 规避潜在 import 顺序/循环问题。勿改成 top-level import。
+def _engine():
+    from app import db
 
-    url = os.environ.get("DATABASE_URL") or f"sqlite:///{db_path}"
-    engine = create_engine(url, future=True, poolclass=NullPool)
-
-    @event.listens_for(engine, "connect")
-    def _enable_wal(dbapi_conn, _):
-        # WAL 是 SQLite 专属；PG 不需要这个 PRAGMA
-        if engine.dialect.name != "sqlite":
-            return
-        cursor = dbapi_conn.cursor()
-        cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.close()
-
-    return engine
-
-
-def _engine() -> Engine:
-    key = str(DB_PATH)
-    cached = _engine_cache.get(key)
-    if cached is not None:
-        return cached
-    engine = _build_engine(key)
-    Base.metadata.create_all(engine)
-    _bootstrap_schema_version(engine)
-    _engine_cache[key] = engine
-    return engine
-
-
-def _bootstrap_schema_version(engine: Engine) -> None:
-    with Session(engine) as session:
-        meta = session.execute(
-            select(SchemaMeta).where(SchemaMeta.key == "schema_version")
-        ).scalar_one_or_none()
-        if meta is None:
-            session.add(SchemaMeta(key="schema_version", value=str(SCHEMA_VERSION)))
-        elif meta.value != str(SCHEMA_VERSION):
-            meta.value = str(SCHEMA_VERSION)
-        session.commit()
+    return db.get_engine()
 
 
 def ensure_db() -> None:
-    engine = _engine()
-    Base.metadata.create_all(engine)
-    _bootstrap_schema_version(engine)
+    from app import db
+
+    db.ensure_db()
 
 
 def _connect() -> sqlite3.Connection:
-    """raw sqlite3 连接，仅供需要绕过 ORM 的旧测试 / 维护脚本使用。
+    """raw sqlite3 连接，仅供需绕过 ORM 的旧测试 / 维护脚本使用。
 
-    自动先调 ensure_db()（幂等）确保 schema 存在，调用方无需关心。
-
-    注意：本函数仅在 SQLite 后端下可用。PG 迁移后调用方必须改走 SQLAlchemy
-    raw connection。若在 PG 配置下被误调，立即报错暴露漏改的依赖点。
+    自动先调 app.db.ensure_db()（幂等）确保 schema 存在。
+    注意：仅在 SQLite 后端可用。PG 配置下 (DATABASE_URL=postgres...) 调用会 RuntimeError，
+    立即暴露漏改的依赖点——调用方必须改走 SQLAlchemy session。
     """
-    ensure_db()
-    if _engine().dialect.name != "sqlite":
+    from app import db
+
+    db.ensure_db()
+    if db.get_engine().dialect.name != "sqlite":
         raise RuntimeError(
             "_connect() requires SQLite backend; current engine is "
-            f"{_engine().dialect.name}. Rewrite caller to use SQLAlchemy session."
+            f"{db.get_engine().dialect.name}. Rewrite caller to use SQLAlchemy session."
         )
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(db.get_sqlite_path())
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     return conn
@@ -156,15 +112,10 @@ def get_schema_version() -> int:
 
 @contextmanager
 def _session() -> Iterator[Session]:
-    session = Session(_engine(), expire_on_commit=False)
-    try:
+    from app import db
+
+    with db.get_session() as session:
         yield session
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
 
 
 def _stockpile_to_dict(obj) -> dict:

@@ -15,21 +15,10 @@ import pytest
 
 
 @pytest.fixture
-def memdb(tmp_path, monkeypatch):
-    """提供一个内存级别的 stockpile.db，独立于真实数据库。"""
-    from app import config
-
-    db_path = tmp_path / "stockpile.db"
-    # 由于 CONFIG 是 frozen dataclass，需要替换整个对象
-    from dataclasses import replace
-
-    new_cfg = replace(config.CONFIG, base_dir=tmp_path)
-    monkeypatch.setattr(config, "CONFIG", new_cfg)
-    # stockpile_db.DB_PATH 在模块加载时绑定，需要重新指向
-    from app.repositories import stockpile_db
-
-    monkeypatch.setattr(stockpile_db, "DB_PATH", db_path)
-    stockpile_db.ensure_db()
+def memdb(db_path):
+    """conftest autouse 已用 app.db 在 db_path 建表并把统一 engine 指向同一 tmp 文件，
+    故 stockpile_db 读取与本文件裸 sqlite3 写入天然一致。直接返回 db_path 即可。
+    """
     return db_path
 
 

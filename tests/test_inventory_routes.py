@@ -9,7 +9,6 @@ from unittest import mock
 
 from flask import Flask
 
-from app.repositories import stockpile_db
 from app.routes.inventory import bp
 
 _TEST_DIR = Path(__file__).resolve().parent / "_test_inventory_routes"
@@ -21,18 +20,15 @@ class _BaseRouteTest(unittest.TestCase):
         self.test_dir = _TEST_DIR / self._testMethodName
         shutil.rmtree(self.test_dir, ignore_errors=True)
         self.test_dir.mkdir(parents=True, exist_ok=True)
-        self.test_db = self.test_dir / "test.db"
         self.input_dir = self.test_dir / "input"
         self.input_dir.mkdir()
+        # DB 隔离由 conftest autouse _isolate_db 负责（unified engine 指向 tmp db_path）
         self._patches = [
-            mock.patch.object(stockpile_db, "DB_PATH", self.test_db),
             mock.patch("app.routes.inventory.INPUT_DIR", self.input_dir),
         ]
         for p in self._patches:
             p.start()
             self.addCleanup(p.stop)
-        stockpile_db._engine_cache.clear()
-        stockpile_db.ensure_db()
 
         app = Flask(__name__)
         app.config["TESTING"] = True
@@ -40,7 +36,6 @@ class _BaseRouteTest(unittest.TestCase):
         self.client = app.test_client()
 
     def tearDown(self) -> None:
-        stockpile_db._engine_cache.clear()
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def _upload(self, endpoint: str, fixture_name: str) -> object:

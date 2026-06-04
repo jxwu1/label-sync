@@ -216,30 +216,7 @@ class HoltWintersModelTests(unittest.TestCase):
 class RefreshForecastOutputTests(unittest.TestCase):
     """§3.7 refresh_forecast_output: 全量 SKU 写 forecast_output 表."""
 
-    def setUp(self) -> None:
-        import shutil
-        from pathlib import Path
-        from unittest import mock
-
-        from app.repositories import stockpile_db
-
-        self._tmp = Path(__file__).resolve().parent / "_test_refresh_forecast"
-        shutil.rmtree(self._tmp, ignore_errors=True)
-        self._tmp.mkdir(parents=True, exist_ok=True)
-        self._db = self._tmp / "test.db"
-        self._patch = mock.patch.object(stockpile_db, "DB_PATH", self._db)
-        self._patch.start()
-        self.addCleanup(self._patch.stop)
-        stockpile_db._engine_cache.clear()
-        stockpile_db.ensure_db()
-
-    def tearDown(self) -> None:
-        import shutil
-
-        from app.repositories import stockpile_db
-
-        stockpile_db._engine_cache.clear()
-        shutil.rmtree(self._tmp, ignore_errors=True)
+    # DB 隔离由 conftest autouse _isolate_db 负责（unified engine 指向 tmp db_path）
 
     def _seed_retail(self, barcode: str, weeks: int = 30, qty: int = 5) -> None:
         from datetime import date, timedelta

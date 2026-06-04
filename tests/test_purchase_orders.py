@@ -3,50 +3,12 @@
 from __future__ import annotations
 
 import unittest
-from unittest import mock
 
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker
-
-from app.models import Base
 from app.services.purchase import PurchaseRow, create_order, list_orders, record_arrival
 
 
-def _make_test_db():
-    from sqlalchemy.pool import StaticPool
-
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-
-    @event.listens_for(engine, "connect")
-    def _enable_fk(dbapi_conn, _):
-        cur = dbapi_conn.cursor()
-        cur.execute("PRAGMA foreign_keys=ON")
-        cur.close()
-
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine, future=True, expire_on_commit=False)
-    return engine, Session
-
-
 class _DBTestCase(unittest.TestCase):
-    def setUp(self):
-        import app.models as models_mod
-
-        self.engine, self.Session = _make_test_db()
-        self.patch_engine = mock.patch.object(models_mod, "_engine", self.engine)
-        self.patch_session = mock.patch.object(models_mod, "_SessionFactory", self.Session)
-        self.patch_engine.start()
-        self.patch_session.start()
-
-    def tearDown(self):
-        self.patch_session.stop()
-        self.patch_engine.stop()
-        Base.metadata.drop_all(self.engine)
-        self.engine.dispose()
+    # DB 隔离由 conftest autouse 提供（tmp sqlite，经 app.db engine）。
 
     def _rows(self, qty=10, price=1.0):
         return [

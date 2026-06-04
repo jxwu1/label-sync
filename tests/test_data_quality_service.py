@@ -1,33 +1,15 @@
 """数据质量 service 单元测试。"""
 
-import shutil
 import unittest
-from pathlib import Path
-from unittest import mock
 
 import pandas as pd
 
 from app.repositories import stockpile_db
 from app.services import data_quality as data_quality_service
 
-TEST_TMP_DIR = Path(__file__).resolve().parent / "_test_data_quality"
-
 
 class DataQualityTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.test_dir = TEST_TMP_DIR / self._testMethodName
-        shutil.rmtree(self.test_dir, ignore_errors=True)
-        self.test_dir.mkdir(parents=True, exist_ok=True)
-        self.test_db = self.test_dir / "test.db"
-        self.patch = mock.patch.object(stockpile_db, "DB_PATH", self.test_db)
-        self.patch.start()
-        self.addCleanup(self.patch.stop)
-        stockpile_db._engine_cache.clear()
-        stockpile_db.ensure_db()
-
-    def tearDown(self) -> None:
-        stockpile_db._engine_cache.clear()
-        shutil.rmtree(self.test_dir, ignore_errors=True)
+    # DB 隔离由 conftest autouse _isolate_db 负责（unified engine 指向 tmp db_path）
 
     def _import(self, rows):
         stockpile_db.import_from_dataframe(pd.DataFrame(rows))
