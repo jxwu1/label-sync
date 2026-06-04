@@ -46,12 +46,13 @@ def require_role(role: str):
     return deco
 
 
-def init_auth(app):
+def init_auth(app, *, seed_users: bool = True):
     app.secret_key = app.secret_key or "label-sync-dev-secret-change-in-prod"
     login_manager.init_app(app)
     app.register_blueprint(bp)
-    _seed_admin()
-    _seed_scanner()
+    if seed_users:
+        _seed_admin()
+        _seed_scanner()
 
     @app.before_request
     def _require_login():

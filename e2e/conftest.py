@@ -69,7 +69,8 @@ def live_server(tmp_path_factory) -> str:
 
     from werkzeug.serving import make_server
 
-    httpd = make_server("127.0.0.1", port, server.app)
+    app = server.create_app()
+    httpd = make_server("127.0.0.1", port, app)
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
 
