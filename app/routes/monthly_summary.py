@@ -73,3 +73,17 @@ def download_pdf(month: str):
         as_attachment=True,
         download_name=f"月度采购总结_{month}.pdf",
     )
+
+
+@bp.get("/xlsx/<month>")
+def download_xlsx(month: str):
+    try:
+        xlsx_bytes = monthly_summary_service.build_xlsx(month)
+    except Exception as exc:
+        return jsonify({"ok": False, "msg": f"生成 Excel 失败：{exc}"}), 500
+    return send_file(
+        io.BytesIO(xlsx_bytes),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=f"月度采购总结_{month}.xlsx",
+    )

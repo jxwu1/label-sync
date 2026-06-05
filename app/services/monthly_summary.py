@@ -242,3 +242,53 @@ def build_pdf(month: str) -> bytes:
 
     doc.build(elements)
     return buf.getvalue()
+
+
+_XLSX_HEADERS = ["供应商", "开票日期", "总价", "税金", "特殊税", "加税总价"]
+
+
+def build_xlsx(month: str) -> bytes:
+    """月度采购财务总结 Excel(xlsx) bytes。
+
+    6 列明细(与 PDF 同字段) + 末尾合计行(总价/税金/特殊税/加税总价求和)。
+    金额写纯数值(便于在 Excel 里二次计算), 数据源同 build_pdf 的 load_records。
+    """
+    import openpyxl
+    from openpyxl.styles import Font
+    from openpyxl.utils import get_column_letter
+
+    records = load_records(month)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = month or "月度总结"
+
+    bold = Font(bold=True)
+    for col, name in enumerate(_XLSX_HEADERS, start=1):
+        ws.cell(row=1, column=col, value=name).font = bold
+
+    sums = {"total_price": 0.0, "tax": 0.0, "special_tax": 0.0, "total_with_tax": 0.0}
+    row = 2
+    for rec in records:
+        vals = {k: float(rec.get(k, 0.0)) for k in sums}
+        ws.cell(row=row, column=1, value=rec.get("supplier_name", ""))
+        ws.cell(row=row, column=2, value=rec.get("invoice_date", ""))
+        ws.cell(row=row, column=3, value=vals["total_price"])
+        ws.cell(row=row, column=4, value=vals["tax"])
+        ws.cell(row=row, column=5, value=vals["special_tax"])
+        ws.cell(row=row, column=6, value=vals["total_with_tax"])
+        for k in sums:
+            sums[k] += vals[k]
+        row += 1
+
+    # 合计行
+    ws.cell(row=row, column=1, value="合计").font = bold
+    for col, key in ((3, "total_price"), (4, "tax"), (5, "special_tax"), (6, "total_with_tax")):
+        ws.cell(row=row, column=col, value=round(sums[key], 2)).font = bold
+
+    for col, width in ((1, 24), (2, 14), (3, 14), (4, 12), (5, 12), (6, 14)):
+        ws.column_dimensions[get_column_letter(col)].width = width
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()

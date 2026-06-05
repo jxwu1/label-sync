@@ -203,6 +203,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
         <button class="btn btn--ghost" id="purSumAdd">+ 补录</button>
         <button class="btn btn--ghost" id="purSumManage">⌗ 管理</button>
         <button class="btn btn--primary" id="purSumDl">⌖ 下载 PDF</button>
+        <button class="btn btn--primary" id="purSumXlsx">⌖ 下载 Excel</button>
       </div>
 
       <!-- 记录模态框 -->
@@ -272,6 +273,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     });
     document.getElementById('purSumMonth').addEventListener('change', loadSummaryCount);
     document.getElementById('purSumDl').addEventListener('click', downloadSummaryPdf);
+    document.getElementById('purSumXlsx').addEventListener('click', downloadSummaryXlsx);
     document.getElementById('purSumAdd').addEventListener('click', openAddRecord);
     document.getElementById('purSumManage').addEventListener('click', openManageRecords);
     document.getElementById('purMgrClose').addEventListener('click', () => {
@@ -863,6 +865,22 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) { setStatus('下载 PDF 失败：' + e.message, true); }
+  }
+
+  async function downloadSummaryXlsx() {
+    const month = document.getElementById('purSumMonth')?.value;
+    if (!month) return;
+    try {
+      const res = await fetch(`/monthly-summary/xlsx/${month}`);
+      if (!res.ok) { setStatus('下载 Excel 失败', true); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `月度采购总结_${month}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) { setStatus('下载 Excel 失败：' + e.message, true); }
   }
 
   function openAddRecord() {
