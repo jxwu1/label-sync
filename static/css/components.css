@@ -3135,3 +3135,26 @@
 .dq-v2 .status-bar { height: 28px; flex-shrink: 0; background: var(--bg-1); border-top: 1px solid var(--line-soft); padding: 0 20px; display: flex; align-items: center; gap: 16px; font-size: var(--fs-xs); color: var(--ink-3); }
 .dq-v2 .status-bar b { font-weight: 600; color: var(--ink-2); }
 .dq-v2 .s-warn { color: var(--warn); }
+
+/* ── 采购订单跟踪面板 ───────────────────────────────── */
+/* 固定视口布局下不抢 02 解析区弹性空间，内部独立滚动 */
+#purOrders.pnl { flex-shrink: 0; }
+#purOrders .po-body { max-height: 260px; overflow-y: auto; }
+#purOrders .po-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+#purOrders .po-table th,
+#purOrders .po-table td { padding: var(--sp-2) var(--sp-3); text-align: left; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+#purOrders .po-table th { position: sticky; top: 0; background: var(--bg-1); color: var(--ink-3); font-weight: 600; font-size: var(--fs-xs); text-transform: uppercase; z-index: 1; }
+#purOrders .po-table td.po-num { text-align: right; font-variant-numeric: tabular-nums; }
+#purOrders .po-row--void { opacity: 0.5; }
+#purOrders .po-badge { display: inline-block; padding: 1px 8px; border-radius: var(--r-sm); font-size: var(--fs-xs); font-weight: 600; }
+#purOrders .po-badge--placed { background: var(--bg-2); color: var(--ink-2); }
+#purOrders .po-badge--arrived { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+#purOrders .po-badge--void { background: var(--bg-2); color: var(--ink-3); }
+#purOrders .po-badge--unknown { background: var(--bg-2); color: var(--ink-3); }
+#purOrders .po-acts { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: nowrap; }
+#purOrders .po-btn { cursor: pointer; border: 1px solid var(--line-soft); background: var(--bg-1); color: var(--ink-2); border-radius: var(--r-sm); padding: 2px 8px; font-size: var(--fs-xs); }
+#purOrders .po-btn:hover { background: var(--bg-2); }
+#purOrders .po-btn--danger:hover { color: var(--error); border-color: var(--error); }
+#purOrders .po-date-input { font-size: var(--fs-xs); padding: 1px 4px; }
+#purOrders .po-status { font-size: var(--fs-sm); color: var(--ink-2); }
+#purOrders .po-status.error { color: var(--error); }

@@ -1,4 +1,5 @@
 import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shared.js";
+import { initPurchaseOrders } from "./purchase_orders.js";
 
 (function () {
   let storedSupplierFile = null;
@@ -245,7 +246,10 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
             <button class="btn btn--ghost" id="purMgrClose">关闭</button>
           </div>
         </div>
-      </div>`;
+      </div>
+
+      <!-- 04 订单跟踪 -->
+      <section class="pnl" id="purOrders"></section>`;
     // 浏览按钮的点击靠 setupDropZone 的 parent click 冒泡触发 inputEl.click()，
     // 这里不再单独绑 handler 以避免 inputEl.click() 被调两次（部分浏览器会忽略第二次或闪退 dialog）
     const drop = document.getElementById('purDrop');
@@ -282,6 +286,7 @@ import { esc as escapeHtml, escapeAttr, copyToClip, setupDropZone } from "./shar
     document.getElementById('purMgrSearch').addEventListener('input', renderManageList);
     loadSummaryMonths();
     restoreDraft();
+    initPurchaseOrders(document.getElementById('purOrders'));
   }
 
   function setParsedView(parsed) {
