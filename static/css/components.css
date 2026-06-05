@@ -3157,4 +3157,39 @@
 #purOrders .po-btn--danger:hover { color: var(--error); border-color: var(--error); }
 #purOrders .po-date-input { font-size: var(--fs-xs); padding: 1px 4px; }
 #purOrders .po-status { font-size: var(--fs-sm); color: var(--ink-2); }
+
+/* ── 预测效果看板 ───────────────────────────────── */
+.fe-wrap { display: flex; flex-direction: column; gap: var(--sp-4); padding: 20px 24px; }
+.fe-head { display: flex; align-items: baseline; gap: var(--sp-3); }
+.fe-title { font-size: var(--fs-lg); font-weight: 700; color: var(--ink-1); margin: 0; }
+.fe-fresh { font-size: var(--fs-sm); color: var(--ink-3); }
+.fe-spacer { flex: 1; }
+.fe-banner { background: color-mix(in srgb, var(--warn, #E5A50A) 16%, transparent); color: var(--warn, #E5A50A); border: 1px solid color-mix(in srgb, var(--warn, #E5A50A) 40%, transparent); border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3); font-size: var(--fs-sm); }
+.fe-loading { padding: 40px; text-align: center; color: var(--ink-3); }
+
+.fe-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-3); }
+.fe-kpi { display: flex; flex-direction: column; gap: 2px; background: var(--bg-1); border: 1px solid var(--line-soft); border-radius: var(--r-md); padding: var(--sp-3) var(--sp-4); }
+.fe-kpi-v { font-size: var(--fs-xl); font-weight: 700; color: var(--ink-1); font-variant-numeric: tabular-nums; }
+.fe-kpi-l { font-size: var(--fs-xs); color: var(--ink-3); text-transform: uppercase; }
+
+.fe-tiers { display: flex; flex-direction: column; gap: var(--sp-2); }
+.fe-tiers-label { font-size: var(--fs-xs); color: var(--ink-3); text-transform: uppercase; }
+.fe-bar { display: flex; height: 16px; border-radius: var(--r-sm); overflow: hidden; background: var(--bg-2); }
+.fe-seg { height: 100%; }
+.fe-seg--high { background: #2E9E5B; }
+.fe-seg--medium { background: #E5A50A; }
+.fe-seg--low { background: #80808A; }
+.fe-legend { display: flex; gap: var(--sp-4); font-size: var(--fs-sm); color: var(--ink-2); }
+.fe-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+.fe-dot--high { background: #2E9E5B; }
+.fe-dot--medium { background: #E5A50A; }
+.fe-dot--low { background: #80808A; }
+
+.fe-pnl .pnl-bd { padding: 0; }
+.fe-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.fe-table th, .fe-table td { padding: var(--sp-2) var(--sp-3); text-align: left; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+.fe-table th { color: var(--ink-3); font-weight: 600; font-size: var(--fs-xs); text-transform: uppercase; }
+.fe-table td.fe-num, .fe-table th.fe-num { text-align: right; font-variant-numeric: tabular-nums; }
+.fe-row--prod { background: color-mix(in srgb, var(--accent) 10%, transparent); font-weight: 600; }
+.fe-empty { text-align: center; color: var(--ink-3); }
 #purOrders .po-status.error { color: var(--error); }

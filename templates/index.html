@@ -673,6 +673,7 @@
       </div>
       <div class="page" id="pagePurchase" x-data :class="$store.nav.current === 'purchase' ? 'active' : ''"></div>
       <div class="page" id="pageAttendance" x-data :class="$store.nav.current === 'attendance' ? 'active' : ''"></div>
+      <div class="page" id="pageForecastEval" x-data :class="$store.nav.current === 'forecast_eval' ? 'active' : ''"></div>
       <div class="page hist-v2" id="pageHistory" x-data :class="$store.nav.current === 'history' ? 'active' : ''">
        <div class="content-fill">
         <!-- top: tabs + QUERY -->
@@ -1502,6 +1503,7 @@
 <script type="module" src="{{ url_for('static', filename='js/foreign-customers.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/restock.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/sales-analytics.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/forecast_eval.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/admin.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/pda_pending.js') }}"></script>
 </body>
