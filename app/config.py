@@ -19,6 +19,18 @@ def _env_bool(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _env_int(name: str, default: int) -> int:
+    """读环境变量当正整数；缺失/非法/非正回退 default。"""
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
 def _data_dir() -> Path:
     """运行时数据目录 (stockpile.db / input / output / archive / etc).
 
@@ -45,6 +57,10 @@ class AppConfig:
     child_process_encoding: str = "utf-8"
     csv_fallback_encoding: str = "gbk"
     web_poll_interval_ms: int = 5000
+    # 上传体积上限 (MB). 给所有 request.files 端点统一兜底, 超限 Flask 返回 413,
+    # 不至于读爆内存. 默认 256MB 远大于整库 Excel 导出 (几十 MB), 又给了明确上界;
+    # 真有更大导入用 LABEL_SYNC_MAX_UPLOAD_MB 调高.
+    max_upload_mb: int = 256
     # 2026-05-22: 双端互传废弃 (单端线上为主), 蓝图不再注册. 代码留着, 下周确认无人用再删.
     enable_transfer: bool = False
 
@@ -108,6 +124,10 @@ class AppConfig:
     def stockpile_db(self) -> Path:
         return self.base_dir / "stockpile.db"
 
+    @property
+    def max_upload_bytes(self) -> int:
+        return self.max_upload_mb * 1024 * 1024
+
 
 # debug 仅由 LABEL_SYNC_DEBUG 环境变量开启（本地开发热重载用）。
 # 生产 Docker 不设此变量 → debug=False → waitress 正常跑，不受影响。
@@ -115,4 +135,5 @@ CONFIG = AppConfig(
     base_dir=_data_dir(),
     resource_dir=_resource_dir(),
     debug=_env_bool("LABEL_SYNC_DEBUG"),
+    max_upload_mb=_env_int("LABEL_SYNC_MAX_UPLOAD_MB", 256),
 )

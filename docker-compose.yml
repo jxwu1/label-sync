@@ -46,12 +46,23 @@ services:
       - label-sync
     environment:
       TZ: Europe/Athens
+      # before_request 只放行携带【非空】X-Upload-Token 的请求; cron 必须带它,
+      # 否则被 302 重定向到 /login 而 curl -fsS 不跟跳转、不报错 -> 每天静默空转.
+      # 由部署环境(Coolify) 注入, 与 label-sync 容器同一个 token.
+      # :? 让缺失/空值在 compose 替换阶段就阻止部署(fail before deploy),
+      # 而非等容器起来后才 FATAL; 下方运行期守卫保留作 defense-in-depth.
+      UPLOAD_TOKEN: ${UPLOAD_TOKEN:?UPLOAD_TOKEN 未注入, 拒绝部署 forecast cron}
     command:
       - sh
       - -c
       - |
         apk add --no-cache curl tzdata >/dev/null 2>&1
         cp /usr/share/zoneinfo/Europe/Athens /etc/localtime
-        echo "0 3 * * * curl -fsS -X POST http://label-sync:5000/analytics/forecast/refresh >> /proc/1/fd/1 2>&1" > /etc/crontabs/root
-        echo "[cron] installed: daily 03:00 Athens -> POST /analytics/forecast/refresh"
+        if [ -z "$$UPLOAD_TOKEN" ]; then
+          echo "[cron] FATAL: UPLOAD_TOKEN 未注入, 安装后会被 before_request 拦截而静默空转, 拒绝启动" >&2
+          exit 1
+        fi
+        # token 在写 crontab 时展开并烤进任务行 (crond 不继承容器环境变量, 运行期再引用会取到空值).
+        echo "0 3 * * * curl -fsS -X POST -H \"X-Upload-Token: $$UPLOAD_TOKEN\" http://label-sync:5000/analytics/forecast/refresh >> /proc/1/fd/1 2>&1" > /etc/crontabs/root
+        echo "[cron] installed: daily 03:00 Athens -> POST /analytics/forecast/refresh (authed)"
         exec crond -f -l 2

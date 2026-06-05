@@ -18,6 +18,9 @@ def db_path(tmp_path):
 def _isolate_db(db_path, monkeypatch):
     # 关键：清掉 DATABASE_URL，否则本地 dev.ps1 设了 PG 会直连 PG 而非 tmp。
     monkeypatch.delenv("DATABASE_URL", raising=False)
+    # 测试环境提供 secret，避免 create_app/init_auth 在 debug=False 下触发
+    # 生产 fail-fast(FLASK_SECRET_KEY 缺失则拒启)。需要测该分支的用例自行 delenv。
+    monkeypatch.setenv("FLASK_SECRET_KEY", "test-secret-key")
     from app import db
 
     db.reset_engine(db_path)

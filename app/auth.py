@@ -8,10 +8,31 @@ import bcrypt
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 
+from app.config import CONFIG
 from app.models import SystemSetting, User, get_session
 
 login_manager = LoginManager()
 login_manager.login_view = "auth.login"
+
+# 仅本地 debug 回退用; 生产缺 FLASK_SECRET_KEY 会 fail-fast, 不会落到这个值.
+_DEV_SECRET = "label-sync-dev-secret-change-in-prod"
+
+
+def _resolve_secret_key(debug: bool) -> str:
+    """Flask session secret. 优先 env; 本地 debug 回退 dev 默认; 生产缺失则拒启.
+
+    生产用固定/可猜 secret 会让登录 session cookie 可伪造, 故 fail-fast.
+    """
+    env_secret = os.environ.get("FLASK_SECRET_KEY")
+    if env_secret:
+        return env_secret
+    if debug:
+        return _DEV_SECRET
+    raise RuntimeError(
+        "FLASK_SECRET_KEY 未注入: 生产拒绝使用可伪造的默认 secret. "
+        '请在部署环境(Coolify) 注入一个随机值, 例如 `python -c "import secrets; print(secrets.token_hex(32))"`.'
+    )
+
 
 bp = Blueprint("auth", __name__)
 
@@ -47,7 +68,7 @@ def require_role(role: str):
 
 
 def init_auth(app, *, seed_users: bool = True):
-    app.secret_key = app.secret_key or "label-sync-dev-secret-change-in-prod"
+    app.secret_key = app.secret_key or _resolve_secret_key(CONFIG.debug)
     login_manager.init_app(app)
     app.register_blueprint(bp)
     if seed_users:

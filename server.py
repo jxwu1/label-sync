@@ -14,6 +14,8 @@ def create_app(*, seed_auth: bool = True, prewarm: bool = True) -> Flask:
     app = Flask(__name__, template_folder=str(CONFIG.templates_dir))
     # 本地 debug 时模板改动即时生效，不必重启（生产 debug=False，模板缓存照旧）。
     app.config["TEMPLATES_AUTO_RELOAD"] = CONFIG.debug
+    # 上传体积上限：所有 request.files 端点统一兜底，超限 Flask 自动返回 413。
+    app.config["MAX_CONTENT_LENGTH"] = CONFIG.max_upload_bytes
 
     # 运行时目录：startup_cleanup 会无条件遍历 INPUT/TRANSFER，故一并建全；
     # parents=True 让全新数据目录（LABEL_SYNC_DATA_DIR 指向不存在路径时）也能起。
