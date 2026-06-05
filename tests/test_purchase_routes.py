@@ -5,7 +5,9 @@ from unittest.mock import patch
 
 import openpyxl
 from flask import Flask
+from sqlalchemy import insert
 
+from app.models import PurchaseOrder, get_session
 from app.routes.purchase import bp
 
 
@@ -169,3 +171,59 @@ class TestExportZip(unittest.TestCase):
             names = sorted(zf.namelist())
         self.assertEqual(len(names), 2)
         self.assertIn("产品信息导入模板.csv", names)
+
+
+class TestOrderEditRoutes(unittest.TestCase):
+    """/orders/<id>/update + /void 的 HTTP 行为 (DB 隔离走 conftest autouse)。"""
+
+    def setUp(self):
+        self.client = make_app().test_client()
+
+    def _seed(self, **kw) -> int:
+        vals = {"supplier_id": "S1", "order_date": "2026-05-01", "status": "placed", "total_qty": 1}
+        vals.update(kw)
+        with get_session() as s:
+            res = s.execute(insert(PurchaseOrder).values(**vals))
+            s.commit()
+            return res.inserted_primary_key[0]
+
+    def test_update_success_200(self):
+        oid = self._seed()
+        resp = self.client.post(f"/purchase/orders/{oid}/update", json={"order_date": "2026-05-09"})
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["order_date"], "2026-05-09")
+
+    def test_update_bad_date_400(self):
+        oid = self._seed()
+        resp = self.client.post(f"/purchase/orders/{oid}/update", json={"order_date": "not-a-date"})
+        self.assertEqual(resp.status_code, 400)
+        self.assertFalse(resp.get_json()["ok"])
+
+    def test_update_missing_order_404(self):
+        resp = self.client.post("/purchase/orders/99999/update", json={"order_date": "2026-05-09"})
+        self.assertEqual(resp.status_code, 404)
+        self.assertFalse(resp.get_json()["ok"])
+
+    def test_update_with_arrival_date_rejected_400(self):
+        """契约: 到货日期必须走 /arrival; update 带 arrival_date 不能静默 200。"""
+        oid = self._seed()
+        resp = self.client.post(
+            f"/purchase/orders/{oid}/update", json={"arrival_date": "2026-05-10"}
+        )
+        self.assertEqual(resp.status_code, 400)
+        body = resp.get_json()
+        self.assertFalse(body["ok"])
+        self.assertIn("arrival", body["msg"])
+
+    def test_void_success_200(self):
+        oid = self._seed()
+        resp = self.client.post(f"/purchase/orders/{oid}/void")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["status"], "void")
+
+    def test_void_missing_order_404(self):
+        resp = self.client.post("/purchase/orders/99999/void")
+        self.assertEqual(resp.status_code, 404)
+        self.assertFalse(resp.get_json()["ok"])

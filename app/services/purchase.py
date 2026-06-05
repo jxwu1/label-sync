@@ -365,6 +365,45 @@ def record_arrival(order_id: int, arrival_date: str) -> dict:
     return {"order_id": order_id, "arrival_date": arrival_date, "status": "arrived"}
 
 
+def update_order(order_id: int, *, order_date: str | None = None) -> dict:
+    """改采购单下单日期。只动 order_date, 数量/单价不碰。
+
+    到货日期不在此处理: 标到货是状态转换(置 arrived + 同步明细数量),
+    一律走 record_arrival / POST /arrival, 避免造出"有到货日期但仍 placed"的脏单。
+
+    校验 ISO 日期(坏 → ValueError); 单不存在 → LookupError。
+    """
+    from datetime import date as date_cls
+
+    from app.models import PurchaseOrder, get_session
+
+    if order_date is not None:
+        try:
+            date_cls.fromisoformat(order_date)
+        except (ValueError, TypeError):
+            raise ValueError(f"下单日期格式非法：{order_date}") from None
+
+    with get_session() as s:
+        order = s.get(PurchaseOrder, order_id)
+        if not order:
+            raise LookupError(f"订单不存在：{order_id}")
+        if order_date is not None:
+            order.order_date = order_date
+        return {"order_id": order_id, "order_date": order.order_date}
+
+
+def void_order(order_id: int) -> dict:
+    """软删: 标采购单作废(status='void'), 不真删, 保留可查。"""
+    from app.models import PurchaseOrder, get_session
+
+    with get_session() as s:
+        order = s.get(PurchaseOrder, order_id)
+        if not order:
+            raise LookupError(f"订单不存在：{order_id}")
+        order.status = "void"
+        return {"order_id": order_id, "status": "void"}
+
+
 def compute_supplier_lead_times(limit: int = 50) -> list[dict]:
     from datetime import date as date_cls
     from statistics import median
@@ -377,7 +416,7 @@ def compute_supplier_lead_times(limit: int = 50) -> list[dict]:
         suppliers = s.execute(
             select(PurchaseOrder.supplier_id, Supplier.supplier_name)
             .join(Supplier, Supplier.supplier_id == PurchaseOrder.supplier_id)
-            .where(PurchaseOrder.arrival_date.isnot(None))
+            .where(PurchaseOrder.arrival_date.isnot(None), PurchaseOrder.status != "void")
             .group_by(PurchaseOrder.supplier_id)
         ).all()
 
@@ -385,7 +424,11 @@ def compute_supplier_lead_times(limit: int = 50) -> list[dict]:
         for sid, sname in suppliers:
             orders = s.execute(
                 select(PurchaseOrder.order_date, PurchaseOrder.arrival_date)
-                .where(PurchaseOrder.supplier_id == sid, PurchaseOrder.arrival_date.isnot(None))
+                .where(
+                    PurchaseOrder.supplier_id == sid,
+                    PurchaseOrder.arrival_date.isnot(None),
+                    PurchaseOrder.status != "void",
+                )
                 .order_by(PurchaseOrder.order_date.desc())
                 .limit(limit)
             ).all()

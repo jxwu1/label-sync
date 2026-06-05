@@ -94,6 +94,29 @@ def mark_arrival(order_id: int):
     return jsonify({"ok": True, **result})
 
 
+@bp.post("/orders/<int:order_id>/update")
+def update_order(order_id: int):
+    data = request.get_json(silent=True) or {}
+    if "arrival_date" in data:
+        return jsonify({"ok": False, "msg": "到货日期请使用 /purchase/orders/<id>/arrival"}), 400
+    try:
+        result = purchase_service.update_order(order_id, order_date=data.get("order_date"))
+    except LookupError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 404
+    except ValueError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 400
+    return jsonify({"ok": True, **result})
+
+
+@bp.post("/orders/<int:order_id>/void")
+def void_order(order_id: int):
+    try:
+        result = purchase_service.void_order(order_id)
+    except LookupError as exc:
+        return jsonify({"ok": False, "msg": str(exc)}), 404
+    return jsonify({"ok": True, **result})
+
+
 @bp.get("/lead-times")
 def get_lead_times():
     return jsonify({"ok": True, "lead_times": purchase_service.compute_supplier_lead_times()})
