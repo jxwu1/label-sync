@@ -47,6 +47,16 @@ class AnalyticsRoutesTests(unittest.TestCase):
             )
             s.commit()
 
+    def test_backtest_dashboard_empty_ok(self) -> None:
+        # 空库: 路由可达, 返回可解释的空看板 (不 500)
+        resp = self.client.get("/analytics/backtest/dashboard")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert data["run_id"] is None
+        assert data["forecast_skus"] == 0
+        assert data["tiers"] == {"high": 0, "medium": 0, "low": 0}
+
     def test_unknown_barcode_returns_404(self) -> None:
         resp = self.client.get("/analytics/sku/NOPE")
         self.assertEqual(resp.status_code, 404)

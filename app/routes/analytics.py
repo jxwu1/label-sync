@@ -331,6 +331,19 @@ WHERE br.run_id = :run_id {where_origin}
         )
 
 
+@bp.get("/backtest/dashboard")
+def backtest_dashboard():
+    """预测效果看板聚合 (第1期③): tier 分布 + headline(MASE<1 占比) + 模型对比.
+
+    join 最新 EmpiricalQuantile/base_demand run; backtest 空时整页可解释
+    (全部 low + missing_backtest)。
+    """
+    from app.services.forecast_eval import build_forecast_eval_dashboard
+
+    with stockpile_db._session() as session:
+        return jsonify({"ok": True, **build_forecast_eval_dashboard(session)})
+
+
 @bp.get("/sales/top")
 def sales_top():
     """历史实测好卖货清单 (区别于 /forecast/top 是预测).

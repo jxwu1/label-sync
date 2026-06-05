@@ -436,6 +436,10 @@ class ForecastOutput(Base):
     model_used: Mapped[str] = mapped_column(Text, nullable=False)
     sku_type: Mapped[str] = mapped_column(Text, nullable=False)
     n_weeks_history: Mapped[int] = mapped_column(Integer, nullable=False)
+    # 置信度分层输入 (第1期任务③): nonzero_weeks=>0 的周数; zero_weeks_last8=最近
+    # 8 周里 <=0 的周数(近期零需求信号, 命名刻意不叫"断货"——无库存快照证明不了 stockout)。
+    nonzero_weeks: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    zero_weeks_last8: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     mu: Mapped[float] = mapped_column(nullable=False)
     sigma: Mapped[float] = mapped_column(nullable=False)
     p50: Mapped[float] = mapped_column(nullable=False)

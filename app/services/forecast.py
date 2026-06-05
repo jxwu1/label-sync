@@ -18,6 +18,7 @@ import warnings
 import numpy as np
 
 from app.services.backtest import ForecastDist, _build_series
+from app.services.forecast_eval import demand_history_stats
 
 # refresh_forecast_output: 序列太短就跳过 (与 backtest min_weeks 对齐)
 _MIN_FIT_WEEKS = 13
@@ -124,6 +125,9 @@ def refresh_forecast_output(
             model.fit(series)
             d = model.predict(steps=1)
 
+            # 置信度分层输入 (第1期任务③): 顺手算非零周数 + 近期零需求周数。
+            nonzero_weeks, zero_weeks_last8 = demand_history_stats(series)
+
             # SQLite 不支持原生 ON CONFLICT for SQLAlchemy core 跨方言; delete+insert
             # 简单可靠. PG/SQLite 行为一致.
             s.execute(delete(ForecastOutput).where(ForecastOutput.product_barcode == bc))
@@ -133,6 +137,8 @@ def refresh_forecast_output(
                     model_used=model.name,
                     sku_type=sku_type,
                     n_weeks_history=len(series),
+                    nonzero_weeks=nonzero_weeks,
+                    zero_weeks_last8=zero_weeks_last8,
                     mu=d.mu,
                     sigma=d.sigma,
                     p50=d.p50,

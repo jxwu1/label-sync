@@ -273,6 +273,30 @@ class RefreshForecastOutputTests(unittest.TestCase):
             assert row.n_weeks_history > 0
             assert row.p98 >= row.p50
 
+    def test_writes_confidence_inputs(self) -> None:
+        """第1期③: refresh 顺手写 nonzero_weeks / zero_weeks_last8。
+
+        连续 30 周每周有量 → nonzero_weeks > 0 且最近 8 周无零需求 → zero_weeks_last8 == 0。
+        """
+        from datetime import date
+
+        from sqlalchemy import select
+
+        from app.models import ForecastOutput
+        from app.repositories import stockpile_db
+        from app.services.forecast import refresh_forecast_output
+
+        self._seed_retail("B1", weeks=30, qty=5)
+        refresh_forecast_output(end_date=date(2026, 5, 13), barcodes=["B1"])
+
+        with stockpile_db._session() as s:
+            row = s.execute(
+                select(ForecastOutput).where(ForecastOutput.product_barcode == "B1")
+            ).scalar_one()
+            assert row.nonzero_weeks > 0
+            assert row.nonzero_weeks <= row.n_weeks_history
+            assert row.zero_weeks_last8 == 0
+
     def test_upsert_replaces_previous_row(self) -> None:
         from datetime import date
 
