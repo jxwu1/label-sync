@@ -1,0 +1,81 @@
+      <div class="page" id="pageTransfer" x-data :class="$store.nav.current === 'transfer' ? 'active' : ''">
+        <!-- ConnectionBar -->
+        <div class="tr-connbar">
+          <div class="tr-connbar-icon">⇄</div>
+          <div class="tr-connbar-text">
+            <div class="tr-connbar-title">互传 · A 端 ⇄ B 端</div>
+            <div class="tr-connbar-sub">peer-to-peer · 同局域网文件 / 文字互传</div>
+          </div>
+          <span class="tr-connbar-spacer"></span>
+          <span class="tr-pill tr-pill--accent"><span class="tr-pulse"></span>ONLINE</span>
+        </div>
+
+        <!-- Main 2-col grid -->
+        <div class="tr-grid">
+          <!-- 文件互传 panel -->
+          <section class="tr-panel">
+            <header class="tr-panel-hd">
+              <span class="tr-panel-code">FILE</span>
+              <span class="tr-panel-title">文件互传</span>
+              <span class="tr-panel-sub">drop · queue · download</span>
+              <span class="tr-panel-spacer"></span>
+              <span class="tr-pill tr-pill--ghost" x-data x-text="$store.transfer.files.length + ' files'">0 files</span>
+            </header>
+            <div class="tr-drop" id="tDrop">
+              <input type="file" id="tInput" multiple>
+              <div class="tr-drop-icon">↑</div>
+              <div class="tr-drop-text">
+                <div class="tr-drop-title">拖入文件 · 发送给 B 端</div>
+                <div class="tr-drop-sub">支持多文件 · 全格式 · 走局域网</div>
+              </div>
+              <button class="tr-cta tr-cta--primary" type="button">↑ 选择文件</button>
+            </div>
+            <div class="tr-msg" id="tMsg"></div>
+            <div class="tr-section-label">B 端共享文件</div>
+            <div class="tr-files" id="tList" x-data>
+              <template x-for="i in $store.transfer.files" :key="i.name">
+                <div class="tr-file">
+                  <span class="tr-file-ext" x-text="(i.name.split('.').pop() || '').toUpperCase().slice(0,4)"></span>
+                  <span class="tr-file-name" :title="i.name" x-text="i.name"></span>
+                  <span class="tr-file-size" x-text="i.size + 'KB'"></span>
+                  <a class="tr-cta tr-cta--ghost tr-file-dl" :href="`/transfer_download/${encodeURIComponent(i.name)}`">↓ 下载</a>
+                </div>
+              </template>
+              <div class="tr-empty" x-show="$store.transfer.files.length === 0">暂无文件</div>
+            </div>
+          </section>
+
+          <!-- 文字互传 panel -->
+          <section class="tr-panel tr-chat-panel">
+            <header class="tr-panel-hd">
+              <span class="tr-panel-code">CHAT</span>
+              <span class="tr-panel-title">文字互传</span>
+              <span class="tr-panel-sub">实时消息 · 自动同步</span>
+              <span class="tr-panel-spacer"></span>
+              <span class="tr-pill tr-pill--ghost" x-data x-text="$store.messages.list.length + ' msg'">0 msg</span>
+            </header>
+            <div class="tr-msglist" id="msgList" x-data>
+              <template x-for="i in $store.messages.list" :key="i.id">
+                <div class="tr-bubble" :class="i.sender === 'A' ? 'is-self' : ''">
+                  <div class="tr-bubble-hd">
+                    <span class="tr-bubble-from" x-text="i.sender === 'A' ? '我（A）' : 'B 端'"></span>
+                    <span class="tr-bubble-meta">
+                      <span class="tr-bubble-time" x-text="i.time"></span>
+                      <button class="tr-bubble-del" @click="window.__delMsg(i.id)" title="删除">×</button>
+                    </span>
+                  </div>
+                  <div class="tr-bubble-body" x-text="i.text"></div>
+                </div>
+              </template>
+              <div class="tr-empty" x-show="$store.messages.list.length === 0">暂无消息</div>
+            </div>
+            <div class="tr-chat-foot">
+              <textarea class="tr-textarea" id="textInput" rows="3" placeholder="输入消息，发送给 B 端（Ctrl+Enter）"></textarea>
+              <div class="tr-chat-actions">
+                <button class="tr-cta tr-cta--ghost" id="copyText" type="button">⎘ 复制</button>
+                <button class="tr-cta tr-cta--primary" id="sendText" type="button">↪ 发送</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>

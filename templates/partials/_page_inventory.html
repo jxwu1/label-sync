@@ -1,0 +1,115 @@
+      <div class="page" id="pageInventory" x-data :class="$store.nav.current === 'inventory' ? 'active' : ''">
+        <!-- 📊 数据健康总览 (2026-05-23: 进销存 import 改名"数据健康", scraper 自动化后这页变成
+             看 scraper 跑得怎么样; 手动 import 通道折叠成应急入口在底部) -->
+        <section class="inv-panel">
+          <div class="inv-panel-titleline">
+            <span class="inv-phd-code">📊</span>
+            <span class="inv-phd-title">数据健康总览</span>
+            <span class="inv-spacer"></span>
+            <button class="inv-cta inv-cta--ghost" id="invHealthRefresh">↻ 刷新</button>
+          </div>
+          <div class="inv-panel-bd inv-panel-bd--padded" id="invHealth">加载中…</div>
+        </section>
+
+        <!-- 应急通道: 手动上传 (scraper 挂了时用; 默认折叠) -->
+        <details class="inv-emergency-details">
+        <summary class="inv-emergency-summary">▾ 应急: 手动上传 (scraper 失效时用)</summary>
+        <!-- Import zone: 进销存 .xls (HTML 伪装) -->
+        <section class="inv-panel">
+          <div class="inv-panel-titleline">
+            <span class="inv-phd-code">IO-01</span>
+            <span class="inv-phd-title">进销存导入</span>
+            <span class="inv-spacer"></span>
+            <span class="inv-pill inv-pill--ghost">.xls (HTML 伪装)</span>
+          </div>
+          <!-- radio kind 卡片按钮 + 选择文件 + 预览/导入 -->
+          <div class="inv-kind-row">
+            <label class="inv-kind">
+              <input type="radio" name="invType" value="purchase" checked>
+              <span class="inv-kind-dot"></span>
+              <span class="inv-kind-label">采购单</span>
+              <span class="inv-kind-sub">.xls</span>
+            </label>
+            <label class="inv-kind">
+              <input type="radio" name="invType" value="sales">
+              <span class="inv-kind-dot"></span>
+              <span class="inv-kind-label">销售单</span>
+              <span class="inv-kind-sub">.xls</span>
+            </label>
+            <span class="inv-spacer"></span>
+            <input type="file" id="invFile" accept=".xls,.xlsx,.html" class="inv-hidden-file">
+            <label for="invFile" class="inv-cta inv-cta--ghost">⎙ 选择文件</label>
+            <span class="inv-file-name" id="invFileName">未选择任何文件</span>
+            <span class="inv-spacer"></span>
+            <button class="inv-cta inv-cta--ghost" id="invPreview">预览</button>
+            <button class="inv-cta inv-cta--primary" id="invImport">↪ 执行导入</button>
+          </div>
+          <!-- terminal-style 注释 -->
+          <div class="inv-hint" id="invHint">
+            <span class="inv-hint-prompt">$</span> 上传 ERP 导出的 .xls 文件（实际是 HTML 伪装格式）<br>
+            <span class="inv-hint-prompt">$</span> 先 [预览] 检查列映射 → 再 [执行导入] 入库 · 重复 import 同一文件不会重复落库
+          </div>
+        </section>
+
+        <!-- 产品总档 zone -->
+        <section class="inv-product-zone">
+          <div class="inv-product-icon">⊞</div>
+          <div class="inv-product-text">
+            <div class="inv-product-title">产品总档 · product.csv</div>
+            <div class="inv-product-sub">升级 stockpile 主档 · 含品名 / 价格 / 供应商 / 分类码</div>
+          </div>
+          <input type="file" id="invProductFile" accept=".csv" class="inv-hidden-file">
+          <label for="invProductFile" class="inv-cta inv-cta--ghost">⎙ 选择文件</label>
+          <span class="inv-file-name" id="invProductFileName">未选择任何文件</span>
+          <button class="inv-cta inv-cta--primary" id="invProductImport">↪ 导入产品总档</button>
+        </section>
+
+        <!-- 列映射 panel（preview 后出现） -->
+        <section class="inv-panel" id="invPreviewPanel" hidden>
+          <header class="inv-panel-hd">
+            <span class="inv-phd-code">MAP</span>
+            <span class="inv-phd-title">列映射</span>
+            <span class="inv-phd-sub" id="invPreviewCount"></span>
+            <span class="inv-spacer"></span>
+            <button class="inv-cta inv-cta--ghost" id="invSaveMapping">保存映射</button>
+          </header>
+          <div class="inv-panel-bd">
+            <table class="inv-table">
+              <thead><tr><th>ERP 列名</th><th>映射到内部字段</th><th>样本值</th></tr></thead>
+              <tbody id="invMappingBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- 导入结果 panel（import 后出现） -->
+        <section class="inv-panel" id="invResultPanel" hidden>
+          <header class="inv-panel-hd">
+            <span class="inv-phd-code">RES</span>
+            <span class="inv-phd-title">导入结果</span>
+          </header>
+          <div class="inv-panel-bd" id="invResult"></div>
+        </section>
+
+        <!-- DB-STATE: 4 stat grid + 客户类型分布 -->
+        <section class="inv-panel">
+          <header class="inv-panel-hd">
+            <span class="inv-phd-code">DB-STATE</span>
+            <span class="inv-phd-title">当前数据库状态</span>
+            <span class="inv-spacer"></span>
+            <button class="inv-cta inv-cta--ghost" id="invStatsRefresh">↻ 刷新</button>
+          </header>
+          <div class="inv-panel-bd inv-panel-bd--padded" id="invStats">点「刷新」查看主档与事件计数</div>
+        </section>
+
+        <!-- RECENT 最近导入 (留在折叠区里 admin 视角看 import 失败记录) -->
+        <section class="inv-panel">
+          <header class="inv-panel-hd">
+            <span class="inv-phd-code">RECENT</span>
+            <span class="inv-phd-title">最近导入</span>
+            <span class="inv-spacer"></span>
+            <button class="inv-cta inv-cta--ghost" id="invImportsRefresh">↻ 刷新</button>
+          </header>
+          <div class="inv-panel-bd" id="invImports">点「刷新」查看最近 import 记录</div>
+        </section>
+        </details>
+      </div>

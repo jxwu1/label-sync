@@ -1,0 +1,74 @@
+      <div class="page" id="pageSalesAnalytics" x-data :class="$store.nav.current === 'sales_analytics' ? 'active' : ''">
+        <div class="panel">
+          <div class="panel-hd">
+            销售分析（全部 SKU）
+            <div class="sa-actions">
+              <span class="sa-stat" id="saStatTotal"></span>
+              <button class="sa-cta sa-cta--primary" id="saRefresh">↻ 刷新</button>
+            </div>
+          </div>
+          <div class="panel-bd">
+            <div class="sa-filter-bar">
+              <div class="sa-filter-group">
+                <span class="sa-filter-label">自动分类</span>
+                <button class="sa-chip sa-chip--active" data-filter="auto" data-value="">全部</button>
+                <button class="sa-chip" data-filter="auto" data-value="new">新品</button>
+                <button class="sa-chip" data-filter="auto" data-value="seasonal">季节性</button>
+                <button class="sa-chip" data-filter="auto" data-value="declining">衰退</button>
+                <button class="sa-chip" data-filter="auto" data-value="stable">稳定</button>
+                <button class="sa-chip" data-filter="auto" data-value="unclassified">未分类</button>
+              </div>
+              <div class="sa-filter-group">
+                <span class="sa-filter-label">人工标签</span>
+                <button class="sa-chip sa-chip--active" data-filter="manual" data-value="">全部</button>
+                <button class="sa-chip" data-filter="manual" data-value="__none">未设</button>
+                <button class="sa-chip" data-filter="manual" data-value="__set">已设</button>
+              </div>
+              <div class="sa-filter-group">
+                <span class="sa-filter-label">客户端</span>
+                <button class="sa-chip sa-chip--active" data-filter="cust" data-value="">全部</button>
+                <button class="sa-chip" data-filter="cust" data-value="cn">🇨🇳 中国主导</button>
+                <button class="sa-chip" data-filter="cust" data-value="fo">🇬🇷 老外主导</button>
+                <button class="sa-chip" data-filter="cust" data-value="balanced">均衡</button>
+                <button class="sa-chip" data-filter="cust" data-value="none">无销售</button>
+              </div>
+              <div class="sa-filter-group">
+                <span class="sa-filter-label">告警</span>
+                <button class="sa-chip sa-chip--active" data-filter="warn" data-value="">全部</button>
+                <button class="sa-chip" data-filter="warn" data-value="1">仅不一致 ⚠</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-hd">
+            列表
+            <div class="sa-actions">
+              <span class="sa-stat" id="saStatShowing"></span>
+            </div>
+          </div>
+          <div class="panel-bd">
+            <table class="sa-table">
+              <thead>
+                <tr>
+                  <th>条码</th>
+                  <th>型号 / 品名</th>
+                  <th>分类</th>
+                  <th class="sa-num sa-th-sort" data-sort="total_qty">总销量 <span class="sa-sort-ind"></span></th>
+                  <th class="sa-num sa-th-sort" data-sort="lifespan_days">寿命(天) <span class="sa-sort-ind"></span></th>
+                  <th class="sa-num sa-th-sort" data-sort="trend_slope_pct_per_week">12 周趋势 <span class="sa-sort-ind"></span></th>
+                  <th class="sa-num">趋势线</th>
+                  <th class="sa-num">🇨🇳</th>
+                  <th class="sa-num">🇬🇷</th>
+                  <th class="sa-num sa-th-sort" data-sort="manual_grade">等级 <span class="sa-sort-ind"></span></th>
+                  <th>告警</th>
+                </tr>
+              </thead>
+              <tbody id="saTbody">
+                <tr><td colspan="11" class="empty">点「刷新」加载</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>

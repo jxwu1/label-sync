@@ -1,0 +1,99 @@
+      <div class="page dq-v2" id="pageDataQuality" x-data :class="$store.nav.current === 'data_quality' ? 'active' : ''">
+        <!-- 顶部：summary chips + 操作 + 7 tab -->
+        <div class="top-panel">
+          <div class="summary-bar">
+            <div class="summary-chips" id="dqChips"></div>
+            <div class="summary-actions">
+              <button class="btn btn--ghost" id="dqRefresh">↻ 重新扫描</button>
+              <button class="btn btn--primary" id="dqCopyAll">⎘ 复制全部</button>
+            </div>
+          </div>
+          <div class="tab-strip" id="dqTabStrip">
+            <button class="tab-btn active" data-dq-tab="whitespace" type="button">空白字符<span class="tab-count" data-c="whitespace"></span></button>
+            <button class="tab-btn" data-dq-tab="prefix" type="button">异常前缀<span class="tab-count" data-c="prefix"></span></button>
+            <button class="tab-btn" data-dq-tab="duplicate" type="button">重复段<span class="tab-count" data-c="duplicate"></span></button>
+            <button class="tab-btn" data-dq-tab="orphan" type="button">空库位<span class="tab-count" data-c="orphan"></span></button>
+            <button class="tab-btn" data-dq-tab="negstock" type="button">负库存<span class="tab-count" data-c="negstock"></span></button>
+            <div class="tab-sep"></div>
+            <button class="tab-btn" data-dq-tab="multi" type="button">同维度多位<span class="tab-count" data-c="multi"></span></button>
+            <button class="tab-btn" data-dq-tab="flippers" type="button">高频翻转<span class="tab-count" data-c="flippers"></span></button>
+          </div>
+        </div>
+
+        <div class="tab-panels">
+          <div class="tab-panel active" data-dq-panel="whitespace">
+            <div class="panel-toolbar">
+              <span class="panel-toolbar-code">G·WHITESPACE</span>
+              <span class="panel-toolbar-desc">stockpile_location 含前后 / 段间空格，strip 后有差异</span>
+              <span class="panel-toolbar-spacer"></span>
+              <a class="btn btn--success" href="/data_quality/whitespace_fix_template">↓ 修复模板</a>
+              <button class="btn btn--ghost" data-copy-section="whitespace_anomalies">⎘ 复制型号</button>
+            </div>
+            <div class="tbl-wrap" id="dqList_whitespace"></div>
+          </div>
+          <div class="tab-panel" data-dq-panel="prefix">
+            <div class="panel-toolbar">
+              <span class="panel-toolbar-code">G·PREFIX</span>
+              <span class="panel-toolbar-desc">stockpile_locations.kind = 'unknown'（非 A/B/C/X/Z 开头）</span>
+              <span class="panel-toolbar-spacer"></span>
+              <button class="btn btn--ghost" data-copy-section="unknown_prefix">⎘ 复制型号</button>
+            </div>
+            <div class="tbl-wrap" id="dqList_prefix"></div>
+          </div>
+          <div class="tab-panel" data-dq-panel="duplicate">
+            <div class="panel-toolbar">
+              <span class="panel-toolbar-code">G·DUPLICATE</span>
+              <span class="panel-toolbar-desc">raw stockpile_location 里同一 location 段出现 ≥ 2 次</span>
+              <span class="panel-toolbar-spacer"></span>
+              <button class="btn btn--ghost" data-copy-section="duplicate_segments">⎘ 复制型号</button>
+            </div>
+            <div class="tbl-wrap" id="dqList_duplicate"></div>
+          </div>
+          <div class="tab-panel" data-dq-panel="orphan">
+            <div class="panel-toolbar">
+              <span class="panel-toolbar-code">G·ORPHAN</span>
+              <span class="panel-toolbar-desc">active SKU 但 stockpile_location 为空</span>
+              <span class="panel-toolbar-spacer"></span>
+              <button class="btn btn--ghost" data-copy-section="empty_locations">⎘ 复制型号</button>
+            </div>
+            <div class="tbl-wrap" id="dqList_orphan"></div>
+          </div>
+          <div class="tab-panel" data-dq-panel="negstock">
+            <div class="panel-toolbar">
+              <span class="panel-toolbar-code">G·NEGATIVE_STOCK</span>
+              <span class="panel-toolbar-desc">最新 snapshot 中 qty_total &lt; 0，需 ERP 纠错</span>
+              <span class="panel-toolbar-spacer"></span>
+              <button class="btn btn--ghost" data-copy-section="negative_stock">⎘ 复制型号</button>
+            </div>
+            <div class="tbl-wrap" id="dqList_negstock"></div>
+          </div>
+          <div class="tab-panel" data-dq-panel="multi">
+            <div class="panel-toolbar">
+              <span class="panel-toolbar-code">DQ·MULTI</span>
+              <span class="panel-toolbar-desc">同一货号在同维度（warehouse / store）下占多个 location</span>
+              <span class="panel-toolbar-spacer"></span>
+              <button class="btn btn--ghost" data-copy-section="multi_same_kind">⎘ 复制型号</button>
+            </div>
+            <div class="tbl-wrap" id="dqList_multi"></div>
+          </div>
+          <div class="tab-panel" data-dq-panel="flippers">
+            <div class="panel-toolbar">
+              <span class="panel-toolbar-code">DQ·FLIPPERS</span>
+              <span class="panel-toolbar-desc">location 变更 ≥ 4 次的货号（可能是数据录入问题）</span>
+              <span class="panel-toolbar-spacer"></span>
+              <button class="btn btn--ghost" data-copy-section="flippers">⎘ 复制型号</button>
+            </div>
+            <div class="tbl-wrap" id="dqList_flippers"></div>
+          </div>
+        </div>
+
+        <div class="status-bar">
+          <span>扫描范围 <b id="dqScannedCount">—</b> 条（active + inactive）</span>
+          <span>·</span>
+          <span>异常合计 <b class="s-warn" id="dqTotalAnomalies">—</b></span>
+          <span>·</span>
+          <span>上次扫描 <b id="dqLastScan">—</b></span>
+          <span style="flex:1"></span>
+          <span>只读模式 · 本页不修改数据</span>
+        </div>
+      </div>
