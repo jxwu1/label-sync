@@ -1,0 +1,99 @@
+      <div class="page" id="pageDup" x-data :class="$store.nav.current === 'dup' ? 'active' : ''">
+        <!-- 4 列 mini stat 顶部概览 -->
+        <div class="dd-stats">
+          <div class="dd-stat" id="ddStatWhitespace" data-tone="error">
+            <div class="dd-stat-num">—</div>
+            <div class="dd-stat-label">空白字符</div>
+          </div>
+          <div class="dd-stat" id="ddStatUnknown" data-tone="error">
+            <div class="dd-stat-num">—</div>
+            <div class="dd-stat-label">异常前缀</div>
+          </div>
+          <div class="dd-stat" id="ddStatDuplicate" data-tone="error">
+            <div class="dd-stat-num">—</div>
+            <div class="dd-stat-label">重复段</div>
+          </div>
+          <div class="dd-stat" id="ddStatEmptyLoc" data-tone="warn">
+            <div class="dd-stat-num">—</div>
+            <div class="dd-stat-label">空库位</div>
+          </div>
+          <div class="dd-stat" id="ddStatNegStock" data-tone="error">
+            <div class="dd-stat-num">—</div>
+            <div class="dd-stat-label">负库存</div>
+          </div>
+        </div>
+
+        <!-- 工具条 -->
+        <div class="dd-toolbar">
+          <span class="dd-toolbar-code">QUERY · 数据库扫描</span>
+          <span class="dd-toolbar-stat">
+            共 <b class="dd-num--ok" id="ddTotalScanned">—</b> 条 ·
+            命中异常 <b class="dd-num--warn" id="ddTotalAnomaly">—</b> 条
+          </span>
+          <span class="dd-toolbar-spacer"></span>
+          <button class="dd-cta dd-cta--ghost" id="ddRefresh">↻ 重新扫描</button>
+          <button class="dd-cta dd-cta--primary" id="ddCopyAll">⎘ 复制全部异常</button>
+        </div>
+
+        <!-- 4 group panel -->
+        <section class="dd-group" id="ddWhitespacePanel">
+          <header class="dd-group-hd">
+            <span class="dd-group-code">G·WHITESPACE</span>
+            <span class="dd-group-title">空白字符异常</span>
+            <span class="dd-group-sub">strip 后差异</span>
+            <span class="dd-toolbar-spacer"></span>
+            <span class="dd-pill" id="ddWhitespaceState">—</span>
+            <a class="dd-cta dd-cta--primary dd-tpl" href="/data_quality/whitespace_fix_template" download>↓ 下载修复模板</a>
+            <button class="dd-cta dd-cta--ghost dd-copy" data-copy-section="whitespace_anomalies">⎘ 一键复制</button>
+          </header>
+          <div class="dd-group-body" id="ddWhitespace"></div>
+        </section>
+
+        <section class="dd-group" id="ddUnknownPanel">
+          <header class="dd-group-hd">
+            <span class="dd-group-code">G·PREFIX</span>
+            <span class="dd-group-title">异常前缀</span>
+            <span class="dd-group-sub">非 A/B/C/X/Z 开头</span>
+            <span class="dd-toolbar-spacer"></span>
+            <span class="dd-pill" id="ddUnknownState">—</span>
+            <button class="dd-cta dd-cta--ghost dd-copy" data-copy-section="unknown_prefix">⎘ 一键复制</button>
+          </header>
+          <div class="dd-group-body" id="ddUnknown"></div>
+        </section>
+
+        <section class="dd-group" id="ddDuplicatePanel">
+          <header class="dd-group-hd">
+            <span class="dd-group-code">G·DUPLICATE</span>
+            <span class="dd-group-title">重复段</span>
+            <span class="dd-group-sub">raw 字符串里同 location 段重复</span>
+            <span class="dd-toolbar-spacer"></span>
+            <span class="dd-pill" id="ddDuplicateState">—</span>
+            <button class="dd-cta dd-cta--ghost dd-copy" data-copy-section="duplicate_segments">⎘ 一键复制</button>
+          </header>
+          <div class="dd-group-body" id="ddDuplicate"></div>
+        </section>
+
+        <section class="dd-group" id="ddEmptyLocPanel">
+          <header class="dd-group-hd">
+            <span class="dd-group-code">G·ORPHAN</span>
+            <span class="dd-group-title">空库位</span>
+            <span class="dd-group-sub">active 但无位置</span>
+            <span class="dd-toolbar-spacer"></span>
+            <span class="dd-pill" id="ddEmptyLocState">—</span>
+            <button class="dd-cta dd-cta--ghost dd-copy" data-copy-section="empty_locations">⎘ 一键复制</button>
+          </header>
+          <div class="dd-group-body" id="ddEmptyLoc"></div>
+        </section>
+
+        <section class="dd-group" id="ddNegStockPanel">
+          <header class="dd-group-hd">
+            <span class="dd-group-code">G·NEGATIVE_STOCK</span>
+            <span class="dd-group-title">异常库存（负）</span>
+            <span class="dd-group-sub">最新 snapshot 中 qty &lt; 0，需 ERP 纠错</span>
+            <span class="dd-toolbar-spacer"></span>
+            <span class="dd-pill" id="ddNegStockState">—</span>
+            <button class="dd-cta dd-cta--ghost dd-copy" data-copy-section="negative_stock">⎘ 一键复制</button>
+          </header>
+          <div class="dd-group-body" id="ddNegStock"></div>
+        </section>
+      </div>

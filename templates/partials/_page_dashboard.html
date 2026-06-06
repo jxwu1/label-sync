@@ -1,0 +1,137 @@
+<div class="page" id="pageDashboard" x-data="{
+  stats: { sku: '—', inactive: '—', scans: '—', anomalies: '—', lastImport: '—' },
+  taskState: 'idle', taskLabel: '就绪', taskDetail: '无运行中的任务', taskPct: 0,
+  feed: [], dq: [], sys: [],
+  get dateStr() {
+    const d = new Date();
+    const days = ['周日','周一','周二','周三','周四','周五','周六'];
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + ' · ' + days[d.getDay()];
+  },
+  async load() {
+    try {
+      const r = await fetch('/api/dashboard');
+      if (!r.ok) return;
+      const d = await r.json();
+      if (d.stats) this.stats = d.stats;
+      if (d.task) { this.taskState = d.task.state; this.taskLabel = d.task.label; this.taskDetail = d.task.detail; this.taskPct = d.task.pct; }
+      if (d.feed) this.feed = d.feed;
+      if (d.dq) this.dq = d.dq;
+      if (d.sys) this.sys = d.sys;
+    } catch(e) { console.warn('dashboard load:', e); }
+  }
+}" x-init="$store.nav.onFirstActivate('dashboard', () => load())"
+   :class="$store.nav.current === 'dashboard' ? 'active' : ''">
+
+  <!-- Greeting -->
+  <div class="dash-greeting">
+    <span class="dash-greeting-text">Overview</span>
+    <span class="dash-greeting-sub">系统运行正常</span>
+    <span class="dash-greeting-date" x-text="dateStr"></span>
+  </div>
+
+  <!-- Stats -->
+  <div class="dash-stats">
+    <div class="dash-stat">
+      <div class="dash-stat-label">库存 SKU</div>
+      <div class="dash-stat-value" x-text="stats.sku">—</div>
+      <div class="dash-stat-note success">活跃</div>
+    </div>
+    <div class="dash-stat">
+      <div class="dash-stat-label">停用 SKU</div>
+      <div class="dash-stat-value" x-text="stats.inactive">—</div>
+      <div class="dash-stat-note">inactive</div>
+    </div>
+    <div class="dash-stat">
+      <div class="dash-stat-label">本月扫描</div>
+      <div class="dash-stat-value" x-text="stats.scans">—</div>
+      <div class="dash-stat-note accent" x-text="stats.scanBatches || ''"></div>
+    </div>
+    <div class="dash-stat">
+      <div class="dash-stat-label">数据异常</div>
+      <div class="dash-stat-value" style="color:var(--warn)" x-text="stats.anomalies">—</div>
+      <div class="dash-stat-note warn" x-text="stats.anomalyDetail || ''"></div>
+    </div>
+    <div class="dash-stat">
+      <div class="dash-stat-label">上次导入</div>
+      <div class="dash-stat-value mono" style="font-size:17px" x-text="stats.lastImport">—</div>
+      <div class="dash-stat-note" x-text="stats.lastImportDetail || ''"></div>
+    </div>
+  </div>
+
+  <!-- Task bar -->
+  <div class="dash-task">
+    <div class="dash-task-dot" :class="taskState"></div>
+    <span class="dash-task-label" x-text="taskLabel"></span>
+    <span class="dash-task-detail" x-text="taskDetail"></span>
+    <div style="flex:1"></div>
+    <template x-if="taskPct > 0">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="dash-task-bar">
+          <div class="dash-task-fill accent" :style="`width:${taskPct}%`"></div>
+        </div>
+        <span class="dash-task-pct" x-text="taskPct + '%'"></span>
+      </div>
+    </template>
+  </div>
+
+  <!-- Two columns -->
+  <div class="dash-cols">
+    <!-- Left: Activity feed -->
+    <div style="display:flex;flex-direction:column;min-height:0">
+      <div class="dash-panel" style="flex:1;min-height:0">
+        <div class="dash-panel-hd">
+          <span class="dash-panel-title">最近动态</span>
+          <span class="dash-panel-badge">24h</span>
+        </div>
+        <div class="dash-panel-body">
+          <template x-for="(f, i) in feed" :key="i">
+            <div class="dash-feed">
+              <div class="dash-feed-dot" :class="f.type"></div>
+              <div class="dash-feed-content">
+                <div class="dash-feed-title" x-html="f.title"></div>
+                <div class="dash-feed-meta"><template x-for="m in (f.meta || [])" :key="m"><span x-text="m"></span></template></div>
+              </div>
+              <span class="dash-feed-time" x-text="f.time"></span>
+            </div>
+          </template>
+          <div class="empty" x-show="feed.length === 0">暂无动态</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: DQ + System -->
+    <div style="display:flex;flex-direction:column;gap:16px;min-height:0">
+      <div class="dash-panel">
+        <div class="dash-panel-hd">
+          <span class="dash-panel-title">数据质量</span>
+          <span class="dash-panel-badge" x-text="dq.length + ' 项'"></span>
+          <span class="dash-panel-link" @click="$store.nav.switch('data_quality')">详情 →</span>
+        </div>
+        <div class="dash-panel-body">
+          <template x-for="(item, i) in dq" :key="i">
+            <div class="dash-dq-row">
+              <span class="dash-dq-label" x-text="item.label"></span>
+              <span class="dash-dq-count" :class="item.count > 0 ? 'nonzero' : 'zero'" x-text="item.count"></span>
+            </div>
+          </template>
+          <div class="empty" x-show="dq.length === 0">加载中...</div>
+        </div>
+      </div>
+      <div class="dash-panel" style="flex:1">
+        <div class="dash-panel-hd">
+          <span class="dash-panel-title">系统</span>
+        </div>
+        <div class="dash-panel-body" style="padding:2px 0">
+          <template x-for="(s, i) in sys" :key="i">
+            <div class="dash-sys-row">
+              <span class="dash-sys-dot" :class="s.status"></span>
+              <span class="dash-sys-label" x-text="s.label"></span>
+              <span class="dash-sys-val" :style="s.status === 'warn' ? 'color:var(--warn)' : ''" x-text="s.value"></span>
+            </div>
+          </template>
+          <div class="empty" x-show="sys.length === 0">加载中...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

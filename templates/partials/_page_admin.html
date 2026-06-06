@@ -1,0 +1,112 @@
+      <div class="page" id="pageAdmin" x-data :class="$store.nav.current === 'admin' ? 'active' : ''">
+
+        <!-- Row 1: 系统状态 + Scraper -->
+        <div class="two-col">
+          <div class="pnl">
+            <div class="pnl-hd">
+              <span class="pnl-code">SYS</span>
+              <span class="pnl-title" role="heading" aria-level="2">系统状态</span>
+              <span class="pnl-spacer"></span>
+              <button class="btn btn--ghost" id="sysRefresh">↻ 刷新</button>
+            </div>
+            <div id="sysStatus">
+              <div class="sys-row"><span class="sys-dot ok"></span><span class="sys-label">加载中…</span></div>
+            </div>
+          </div>
+          <div class="pnl">
+            <div class="pnl-hd">
+              <span class="pnl-code">SCR</span>
+              <span class="pnl-title" role="heading" aria-level="2">Scraper 状态</span>
+              <span class="pnl-spacer"></span>
+              <span class="pill pill--ghost" id="sysScrPill">数据新鲜度</span>
+            </div>
+            <div id="sysScraper">
+              <div class="sched-row"><span class="sched-name">加载中…</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SET 系统参数 -->
+        <div class="pnl">
+          <div class="pnl-hd">
+            <span class="pnl-code">SET</span>
+            <span class="pnl-title" role="heading" aria-level="2">系统参数</span>
+            <span class="pnl-spacer"></span>
+            <button class="btn btn--primary" id="adminSaveSettings">保存参数</button>
+          </div>
+          <div class="pnl-bd">
+            <div id="adminSettings" style="display:grid;grid-template-columns:240px 1fr;gap:10px 16px;align-items:center;font-size:var(--fs-base);max-width:580px;"></div>
+          </div>
+        </div>
+
+        <!-- USR 用户管理 -->
+        <div class="pnl">
+          <div class="pnl-hd">
+            <span class="pnl-code">USR</span>
+            <span class="pnl-title" role="heading" aria-level="2">用户管理</span>
+            <span class="pnl-spacer"></span>
+            <button class="btn btn--ghost" id="adminAddUser">+ 新增</button>
+          </div>
+          <table class="tbl">
+            <thead><tr>
+              <th>ID</th><th>用户名</th><th>显示名</th><th>主题</th><th>创建时间</th><th class="r">操作</th>
+            </tr></thead>
+            <tbody id="adminUserTbody"></tbody>
+          </table>
+        </div>
+
+        <!-- IO-01 应急手动上传（数据健康 07 并入；新 sys- ID 防与 07 撞）-->
+        <div class="pnl pnl--clps is-collapsed">
+          <div class="pnl-hd" role="button" tabindex="0" aria-label="折叠/展开">
+            <span class="pnl-code">IO-01</span>
+            <span class="pnl-title" role="heading" aria-level="2">应急手动上传</span>
+            <span class="pnl-sub" style="margin-left:4px;">scraper 失效时用</span>
+            <span class="pnl-spacer"></span>
+            <span class="pill pill--ghost">.xls (HTML 伪装)</span>
+          </div>
+          <div class="pnl-bd">
+            <div class="inv-kind-row">
+              <label class="inv-kind"><input type="radio" name="sysInvType" value="purchase" checked><span class="inv-kind-dot"></span><span class="inv-kind-label">采购单</span><span class="inv-kind-sub">.xls</span></label>
+              <label class="inv-kind"><input type="radio" name="sysInvType" value="sales"><span class="inv-kind-dot"></span><span class="inv-kind-label">销售单</span><span class="inv-kind-sub">.xls</span></label>
+              <span class="inv-spacer"></span>
+              <input type="file" id="sysInvFile" accept=".xls,.xlsx,.html" class="inv-hidden-file">
+              <label for="sysInvFile" class="btn btn--ghost">⎙ 选择文件</label>
+              <span class="inv-file-name" id="sysInvFileName">未选择任何文件</span>
+              <span class="inv-spacer"></span>
+              <button class="btn btn--ghost" id="sysInvPreview">预览</button>
+              <button class="btn btn--primary" id="sysInvImport">↪ 执行导入</button>
+            </div>
+            <div id="sysInvMsg" class="sys-sub" style="margin-top:10px;line-height:1.6;"></div>
+          </div>
+        </div>
+
+        <!-- RECENT 近 10 次 Import -->
+        <div class="pnl pnl--clps is-collapsed">
+          <div class="pnl-hd" role="button" tabindex="0" aria-label="折叠/展开">
+            <span class="pnl-code">RECENT</span>
+            <span class="pnl-title" role="heading" aria-level="2">近 10 次手动 Import</span>
+            <span class="pnl-spacer"></span>
+            <button class="btn btn--ghost" id="sysImportsRefresh">↻ 刷新</button>
+          </div>
+          <div style="overflow:auto;max-height:240px;">
+            <table class="tbl">
+              <thead><tr><th>时间</th><th>类型</th><th>状态</th><th class="r">行数</th><th>文件</th></tr></thead>
+              <tbody id="sysImportsBody"><tr><td colspan="5" class="pnl-empty">加载中…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 危险区域（动作待接后端，先 stub 禁用）-->
+        <div class="danger">
+          <div class="danger-hd"><span class="danger-hd-title">⚠ 危险区域</span></div>
+          <div class="danger-row">
+            <div class="danger-info"><div class="danger-name">重建补货评分</div><div class="danger-desc">清空并重算全部 SKU 的紧迫分快照（待接后端）</div></div>
+            <button class="btn btn--danger" disabled title="待接后端">重建评分</button>
+          </div>
+          <div class="danger-row">
+            <div class="danger-info"><div class="danger-name">清空标签处理缓存</div><div class="danger-desc">删除已处理标签临时文件，不影响已入库数据（待接后端）</div></div>
+            <button class="btn btn--danger" disabled title="待接后端">清空缓存</button>
+          </div>
+        </div>
+
+      </div>
