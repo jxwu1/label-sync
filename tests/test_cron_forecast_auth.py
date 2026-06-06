@@ -139,3 +139,35 @@ def test_backtest_refresh_with_correct_token_reaches_handler():
     _, kwargs = m_run.call_args
     assert kwargs["model_name"] == "EmpiricalQuantile"
     assert kwargs["view"] == "base_demand"
+
+
+def test_scrape_heartbeat_without_token_redirected_to_login():
+    resp = _client().post("/analytics/scrape/heartbeat")
+
+    assert resp.status_code == 302
+    assert "/login" in resp.headers["Location"]
+
+
+def test_scrape_heartbeat_wrong_token_rejected():
+    os.environ["UPLOAD_TOKEN"] = "secret_token_abc"
+    try:
+        resp = _client().post(
+            "/analytics/scrape/heartbeat",
+            headers={"X-Upload-Token": "wrong"},
+        )
+    finally:
+        os.environ.pop("UPLOAD_TOKEN", None)
+
+    assert resp.status_code == 401
+    assert resp.get_json()["ok"] is False
+
+
+def test_scrape_heartbeat_server_unconfigured_is_500():
+    os.environ.pop("UPLOAD_TOKEN", None)
+    resp = _client().post(
+        "/analytics/scrape/heartbeat",
+        headers={"X-Upload-Token": "whatever"},
+    )
+
+    assert resp.status_code == 500
+    assert resp.get_json()["ok"] is False

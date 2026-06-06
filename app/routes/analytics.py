@@ -876,6 +876,31 @@ def data_dedup_purchase_events():
         )
 
 
+@bp.post("/scrape/heartbeat")
+@require_upload_token
+def scrape_heartbeat():
+    """抓取器成功心跳: 写 SystemSetting(scrape:last_success_at)=now(UTC ISO)。
+
+    无 body (供抓取器 run_weekly 成功尾部 curl 调, token-only)。区分"静默周"
+    (心跳新鲜+数据没动) 与"抓取挂"(心跳过期)。返回 {ok, last_scrape_success_at}。
+    """
+    from datetime import datetime, timezone
+
+    from app.models import SystemSetting
+    from app.services.analytics.freshness import HEARTBEAT_KEY
+
+    ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with stockpile_db._session() as session:
+        row = session.get(SystemSetting, HEARTBEAT_KEY)
+        if row:
+            row.value = ts
+            row.updated_by = "scraper"
+        else:
+            session.add(SystemSetting(key=HEARTBEAT_KEY, value=ts, updated_by="scraper"))
+        session.commit()
+    return jsonify({"ok": True, "last_scrape_success_at": ts})
+
+
 @bp.post("/forecast/refresh")
 @require_upload_token
 def forecast_refresh():

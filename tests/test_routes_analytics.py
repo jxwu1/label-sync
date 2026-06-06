@@ -357,6 +357,20 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
         )
         self.assertEqual(resp.status_code, 400)
 
+    def test_scrape_heartbeat_writes_system_setting(self) -> None:
+        """POST /scrape/heartbeat: 正确 token -> 200 且写 SystemSetting。"""
+        from app.models import SystemSetting
+
+        resp = self.client.post("/analytics/scrape/heartbeat", headers=self.auth)
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_json()
+        self.assertTrue(body["ok"])
+        self.assertTrue(body["last_scrape_success_at"].endswith("+00:00"))
+        with stockpile_db._session() as s:
+            row = s.get(SystemSetting, "scrape:last_success_at")
+        self.assertIsNotNone(row)
+        self.assertEqual(row.value, body["last_scrape_success_at"])
+
     def test_get_runs_lists_recent(self) -> None:
         self._seed_sku("B1")
         self._seed_weekly("B1", weeks=30)
