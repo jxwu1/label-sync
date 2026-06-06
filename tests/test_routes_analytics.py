@@ -1,5 +1,6 @@
 """routes_analytics 单测。HTTP 层薄包装，重点覆盖参数与 404 路径。"""
 
+import os
 import unittest
 
 from flask import Flask
@@ -242,6 +243,15 @@ class ListEndpointTests(AnalyticsRoutesTests):
 class BacktestRoutesTests(AnalyticsRoutesTests):
     """plan §2.7 回测 HTTP 层薄包装."""
 
+    def setUp(self) -> None:
+        super().setUp()
+        # forecast/categories/backtest refresh 均经 require_upload_token; 给本类统一注入
+        os.environ["UPLOAD_TOKEN"] = "secret_token_abc"
+        self.auth = {"X-Upload-Token": "secret_token_abc"}
+
+    def tearDown(self) -> None:
+        os.environ.pop("UPLOAD_TOKEN", None)
+
     def _seed_weekly(self, barcode: str = "B1", weeks: int = 30, qty: int = 5) -> None:
         from datetime import date, timedelta
 
@@ -258,6 +268,63 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
                     )
                 )
             s.commit()
+
+    def test_post_refresh_runs_empirical_quantile(self) -> None:
+        """第1期⑤ cron 入口: 正确 token POST /backtest/refresh 全量跑 EmpiricalQuantile."""
+        import os
+        from datetime import date, timedelta
+
+        from app.models import BacktestRun
+
+        self._seed_sku("BR1")
+        with stockpile_db._session() as s:
+            for w in range(60):
+                d = (date.today() - timedelta(days=w * 7)).isoformat()
+                s.execute(
+                    insert(InventoryEvent).values(
+                        event_at=d,
+                        event_type="sale",
+                        product_barcode="BR1",
+                        qty=5,
+                        document_no=f"BR1-R{w}",
+                    )
+                )
+            s.commit()
+
+        os.environ["UPLOAD_TOKEN"] = "secret_token_abc"
+        try:
+            resp = self.client.post(
+                "/analytics/backtest/refresh",
+                headers={"X-Upload-Token": "secret_token_abc"},
+            )
+        finally:
+            os.environ.pop("UPLOAD_TOKEN", None)
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_json()
+        self.assertTrue(body["ok"])
+        self.assertIsInstance(body["run_id"], int)
+        self.assertEqual(body["model_name"], "EmpiricalQuantile")
+        # 真跑了 (非静默空转): 至少给 BR1 评了分
+        self.assertGreaterEqual(body["n_scored"], 1)
+
+        with stockpile_db._session() as s:
+            run = s.get(BacktestRun, body["run_id"])
+        self.assertEqual(run.model_name, "EmpiricalQuantile")
+        self.assertEqual(run.view, "base_demand")
+
+    def test_post_refresh_wrong_token_rejected(self) -> None:
+        """带错误 token -> 401 (不只校验非空; 回应审查 [Medium])."""
+        import os
+
+        os.environ["UPLOAD_TOKEN"] = "secret_token_abc"
+        try:
+            resp = self.client.post(
+                "/analytics/backtest/refresh",
+                headers={"X-Upload-Token": "wrong"},
+            )
+        finally:
+            os.environ.pop("UPLOAD_TOKEN", None)
+        self.assertEqual(resp.status_code, 401)
 
     def test_post_run_writes_run_returns_id(self) -> None:
         self._seed_sku("B1")
@@ -658,7 +725,7 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
 
     def test_forecast_refresh_returns_stats(self) -> None:
         """§3.7 POST /forecast/refresh: 空库返回 n_total=0."""
-        resp = self.client.post("/analytics/forecast/refresh")
+        resp = self.client.post("/analytics/forecast/refresh", headers=self.auth)
         self.assertEqual(resp.status_code, 200)
         body = resp.get_json()
         self.assertTrue(body["ok"])
@@ -667,7 +734,7 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
 
     def test_categories_recompute_returns_stats(self) -> None:
         """POST /categories/recompute: 空库返回 computed=0."""
-        resp = self.client.post("/analytics/categories/recompute")
+        resp = self.client.post("/analytics/categories/recompute", headers=self.auth)
         self.assertEqual(resp.status_code, 200)
         body = resp.get_json()
         self.assertTrue(body["ok"])
@@ -677,7 +744,7 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
     def test_categories_recompute_counts_seeded_sku(self) -> None:
         """有 active SKU 时 computed 计入该 SKU。"""
         self._seed_sku("B1")
-        resp = self.client.post("/analytics/categories/recompute")
+        resp = self.client.post("/analytics/categories/recompute", headers=self.auth)
         self.assertEqual(resp.status_code, 200)
         body = resp.get_json()
         self.assertTrue(body["ok"])
@@ -695,7 +762,7 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
         """POST /forecast/refresh 后物化表被同步重建（forecast 数据进 payload）。"""
         self._seed_sku("B1")
         self.assertEqual(self._count_sku_summary(), 0)
-        resp = self.client.post("/analytics/forecast/refresh")
+        resp = self.client.post("/analytics/forecast/refresh", headers=self.auth)
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(self._count_sku_summary(), 1)
 
@@ -703,7 +770,7 @@ class BacktestRoutesTests(AnalyticsRoutesTests):
         """POST /categories/recompute 后物化表被同步重建（auto_category 进 payload）。"""
         self._seed_sku("B1")
         self.assertEqual(self._count_sku_summary(), 0)
-        resp = self.client.post("/analytics/categories/recompute")
+        resp = self.client.post("/analytics/categories/recompute", headers=self.auth)
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(self._count_sku_summary(), 1)
 

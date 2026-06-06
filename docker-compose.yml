@@ -23,6 +23,10 @@ services:
       LABEL_SYNC_PORT: "5000"
       LABEL_SYNC_THREADS: "4"
       TZ: Europe/Athens
+      # before_request 全局闸校验 token 值: web 必须拿到与 cron 同一个 UPLOAD_TOKEN,
+      # 否则 cron 带正确 token 也会被判无效 -> 401, 预测/回测刷新全失败.
+      # :? 缺失即在 compose 替换阶段拒绝部署 (与 forecast-cron 同源同值).
+      UPLOAD_TOKEN: ${UPLOAD_TOKEN:?UPLOAD_TOKEN 未注入, web 容器无法校验 cron token}
     volumes:
       - ./data:/data
       - ./data/attendance:/app/attendance  # attendance JSON 落持久卷, redeploy 不丢
@@ -36,7 +40,8 @@ services:
       retries: 3
       start_period: 30s
 
-  # §3.7 每日 03:00 Athens 触发 forecast_output 全量刷新
+  # §3.7 每日 03:00 Athens 触发 forecast_output 全量刷新 +
+  # 第1期⑤ 每周日 01:00 触发 backtest 全量重跑 (EmpiricalQuantile)
   # 单独容器隔离, label-sync redeploy 不影响 cron, cron 重启不影响 web
   forecast-cron:
     image: alpine:3.20
@@ -64,5 +69,8 @@ services:
         fi
         # token 在写 crontab 时展开并烤进任务行 (crond 不继承容器环境变量, 运行期再引用会取到空值).
         echo "0 3 * * * curl -fsS -X POST -H \"X-Upload-Token: $$UPLOAD_TOKEN\" http://label-sync:5000/analytics/forecast/refresh >> /proc/1/fd/1 2>&1" > /etc/crontabs/root
-        echo "[cron] installed: daily 03:00 Athens -> POST /analytics/forecast/refresh (authed)"
+        # 周日 01:00 先跑 backtest (重, 全量 ~4k SKU 同步), 错峰于 03:00 forecast 之前 ->
+        # 当周每日 forecast 的置信度分层都能 join 到最新成功的 EmpiricalQuantile run.
+        echo "0 1 * * 0 curl -fsS -X POST -H \"X-Upload-Token: $$UPLOAD_TOKEN\" http://label-sync:5000/analytics/backtest/refresh >> /proc/1/fd/1 2>&1" >> /etc/crontabs/root
+        echo "[cron] installed: daily 03:00 forecast/refresh + Sun 01:00 backtest/refresh, Athens (authed)"
         exec crond -f -l 2

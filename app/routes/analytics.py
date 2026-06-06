@@ -11,6 +11,7 @@ from flask import Blueprint, jsonify
 from pydantic import BaseModel
 from sqlalchemy import select, update
 
+from app.auth import require_upload_token
 from app.models import Stockpile
 from app.repositories import stockpile_db
 from app.services import analytics as analytics_service
@@ -195,6 +196,47 @@ def backtest_run():
     except ValueError as e:
         return jsonify({"ok": False, "msg": str(e)}), 400
     return jsonify({"ok": True, "run_id": run_id})
+
+
+@bp.post("/backtest/refresh")
+@require_upload_token
+def backtest_refresh():
+    """第1期⑤ 每周 cron 入口: 全量重跑 EmpiricalQuantile/base_demand 回测.
+
+    无 body (供 cron 容器调, 同 /forecast/refresh)。固定 forecast 实际使用的
+    EmpiricalQuantile 模型 + base_demand 视图 + 标准窗口 (weeks=156/13/4/min20);
+    end_date 取今天 (对齐 refresh_forecast_output)。同步执行 (生产 ~4k SKU);
+    排在每周日 01:00, 错峰于 03:00 forecast 之前, 让当周 forecast 的置信度分层
+    能 join 到最新成功 run。返回 {ok, run_id, model_name, n_total, n_scored}。
+    """
+    from datetime import date
+
+    from app.models import BacktestRun
+    from app.services import backtest as backtest_service
+
+    try:
+        run_id = backtest_service.run_backtest_all_skus(
+            model_name="EmpiricalQuantile",
+            end_date=date.today(),
+            view="base_demand",
+            notes="cron weekly refresh",
+        )
+    except Exception as exc:
+        return jsonify({"ok": False, "msg": f"回测失败：{exc}"}), 500
+
+    with stockpile_db._session() as session:
+        run = session.get(BacktestRun, run_id)
+        n_total = run.n_skus_total if run else None
+        n_scored = run.n_skus_scored if run else None
+    return jsonify(
+        {
+            "ok": True,
+            "run_id": run_id,
+            "model_name": "EmpiricalQuantile",
+            "n_total": n_total,
+            "n_scored": n_scored,
+        }
+    )
 
 
 @bp.get("/backtest/runs")
@@ -621,10 +663,11 @@ LIMIT :limit
 
 
 @bp.post("/data/upload")
+@require_upload_token
 def data_upload():
     """§2.6 接收脱敏后的 parquet 文件入库.
 
-    Auth: X-Upload-Token 头, 跟服务器 env UPLOAD_TOKEN 常时间比较.
+    Auth: require_upload_token (X-Upload-Token 与 env UPLOAD_TOKEN 常时间比较).
 
     2026-05-21 起策略变更: events.purchase 带 unit_price 不再被拒收
     (用户决策接受内网态势下进价上 PG). 上线后 stockpile.last_purchase_unit_price
@@ -635,8 +678,6 @@ def data_upload():
 
     返回 200 {ok, sale/purchase 各 imported/dup/missed} 或 400/401/500.
     """
-    import os
-    import secrets
     from datetime import datetime, timezone
     from pathlib import Path
 
@@ -644,13 +685,6 @@ def data_upload():
     from werkzeug.utils import secure_filename
 
     from app.config import CONFIG
-
-    expected = os.environ.get("UPLOAD_TOKEN", "")
-    if not expected:
-        return jsonify({"ok": False, "msg": "服务器 UPLOAD_TOKEN 未配置"}), 500
-    provided = request.headers.get("X-Upload-Token", "")
-    if not secrets.compare_digest(provided, expected):
-        return jsonify({"ok": False, "msg": "鉴权失败"}), 401
 
     if "file" not in request.files:
         return jsonify({"ok": False, "msg": "缺少 file (multipart form 字段名)"}), 400
@@ -761,6 +795,7 @@ def data_upload():
 
 
 @bp.post("/data/dedup-purchase-events")
+@require_upload_token
 def data_dedup_purchase_events():
     """清理重复的 purchase inventory_events (2026-05-23 两阶段).
 
@@ -769,21 +804,11 @@ def data_dedup_purchase_events():
     Phase 2: (barcode, event_at, qty, event_type, unit_price) 全部相同
              (含价格都一样), 仅 document_no 不同 → 保留 min(id), 删其他.
 
-    Auth: X-Upload-Token. Query: ?execute=true 实际删, 缺省 dry-run.
+    Auth: require_upload_token. Query: ?execute=true 实际删, 缺省 dry-run.
     幂等: 多次跑同样输入只删一次.
     """
-    import os
-    import secrets
-
     from flask import request
     from sqlalchemy import text
-
-    expected = os.environ.get("UPLOAD_TOKEN", "")
-    if not expected:
-        return jsonify({"ok": False, "msg": "服务器 UPLOAD_TOKEN 未配置"}), 500
-    provided = request.headers.get("X-Upload-Token", "")
-    if not secrets.compare_digest(provided, expected):
-        return jsonify({"ok": False, "msg": "鉴权失败"}), 401
 
     execute = request.args.get("execute", "").lower() == "true"
     # Phase 1: 无效价 (NULL 或 0) + 有效价 (>0) 配对, 同 (barcode, date, qty) → 删无效价行
@@ -852,6 +877,7 @@ def data_dedup_purchase_events():
 
 
 @bp.post("/forecast/refresh")
+@require_upload_token
 def forecast_refresh():
     """§3.7 触发 forecast_output 表全量刷新 (供 cron 容器调).
 
@@ -870,12 +896,13 @@ def forecast_refresh():
 
 
 @bp.post("/categories/recompute")
+@require_upload_token
 def categories_recompute():
     """触发 stockpile.auto_category 全量重算 (供 cron 容器 / 手动调).
 
     生命周期分类按**全量**销售历史判 (回填后这里才吃到新数据,
     与 forecast 的 156 周窗口不同). 无 query/body, 同步执行.
-    鉴权同 /forecast/refresh: 走 before_request (登录 session 或 X-Upload-Token).
+    鉴权: require_upload_token (token-only, 与 cron 一致; 已登录 admin 不带 token 也会 401).
     返回 {ok, computed, by_category, duration_s}.
     """
     from app.services.analytics import recompute_categories
