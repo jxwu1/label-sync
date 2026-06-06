@@ -5,7 +5,7 @@ import secrets
 from functools import wraps
 
 import bcrypt
-from flask import Blueprint, abort, redirect, render_template, request, url_for
+from flask import Blueprint, abort, jsonify, redirect, render_template, request, url_for
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 
 from app.config import CONFIG
@@ -67,6 +67,29 @@ def require_role(role: str):
     return deco
 
 
+def require_upload_token(fn):
+    """重任务 / mutation 端点鉴权: 强制 X-Upload-Token 与 env UPLOAD_TOKEN 常时间相等.
+
+    before_request 已是全局登录闸(正确 token 或 session 才放行), 本装饰器是叠加的
+    端点级闸: 这些 cron/破坏性端点【只认 token, 不接受纯 session】—— 即便已登录
+    admin 也必须带正确 token 才能触发 (防浏览器 session/XSS 误触发全量 backtest/删数据).
+    cron 端点与破坏性端点共用此装饰器, 取代各端点内联重复的 compare_digest 块.
+    缺 env -> 500(服务器配置错); token 不匹配/缺失 -> 401.
+    """
+
+    @wraps(fn)
+    def wrapped(*args, **kwargs):
+        expected = os.environ.get("UPLOAD_TOKEN", "")
+        if not expected:
+            return jsonify({"ok": False, "msg": "服务器 UPLOAD_TOKEN 未配置"}), 500
+        provided = request.headers.get("X-Upload-Token", "")
+        if not secrets.compare_digest(provided, expected):
+            return jsonify({"ok": False, "msg": "无效或缺失 X-Upload-Token"}), 401
+        return fn(*args, **kwargs)
+
+    return wrapped
+
+
 def init_auth(app, *, seed_users: bool = True):
     app.secret_key = app.secret_key or _resolve_secret_key(CONFIG.debug)
     login_manager.init_app(app)
@@ -81,8 +104,18 @@ def init_auth(app, *, seed_users: bool = True):
             return
         if request.endpoint == "static":
             return
-        if request.headers.get("X-Upload-Token"):
-            return
+        # 全局鉴权闸. 带 X-Upload-Token 的是 API/cron 客户端(无 session): 正确->放行;
+        # 错误->401; 服务端没配 UPLOAD_TOKEN->500. 一律【不重定向】—— cron 的 curl -fsS
+        # 对 3xx 不算失败, 用 302 会让错 token / 缺配静默成功(复现 #5 静默空转), 故必须是
+        # 响亮的 4xx/5xx. 只有【完全没带 token】的浏览器请求才走下面的登录重定向.
+        token = request.headers.get("X-Upload-Token")
+        if token:
+            expected = os.environ.get("UPLOAD_TOKEN", "")
+            if not expected:
+                return jsonify({"ok": False, "msg": "服务器 UPLOAD_TOKEN 未配置"}), 500
+            if secrets.compare_digest(token, expected):
+                return
+            return jsonify({"ok": False, "msg": "无效 X-Upload-Token"}), 401
         if current_user.is_authenticated and getattr(current_user, "role", "admin") == "scanner":
             ep = request.endpoint or ""
             if not (ep.startswith("pda.") or ep.startswith("auth.") or ep == "static"):
