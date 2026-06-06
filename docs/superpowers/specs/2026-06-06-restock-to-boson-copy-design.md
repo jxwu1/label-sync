@@ -35,10 +35,11 @@ boson 侧约束（操作员确认）：导入必须是 `型号,数量` 这种格
 
 ## 范围
 
-**纯前端改动**，仅两个文件：
+**纯前端改动**，三个文件：
 
 - `static/js/restock.js`
 - `templates/partials/_page_restock.html`
+- `static/css/components.css`（p98 列内联输入框样式，见组件 1）
 
 零后端、零数据库、零 Alembic 迁移、零部署风险。
 
@@ -58,6 +59,7 @@ boson 侧约束（操作员确认）：导入必须是 `型号,数量` 这种格
 - 输入事件用 `oninput`（事件委托，挂在 tbody 上按 `.rs-qty-input` 命中）**只写 `state.editedQty`，不触发整表 render**，避免重绘导致输入框失焦/光标跳动。
 - **不持久化**：`editedQty` 不进 localStorage，刷新页面后清空，p98 列回到原始推荐值。
 - 排序不受影响：表头 `data-sort="restock_qty_p98"` 仍按原始 `it.restock_qty_p98` 排序，编辑值不参与排序。
+- **CSS（`components.css`，rs-table 段 ~2068 行附近）**：`<input type=number>` 浏览器默认样式（边框/padding/撑满宽度/spinner 箭头/左对齐）在窄表格列里会错位难看，需加 `.rs-qty-input` 内联编辑样式——透明/无边框（focus 时给细边框或底色提示）、右对齐对齐同列 `.rs-num`、限定宽度（约 56–64px）、`::-webkit-inner-spin-button { display:none }` + `-moz-appearance:textfield` 去掉数字 spinner。复用现有 `--mono` / `--accent` 等变量。
 
 ### 组件 2：「复制 boson 格式」按钮 ×2
 
@@ -73,7 +75,7 @@ boson 侧约束（操作员确认）：导入必须是 `型号,数量` 这种格
 
 **每行处理：**
 1. 型号：**只取 `it.model`**（不是 `name_zh || model`——boson 要的是型号）。
-2. 数量：`raw = editedQty[it.barcode] ?? it.restock_qty_p98`，然后 `qty = Math.round(Number(raw))`。
+2. 数量：`raw = getBosonQty(it)`（与 input 初值同一真源，内部即 `editedQty[it.barcode] ?? it.restock_qty_p98`），然后 `qty = Math.round(Number(raw))`。
 3. 跳过该行的条件（满足任一）：
    - `!it.model`（型号缺失）
    - `!Number.isFinite(Number(raw))`（数量非数字/空）
@@ -123,5 +125,6 @@ boson 侧约束（操作员确认）：导入必须是 `型号,数量` 这种格
 - [ ] 复制内容为多行 `型号,数量`（半角逗号、无表头），数量取编辑值优先、否则 p98，`Math.round` 取整。
 - [ ] 型号缺失 / 数量 ≤0 或非数字的行被跳过，alert 报告复制与跳过行数。
 - [ ] clipboard 失败有 textarea + alert 兜底，不新建 modal。
-- [ ] 改动仅限 `restock.js` + `_page_restock.html`，无后端/DB/迁移变更。
+- [ ] p98 输入框样式与表格融合（右对齐、无 spinner、宽度合适），不破坏 rs-table 行高/对齐。
+- [ ] 改动仅限 `restock.js` + `_page_restock.html` + `components.css`，无后端/DB/迁移变更。
 - [ ] 全量 `pytest tests/` 仍通过（不应受纯前端改动影响）。
