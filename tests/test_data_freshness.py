@@ -30,6 +30,17 @@ class _Base(unittest.TestCase):
             )
             s.commit()
 
+    def _set_heartbeat(self, iso: str) -> None:
+        from app.models import SystemSetting
+
+        with stockpile_db._session() as s:
+            row = s.get(SystemSetting, "scrape:last_success_at")
+            if row:
+                row.value = iso
+            else:
+                s.add(SystemSetting(key="scrape:last_success_at", value=iso, updated_by="test"))
+            s.commit()
+
 
 class TestDataFreshness(_Base):
     def test_empty_db_not_stale_no_date(self) -> None:
@@ -105,6 +116,45 @@ class TestDataFreshnessRoute(_Base):
         self.assertTrue(body["ok"])
         self.assertIsNone(body["last_import_date"])
         self.assertFalse(body["stale"])
+
+
+class TestScrapeHeartbeatFreshness(_Base):
+    AS_OF = date(2026, 6, 10)
+
+    def test_no_heartbeat_not_stale_none(self) -> None:
+        """空心跳: 字段为 None, 不报 scrape_stale。"""
+        from app.services.analytics import get_data_freshness
+
+        r = get_data_freshness(as_of=self.AS_OF)
+        self.assertIsNone(r["last_scrape_success_at"])
+        self.assertIsNone(r["scrape_days_since"])
+        self.assertFalse(r["scrape_stale"])
+
+    def test_fresh_heartbeat_today_not_stale(self) -> None:
+        from app.services.analytics import get_data_freshness
+
+        self._set_heartbeat("2026-06-10T03:00:00+00:00")
+        r = get_data_freshness(as_of=self.AS_OF)
+        self.assertEqual(r["last_scrape_success_at"], "2026-06-10T03:00:00+00:00")
+        self.assertEqual(r["scrape_days_since"], 0)
+        self.assertFalse(r["scrape_stale"])
+
+    def test_boundary_8_days_not_stale(self) -> None:
+        """恰好 8 天 → 不 stale (阈值是 > 8, 非 >=)。"""
+        from app.services.analytics import get_data_freshness
+
+        self._set_heartbeat("2026-06-02T03:00:00+00:00")  # 8 天前
+        r = get_data_freshness(as_of=self.AS_OF)
+        self.assertEqual(r["scrape_days_since"], 8)
+        self.assertFalse(r["scrape_stale"])
+
+    def test_9_days_is_stale(self) -> None:
+        from app.services.analytics import get_data_freshness
+
+        self._set_heartbeat("2026-06-01T03:00:00+00:00")  # 9 天前
+        r = get_data_freshness(as_of=self.AS_OF)
+        self.assertEqual(r["scrape_days_since"], 9)
+        self.assertTrue(r["scrape_stale"])
 
 
 if __name__ == "__main__":
