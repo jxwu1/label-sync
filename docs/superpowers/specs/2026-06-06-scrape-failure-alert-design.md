@@ -69,7 +69,11 @@ curl -fsS -X POST -H "X-Upload-Token: $UPLOAD_TOKEN" \
 4. 否则有 `last_scrape_success_at` → 中性显示"抓取器最近成功 ..."
 5. 都没有 → 不显示
 
-(实现时定位红条 JS/模板接线; `last_import_date` 仍是步骤 3 的条件, 不破坏既有展示。)
+**红条整体显示条件写死** (避免实现时还挂在旧的 `last_import_date` 上):
+```
+f && (f.scrape_stale || f.stale || f.last_import_date || f.last_scrape_success_at)
+```
+内部再按上述 1-5 优先级决定颜色/文案。
 
 ### ⑤ admin.js bug — opportunistic bugfix (独立 task/commit)
 
@@ -77,9 +81,9 @@ curl -fsS -X POST -H "X-Upload-Token: $UPLOAD_TOKEN" \
 
 - `r.items` → 应为 `r.imports`
 - 逐行字段重映射到端点真字段:
-  - `it.status` → 由 `ok_count`/`error_count` 派生 ✓/✗
+  - `it.status` → 由 `error_count` 派生: `error_count > 0` → ✗; `error_count === 0` → ✓
   - `it.file_type` → `it.event_type`
-  - `it.rows_imported` → `it.total_rows` (或 `ok_count`)
+  - `it.rows_imported` → 行数优先用 `total_rows`, 必要时旁边显示 `ok_count`
   - `it.file_name` → `it.filename`
 
 **与心跳不是同一逻辑链**, 单独 commit。**不计入 heartbeat 的验收标准**, 仅因都在"系统状态/数据新鲜度"页面附近顺手修。验证靠本地浏览器 / e2e。
