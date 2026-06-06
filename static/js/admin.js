@@ -205,17 +205,17 @@ async function renderRecentImports() {
   if (!tbody) return;
   try {
     const r = await fetch("/inventory/imports?limit=10").then((x) => x.json());
-    const items = r.items || [];
+    const items = r.imports || [];
     if (!items.length) { tbody.innerHTML = '<tr><td colspan="5" class="pnl-empty">暂无 import 记录</td></tr>'; return; }
     tbody.innerHTML = items.map((it) => {
-      const ok = it.status === "ok" || it.status === "success";
+      const ok = (it.error_count ?? 0) === 0;
       const ts = (it.imported_at || "").slice(0, 16).replace("T", " ");
       return `<tr>
         <td class="mono" style="font-size:var(--fs-xs);color:var(--ink-2)">${ts}</td>
-        <td class="mono" style="font-size:var(--fs-xs)">${INV_TYPE_CN[it.file_type] || it.file_type || "—"}</td>
-        <td style="color:${ok ? 'var(--success)' : 'var(--error)'};font-weight:600">${ok ? '✓' : '✗'} ${esc(it.status || '')}</td>
-        <td class="r mono" style="font-size:var(--fs-sm)">${(it.rows_imported ?? 0).toLocaleString()}</td>
-        <td class="mono" style="font-size:var(--fs-xs);color:var(--ink-2)">${esc(it.file_name || '')}</td>
+        <td class="mono" style="font-size:var(--fs-xs)">${INV_TYPE_CN[it.event_type] || it.event_type || "—"}</td>
+        <td style="color:${ok ? 'var(--success)' : 'var(--error)'};font-weight:600">${ok ? '✓' : '✗'} ${(it.ok_count ?? 0).toLocaleString()}/${(it.total_rows ?? 0).toLocaleString()}</td>
+        <td class="r mono" style="font-size:var(--fs-sm)">${(it.total_rows ?? 0).toLocaleString()}</td>
+        <td class="mono" style="font-size:var(--fs-xs);color:var(--ink-2)">${esc(it.filename || '')}</td>
       </tr>`;
     }).join("");
   } catch (e) {
