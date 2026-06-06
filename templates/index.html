@@ -135,13 +135,20 @@
               x-text="($store.nav.pages.find(p => p.id === $store.nav.current) || {}).label"></h1>
       </div>
       <div class="header-spacer"></div>
-      <div class="header-freshness" x-data="{ f: null }"
+      <div class="header-freshness" x-data="{ f: null,
+             get fr() {
+               const f = this.f; if (!f) return null;
+               if (f.scrape_stale) return { red: true, text: '⚠ 抓取可能中断（距上次成功抓取 ' + f.scrape_days_since + ' 天）' };
+               if (f.stale) return { red: true, text: '⚠ 数据截止 ' + f.last_import_date + ' · 距今 ' + f.days_since + ' 天（疑似停更，请检查抓取脚本）' };
+               if (f.last_import_date) return { red: false, text: '数据截止 ' + f.last_import_date + ' · 距今 ' + f.days_since + ' 天' };
+               if (f.last_scrape_success_at) return { red: false, text: '抓取器最近成功 ' + f.last_scrape_success_at };
+               return null;
+             } }"
            x-init="fetch('/analytics/data-freshness').then(r => r.json()).then(d => { if (d && d.ok) f = d; }).catch(() => {})"
-           x-show="f && f.last_import_date"
-           :style="`font-size:var(--fs-sm);margin-right:12px;${f && f.stale ? 'color:var(--error);font-weight:600' : 'color:var(--ink-3)'}`"
-           :title="f ? ('最近灌数时间 ' + f.last_import_at) : ''">
-        <span x-show="f && f.stale">⚠ </span><span
-          x-text="f ? ('数据截止 ' + f.last_import_date + ' · 距今 ' + f.days_since + ' 天' + (f.stale ? '（疑似停更，请检查抓取脚本）' : '')) : ''"></span>
+           x-show="f && (f.scrape_stale || f.stale || f.last_import_date || f.last_scrape_success_at)"
+           :style="`font-size:var(--fs-sm);margin-right:12px;${fr && fr.red ? 'color:var(--error);font-weight:600' : 'color:var(--ink-3)'}`"
+           :title="f && f.last_import_at ? ('最近灌数时间 ' + f.last_import_at) : ''">
+        <span x-text="fr ? fr.text : ''"></span>
       </div>
       <div class="header-badge"
            :style="`color: var(--${$store.app.badgeType === 'running' ? 'accent' : ($store.app.badgeType === 'waiting' ? 'warn' : ($store.app.badgeType === 'error' ? 'error' : 'success'))})`">
