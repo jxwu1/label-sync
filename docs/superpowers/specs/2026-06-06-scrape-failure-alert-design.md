@@ -16,8 +16,10 @@
 
 ## 范围
 
-**服务端 only**。本仓做: 心跳端点 + 存储 + freshness 集成 + 红条逻辑 + (顺带) admin.js bug 修复。
-抓取器侧 (`D:\python\pythonProject` boson scraper, 跨仓) 由用户自行在 `run_weekly` 成功尾部加一行 curl POST, **不在本 spec 范围**。
+**全在本仓**: 心跳端点 + 存储 + freshness 集成 + 红条逻辑 + (顺带) admin.js bug 修复 +
+抓取器侧接线。抓取器 `scraper/run_weekly.ps1` 也在本仓 (非跨仓), 故在其成功刷新链
+末尾加 `Invoke-Refresh "scrape/heartbeat"` 也是本 feature 的一部分 (否则脚本一直正常跑
+也永远不打心跳, 8 天后红条必然误报)。
 
 ## 设计
 
@@ -39,11 +41,12 @@
 - 返回: `{"ok": true, "last_scrape_success_at": "<UTC ISO>"}`。
 - 语义: 抓取器**仅在成功跑完时**打这一下 (无论本轮有无新数据)。这正是"静默周 vs 抓取挂"可区分的来源。
 
-抓取器侧 (仅文档说明, 不实现):
+抓取器侧 (本仓 `scraper/run_weekly.ps1`, 本 feature 实现): 在成功刷新链
+(`categories/recompute` → `forecast/refresh`) **末尾**加一行, 只有整条链路成功才打:
 ```
-curl -fsS -X POST -H "X-Upload-Token: $UPLOAD_TOKEN" \
-  https://<host>/analytics/scrape/heartbeat
+Invoke-Refresh "scrape/heartbeat" "$refreshBase/scrape/heartbeat"
 ```
+(`Invoke-Refresh` 是脚本既有 helper, 带 `X-Upload-Token` POST 并校验返回 ok。)
 
 ### ③ freshness 集成 — get_data_freshness() 增 3 字段
 
@@ -107,7 +110,6 @@ f && (f.scrape_stale || f.stale || f.last_import_date || f.last_scrape_success_a
 - 抓取器失败时主动上报 (本设计只做成功心跳 + 缺心跳推断, 不接收 failure POST)。
 - 邮件/推送告警 (只页面红条)。
 - 心跳历史/审计表 (只存最近一次成功时间, 单 SystemSetting key)。
-- 抓取器侧改动 (跨仓, 用户自接)。
 
 ## 受影响文件 (预估)
 
@@ -115,4 +117,5 @@ f && (f.scrape_stale || f.stale || f.last_import_date || f.last_scrape_success_a
 - `app/services/analytics/freshness.py` — 增 3 字段 + `_SCRAPE_STALE_DAYS`
 - `templates/` + `static/js/` — 红条优先级逻辑
 - `static/js/admin.js` — bug 修复 (独立 commit)
+- `scraper/run_weekly.ps1` — 成功刷新链末尾加 heartbeat 接线
 - `tests/` — 端点鉴权 + freshness scrape 字段
