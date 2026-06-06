@@ -142,6 +142,9 @@ try {
     Log "=== 触发分类 + 预测刷新 (base: $refreshBase) ==="
     Invoke-Refresh "categories/recompute" "$refreshBase/categories/recompute"
     Invoke-Refresh "forecast/refresh"     "$refreshBase/forecast/refresh"
+    # 成功心跳放最后: 只有上传 + 分类 + 预测整条链路都成功才打, 服务端据此判
+    # "抓取存活"(区分静默周 vs 抓取挂)。任一步 throw 在此之前 → 不打 → 8 天后红条告警。
+    Invoke-Refresh "scrape/heartbeat"     "$refreshBase/scrape/heartbeat"
     Log "=== 刷新完成 ==="
 
     exit 0
