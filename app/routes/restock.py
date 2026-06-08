@@ -5,6 +5,7 @@ POST /restock/decisions/batch 批量记录 (前端勾选多行后一键)
 GET  /restock/decisions/recent?limit=200&decision=skipped
 GET  /restock/decisions/stats?days=30
 GET  /restock/decisions/stale  现算 14 天高分未处理的, 不入库
+GET  /restock/decisions/suppressed  skip 抑制集 (14 天内 skipped 且无后续进货, 决策回流)
 """
 
 from __future__ import annotations
@@ -93,3 +94,14 @@ def get_stale():
     with get_session() as s:
         stale = svc.list_stale_high_score(s, items)
     return jsonify({"ok": True, "count": len(stale), "items": stale[:200]})
+
+
+@bp.get("/decisions/suppressed")
+def get_suppressed():
+    """skip 抑制集: 最近一条是 skipped、14 天内、无后续新进货的 barcode.
+
+    天数走后端常量 SKIP_SUPPRESS_DAYS(业务规则, 不暴露 query).
+    """
+    with get_session() as s:
+        items = svc.list_suppressed(s)
+    return jsonify({"ok": True, "items": items})

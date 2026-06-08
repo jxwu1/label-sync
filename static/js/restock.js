@@ -27,6 +27,7 @@ const SUPPLIER_OVERVIEW_TOP = 5;       // 默认显示前 5 家
 
 const OVERSTOCK_WEEKS = 20;  // weeks_of_cover >= 此值算压货
 const HOT_URGENCY = 70;      // urgency_score >= 此值算紧急
+const SKIP_SUPPRESS_DAYS = 14;   // 与后端 restock_decisions.SKIP_SUPPRESS_DAYS 对齐
 
 const state = {
   items: [],
@@ -47,6 +48,7 @@ const state = {
   supplierOverviewExpanded: false, // 概览展开 / 折叠
   expandedBarcode: null,   // 当前展开 drawer 的 barcode (一次一个)
   editedQty: {},   // barcode -> 用户改后的 p98 数量(字符串); 不持久化, 刷新清空
+  suppressed: {},   // barcode -> {skipped_at, reason, days_left}; 标「不进」后默认隐藏, 后端回流
 };
 
 function loadOrdered() {
@@ -296,6 +298,13 @@ function _filterPredicate(it, opts = {}) {
     return true;
   }
   if (isOrdered) return false;
+  // 决策回流: 非「已跳过」band 隐藏被抑制项; 「已跳过」band 只看被抑制项
+  const isSuppressed = it.barcode in state.suppressed;
+  if (state.filter.band === "skipped") {
+    if (!isSuppressed) return false;
+  } else if (isSuppressed) {
+    return false;
+  }
   if (state.filter.origin && it.origin !== state.filter.origin) return false;
   if (!opts.skipSupplier && state.filter.supplier && it.supplier_id !== state.filter.supplier) return false;
   // 搜索框: 输入命中 supplier_id / barcode / model / name (任一含子串即留)
@@ -371,6 +380,10 @@ function renderRow(it) {
   const orderedTag = ordered
     ? `<span class="rs-tag rs-tag--ordered" title="标已下单 ${escapeHtml(state.ordered[it.barcode].marked_at.slice(0,10))}">已下单</span>`
     : "";
+  const sup = state.suppressed[it.barcode];
+  const skippedTag = sup
+    ? `<span class="rs-tag rs-tag--skip" title="已跳过 ${escapeHtml((sup.skipped_at || '').slice(0,10))}${sup.reason ? ' · ' + escapeHtml(sup.reason) : ''} · 剩 ${sup.days_left ?? '?'} 天">已跳过</span>`
+    : "";
   const flagged = state.selected.has(it.barcode) ? " is-flagged" : "";
   const flagCol = `<span class="rs-flag${flagged}" data-bc="${escapeHtml(it.barcode)}" title="⚑ 标记 / 取消">⚑</span>`;
   const supplierCell = it.supplier_id
@@ -381,7 +394,7 @@ function renderRow(it) {
     <tr class="rs-row${expanded}" data-bc="${escapeHtml(it.barcode)}">
       <td class="rs-check-cell">${flagCol}</td>
       <td>${urgencyCell(it)}</td>
-      <td>${nameCell}${disc}${newTag}${orderedTag}</td>
+      <td>${nameCell}${disc}${newTag}${orderedTag}${skippedTag}</td>
       <td>${supplierCell}</td>
       <td class="rs-num">${fmt(it.qty_total)}</td>
       <td class="rs-num">${coverCell(it)}</td>
@@ -676,7 +689,7 @@ function markSelectedOrdered() {
   if (itemSnapshots.length > 0) recordDecisionsBatch("ordered", itemSnapshots);
 }
 
-function markSelectedSkipped() {
+async function markSelectedSkipped() {
   if (state.selected.size === 0) {
     alert("请先勾选要标记的行");
     return;
@@ -687,9 +700,23 @@ function markSelectedSkipped() {
     const it = state.items.find((x) => x.barcode === bc);
     if (it) items.push(it);
   }
+  if (items.length === 0) return;
+  // 硬约束: 先确认 POST 成功, 再乐观隐藏; 失败不隐藏(防前端假状态)
+  const ok = await recordDecisionsBatch("skipped", items, reason || null);
+  if (!ok) {
+    alert("跳过记录失败, 未隐藏, 请重试");
+    return;
+  }
+  const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+  for (const it of items) {
+    state.suppressed[it.barcode] = {
+      skipped_at: now,
+      reason: reason || null,
+      days_left: SKIP_SUPPRESS_DAYS,
+    };
+  }
   state.selected.clear();
   render();
-  if (items.length > 0) recordDecisionsBatch("skipped", items, reason || null);
 }
 
 // 单条 drawer 操作: 直接对当前展开行做记号, 不依赖 selection.
@@ -705,13 +732,19 @@ function markSingleOrdered(bc) {
   recordDecisionsBatch("ordered", [it]);
 }
 
-function markSingleSkipped(bc) {
+async function markSingleSkipped(bc) {
   const it = state.items.find((x) => x.barcode === bc);
   if (!it) return;
   const reason = prompt("跳过原因? (可空, 例: 供应商断货 / 客人未确认 / 等下次活动)") ?? "";
+  const ok = await recordDecisionsBatch("skipped", [it], reason || null);
+  if (!ok) {
+    alert("跳过记录失败, 未隐藏, 请重试");
+    return;
+  }
+  const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+  state.suppressed[bc] = { skipped_at: now, reason: reason || null, days_left: SKIP_SUPPRESS_DAYS };
   state.expandedBarcode = null;
   render();
-  recordDecisionsBatch("skipped", [it], reason || null);
 }
 
 async function recordDecisionsBatch(decision, items, reason) {
@@ -725,8 +758,10 @@ async function recordDecisionsBatch(decision, items, reason) {
     if (data.ok && data.overridden > 0) {
       console.log(`[restock-decisions] ${data.recorded} 条 (含 ${data.overridden} 个低分覆盖)`);
     }
+    return !!data.ok;
   } catch (err) {
     console.warn("[restock-decisions] 失败:", err.message);
+    return false;
   }
 }
 
@@ -1087,7 +1122,14 @@ function render() {
 
 function renderKpi() {
   // stat 卡片: 紧急(≥70)/关注(40-69)/充足(<40) 看活跃 SKU; 已标记=选中数; 本周补货额=Σ可见行 p50×成本
-  const pool = state.items.filter((it) => !it.is_truly_discontinued && !it.is_new_item);
+  // 排除已下单 / 已跳过(决策回流): 已处理的 SKU 不该再计入"紧急"等噪音, 与默认列表隐藏一致
+  const pool = state.items.filter(
+    (it) =>
+      !it.is_truly_discontinued &&
+      !it.is_new_item &&
+      !(it.barcode in state.ordered) &&
+      !(it.barcode in state.suppressed),
+  );
   const hot = pool.filter((it) => (it.urgency_score ?? -1) >= 70).length;
   const watch = pool.filter((it) => { const s = it.urgency_score ?? -1; return s >= 40 && s < 70; }).length;
   const ok = pool.filter((it) => { const s = it.urgency_score ?? -1; return s >= 0 && s < 40; }).length;
@@ -1118,6 +1160,14 @@ async function load() {
     state.items = data.items;
     // 货到后自动 unmark
     autoClearOrderedByPurchase();
+    // 决策回流: 拉 skip 抑制集(失败兜底空, 不阻断主列表)
+    try {
+      const sresp = await fetch("/restock/decisions/suppressed");
+      const sdata = await sresp.json();
+      state.suppressed = sdata.ok ? (sdata.items || {}) : {};
+    } catch (_e) {
+      state.suppressed = {};
+    }
     $("rsStatTotal").textContent = `共 ${data.total} 个 SKU`;
     render();
   } catch (err) {

@@ -16,16 +16,17 @@ GET  /restock/decisions/stale → list_stale_high_score() (现算, 不入库)
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
-from app.models import RestockDecision
+from app.models import InventoryEvent, RestockDecision
 
 OVERRIDDEN_URGENCY_THRESHOLD = 50.0
 STALE_HIGH_SCORE_DAYS = 14
+SKIP_SUPPRESS_DAYS = 14  # skip 抑制窗口; 与 STALE_HIGH_SCORE_DAYS 独立, 同值是巧合
 
 
 def _snapshot_fields(item: dict[str, Any]) -> dict[str, Any]:
@@ -139,6 +140,61 @@ def list_stale_high_score(session: Session, items: list[dict[str, Any]]) -> list
         for it in items
         if (it.get("urgency_score") or 0) >= 70 and it["barcode"] not in recent_ordered_barcodes
     ]
+
+
+def list_suppressed(session: Session) -> dict[str, dict[str, Any]]:
+    """skip 抑制集: 每 barcode 最近一条决策是 skipped、在 SKIP_SUPPRESS_DAYS 天内、
+    且无后续新进货(MAX purchase event_at 不晚于 skip 日) → 抑制.
+
+    返回 {barcode: {skipped_at, reason, days_left}}. 决策历史不删, 解除只是不返回.
+    """
+    today = datetime.now(UTC).date()
+    # 日历日窗口(非滚动 14×24h): 切到日期粒度, 与用户心智一致
+    cutoff = (today - timedelta(days=SKIP_SUPPRESS_DAYS)).isoformat()  # YYYY-MM-DD
+    rows = (
+        session.execute(
+            select(RestockDecision)
+            .where(RestockDecision.decided_at >= cutoff)
+            .order_by(desc(RestockDecision.decided_at))
+        )
+        .scalars()
+        .all()
+    )
+    # 已按 decided_at 倒序: 每 barcode 第一条即最近一条
+    latest: dict[str, RestockDecision] = {}
+    for r in rows:
+        latest.setdefault(r.barcode, r)
+    # 候选: 最近一条是 skipped 且 skip 日在窗口内
+    candidates: dict[str, RestockDecision] = {}
+    for bc, r in latest.items():
+        if r.decision != "skipped":
+            continue
+        skip_date = r.decided_at[:10]
+        if (today - date.fromisoformat(skip_date)).days >= SKIP_SUPPRESS_DAYS:
+            continue
+        candidates[bc] = r
+    if not candidates:
+        return {}
+    # 进货提前解除: 候选 barcode 的 MAX(purchase event_at) 晚于 skip 日 → 剔除
+    last_purchase = dict(
+        session.execute(
+            select(InventoryEvent.product_barcode, func.max(InventoryEvent.event_at))
+            .where(
+                InventoryEvent.event_type == "purchase",
+                InventoryEvent.product_barcode.in_(candidates.keys()),
+            )
+            .group_by(InventoryEvent.product_barcode)
+        ).all()
+    )
+    result: dict[str, dict[str, Any]] = {}
+    for bc, r in candidates.items():
+        skip_date = r.decided_at[:10]
+        lp = last_purchase.get(bc)
+        if lp is not None and lp[:10] > skip_date:
+            continue
+        days_left = SKIP_SUPPRESS_DAYS - (today - date.fromisoformat(skip_date)).days
+        result[bc] = {"skipped_at": r.decided_at, "reason": r.reason, "days_left": days_left}
+    return result
 
 
 def _row_to_dict(r: RestockDecision) -> dict[str, Any]:
