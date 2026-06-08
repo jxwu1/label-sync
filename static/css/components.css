@@ -2092,6 +2092,7 @@
 .rs-tag--disc    { background: var(--bg-3); color: var(--ink-3); border: 1px solid var(--line-soft); }
 .rs-tag--new     { background: var(--success-subtle); color: var(--success); border: 1px solid var(--success-subtle-border); }
 .rs-tag--ordered { background: var(--info-subtle); color: var(--info); border: 1px solid var(--info-subtle-border); }
+.rs-tag--skip    { background: var(--bg-3); color: var(--ink-2); border: 1px solid var(--line-soft); }
 
 /* Checkbox + barcode link */
 .rs-check-cell { width: 28px; text-align: center; padding: 0 0 0 20px !important; }
