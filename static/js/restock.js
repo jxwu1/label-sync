@@ -46,6 +46,7 @@ const state = {
   orderedHistory: [],      // 撤销栈: 每次「标已下单」推入 [bc1, bc2, ...]
   supplierOverviewExpanded: false, // 概览展开 / 折叠
   expandedBarcode: null,   // 当前展开 drawer 的 barcode (一次一个)
+  editedQty: {},   // barcode -> 用户改后的 p98 数量(字符串); 不持久化, 刷新清空
 };
 
 function loadOrdered() {
@@ -391,7 +392,7 @@ function renderRow(it) {
       <td>${profitBadgeRow(it)}</td>
       <td class="rs-num">${fmtDays(it.last_purchase_days_ago)}</td>
       <td class="rs-num rs-rec-g rs-rec-sep" title="${it.restock_source || '—'}"><span class="rs-rec-v rs-rec-v--hi">${it.restock_qty_p50 != null ? it.restock_qty_p50 : '—'}</span></td>
-      <td class="rs-num rs-rec-g" title="安全量"><span class="rs-rec-v">${it.restock_qty_p98 != null ? it.restock_qty_p98 : '—'}</span></td>
+      <td class="rs-num rs-rec-g" title="安全量"><input type="number" inputmode="numeric" class="rs-qty-input" data-bc="${escapeHtml(it.barcode)}" value="${escapeHtml(getBosonQty(it))}"></td>
       <td class="rs-num rs-rec-g"><span class="rs-rec-v" style="color:var(--ink-2)">${it.last_purchase_qty != null ? it.last_purchase_qty : '—'}</span></td>
     </tr>
   `;
@@ -538,6 +539,34 @@ const CSV_COLS = [
   ["last_purchase_qty", "上次进货量"],
 ];
 
+// 取某行当前补货数量: 用户编辑值优先, 否则 p98 推荐量. 纯函数 (editedQty 显式传入).
+function pickQty(it, editedQty) {
+  const e = editedQty[it.barcode];
+  return e !== undefined ? e : it.restock_qty_p98;
+}
+
+// input 初值 / 单行展示用: 读全局 state.editedQty.
+function getBosonQty(it) {
+  return pickQty(it, state.editedQty);
+}
+
+// 行集 → boson 导入文本: 多行 "型号,数量". 跳过型号缺失 / 数量非数字 / 数量<=0.
+// 纯函数 (editedQty 显式传入), 返回 {text, kept, skipped}.
+function buildBosonText(items, editedQty) {
+  const lines = [];
+  let skipped = 0;
+  for (const it of items) {
+    const model = it.model;
+    const raw = pickQty(it, editedQty);
+    const num = Number(raw);
+    if (!model || !Number.isFinite(num)) { skipped++; continue; }
+    const qty = Math.round(num);
+    if (qty <= 0) { skipped++; continue; }
+    lines.push(`${model},${qty}`);
+  }
+  return { text: lines.join("\n"), kept: lines.length, skipped };
+}
+
 function _downloadRestockCsv(items, namePrefix) {
   const head = CSV_COLS.map((c) => c[1]).join(",") + ",ERP导入 (型号\\,数量)";
   const rows = items.map((it) => {
@@ -578,6 +607,49 @@ function exportVisibleCsv() {
     return;
   }
   _downloadRestockCsv(visible, "restock_visible");
+}
+
+// 复制 boson 格式到剪贴板: 主路径 navigator.clipboard, 失败回退 textarea+execCommand.
+async function copyBosonText(items) {
+  const { text, kept, skipped } = buildBosonText(items, state.editedQty);
+  if (kept === 0) {
+    alert("没有可复制的行" + (skipped ? `（${skipped} 行因型号缺失或数量无效跳过）` : ""));
+    return;
+  }
+  const msg = `已复制 ${kept} 行` + (skipped ? `，${skipped} 行因型号缺失或数量无效跳过` : "");
+  try {
+    await navigator.clipboard.writeText(text);
+    alert(msg);
+  } catch (_e) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.top = "0";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (_e2) { ok = false; }
+    document.body.removeChild(ta);
+    alert(ok ? msg : "浏览器未允许自动复制，请重试或手动复制");
+  }
+}
+
+// 批量栏「复制 boson」: 勾选行 (按紧迫分降序, 与导出选中一致).
+function copyBosonSelected() {
+  if (state.selected.size === 0) { alert("请先勾选要复制的行"); return; }
+  const sel = state.items
+    .filter((it) => state.selected.has(it.barcode))
+    .sort((a, b) => (b.urgency_score || 0) - (a.urgency_score || 0));
+  copyBosonText(sel);
+}
+
+// 更多菜单「复制 boson (可见)」: 当前过滤+排序后可见行 (上限 500, 与导出可见一致).
+function copyBosonVisible() {
+  const visible = applySort(applyFilter(state.items)).slice(0, 500);
+  if (visible.length === 0) { alert("当前筛选范围内没有可复制的行"); return; }
+  copyBosonText(visible);
 }
 
 function markSelectedOrdered() {
@@ -950,6 +1022,13 @@ function render() {
         }
       });
     }
+    // p98 数量输入: 改值只写 state, 不重绘(避免失焦); click 阻断冒泡防触发 row→drawer.
+    for (const inp of tbody.querySelectorAll(".rs-qty-input")) {
+      inp.addEventListener("input", () => {
+        state.editedQty[inp.dataset.bc] = inp.value;
+      });
+      inp.addEventListener("click", (e) => e.stopPropagation());
+    }
     // 行其他位置点击 → toggle drawer (排除 flag / supplier / barcode link / 可撑微条)
     for (const tr of tbody.querySelectorAll(".rs-row")) {
       tr.addEventListener("click", (e) => {
@@ -1054,6 +1133,7 @@ function init() {
 
   $("rsRefresh").addEventListener("click", load);
   $("rsBtnExport").addEventListener("click", exportSelectedCsv);
+  $("rsBtnCopyBoson")?.addEventListener("click", copyBosonSelected);
   $("rsBtnMark").addEventListener("click", markSelectedOrdered);
   $("rsBtnSkip").addEventListener("click", markSelectedSkipped);
   $("rsBtnBundle").addEventListener("click", smartBundleSelect);
@@ -1072,6 +1152,7 @@ function init() {
     if (actMore && !actMore.contains(e.target)) actMore.classList.remove("open");
   });
   $("rsMenuExport")?.addEventListener("click", () => { actMore?.classList.remove("open"); exportVisibleCsv(); });
+  $("rsMenuCopyBoson")?.addEventListener("click", () => { actMore?.classList.remove("open"); copyBosonVisible(); });
   $("rsMenuOrder")?.addEventListener("click", () => { actMore?.classList.remove("open"); exportVisibleCsv(); });
   $("rsSupplierClear").addEventListener("click", () => {
     state.filter.supplier = null;

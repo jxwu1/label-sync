@@ -2068,6 +2068,25 @@
 .rs-rec-v { font-family: var(--mono); font-size: var(--fs-sm); font-weight: 600; color: var(--ink-0); }
 .rs-rec-v--hi { color: var(--accent); }
 
+/* p98 列内联数量编辑框: 融入表格(透明/右对齐/无 spinner) */
+.rs-qty-input {
+  width: 58px;
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--accent);
+  text-align: right;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 1px 4px;
+  -moz-appearance: textfield;
+}
+.rs-qty-input:hover { border-color: var(--line-soft); }
+.rs-qty-input:focus { outline: none; border-color: var(--accent); background: var(--bg-1); }
+.rs-qty-input::-webkit-outer-spin-button,
+.rs-qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
 /* Tags */
 .rs-tag { display: inline-block; margin-left: 6px; padding: 1px 5px; font-family: var(--mono); font-size: 9px; font-weight: 700; border-radius: 2px; vertical-align: middle; letter-spacing: 0.04em; text-transform: uppercase; }
 .rs-tag--disc    { background: var(--bg-3); color: var(--ink-3); border: 1px solid var(--line-soft); }
