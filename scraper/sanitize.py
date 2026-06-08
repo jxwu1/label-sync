@@ -9,11 +9,12 @@
   - 其他字段全部保留
 
 用法:
-  python scraper/sanitize.py                          # 批量处理 staging/*.parquet
-  python scraper/sanitize.py --input <file>           # 单文件
+  python scraper/sanitize.py                          # 批量处理 staging/*.parquet (weekly 闸生效)
+  python scraper/sanitize.py --allow-backfill         # 批量, 放行历史文件 (回填用)
+  python scraper/sanitize.py --input <file>           # 单文件 (不过闸)
   python scraper/sanitize.py --input <f> --output <f>
 
-输入: SCRAPE_STAGING_DIR (默认 scraper/staging)
+输入: SCRAPE_OUTPUT_DIR (默认 scraper/staging)
 输出: SCRAPE_SANITIZED_DIR (默认 scraper/sanitized)
 
 脱敏后的文件可以安全上服务器, 原始 staging/ 留本地.
@@ -25,9 +26,15 @@ import argparse
 import hashlib
 import os
 import sys
+from datetime import date
 from pathlib import Path
 
 import pandas as pd
+
+try:  # 脚本模式: python scraper/sanitize.py (scraper/ 在 sys.path[0])
+    from scrape_window import weekly_violation
+except ModuleNotFoundError:  # 包模式: import scraper.sanitize (pytest)
+    from scraper.scrape_window import weekly_violation
 
 _HERE = Path(__file__).resolve().parent
 _REPO_ROOT = _HERE.parent
@@ -124,6 +131,11 @@ def main() -> int:
         "--output",
         help="单文件输出路径 (仅 --input 时使用); 默认 sanitized/<同名>",
     )
+    parser.add_argument(
+        "--allow-backfill",
+        action="store_true",
+        help="放行历史文件 (跨度>14天/起始>14天前); 周任务勿用",
+    )
     args = parser.parse_args()
 
     if args.input:
@@ -150,6 +162,22 @@ def main() -> int:
             f"⚠️  staging 目录里没有 events_*.parquet / inventory_snapshot_*.parquet: {STAGING_DIR}"
         )
         return 0
+
+    if not args.allow_backfill:
+        today = date.today()
+        violations = [
+            (f.name, reason)
+            for f in files
+            if (reason := weekly_violation(f.name, today)) is not None
+        ]
+        if violations:
+            print(
+                "❌ weekly 模式拒绝历史/异常文件 (加 --allow-backfill 放行):",
+                file=sys.stderr,
+            )
+            for name, reason in violations:
+                print(f"    - {name}: {reason}", file=sys.stderr)
+            return 1
 
     print(f"批量脱敏 {len(files)} 个文件")
     print(f"  输入: {STAGING_DIR}")

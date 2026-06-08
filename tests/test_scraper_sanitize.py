@@ -10,7 +10,13 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+import tempfile
 import unittest
+from datetime import date, timedelta
+from pathlib import Path
 
 import pandas as pd
 
@@ -164,6 +170,61 @@ class SanitizeDataframeTests(unittest.TestCase):
         out = self._sanitize(df)
         assert pd.isna(out.loc[0, "customer_name"])
         assert len(out.loc[1, "customer_name"]) == 16
+
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_SANITIZE = _REPO_ROOT / "scraper" / "sanitize.py"
+
+
+def _run_sanitize(staging_dir, sanitized_dir, *extra):
+    env = dict(os.environ)
+    env["SCRAPE_OUTPUT_DIR"] = str(staging_dir)
+    env["SCRAPE_SANITIZED_DIR"] = str(sanitized_dir)
+    return subprocess.run(
+        [sys.executable, str(_SANITIZE), *extra],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+
+class SanitizeWeeklyGateTests(unittest.TestCase):
+    def test_historical_file_aborts(self):
+        with tempfile.TemporaryDirectory() as d:
+            staging = Path(d) / "staging"
+            sanitized = Path(d) / "sanitized"
+            staging.mkdir()
+            pd.DataFrame({"x": [1]}).to_parquet(
+                staging / "events_sale_2015-01-01_2023-01-02.parquet", index=False
+            )
+            r = _run_sanitize(staging, sanitized)
+            assert r.returncode != 0, r.stdout + r.stderr
+            assert not (sanitized / "events_sale_2015-01-01_2023-01-02.parquet").exists()
+
+    def test_allow_backfill_processes_history(self):
+        with tempfile.TemporaryDirectory() as d:
+            staging = Path(d) / "staging"
+            sanitized = Path(d) / "sanitized"
+            staging.mkdir()
+            pd.DataFrame({"customer_name": ["张三"]}).to_parquet(
+                staging / "events_sale_2015-01-01_2023-01-02.parquet", index=False
+            )
+            r = _run_sanitize(staging, sanitized, "--allow-backfill")
+            assert r.returncode == 0, r.stdout + r.stderr
+            assert (sanitized / "events_sale_2015-01-01_2023-01-02.parquet").exists()
+
+    def test_current_week_file_processed(self):
+        with tempfile.TemporaryDirectory() as d:
+            staging = Path(d) / "staging"
+            sanitized = Path(d) / "sanitized"
+            staging.mkdir()
+            today = date.today()
+            wk = today - timedelta(days=7)
+            name = f"events_sale_{wk}_{today}.parquet"
+            pd.DataFrame({"customer_name": ["张三"]}).to_parquet(staging / name, index=False)
+            r = _run_sanitize(staging, sanitized)
+            assert r.returncode == 0, r.stdout + r.stderr
+            assert (sanitized / name).exists()
 
 
 if __name__ == "__main__":

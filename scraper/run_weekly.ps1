@@ -13,6 +13,7 @@ $envPath = Join-Path $PSScriptRoot ".env"
 $logDir = Join-Path $PSScriptRoot "logs"
 $sanitizedDir = Join-Path $PSScriptRoot "sanitized"
 $uploadedDir = Join-Path $PSScriptRoot "uploaded"
+$stagingDir = Join-Path $PSScriptRoot "staging"
 
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 New-Item -ItemType Directory -Force -Path $uploadedDir | Out-Null
@@ -106,6 +107,9 @@ try {
     # === 脱敏 ===
     Run-Step "sanitize" (Join-Path $PSScriptRoot "sanitize.py") @()
 
+    # === 第二层 manifest 闸: 历史/超量文件 → 非零退出 → throw → 不上传不打 heartbeat ===
+    Run-Step "manifest_guard" (Join-Path $PSScriptRoot "scrape_window.py") -ScriptArgs @("--check", $sanitizedDir)
+
     # === 上传 ===
     $files = Get-ChildItem -Path $sanitizedDir -Filter "*.parquet" -File
     if ($files.Count -eq 0) {
@@ -134,6 +138,23 @@ try {
     }
 
     Log "=== 完成: $($files.Count) 文件上传, 挪到 $thisRunDir ==="
+
+    # === staging 自清: 已上传成功, 把 staging 目标文件挪进 uploaded/<ts>/staging/ ===
+    # 对称于 sanitized→uploaded; 防 staging 累积历史 (护栏长期成立). _cache/ 保留.
+    # 守卫: staging 由 scraper 运行时自建; 万一缺失 (cold start), 别在上传成功后炸链路.
+    if (Test-Path $stagingDir) {
+        $stagingDest = Join-Path $thisRunDir "staging"
+        New-Item -ItemType Directory -Force -Path $stagingDest | Out-Null
+        $stagingFiles = Get-ChildItem -Path $stagingDir -File | Where-Object {
+            $_.Name -match '^(events_|inventory_snapshot_|product_master_)'
+        }
+        foreach ($sf in $stagingFiles) {
+            Move-Item -Path $sf.FullName -Destination $stagingDest
+        }
+        Log "staging 自清: 挪走 $($stagingFiles.Count) 个文件 → $stagingDest (_cache 保留)"
+    } else {
+        Log "staging 自清: 跳过 (目录不存在: $stagingDir)"
+    }
 
     # === 触发服务器重算 (数据已入库, 让分类 + 预测跟上新数据) ===
     # 先分类 (生命周期 auto_category, 吃全量历史), 再预测 (sku_type + p50/p98, 仍 156 周窗口).
