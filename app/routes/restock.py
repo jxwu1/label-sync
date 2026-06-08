@@ -5,6 +5,7 @@ POST /restock/decisions/batch 批量记录 (前端勾选多行后一键)
 GET  /restock/decisions/recent?limit=200&decision=skipped
 GET  /restock/decisions/stats?days=30
 GET  /restock/decisions/stale  现算 14 天高分未处理的, 不入库
+GET  /restock/decisions/suppressed  skip 抑制集 (14 天内 skipped 且无后续进货, 决策回流)
 """
 
 from __future__ import annotations
