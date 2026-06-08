@@ -689,7 +689,7 @@ function markSelectedOrdered() {
   if (itemSnapshots.length > 0) recordDecisionsBatch("ordered", itemSnapshots);
 }
 
-function markSelectedSkipped() {
+async function markSelectedSkipped() {
   if (state.selected.size === 0) {
     alert("请先勾选要标记的行");
     return;
@@ -700,9 +700,23 @@ function markSelectedSkipped() {
     const it = state.items.find((x) => x.barcode === bc);
     if (it) items.push(it);
   }
+  if (items.length === 0) return;
+  // 硬约束: 先确认 POST 成功, 再乐观隐藏; 失败不隐藏(防前端假状态)
+  const ok = await recordDecisionsBatch("skipped", items, reason || null);
+  if (!ok) {
+    alert("跳过记录失败, 未隐藏, 请重试");
+    return;
+  }
+  const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+  for (const it of items) {
+    state.suppressed[it.barcode] = {
+      skipped_at: now,
+      reason: reason || null,
+      days_left: SKIP_SUPPRESS_DAYS,
+    };
+  }
   state.selected.clear();
   render();
-  if (items.length > 0) recordDecisionsBatch("skipped", items, reason || null);
 }
 
 // 单条 drawer 操作: 直接对当前展开行做记号, 不依赖 selection.
@@ -718,13 +732,19 @@ function markSingleOrdered(bc) {
   recordDecisionsBatch("ordered", [it]);
 }
 
-function markSingleSkipped(bc) {
+async function markSingleSkipped(bc) {
   const it = state.items.find((x) => x.barcode === bc);
   if (!it) return;
   const reason = prompt("跳过原因? (可空, 例: 供应商断货 / 客人未确认 / 等下次活动)") ?? "";
+  const ok = await recordDecisionsBatch("skipped", [it], reason || null);
+  if (!ok) {
+    alert("跳过记录失败, 未隐藏, 请重试");
+    return;
+  }
+  const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+  state.suppressed[bc] = { skipped_at: now, reason: reason || null, days_left: SKIP_SUPPRESS_DAYS };
   state.expandedBarcode = null;
   render();
-  recordDecisionsBatch("skipped", [it], reason || null);
 }
 
 async function recordDecisionsBatch(decision, items, reason) {
@@ -738,8 +758,10 @@ async function recordDecisionsBatch(decision, items, reason) {
     if (data.ok && data.overridden > 0) {
       console.log(`[restock-decisions] ${data.recorded} 条 (含 ${data.overridden} 个低分覆盖)`);
     }
+    return !!data.ok;
   } catch (err) {
     console.warn("[restock-decisions] 失败:", err.message);
+    return false;
   }
 }
 
