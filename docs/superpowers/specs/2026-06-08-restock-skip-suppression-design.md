@@ -68,7 +68,7 @@
 ### 前端：过滤 + band + tag
 
 1. **取数**：`load()` 里在拉 `/analytics/list` 之后，并行/串行拉 `GET /restock/decisions/suppressed` → 存 `state.suppressed`（`{barcode: {skipped_at, reason, days_left}}`）。拉失败兜底为空对象（不阻断主列表）。
-2. **乐观隐藏**：`markSelectedSkipped` / `markSingleSkipped` 记录后端成功后，本地把这些 barcode 加进 `state.suppressed`（`skipped_at=now, reason, days_left=14`）→ `render()` 立刻隐藏，无需等下次 load。
+2. **乐观隐藏（顺序是硬约束）**：`markSelectedSkipped` / `markSingleSkipped` 必须 **`await` POST `/restock/decisions/batch` 成功之后**，才把这些 barcode 加进 `state.suppressed`（`skipped_at=now, reason, days_left=14`）→ 再 `render()` 隐藏。**绝不在 POST 前就隐藏**——否则后端失败会造成"前端以为跳过了、DB 没记"的假状态。注意现有 `markSelectedSkipped` 是 `render()` 后 fire-and-forget POST，实施时要改成"先确认 POST 成功、再隐藏"的顺序；POST 失败则不写 suppressed、不隐藏，并按现有 `recordDecisionsBatch` 的失败处理提示。
 3. **过滤**：`_filterPredicate` 加规则——
    - 默认（band ≠ `skipped`）：若 `barcode in state.suppressed` → 隐藏。
    - band = `skipped`：只显示 `barcode in state.suppressed` 的行（类似现有 `flagged` band 的"只看勾选"）。
