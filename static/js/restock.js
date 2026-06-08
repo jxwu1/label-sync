@@ -1122,7 +1122,14 @@ function render() {
 
 function renderKpi() {
   // stat 卡片: 紧急(≥70)/关注(40-69)/充足(<40) 看活跃 SKU; 已标记=选中数; 本周补货额=Σ可见行 p50×成本
-  const pool = state.items.filter((it) => !it.is_truly_discontinued && !it.is_new_item);
+  // 排除已下单 / 已跳过(决策回流): 已处理的 SKU 不该再计入"紧急"等噪音, 与默认列表隐藏一致
+  const pool = state.items.filter(
+    (it) =>
+      !it.is_truly_discontinued &&
+      !it.is_new_item &&
+      !(it.barcode in state.ordered) &&
+      !(it.barcode in state.suppressed),
+  );
   const hot = pool.filter((it) => (it.urgency_score ?? -1) >= 70).length;
   const watch = pool.filter((it) => { const s = it.urgency_score ?? -1; return s >= 40 && s < 70; }).length;
   const ok = pool.filter((it) => { const s = it.urgency_score ?? -1; return s >= 0 && s < 40; }).length;
