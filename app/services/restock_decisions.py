@@ -26,7 +26,7 @@ from app.models import InventoryEvent, RestockDecision
 
 OVERRIDDEN_URGENCY_THRESHOLD = 50.0
 STALE_HIGH_SCORE_DAYS = 14
-SKIP_SUPPRESS_DAYS = 14
+SKIP_SUPPRESS_DAYS = 14  # skip 抑制窗口; 与 STALE_HIGH_SCORE_DAYS 独立, 同值是巧合
 
 
 def _snapshot_fields(item: dict[str, Any]) -> dict[str, Any]:
@@ -149,6 +149,7 @@ def list_suppressed(session: Session) -> dict[str, dict[str, Any]]:
     返回 {barcode: {skipped_at, reason, days_left}}. 决策历史不删, 解除只是不返回.
     """
     today = datetime.now(UTC).date()
+    # 日历日窗口(非滚动 14×24h): 切到日期粒度, 与用户心智一致
     cutoff = (today - timedelta(days=SKIP_SUPPRESS_DAYS)).isoformat()  # YYYY-MM-DD
     rows = (
         session.execute(
@@ -180,7 +181,7 @@ def list_suppressed(session: Session) -> dict[str, dict[str, Any]]:
             select(InventoryEvent.product_barcode, func.max(InventoryEvent.event_at))
             .where(
                 InventoryEvent.event_type == "purchase",
-                InventoryEvent.product_barcode.in_(list(candidates.keys())),
+                InventoryEvent.product_barcode.in_(candidates.keys()),
             )
             .group_by(InventoryEvent.product_barcode)
         ).all()

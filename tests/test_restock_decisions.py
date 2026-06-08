@@ -141,6 +141,10 @@ class ListAndStatsTests(_Base):
 class SuppressedTests(_Base):
     """list_suppressed: 最近一条是 skipped 且 14 天内且无后续新进货 → 抑制."""
 
+    def test_empty_db_returns_empty(self):
+        with stockpile_db._session() as s:
+            assert svc.list_suppressed(s) == {}
+
     @staticmethod
     def _days_ago(n: int) -> str:
         from datetime import UTC, datetime, timedelta
