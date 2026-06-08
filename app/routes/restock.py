@@ -93,3 +93,14 @@ def get_stale():
     with get_session() as s:
         stale = svc.list_stale_high_score(s, items)
     return jsonify({"ok": True, "count": len(stale), "items": stale[:200]})
+
+
+@bp.get("/decisions/suppressed")
+def get_suppressed():
+    """skip 抑制集: 最近一条是 skipped、14 天内、无后续新进货的 barcode.
+
+    天数走后端常量 SKIP_SUPPRESS_DAYS(业务规则, 不暴露 query).
+    """
+    with get_session() as s:
+        items = svc.list_suppressed(s)
+    return jsonify({"ok": True, "items": items})

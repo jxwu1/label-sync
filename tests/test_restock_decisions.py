@@ -234,5 +234,37 @@ class SuppressedTests(_Base):
         assert sup["B6"]["days_left"] == svc.SKIP_SUPPRESS_DAYS - 3
 
 
+class SuppressedRouteTests(_Base):
+    def setUp(self):
+        super().setUp()
+        from flask import Flask
+
+        from app.routes.restock import bp
+
+        app = Flask(__name__)
+        app.config["TESTING"] = True
+        app.register_blueprint(bp)
+        self.client = app.test_client()
+
+    def test_suppressed_endpoint(self):
+        with stockpile_db._session() as s:
+            s.add(
+                RestockDecision(
+                    barcode="R1",
+                    decision="skipped",
+                    decided_at=SuppressedTests._days_ago(3),
+                    reason="等活动",
+                    urgency_score=72,
+                )
+            )
+            s.commit()
+        resp = self.client.get("/restock/decisions/suppressed")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert "R1" in data["items"]
+        assert data["items"]["R1"]["reason"] == "等活动"
+
+
 if __name__ == "__main__":
     unittest.main()
