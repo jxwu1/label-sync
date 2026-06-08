@@ -27,6 +27,7 @@ const SUPPLIER_OVERVIEW_TOP = 5;       // 默认显示前 5 家
 
 const OVERSTOCK_WEEKS = 20;  // weeks_of_cover >= 此值算压货
 const HOT_URGENCY = 70;      // urgency_score >= 此值算紧急
+const SKIP_SUPPRESS_DAYS = 14;   // 与后端 restock_decisions.SKIP_SUPPRESS_DAYS 对齐
 
 const state = {
   items: [],
@@ -47,6 +48,7 @@ const state = {
   supplierOverviewExpanded: false, // 概览展开 / 折叠
   expandedBarcode: null,   // 当前展开 drawer 的 barcode (一次一个)
   editedQty: {},   // barcode -> 用户改后的 p98 数量(字符串); 不持久化, 刷新清空
+  suppressed: {},   // barcode -> {skipped_at, reason, days_left}; 标「不进」后默认隐藏, 后端回流
 };
 
 function loadOrdered() {
@@ -296,6 +298,13 @@ function _filterPredicate(it, opts = {}) {
     return true;
   }
   if (isOrdered) return false;
+  // 决策回流: 非「已跳过」band 隐藏被抑制项; 「已跳过」band 只看被抑制项
+  const isSuppressed = it.barcode in state.suppressed;
+  if (state.filter.band === "skipped") {
+    if (!isSuppressed) return false;
+  } else if (isSuppressed) {
+    return false;
+  }
   if (state.filter.origin && it.origin !== state.filter.origin) return false;
   if (!opts.skipSupplier && state.filter.supplier && it.supplier_id !== state.filter.supplier) return false;
   // 搜索框: 输入命中 supplier_id / barcode / model / name (任一含子串即留)
@@ -1118,6 +1127,14 @@ async function load() {
     state.items = data.items;
     // 货到后自动 unmark
     autoClearOrderedByPurchase();
+    // 决策回流: 拉 skip 抑制集(失败兜底空, 不阻断主列表)
+    try {
+      const sresp = await fetch("/restock/decisions/suppressed");
+      const sdata = await sresp.json();
+      state.suppressed = sdata.ok ? (sdata.items || {}) : {};
+    } catch (_e) {
+      state.suppressed = {};
+    }
     $("rsStatTotal").textContent = `共 ${data.total} 个 SKU`;
     render();
   } catch (err) {
