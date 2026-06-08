@@ -6,7 +6,7 @@ import unittest
 
 from sqlalchemy import select
 
-from app.models import RestockDecision
+from app.models import InventoryEvent, RestockDecision
 from app.repositories import stockpile_db
 from app.services import restock_decisions as svc
 
@@ -136,6 +136,98 @@ class ListAndStatsTests(_Base):
             assert "B5" in barcodes
             assert "B1" not in barcodes
             assert "B6" not in barcodes
+
+
+class SuppressedTests(_Base):
+    """list_suppressed: 最近一条是 skipped 且 14 天内且无后续新进货 → 抑制."""
+
+    @staticmethod
+    def _days_ago(n: int) -> str:
+        from datetime import UTC, datetime, timedelta
+
+        return (datetime.now(UTC) - timedelta(days=n)).strftime("%Y-%m-%d %H:%M:%S")
+
+    @staticmethod
+    def _date_ago(n: int) -> str:
+        from datetime import UTC, datetime, timedelta
+
+        return (datetime.now(UTC) - timedelta(days=n)).strftime("%Y-%m-%d")
+
+    def _add_decision(self, s, barcode, decision, days_ago, reason=None):
+        s.add(
+            RestockDecision(
+                barcode=barcode,
+                decision=decision,
+                decided_at=self._days_ago(days_ago),
+                reason=reason,
+                urgency_score=80,
+            )
+        )
+
+    def _add_purchase(self, s, barcode, days_ago):
+        s.add(
+            InventoryEvent(
+                event_at=self._date_ago(days_ago),
+                event_type="purchase",
+                product_barcode=barcode,
+                qty=10,
+            )
+        )
+
+    def test_recent_skip_within_window_no_purchase_is_suppressed(self):
+        with stockpile_db._session() as s:
+            self._add_decision(s, "B1", "skipped", days_ago=5, reason="供应商断货")
+            s.commit()
+        with stockpile_db._session() as s:
+            sup = svc.list_suppressed(s)
+        assert "B1" in sup
+        assert sup["B1"]["reason"] == "供应商断货"
+        assert sup["B1"]["days_left"] == svc.SKIP_SUPPRESS_DAYS - 5
+
+    def test_skip_older_than_window_not_suppressed(self):
+        with stockpile_db._session() as s:
+            self._add_decision(s, "B2", "skipped", days_ago=15)
+            s.commit()
+        with stockpile_db._session() as s:
+            sup = svc.list_suppressed(s)
+        assert "B2" not in sup
+
+    def test_latest_decision_ordered_not_suppressed(self):
+        with stockpile_db._session() as s:
+            self._add_decision(s, "B3", "skipped", days_ago=6)
+            self._add_decision(s, "B3", "ordered", days_ago=2)  # 更近的是 ordered
+            s.commit()
+        with stockpile_db._session() as s:
+            sup = svc.list_suppressed(s)
+        assert "B3" not in sup
+
+    def test_purchase_after_skip_releases(self):
+        with stockpile_db._session() as s:
+            self._add_decision(s, "B4", "skipped", days_ago=6)
+            self._add_purchase(s, "B4", days_ago=2)  # 进货晚于跳过日
+            s.commit()
+        with stockpile_db._session() as s:
+            sup = svc.list_suppressed(s)
+        assert "B4" not in sup
+
+    def test_same_day_purchase_still_suppressed(self):
+        with stockpile_db._session() as s:
+            self._add_decision(s, "B5", "skipped", days_ago=6)
+            self._add_purchase(s, "B5", days_ago=6)  # 同日进货, 不算晚于
+            s.commit()
+        with stockpile_db._session() as s:
+            sup = svc.list_suppressed(s)
+        assert "B5" in sup
+
+    def test_multiple_skips_uses_latest(self):
+        with stockpile_db._session() as s:
+            self._add_decision(s, "B6", "skipped", days_ago=10, reason="旧原因")
+            self._add_decision(s, "B6", "skipped", days_ago=3, reason="新原因")
+            s.commit()
+        with stockpile_db._session() as s:
+            sup = svc.list_suppressed(s)
+        assert sup["B6"]["reason"] == "新原因"
+        assert sup["B6"]["days_left"] == svc.SKIP_SUPPRESS_DAYS - 3
 
 
 if __name__ == "__main__":
