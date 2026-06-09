@@ -4,9 +4,9 @@
 合成一个"高/中/低可信"标签 + 解释理由, 给补货页/老板看板用。立场: 预测是补货
 风险参考非精确销量, 故分层偏保守。
 
-命名约定: 近期信号污染叫 `recent_zero_demand`(近期零需求偏多), **不叫"断货"**——
-第1期没有库存快照, 证明不了 stockout(有货卖不出 vs 没人买)。第2期接库存快照后
-再升级成真正的缺货修正。
+命名约定: 近期零需求信号叫 `recent_zero_demand`。第1期接入库存快照后(spec
+2026-06-09), 降级只看"有货零销"(in_stock_zero = zero_weeks_last8 -
+stockout_zero_weeks_last8); 缺货导致的零销周不降级, reason 附 stockout_suppressed。
 """
 
 from __future__ import annotations
@@ -75,6 +75,7 @@ def confidence_tier(
     mase: float | None,
     coverage_p98: float | None,
     zero_weeks_last8: int,
+    stockout_zero_weeks_last8: int = 0,
 ) -> ConfidenceResult:
     """把一个 SKU 的预测可信度分成 high/medium/low + 理由。
 
@@ -106,14 +107,17 @@ def confidence_tier(
         if mase >= _MED_MASE:
             reasons.append("mase>=1.2")
 
-    # 降级: 近期零需求偏多 → 信号不可靠, 降一级(已 low 则保持, 仍记理由)。
-    if zero_weeks_last8 >= _RECENT_ZERO_DOWNGRADE:
+    # 降级: 只看"有货零销"(缺货零销不算需求不足)。有货零销偏多 → 信号不可靠, 降一级。
+    in_stock_zero = zero_weeks_last8 - stockout_zero_weeks_last8
+    if in_stock_zero >= _RECENT_ZERO_DOWNGRADE:
         idx = _TIERS.index(tier)
         if idx > 0:
             tier = _TIERS[idx - 1]
             reasons.append("downgrade:recent_zero_demand")
         else:
             reasons.append("recent_zero_demand")
+    if stockout_zero_weeks_last8 > 0:
+        reasons.append("stockout_suppressed")
 
     return ConfidenceResult(tier, reasons)
 

@@ -140,3 +140,60 @@ def test_downgrade_floor_at_low():
     res = _r(history_weeks=20, mase=1.5, zero_weeks_last8=6)
     assert res.tier == "low"
     assert any("recent_zero_demand" in r for r in res.reasons)
+
+
+from app.services.forecast_eval import confidence_tier as _ct
+
+
+def test_six_zero_all_stockout_no_downgrade():
+    # 近8周6周零销但全是缺货零销 → 有货零销=0 < 6 → 不降级
+    res = _ct(
+        history_weeks=60,
+        nonzero_weeks=20,
+        mase=0.8,
+        coverage_p98=0.97,
+        zero_weeks_last8=6,
+        stockout_zero_weeks_last8=6,
+    )
+    assert res.tier == "high"
+    assert "downgrade:recent_zero_demand" not in res.reasons
+
+
+def test_six_zero_all_in_stock_downgrades():
+    # 6周零销且全有货 → 有货零销=6 >= 6 → 降级 (回归现有行为)
+    res = _ct(
+        history_weeks=60,
+        nonzero_weeks=20,
+        mase=0.8,
+        coverage_p98=0.97,
+        zero_weeks_last8=6,
+        stockout_zero_weeks_last8=0,
+    )
+    assert res.tier == "medium"
+    assert "downgrade:recent_zero_demand" in res.reasons
+
+
+def test_mixed_in_stock_below_threshold_no_downgrade():
+    # 4 有货零销 + 3 缺货零销 (共7零销): 有货零销=4 < 6 → 不降级
+    res = _ct(
+        history_weeks=60,
+        nonzero_weeks=20,
+        mase=0.8,
+        coverage_p98=0.97,
+        zero_weeks_last8=7,
+        stockout_zero_weeks_last8=3,
+    )
+    assert res.tier == "high"
+
+
+def test_default_stockout_param_matches_legacy():
+    # 不传 stockout_zero_weeks_last8 (默认0) → 行为同现状
+    res = _ct(
+        history_weeks=60,
+        nonzero_weeks=20,
+        mase=0.8,
+        coverage_p98=0.97,
+        zero_weeks_last8=6,
+    )
+    assert res.tier == "medium"
+    assert "downgrade:recent_zero_demand" in res.reasons
