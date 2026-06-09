@@ -270,7 +270,7 @@ def _restock_recommendation(
     stock = qty_total or 0
 
     if fc:
-        p50, p98, model = fc
+        p50, p98, model, _stockout_zw8 = fc
         qty_p50 = max(0, math.ceil(p50 * target) - stock)
         qty_p98 = max(0, math.ceil(p98 * target) - stock)
         source = f"forecast:{model}"
@@ -297,4 +297,5 @@ def _restock_recommendation(
         "last_purchase_qty": last_pq,
         "forecast_p50": round(fc[0], 2) if fc else None,
         "forecast_p98": round(fc[1], 2) if fc else None,
+        "stockout_zero_weeks_last8": fc[3] if fc else 0,
     }
