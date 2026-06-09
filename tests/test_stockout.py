@@ -106,3 +106,55 @@ def test_multi_barcode_same_model_share_qty():
 def test_barcode_without_model_returns_empty():
     out = stockout_weeks("NO_SUCH_BC", _END, weeks=3)
     assert out == set()
+
+
+from app.services.forecast_eval import stockout_zero_weeks_last8
+
+
+def _series(*pairs):
+    return {date.fromisoformat(d): q for d, q in pairs}
+
+
+def test_szw8_counts_only_stockout_zero_weeks():
+    # 近 8 周内: 三周零销, 其中两周缺货 → 缺货零销=2
+    series = _series(
+        ("2026-04-20", 3),
+        ("2026-04-27", 0),
+        ("2026-05-04", 2),
+        ("2026-05-11", 1),
+        ("2026-05-18", 4),
+        ("2026-05-25", 0),
+        ("2026-06-01", 5),
+        ("2026-06-08", 0),
+    )
+    stockout = {date(2026, 5, 25), date(2026, 6, 8)}  # 两个缺货周
+    # 零销周 = 04-27 / 05-25 / 06-08; ∩ stockout = 05-25 / 06-08 → 2
+    assert stockout_zero_weeks_last8(series, stockout) == 2
+
+
+def test_szw8_zero_week_not_in_stockout_excluded():
+    series = _series(("2026-06-01", 0), ("2026-06-08", 0))
+    stockout = {date(2026, 6, 8)}  # 只有 06-08 缺货; 06-01 零销但有货
+    assert stockout_zero_weeks_last8(series, stockout) == 1
+
+
+def test_szw8_empty_stockout_is_zero():
+    series = _series(("2026-06-01", 0), ("2026-06-08", 0))
+    assert stockout_zero_weeks_last8(series, set()) == 0
+
+
+def test_szw8_window_is_last_8_weeks():
+    # 9 周, 最早一周缺货零销但在窗口外 → 不计
+    series = _series(
+        ("2026-04-13", 0),
+        ("2026-04-20", 1),
+        ("2026-04-27", 1),
+        ("2026-05-04", 1),
+        ("2026-05-11", 1),
+        ("2026-05-18", 1),
+        ("2026-05-25", 1),
+        ("2026-06-01", 1),
+        ("2026-06-08", 1),
+    )
+    stockout = {date(2026, 4, 13)}  # 第 9 早, 在 last8 之外
+    assert stockout_zero_weeks_last8(series, stockout) == 0

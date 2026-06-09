@@ -54,6 +54,15 @@ def demand_history_stats(series: list[float]) -> tuple[int, int]:
     return nonzero_weeks, zero_weeks_last8
 
 
+def stockout_zero_weeks_last8(series: dict, stockout: set) -> int:
+    """近 8 周里「需求 <= 0 且 该周在缺货集合」的周数 = 缺货零销周数 (spec §5.2)。
+
+    series: dict[周一 date, qty]; stockout: stockout_weeks() 返回的缺货周集合。
+    """
+    last8 = sorted(series)[-8:]
+    return sum(1 for w in last8 if series[w] <= 0 and w in stockout)
+
+
 def _is_usable_metric(x: float | None) -> bool:
     """metric 可用 = 非 None 且非 NaN。backtest 没跑过 → None; 计算不出 → NaN。"""
     return x is not None and not (isinstance(x, float) and math.isnan(x))
