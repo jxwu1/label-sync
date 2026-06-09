@@ -223,6 +223,7 @@ def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
                 ForecastOutput.p50,
                 ForecastOutput.p98,
                 ForecastOutput.model_used,
+                ForecastOutput.stockout_zero_weeks_last8,
             )
         ).all()
         _, qty_by_model = _snapshot_qty_lookup(session)
@@ -231,9 +232,14 @@ def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
     for r in sales_rows:
         by_bc.setdefault(r.product_barcode, []).append(r)
 
-    forecast_by_bc: dict[str, tuple[float, float, str]] = {}
+    forecast_by_bc: dict[str, tuple[float, float, str, int]] = {}
     for r in forecast_rows:
-        forecast_by_bc[r.product_barcode] = (r.p50, r.p98, r.model_used)
+        forecast_by_bc[r.product_barcode] = (
+            r.p50,
+            r.p98,
+            r.model_used,
+            r.stockout_zero_weeks_last8,
+        )
 
     last_purchase: dict[str, tuple[str, str | None]] = {}
     last_purchase_qty_by_bc: dict[str, int] = {}

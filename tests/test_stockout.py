@@ -1,0 +1,191 @@
+"""stockout_weeks: 周一唯一口径 + qty_total<=0 缺货判定 (spec §6 ①-⑧)。
+
+Pattern: no db_session fixture — use stockpile_db._session() directly (same
+as test_analytics_service.py). autouse _isolate_db in conftest handles
+per-test tmp sqlite isolation.
+"""
+
+from datetime import date
+
+from sqlalchemy import insert
+
+from app.models import Stockpile, StockpileInventorySnapshot
+from app.repositories import stockpile_db
+from app.services.stockout import stockout_weeks
+
+
+def _seed_stockpile(barcode="BC1", model="M1"):
+    with stockpile_db._session() as s:
+        s.execute(
+            insert(Stockpile).values(
+                product_barcode=barcode,
+                product_model=model,
+                stockpile_location="A1",
+            )
+        )
+        s.commit()
+
+
+def _add_snap(model, snapshot_date, qty_total):
+    with stockpile_db._session() as s:
+        s.execute(
+            insert(StockpileInventorySnapshot).values(
+                snapshot_date=snapshot_date,
+                product_model=model,
+                qty_total=qty_total,
+            )
+        )
+        s.commit()
+
+
+# 三个连续周一 (ISO): 2026-05-25 / 2026-06-01 / 2026-06-08
+_MON1, _MON2, _MON3 = "2026-05-25", "2026-06-01", "2026-06-08"
+_END = date(2026, 6, 8)  # 含 6-08 的 ISO 周一 = 6-08
+
+
+def test_monday_qty_zero_is_stockout():
+    _seed_stockpile()
+    _add_snap("M1", _MON3, 0)
+    out = stockout_weeks("BC1", _END, weeks=3)
+    assert date(2026, 6, 8) in out
+
+
+def test_monday_qty_positive_not_stockout():
+    _seed_stockpile()
+    _add_snap("M1", _MON3, 5)
+    out = stockout_weeks("BC1", _END, weeks=3)
+    assert date(2026, 6, 8) not in out
+
+
+def test_negative_qty_is_stockout():
+    # 超卖待到货 qty_total<0 → 物理无货 → 缺货 (<=0 口径)
+    _seed_stockpile()
+    _add_snap("M1", _MON3, -3)
+    out = stockout_weeks("BC1", _END, weeks=3)
+    assert date(2026, 6, 8) in out
+
+
+def test_week_without_monday_snapshot_is_unknown():
+    # 只有更早一周的快照, 末周无周一快照 → 末周不判缺货
+    _seed_stockpile()
+    _add_snap("M1", _MON1, 0)
+    out = stockout_weeks("BC1", _END, weeks=3)
+    assert date(2026, 6, 8) not in out
+    assert date(2026, 5, 25) in out
+
+
+def test_same_week_monday_zero_wednesday_five_is_stockout():
+    # 周一 0 周三 5: 只看周一 → 缺货 (周三那条 snapshot_date 不是周一, 被忽略)
+    _seed_stockpile()
+    _add_snap("M1", _MON3, 0)
+    _add_snap("M1", "2026-06-10", 5)  # 周三
+    out = stockout_weeks("BC1", _END, weeks=3)
+    assert date(2026, 6, 8) in out
+
+
+def test_same_week_monday_five_wednesday_zero_not_stockout():
+    # 周一 5 周三 0: 只看周一 → 不缺货
+    _seed_stockpile()
+    _add_snap("M1", _MON3, 5)
+    _add_snap("M1", "2026-06-10", 0)  # 周三售空, 忽略
+    out = stockout_weeks("BC1", _END, weeks=3)
+    assert date(2026, 6, 8) not in out
+
+
+def test_multi_barcode_same_model_share_qty():
+    # 两个 barcode 同 model, 快照 model 级 → 都按同一 qty_total 判
+    _seed_stockpile(barcode="BC1", model="M9")
+    _seed_stockpile(barcode="BC2", model="M9")
+    _add_snap("M9", _MON3, 0)
+    out1 = stockout_weeks("BC1", _END, weeks=3)
+    out2 = stockout_weeks("BC2", _END, weeks=3)
+    assert date(2026, 6, 8) in out1
+    assert date(2026, 6, 8) in out2
+
+
+def test_barcode_without_model_returns_empty():
+    out = stockout_weeks("NO_SUCH_BC", _END, weeks=3)
+    assert out == set()
+
+
+from app.services.forecast_eval import stockout_zero_weeks_last8
+
+
+def _series(*pairs):
+    return {date.fromisoformat(d): q for d, q in pairs}
+
+
+def test_szw8_counts_only_stockout_zero_weeks():
+    # 近 8 周内: 三周零销, 其中两周缺货 → 缺货零销=2
+    series = _series(
+        ("2026-04-20", 3),
+        ("2026-04-27", 0),
+        ("2026-05-04", 2),
+        ("2026-05-11", 1),
+        ("2026-05-18", 4),
+        ("2026-05-25", 0),
+        ("2026-06-01", 5),
+        ("2026-06-08", 0),
+    )
+    stockout = {date(2026, 5, 25), date(2026, 6, 8)}  # 两个缺货周
+    # 零销周 = 04-27 / 05-25 / 06-08; ∩ stockout = 05-25 / 06-08 → 2
+    assert stockout_zero_weeks_last8(series, stockout) == 2
+
+
+def test_szw8_zero_week_not_in_stockout_excluded():
+    series = _series(("2026-06-01", 0), ("2026-06-08", 0))
+    stockout = {date(2026, 6, 8)}  # 只有 06-08 缺货; 06-01 零销但有货
+    assert stockout_zero_weeks_last8(series, stockout) == 1
+
+
+def test_szw8_empty_stockout_is_zero():
+    series = _series(("2026-06-01", 0), ("2026-06-08", 0))
+    assert stockout_zero_weeks_last8(series, set()) == 0
+
+
+def test_szw8_window_is_last_8_weeks():
+    # 9 周, 最早一周缺货零销但在窗口外 → 不计
+    series = _series(
+        ("2026-04-13", 0),
+        ("2026-04-20", 1),
+        ("2026-04-27", 1),
+        ("2026-05-04", 1),
+        ("2026-05-11", 1),
+        ("2026-05-18", 1),
+        ("2026-05-25", 1),
+        ("2026-06-01", 1),
+        ("2026-06-08", 1),
+    )
+    stockout = {date(2026, 4, 13)}  # 第 9 早, 在 last8 之外
+    assert stockout_zero_weeks_last8(series, stockout) == 0
+
+
+def test_refresh_writes_stockout_column(monkeypatch):
+    """refresh_forecast_output 把 stockout_zero_weeks_last8 写进 forecast_output。"""
+    from sqlalchemy import select
+
+    from app.models import ForecastOutput
+    from app.services import forecast as fc
+
+    bc = "BCX"
+    _seed_stockpile(barcode=bc, model="MX")
+    _add_snap("MX", "2026-06-08", 0)  # 末周(6-08)周一缺货
+
+    end = date(2026, 6, 8)
+    # _build_series 返回 (list[float], sku_type); 末周零销 → 与缺货周交叉 → szw8=1
+    monkeypatch.setattr(
+        fc,
+        "_build_series",
+        lambda barcode, end_date, weeks, view, session=None: (
+            [1.0] * 12 + [0.0],
+            "retail_dominant",
+        ),
+    )
+
+    fc.refresh_forecast_output(end_date=end, weeks=13, barcodes=[bc])
+
+    with stockpile_db._session() as s:
+        row = s.execute(
+            select(ForecastOutput).where(ForecastOutput.product_barcode == bc)
+        ).scalar_one()
+        assert row.stockout_zero_weeks_last8 == 1

@@ -18,7 +18,9 @@ import warnings
 import numpy as np
 
 from app.services.backtest import ForecastDist, _build_series
-from app.services.forecast_eval import demand_history_stats
+from app.services.forecast_eval import demand_history_stats, stockout_zero_weeks_last8
+from app.services.stockout import stockout_weeks
+from app.utils.forecast_data import _monday
 
 # refresh_forecast_output: 序列太短就跳过 (与 backtest min_weeks 对齐)
 _MIN_FIT_WEEKS = 13
@@ -128,6 +130,15 @@ def refresh_forecast_output(
             # 置信度分层输入 (第1期任务③): 顺手算非零周数 + 近期零需求周数。
             nonzero_weeks, zero_weeks_last8 = demand_history_stats(series)
 
+            # 缺货零销周数 (spec 2026-06-09): 重建与 _build_series sorted keys 同口径
+            # 的周一列表 (不改 _build_series 返回契约), zip 成 dict 判周。
+            end_monday = _monday(end_date)
+            n = len(series)
+            week_keys = [end_monday - dt.timedelta(days=7 * (n - 1 - i)) for i in range(n)]
+            series_dict = dict(zip(week_keys, series))
+            sw = stockout_weeks(bc, end_date, n, session=s)
+            szw8 = stockout_zero_weeks_last8(series_dict, sw)
+
             # SQLite 不支持原生 ON CONFLICT for SQLAlchemy core 跨方言; delete+insert
             # 简单可靠. PG/SQLite 行为一致.
             s.execute(delete(ForecastOutput).where(ForecastOutput.product_barcode == bc))
@@ -139,6 +150,7 @@ def refresh_forecast_output(
                     n_weeks_history=len(series),
                     nonzero_weeks=nonzero_weeks,
                     zero_weeks_last8=zero_weeks_last8,
+                    stockout_zero_weeks_last8=szw8,
                     mu=d.mu,
                     sigma=d.sigma,
                     p50=d.p50,

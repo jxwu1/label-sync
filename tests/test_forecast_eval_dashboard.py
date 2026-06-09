@@ -31,7 +31,7 @@ def _seed_run(model="EmpiricalQuantile", view="base_demand") -> int:
         return res.inserted_primary_key[0]
 
 
-def _seed_forecast(barcode, *, hist, nz, zero8, sku_type="retail_dominant"):
+def _seed_forecast(barcode, *, hist, nz, zero8, stockout_zero8=0, sku_type="retail_dominant"):
     with stockpile_db._session() as s:
         s.execute(
             insert(Stockpile).values(
@@ -49,6 +49,7 @@ def _seed_forecast(barcode, *, hist, nz, zero8, sku_type="retail_dominant"):
                 n_weeks_history=hist,
                 nonzero_weeks=nz,
                 zero_weeks_last8=zero8,
+                stockout_zero_weeks_last8=stockout_zero8,
                 mu=1.0,
                 sigma=1.0,
                 p50=1.0,
@@ -152,3 +153,29 @@ def test_dashboard_no_forecast_at_all():
         dash = build_forecast_eval_dashboard(s)
     assert dash["forecast_skus"] == 0
     assert dash["tiers"] == {"high": 0, "medium": 0, "low": 0}
+
+
+def test_dashboard_stockout_zeros_not_downgraded():
+    """SKU 的 6 个零销售周全部因缺货引起 → 不应被降为 medium。
+
+    若 dashboard 未把 stockout_zero_weeks_last8 传入 confidence_tier，
+    in_stock_zero = 6 - 0 = 6 → 降级 medium；
+    正确传入后 in_stock_zero = 6 - 6 = 0 → 保持 high。
+    """
+    run = _seed_run()
+    _seed_forecast(
+        "STKHIGH",
+        hist=60,
+        nz=20,
+        zero8=6,
+        stockout_zero8=6,
+    )
+    _seed_result(run, "STKHIGH", mase=0.8, cov=0.97)
+
+    with stockpile_db._session() as s:
+        dash = build_forecast_eval_dashboard(s)
+
+    assert dash["tiers"]["high"] >= 1, (
+        f"Expected 'high' >= 1 but got tiers={dash['tiers']}; "
+        "stockout_zero_weeks_last8 not being forwarded to confidence_tier"
+    )

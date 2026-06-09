@@ -384,6 +384,9 @@ function renderRow(it) {
   const skippedTag = sup
     ? `<span class="rs-tag rs-tag--skip" title="已跳过 ${escapeHtml((sup.skipped_at || '').slice(0,10))}${sup.reason ? ' · ' + escapeHtml(sup.reason) : ''} · 剩 ${sup.days_left ?? '?'} 天">已跳过</span>`
     : "";
+  const stockoutBadge = it.stockout_zero_weeks_last8 > 0
+    ? `<span class="rs-badge-stockout">⚠ 近 ${it.stockout_zero_weeks_last8} 周零销疑因缺货</span>`
+    : "";
   const flagged = state.selected.has(it.barcode) ? " is-flagged" : "";
   const flagCol = `<span class="rs-flag${flagged}" data-bc="${escapeHtml(it.barcode)}" title="⚑ 标记 / 取消">⚑</span>`;
   const supplierCell = it.supplier_id
@@ -394,7 +397,7 @@ function renderRow(it) {
     <tr class="rs-row${expanded}" data-bc="${escapeHtml(it.barcode)}">
       <td class="rs-check-cell">${flagCol}</td>
       <td>${urgencyCell(it)}</td>
-      <td>${nameCell}${disc}${newTag}${orderedTag}${skippedTag}</td>
+      <td>${nameCell}${disc}${newTag}${orderedTag}${skippedTag}${stockoutBadge}</td>
       <td>${supplierCell}</td>
       <td class="rs-num">${fmt(it.qty_total)}</td>
       <td class="rs-num">${coverCell(it)}</td>

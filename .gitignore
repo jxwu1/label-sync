@@ -91,3 +91,15 @@ static/css/output.css
 # Node tooling (DaisyUI + eslint)
 node_modules/
 .playwright-mcp/
+
+# Dev/review 截图 (根目录, 本地走查产物, 不入库)
+/design-*.png
+/live-*.png
+/verify-*.png
+
+# 退役 DB 快照 (业务备份, 保留磁盘, 绝不提交)
+stockpile.db.retired-*
+*.db.retired-*
+
+# Scraper 事故/staging 归档 (业务数据, 本地留存)
+scraper/staging_archive/

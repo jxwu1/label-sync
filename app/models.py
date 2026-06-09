@@ -436,10 +436,15 @@ class ForecastOutput(Base):
     model_used: Mapped[str] = mapped_column(Text, nullable=False)
     sku_type: Mapped[str] = mapped_column(Text, nullable=False)
     n_weeks_history: Mapped[int] = mapped_column(Integer, nullable=False)
-    # 置信度分层输入 (第1期任务③): nonzero_weeks=>0 的周数; zero_weeks_last8=最近
-    # 8 周里 <=0 的周数(近期零需求信号, 命名刻意不叫"断货"——无库存快照证明不了 stockout)。
+    # 置信度分层输入: nonzero_weeks=>0 的周数; zero_weeks_last8=最近 8 周 <=0 的周数;
+    # stockout_zero_weeks_last8=其中因缺货(周一快照 qty<=0)导致的零销周数。
     nonzero_weeks: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     zero_weeks_last8: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    # stockout_zero_weeks_last8 (spec 2026-06-09): 近 8 周里"缺货(周一 qty<=0)且零销"
+    # 的周数; 置信度降级减掉它(只看有货零销), 补货页据此标记"疑因缺货"。
+    stockout_zero_weeks_last8: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="0"
+    )
     mu: Mapped[float] = mapped_column(nullable=False)
     sigma: Mapped[float] = mapped_column(nullable=False)
     p50: Mapped[float] = mapped_column(nullable=False)
