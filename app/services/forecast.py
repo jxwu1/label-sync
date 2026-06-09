@@ -136,7 +136,7 @@ def refresh_forecast_output(
             n = len(series)
             week_keys = [end_monday - dt.timedelta(days=7 * (n - 1 - i)) for i in range(n)]
             series_dict = dict(zip(week_keys, series))
-            sw = stockout_weeks(bc, end_date, weeks, session=s)
+            sw = stockout_weeks(bc, end_date, n, session=s)
             szw8 = stockout_zero_weeks_last8(series_dict, sw)
 
             # SQLite 不支持原生 ON CONFLICT for SQLAlchemy core 跨方言; delete+insert
