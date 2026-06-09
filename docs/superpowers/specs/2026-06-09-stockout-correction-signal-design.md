@@ -1,7 +1,7 @@
 # 缺货修正信号（第一期）设计
 
 **日期**: 2026-06-09
-**状态**: 待用户复核
+**状态**: 已审批（Approved 2026-06-09，经一轮 spec review 收紧周一口径 / series 契约 / 负库存阈值）
 **关联**: `docs/superpowers/plans/2026-05-12-forecast-and-backtest.md` §1.4 stockout_adjust（原 defer）；Codex 审查 backlog 第 2 期 A；`project_codex_review_backlog` 记忆
 
 ---
@@ -79,19 +79,25 @@ def stockout_weeks(
 ) -> set[date]:
     """返回窗口内判定为缺货的周（周一 date 集合）。
 
-    判定口径（用户确认）：某周所在 ISO 周一的快照 qty_total == 0 → 该周缺货。
-    - barcode →(JOIN stockpile)→ product_model；快照按 product_model 存
-    - snapshot_date 对齐到所在 ISO 周的周一，作为"该周周初库存"
-    - 同一周多个快照取该周一当天（或最接近周一）的一条
-    - 无快照覆盖的周不进集合（视为非缺货 / 未知，保守）
+    判定口径（用户确认，经 review 收紧）：
+    - 周键 = 各 ISO 周的周一 date。
+    - **周一唯一口径**：某周只看 snapshot_date 正好 == 该周周一的那条快照，
+      不取"最接近周一"或该周其它日期的快照。
+    - 该周一快照存在且 qty_total <= 0 → 该周缺货（负库存=ERP 超卖待到货=
+      物理无货，与 restock_calc.py:197「<0 视为 0 库存」同口径）。
+    - 该周一快照存在且 qty_total > 0 → 非缺货。
+    - 该周**无周一快照** → unknown，不进集合（保守，不判缺货）。
     """
 ```
 
+**口径定死（red-team 防御）**：
+判"周初缺货"语义上只能用周一那个点。**严禁**用"该周任意快照 / 最接近周一"——否则「周一库存 0、周三补货 20、本周销量 0」会被周三的快照误判为非缺货，置信度仍被错误降级，直接破坏本功能目标。cron 周一跑、snapshot_date 即周一，所以周一快照通常存在；缺周一快照（cron 漏跑/补跑到周二）的周一律 unknown。
+
 实现要点：
 - barcode→model 反查走 `stockpile` 表（快照不含 barcode，见 `StockpileInventorySnapshot` docstring）。
-- **多 barcode 同 model**：一个 model 可能对应多个 barcode；快照是 model 级 `qty_total`。本期按 model 级 `qty_total==0` 判缺货（model 全无货 ⇒ 其下所有 barcode 缺货）。这是保守口径，不拆 barcode 级分摊。
+- **多 barcode 同 model**：一个 model 可能对应多个 barcode；快照是 model 级 `qty_total`。本期按 model 级 `qty_total <= 0` 判缺货（model 无货 ⇒ 其下所有 barcode 缺货）。保守口径，不拆 barcode 级分摊。
 - 窗口与 `weekly_demand_series` 对齐：末周 = 含 `end_date` 的 ISO 周，向前 `weeks` 周，周一为周键。
-- 只用现有快照，无快照的周一律不判缺货。
+- 只用现有快照，无周一快照的周一律不判缺货。
 
 ### 5.2 零销周拆分 — `app/services/forecast_eval.py`
 
@@ -118,12 +124,26 @@ alembic 迁移新增：
 
 `app/models.py::ForecastOutput` 加对应 `mapped_column`。
 
-`refresh_forecast_output`（`app/services/forecast.py:116-148`）刷新每个 barcode 时：
-1. 已有 `series`（base_demand）→ 算 `sw = stockout_weeks(bc, end_date, weeks, session=s)`
-2. `szw8 = stockout_zero_weeks_last8(series_as_dict, sw)`
-3. 写入新列。
+**series 周键契约（定死，不留 plan 细化）**：
+`refresh_forecast_output`（`app/services/forecast.py:116-148`）拿到的 `series` 来自
+`backtest._build_series`，其返回 `[v["series"][k] for k in sorted(v["series"])]` ——
+**纯 list、无 trim**；`base_demand_view` 预填全部周 `{w:0}`，故 `len(series) == weeks`、
+周键是从末周（含 `end_date` 的 ISO 周一）向前的连续周一。
 
-> 注意：`refresh` 现有 `series` 是 list（`demand_history_stats` 接 list）。`stockout_zero_weeks_last8` 需要 week→qty 映射判周。`_build_series` 内部本有周键，刷新处需保留 dict 形态（或让 `stockout_zero_weeks_last8` 接 `(weeks_list, qtys_list, stockout_set)` 对齐索引）。实现时统一二者口径，plan 阶段细化。
+- **不改 `_build_series` 返回契约**（它同时供 backtest，改动会扩大影响面）。
+- 在 `refresh_forecast_output` 内**重建周一列表**并 zip 成 dict，口径与 `_build_series`
+  的 `sorted(series)` 完全一致（从末尾对齐，鲁棒于将来可能的截断）：
+  ```python
+  end_monday = _monday(end_date)
+  n = len(series)
+  week_keys = [end_monday - timedelta(days=7 * (n - 1 - i)) for i in range(n)]
+  series_dict = dict(zip(week_keys, series))
+  ```
+- 刷新每个 barcode：
+  1. `sw = stockout_weeks(bc, end_date, weeks, session=s)`
+  2. `szw8 = stockout_zero_weeks_last8(series_dict, sw)`
+  3. 写入新列。
+- 若后续确需改 `_build_series`，必须作为**独立的范围内改动**单列，不在本任务隐式进行。
 
 ### 5.4 置信度降级修正 — `forecast_eval.confidence_tier`
 
@@ -143,24 +163,36 @@ if in_stock_zero >= _RECENT_ZERO_DOWNGRADE:
 
 ### 5.5 补货页标记
 
-- `app/services/analytics/summary.py:218-236`：`forecast_by_bc` 多 select `ForecastOutput.stockout_zero_weeks_last8`，带进补货行字段（如 `stockout_zero_weeks`）。
-- `restock.js` + `_page_restock.html`：当 `stockout_zero_weeks > 0` 渲染 badge，文案 **`⚠ 近 N 周零销疑因缺货`**（N = stockout_zero_weeks）。
+- `app/services/analytics/summary.py:218-236`：`forecast_by_bc` 多 select `ForecastOutput.stockout_zero_weeks_last8`，带进补货行。
+- **后端 item 字段名定死为 `stockout_zero_weeks_last8`**（与 DB 列、JS 全链同名，不另起别名）。
+- `restock.js` + `_page_restock.html`：当 `stockout_zero_weeks_last8 > 0` 渲染 badge，文案 **`⚠ 近 N 周零销疑因缺货`**（N = `stockout_zero_weeks_last8`）。
 - 命名纪律：UI/字段**禁用"断货"**，统一"缺货零销 / 疑因缺货"。
 
 ## 6. 测试（TDD，离线 SQLite）
 
 纯函数（不依赖线上）：
-- `stockout_weeks`：①有快照且 qty_total==0 → 入集合；②有快照 qty_total>0 → 不入；③无快照的周 → 不入；④周中补货漏判（只看周一）口径核实；⑤多 barcode 同 model → 按 model qty_total 判；⑥barcode 无对应 model → 空集合不报错。
-- `stockout_zero_weeks_last8`：近 8 周窗口、缺货∩零销计数、序列短于 8 周边界。
-- `confidence_tier`：⑦近 8 周 6 周零销但全是缺货零销 → **不降级**；⑧6 周零销且全有货 → 降级（回归现有行为）；⑨混合（4 有货 + 3 缺货，有货 4<6）→ 不降级。
-- 默认参数向后兼容：`confidence_tier` 不传 stockout → 行为同现状（现有测试不改）。
+- `stockout_weeks`（新 `tests/test_stockout.py`）：
+  - ① 周一快照 `qty_total == 0` → 入集合；
+  - ② 周一快照 `qty_total > 0` → 不入；
+  - ③ 周一快照 `qty_total < 0`（超卖待到货）→ **入集合**（`<= 0` 口径）；
+  - ④ 该周无周一快照 → 不入（unknown）；
+  - ⑤ **同周多快照·周一 0 周三 5** → 入集合（只看周一=0，忽略周三）；
+  - ⑥ **同周多快照·周一 5 周三 0** → 不入（只看周一=5，忽略周三售空）；
+  - ⑦ 多 barcode 同 model → 按 model 级 `qty_total` 判；
+  - ⑧ barcode 无对应 model → 空集合不报错。
+- `stockout_zero_weeks_last8`（`tests/test_forecast_eval_dashboard.py` 或新 `tests/test_stockout.py`）：近 8 周窗口、缺货∩零销计数、序列短于 8 周边界。
+- `confidence_tier`（`tests/test_confidence_tier.py`）：
+  - ⑨ 近 8 周 6 周零销但全是缺货零销 → **不降级**；
+  - ⑩ 6 周零销且全有货 → 降级（回归现有行为）；
+  - ⑪ 混合（4 有货零销 + 3 缺货零销，有货 4<6）→ 不降级；
+  - ⑫ 不传 `stockout_zero_weeks_last8`（默认 0）→ 行为同现状（现有测试不改）。
 
 集成 / 回归：
 - `refresh_forecast_output` 写入新列非负、与 nonzero/zero 同源。
 - 全量 `pytest tests/` 通过（当前基线 1117）。
 
-验收：
-- `pytest tests/test_stockout.py tests/test_confidence_tier.py tests/test_forecast_eval.py` 全过
+验收命令（实际存在的测试文件）：
+- `pytest tests/test_stockout.py tests/test_confidence_tier.py tests/test_forecast_eval_dashboard.py` 全过
 - 本地灌合成快照 + 需求序列，验证一条「缺货零销」SKU 在补货页出标记 + 置信度不降级（本地 PG / Playwright，参照上次 boson 复制走查）
 
 ## 7. 命名与文案纪律
