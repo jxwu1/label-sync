@@ -226,6 +226,7 @@ def build_forecast_eval_dashboard(session) -> dict:
             ForecastOutput.n_weeks_history,
             ForecastOutput.nonzero_weeks,
             ForecastOutput.zero_weeks_last8,
+            ForecastOutput.stockout_zero_weeks_last8,
         )
     ).all()
 
@@ -236,7 +237,7 @@ def build_forecast_eval_dashboard(session) -> dict:
     by_type_cov: dict[str, list[float]] = defaultdict(list)
     scored = 0
 
-    for bc, sku_type, hist, nz, z8 in rows:
+    for bc, sku_type, hist, nz, z8, szw8 in rows:
         mase, cov = metrics.get(bc, (None, None))
         res = confidence_tier(
             history_weeks=hist,
@@ -244,6 +245,7 @@ def build_forecast_eval_dashboard(session) -> dict:
             mase=mase,
             coverage_p98=cov,
             zero_weeks_last8=z8,
+            stockout_zero_weeks_last8=szw8,
         )
         tiers[res.tier] += 1
         if _is_usable_metric(mase):
