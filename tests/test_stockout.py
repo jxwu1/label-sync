@@ -158,3 +158,34 @@ def test_szw8_window_is_last_8_weeks():
     )
     stockout = {date(2026, 4, 13)}  # 第 9 早, 在 last8 之外
     assert stockout_zero_weeks_last8(series, stockout) == 0
+
+
+def test_refresh_writes_stockout_column(monkeypatch):
+    """refresh_forecast_output 把 stockout_zero_weeks_last8 写进 forecast_output。"""
+    from sqlalchemy import select
+
+    from app.models import ForecastOutput
+    from app.services import forecast as fc
+
+    bc = "BCX"
+    _seed_stockpile(barcode=bc, model="MX")
+    _add_snap("MX", "2026-06-08", 0)  # 末周(6-08)周一缺货
+
+    end = date(2026, 6, 8)
+    # _build_series 返回 (list[float], sku_type); 末周零销 → 与缺货周交叉 → szw8=1
+    monkeypatch.setattr(
+        fc,
+        "_build_series",
+        lambda barcode, end_date, weeks, view, session=None: (
+            [1.0] * 12 + [0.0],
+            "retail_dominant",
+        ),
+    )
+
+    fc.refresh_forecast_output(end_date=end, weeks=13, barcodes=[bc])
+
+    with stockpile_db._session() as s:
+        row = s.execute(
+            select(ForecastOutput).where(ForecastOutput.product_barcode == bc)
+        ).scalar_one()
+        assert row.stockout_zero_weeks_last8 == 1
