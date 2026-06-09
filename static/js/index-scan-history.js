@@ -1,17 +1,10 @@
 // 货号历史 - 扫描批次 module
 "use strict";
 
-const $ = (id) => document.getElementById(id);
+import { escapeHtml, byId as $ } from "./shared.js";
 
 let _allBatches = [];
 let _isInitialized = false;
-
-function escapeHtml(s) {
-  if (s === null || s === undefined) return "";
-  return String(s)
-    .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;").replaceAll("'", "&#39;");
-}
 
 function formatBytes(n) {
   if (n === null || n === undefined) return "—";

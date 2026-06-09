@@ -1,3 +1,5 @@
+import { escapeHtml } from "./shared.js";
+
 (function () {
   let employees = [];
   let currentEmployeeId = '';
@@ -1248,12 +1250,6 @@
   function downloadPayrollPdf() {
     if (!currentMonth) return;
     window.location.href = `/attendance/payroll-pdf/${currentMonth}`;
-  }
-
-  function escapeHtml(s) {
-    return String(s ?? '').replace(/[&<>"']/g, c => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    }[c]));
   }
 
   // ===== 企业微信考勤导入 =====

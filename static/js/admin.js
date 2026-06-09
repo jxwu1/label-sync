@@ -1,5 +1,7 @@
 "use strict";
 
+import { esc, byId as $ } from "./shared.js";
+
 const THEMES = [
   { id: "dark",  label: "Dark",  desc: "近纯黑底 + 红强调",  bg: "#0A0A0B", accent: "#E5484D", fg: "#EDEDEF" },
   { id: "light", label: "Light", desc: "纯白底 + 红强调",    bg: "#FFFFFF", accent: "#DC3545", fg: "#1A1A1E" },
@@ -10,8 +12,6 @@ const SETTING_LABELS = {
   cn_shipping_rate_rmb_per_m3: "中国运费 (RMB/m³)",
   retail_to_wholesale_ratio: "零售倍率 (零售价/批发价)",
 };
-
-function $(id) { return document.getElementById(id); }
 
 async function api(url, opts = {}) {
   const r = await fetch(url, {
@@ -114,12 +114,6 @@ async function renderUsers() {
       else alert(j.error || "删除失败");
     });
   });
-}
-
-function esc(s) {
-  const d = document.createElement("div");
-  d.textContent = s;
-  return d.innerHTML;
 }
 
 function initAddUser() {

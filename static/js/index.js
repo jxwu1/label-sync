@@ -1,10 +1,9 @@
-﻿import { esc, logClass, copyToClip, setupDropZone } from "./shared.js";
+﻿import { esc, logClass, copyToClip, setupDropZone, qs as $ } from "./shared.js";
 import { uploadTransferFiles, loadTransferFiles } from "./transfer.js";
 import { sendTextMessage, loadMessages, deleteMessage } from "./messaging.js";
 import { initWarnings, waitMsg, renderReview } from "./index-warnings.js";
 import { initStockpile } from "./index-stockpile.js";
 
-const $ = (selector) => document.querySelector(selector);
 let poll = null;
 
 initWarnings({ onStatus: handleStatus });

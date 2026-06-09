@@ -1,7 +1,5 @@
-import { esc, jesc, copyToClip, postJSON } from "./shared.js";
+import { esc, jesc, copyToClip, postJSON, qs as $ } from "./shared.js";
 import { initDup, renderDupCard } from "./index-dup.js";
-
-const $ = (selector) => document.querySelector(selector);
 
 // 解决异常后回灌状态的回调（由 index.js 注入 handleStatus）。
 // 没有它时退化为只重渲染异常卡片（旧行为）。

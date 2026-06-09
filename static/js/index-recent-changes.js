@@ -1,7 +1,7 @@
 // 货号历史 - 最近改动 module
 "use strict";
 
-const $ = (id) => document.getElementById(id);
+import { escapeHtml, byId as $ } from "./shared.js";
 
 const FIELD_CN = {
   stockpile_location: "库位",
@@ -22,13 +22,6 @@ let _currentMode = "collapsed";
 let _currentFilter = { field: null, change_type: null };
 let _lastSummary = null;
 let _isInitialized = false;
-
-function escapeHtml(s) {
-  if (s === null || s === undefined) return "";
-  return String(s)
-    .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;").replaceAll("'", "&#39;");
-}
 
 async function fetchJson(url) {
   const resp = await fetch(url);

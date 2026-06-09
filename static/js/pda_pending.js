@@ -1,7 +1,4 @@
-function esc(s) {
-  return String(s).replace(/[&<>"']/g, c =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
+import { esc } from "./shared.js";
 
 async function load() {
   const el = document.getElementById('pdaPendingList');

@@ -2,7 +2,7 @@
 // 拉一次性全 SKU 指标，浏览器侧 filter + sort + 渲染。
 "use strict";
 
-const $ = (id) => document.getElementById(id);
+import { escapeHtml, byId as $ } from "./shared.js";
 
 const AUTO_CN = {
   new: "新品",
@@ -18,15 +18,6 @@ const state = {
   sort: { key: "total_qty", dir: "desc" },
 };
 
-function escapeHtml(s) {
-  if (s === null || s === undefined) return "";
-  return String(s)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
 
 function fmt(n) {
   if (n === null || n === undefined) return "—";

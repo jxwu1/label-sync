@@ -1,7 +1,7 @@
 // 货号历史 tab：精确搜索 + 渲染当前状态 + 聚合时间线
 "use strict";
 
-const $ = (id) => document.getElementById(id);
+import { escapeHtml, byId as $ } from "./shared.js";
 
 const SOURCE_CN = {
   scan_import: "扫描导入",
@@ -28,15 +28,6 @@ const CHANGE_TYPE_CN = {
 
 let _currentBarcode = null;
 
-function escapeHtml(s) {
-  if (s === null || s === undefined) return "";
-  return String(s)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
 
 function renderEmpty(msg) {
   $("historyHint").textContent = msg;

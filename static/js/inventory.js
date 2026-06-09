@@ -1,7 +1,7 @@
 // 进销存导入 tab：列映射向导 + import 触发 + 结果展示
 "use strict";
 
-const $ = (id) => document.getElementById(id);
+import { escapeHtml, byId as $ } from "./shared.js";
 
 let cachedColumns = []; // 上次预览拿到的列名
 let cachedMapping = {}; // 当前展示中的映射
@@ -11,14 +11,6 @@ let internalFields = []; // 合法 internal 字段（含 ignore）
 function getFileType() {
   const r = document.querySelector('input[name="invType"]:checked');
   return r ? r.value : "purchase";
-}
-
-function escapeHtml(s) {
-  if (s === null || s === undefined) return "";
-  return String(s)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
 }
 
 function setHint(msg, isError = false) {

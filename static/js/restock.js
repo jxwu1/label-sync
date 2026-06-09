@@ -10,7 +10,7 @@
 // 浏览器侧 filter + sort，导出走 /analytics/sales/top（透传 origin / 排除停用）。
 "use strict";
 
-const $ = (id) => document.getElementById(id);
+import { escapeHtml, byId as $ } from "./shared.js";
 
 const AUTO_CN = {
   new: "新品",
@@ -89,15 +89,6 @@ function autoClearOrderedByPurchase() {
   if (changed) saveOrdered();
 }
 
-function escapeHtml(s) {
-  if (s === null || s === undefined) return "";
-  return String(s)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
 
 function fmt(n, digits = 0) {
   if (n === null || n === undefined) return "—";

@@ -1,8 +1,6 @@
 // 数据质量 v2（design-pack 05）：7 类只读诊断合并到一页
 // 数据全部来自单个 /data_quality 端点（build_report 返回 7 类 count+samples）。
-import { copyToClip } from "./shared.js";
-
-function $(id) { return document.getElementById(id); }
+import { copyToClip, escapeHtml, byId as $ } from "./shared.js";
 
 let _lastReport = null;
 
@@ -16,13 +14,6 @@ const CATS = [
   { key: "multi",      report: "multi_same_kind",      chip: "多位", tone: "warn" },
   { key: "flippers",   report: "flippers",             chip: "翻转", tone: "warn" },
 ];
-
-function escapeHtml(s) {
-  if (s === null || s === undefined) return "";
-  return String(s)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
 
 // raw location 里的空格高亮成红点
 function highlightWs(raw) {

@@ -1,19 +1,11 @@
 // 老外客人月度记录 tab
 "use strict";
 
-const $ = (id) => document.getElementById(id);
+import { escapeHtml, byId as $ } from "./shared.js";
 
 let currentMonth = "";
 let cachedCustomers = []; // 客户下拉数据
 let editingId = null; // null = 新增，否则是要更新的 record id
-
-function escapeHtml(s) {
-  if (s === null || s === undefined) return "";
-  return String(s)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
-}
 
 function fmtMoney(amt) {
   if (amt === null || amt === undefined) return "—";

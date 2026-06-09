@@ -1,18 +1,9 @@
 // 标签查重（PR-FE-2 起；视觉重设计 2026-05-09 · DataOps Terminal handoff §3.5）
 // 扫 stockpile 主档 4 类脏数据。后端复用 /data_quality endpoint，只渲染 4 类。
 // 维度健康（multi/flippers）留在「数据质量」页。
-import { copyToClip } from "./shared.js";
-
-function $(id) { return document.getElementById(id); }
+import { copyToClip, escapeHtml, byId as $ } from "./shared.js";
 
 let _lastReport = null;
-
-function escapeHtml(s) {
-  if (s === null || s === undefined) return "";
-  return String(s)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
 
 function visibleSpace(s) {
   return String(s)
