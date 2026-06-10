@@ -151,6 +151,17 @@ def _latest_run(session, model_name: str, view: str):
     ).first()
 
 
+def production_run_created_at(session) -> str | None:
+    """最新生产口径 backtest run 的 created_at; 无则 None。
+
+    生产口径 = (_PROD_MODEL, _PROD_VIEW), 与预测效果看板同源。
+    供 alerts 巡检用 — 不要绕过本函数去取全表 max(id) (会把 baseline
+    比较 run 误判成生产 run)。
+    """
+    run = _latest_run(session, _PROD_MODEL, _PROD_VIEW)
+    return run.created_at if run else None
+
+
 def _aggregate_metrics(maybe_mases: list[float], coverages: list[float]) -> dict:
     """对一组 (mase, coverage) 算 headline 指标。mase<1 占比=跑赢 naive 比例。"""
     import numpy as np

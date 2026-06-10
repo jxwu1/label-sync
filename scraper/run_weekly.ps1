@@ -18,6 +18,7 @@ $stagingDir = Join-Path $PSScriptRoot "staging"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 New-Item -ItemType Directory -Force -Path $uploadedDir | Out-Null
 
+$script:stage = "init"
 $ts = Get-Date -Format "yyyyMMdd-HHmmss"
 $log = Join-Path $logDir "run_weekly_$ts.log"
 
@@ -38,9 +39,33 @@ function Read-EnvVar {
     return ($match -split "=", 2)[1].Trim()
 }
 
+function Send-TgAlert {
+    # 失败直报 (spec 2026-06-10 A-min)。TG 未配置 → 只写本地 log, 绝不让告警
+    # 自己 throw 反过来弄死收尾; 消息只含阶段名+简短错误, 不含命令行/token。
+    param([string]$Text)
+    $tgToken = $null; $tgChat = $null
+    try {
+        $tgToken = Read-EnvVar "TG_BOT_TOKEN"
+        $tgChat  = Read-EnvVar "TG_CHAT_ID"
+    } catch {
+        Log "TG 未配置, 跳过失败通知"
+        return
+    }
+    try {
+        curl.exe --silent --show-error --max-time 30 -X POST `
+            "https://api.telegram.org/bot$tgToken/sendMessage" `
+            --data-urlencode "chat_id=$tgChat" `
+            --data-urlencode "text=$Text" | Out-Null
+        Log "已发送 TG 失败通知"
+    } catch {
+        Log "TG 通知发送失败: $($_.Exception.Message)"
+    }
+}
+
 function Invoke-Refresh {
     # 上传完后触发服务器端重算. 读 script 作用域的 $uploadToken (同 Run-Step 读 $python).
     param([string]$Name, [string]$Url)
+    $script:stage = "refresh:$Name"
     Log "→ 刷新 $Name"
     $resp = curl.exe --silent --show-error --max-time 600 -X POST `
         -H "X-Upload-Token: $uploadToken" `
@@ -57,6 +82,7 @@ function Invoke-Refresh {
 function Run-Step {
     # NOTE: 参数名不能用 $Args, 跟 PowerShell 函数自动变量冲突, 传值会丢
     param([string]$Name, [string]$Script, [string[]]$ScriptArgs = @())
+    $script:stage = $Name
     Log "→ $Name $($ScriptArgs -join ' ')"
     $prevEAP = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
@@ -174,5 +200,9 @@ catch {
     Log "!!! 失败: $_"
     Log "!!! 完整 trace:"
     Log ($_ | Out-String)
+    # 只发阶段名+截断摘要 (spec: 不发完整命令/trace/token)
+    $brief = "$($_.Exception.Message)"
+    if ($brief.Length -gt 200) { $brief = $brief.Substring(0, 200) + "..." }
+    Send-TgAlert "scraper 周任务失败：$($script:stage)`n$brief"
     exit 1
 }

@@ -16,7 +16,7 @@ _DATA_STALE_DAYS = 9
 
 # 抓取成功心跳: 抓取器每周成功跑完打一次 (写 SystemSetting)。距上次心跳 > 8 天
 # (周抓 7 + 1 缓冲, 比数据龄 9 天更早暴露) → 判定抓取可能中断。
-_SCRAPE_STALE_DAYS = 8
+SCRAPE_STALE_DAYS = 8
 HEARTBEAT_KEY = "scrape:last_success_at"
 
 
@@ -37,7 +37,7 @@ def get_data_freshness(as_of: date | None = None) -> dict[str, Any]:
         # 只按日期算 (UTC ISO 取前 10 字符 → date), 避免时区细节影响 UI。
         scrape_date = _parse_date(hb_val)
         scrape_days_since: int | None = (as_of - scrape_date).days
-        scrape_stale = scrape_days_since > _SCRAPE_STALE_DAYS
+        scrape_stale = scrape_days_since > SCRAPE_STALE_DAYS
     else:
         scrape_days_since = None
         scrape_stale = False

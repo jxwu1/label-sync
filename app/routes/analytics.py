@@ -901,6 +901,18 @@ def scrape_heartbeat():
     return jsonify({"ok": True, "last_scrape_success_at": ts})
 
 
+@bp.post("/alerts/check")
+@require_upload_token
+def alerts_check():
+    """cron 失败告警巡检 (spec 2026-06-10): 巡检三类数据超期 + TG 推送。
+
+    供 forecast-cron 每天 07:30 curl; 判定/限频/发送全在 services/alerts.py。
+    """
+    from app.services.alerts import run_alerts_check
+
+    return jsonify(run_alerts_check())
+
+
 @bp.post("/forecast/refresh")
 @require_upload_token
 def forecast_refresh():

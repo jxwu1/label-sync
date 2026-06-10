@@ -27,6 +27,10 @@ services:
       # 否则 cron 带正确 token 也会被判无效 -> 401, 预测/回测刷新全失败.
       # :? 缺失即在 compose 替换阶段拒绝部署 (与 forecast-cron 同源同值).
       UPLOAD_TOKEN: ${UPLOAD_TOKEN:?UPLOAD_TOKEN 未注入, web 容器无法校验 cron token}
+      # TG 告警凭据 (spec 2026-06-10): 显式 environment 块不透传未声明变量,
+      # 必须列出 Coolify 注入才能到容器。未配置是允许的降级(不发告警), 用 :- 空默认不阻部署。
+      TG_BOT_TOKEN: ${TG_BOT_TOKEN:-}
+      TG_CHAT_ID: ${TG_CHAT_ID:-}
     volumes:
       - ./data:/data
       - ./data/attendance:/app/attendance  # attendance JSON 落持久卷, redeploy 不丢
@@ -72,5 +76,7 @@ services:
         # 周日 01:00 先跑 backtest (重, 全量 ~4k SKU 同步), 错峰于 03:00 forecast 之前 ->
         # 当周每日 forecast 的置信度分层都能 join 到最新成功的 EmpiricalQuantile run.
         echo "0 1 * * 0 curl -fsS -X POST -H \"X-Upload-Token: $$UPLOAD_TOKEN\" http://label-sync:5000/analytics/backtest/refresh >> /proc/1/fd/1 2>&1" >> /etc/crontabs/root
-        echo "[cron] installed: daily 03:00 forecast/refresh + Sun 01:00 backtest/refresh, Athens (authed)"
+        # 每天 07:30 巡检告警 (03:00 forecast 之后): 数据超期 → TG 推送 (spec 2026-06-10)
+        echo "30 7 * * * curl -fsS -X POST -H \"X-Upload-Token: $$UPLOAD_TOKEN\" http://label-sync:5000/analytics/alerts/check >> /proc/1/fd/1 2>&1" >> /etc/crontabs/root
+        echo "[cron] installed: daily 03:00 forecast/refresh + Sun 01:00 backtest/refresh + daily 07:30 alerts/check, Athens (authed)"
         exec crond -f -l 2
