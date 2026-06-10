@@ -412,6 +412,81 @@ class BaseDemandViewTests(_BaseDemandViewBase):
         assert out["exclusion_count"] == 0
 
 
+class BulkBaseDemandViewTests(_BaseDemandViewBase):
+    """base_demand_views_bulk: 批量版必须 (1) 单 SKU 结果与逐个调用一致 (2) 查询数不随 SKU 数增长."""
+
+    def _seed_portfolio(self) -> None:
+        # B_R: retail_dominant + 1 个 bulk 大单
+        for i in range(8):
+            self._add_sale(barcode="B_R", event_at="2026-05-06", qty=10, document_no=f"R{i}")
+        self._add_sale(barcode="B_R", event_at="2026-05-07", qty=1000, document_no="R_BULK")
+        # B_M: mixed, unknown 客户的 doc 要被剔
+        self._add_customer("CF", "foreign")
+        self._add_customer("CU", "unknown")
+        for i in range(10):
+            self._add_sale(
+                barcode="B_M", event_at="2026-05-06", qty=10, document_no=f"MR{i}", customer_id="CF"
+            )
+        for i in range(5):
+            self._add_sale(
+                barcode="B_M",
+                event_at="2026-05-06",
+                qty=200,
+                document_no=f"MW{i}",
+                customer_id="CU",
+            )
+        # B_W: wholesale_only → series=None
+        for i in range(5):
+            self._add_sale(barcode="B_W", event_at="2026-05-01", qty=720, document_no=f"W{i}")
+        # B_D: dying (最后销售距 end_date 18 周 >= 13)
+        self._add_sale(barcode="B_D", event_at="2026-01-01", qty=10, document_no="D1")
+
+    _BARCODES = ["B_R", "B_M", "B_W", "B_D", "B_NONE"]
+
+    def test_bulk_matches_per_sku_view(self) -> None:
+        from app.utils.forecast_data import base_demand_view, base_demand_views_bulk
+
+        self._seed_portfolio()
+        end = date(2026, 5, 11)
+        bulk = base_demand_views_bulk(self._BARCODES, end_date=end, weeks=4)
+        assert set(bulk.keys()) == set(self._BARCODES)
+        for bc in self._BARCODES:
+            assert bulk[bc] == base_demand_view(bc, end_date=end, weeks=4), bc
+
+    def test_bulk_empty_barcodes(self) -> None:
+        from app.utils.forecast_data import base_demand_views_bulk
+
+        assert base_demand_views_bulk([], end_date=date(2026, 5, 11), weeks=4) == {}
+
+    def test_bulk_query_count_constant(self) -> None:
+        """查询数与 barcode 数无关 (≤4: last_sale / doc-net / 窗口 / 客户类型)."""
+        from sqlalchemy import event as sa_event
+
+        from app import db
+        from app.utils.forecast_data import base_demand_views_bulk
+
+        self._seed_portfolio()
+        engine = db.get_engine()
+        counts: list[int] = []
+
+        def _count(*a, **k):
+            counts.append(1)
+
+        sa_event.listen(engine, "before_cursor_execute", _count)
+        try:
+            counts.clear()
+            base_demand_views_bulk(["B_R"], end_date=date(2026, 5, 11), weeks=4)
+            n_one = len(counts)
+            counts.clear()
+            base_demand_views_bulk(self._BARCODES, end_date=date(2026, 5, 11), weeks=4)
+            n_five = len(counts)
+        finally:
+            sa_event.remove(engine, "before_cursor_execute", _count)
+        # 5 个 SKU 相比 1 个最多多一次 customers 查询 (出现 mixed 才查)
+        assert n_five <= n_one + 1
+        assert n_five <= 4
+
+
 class IsBulkOrderTests(unittest.TestCase):
     """plan §1.5: qty > median + k·IQR → True; 不再用均值."""
 

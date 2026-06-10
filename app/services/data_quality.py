@@ -13,6 +13,9 @@
 每个返回固定结构 {"count": int, "samples": list[dict]}，前端按相同模板渲染。
 """
 
+import threading
+import time
+
 import pandas as pd
 from sqlalchemy import func, select
 
@@ -364,8 +367,39 @@ def _scanned_count(session) -> int:
     return session.execute(select(func.count()).select_from(Stockpile)).scalar() or 0
 
 
+_REPORT_TTL_SECONDS = 60
+_REPORT_LOCK = threading.Lock()
+_REPORT_CACHE: dict = {"value": None, "ts": 0.0}
+
+
+def clear_report_cache() -> None:
+    """失效报告缓存 (测试隔离 / 导入后立即看到新异常时用)。"""
+    with _REPORT_LOCK:
+        _REPORT_CACHE["value"] = None
+        _REPORT_CACHE["ts"] = 0.0
+
+
 def build_report() -> dict:
-    """顶层入口：返回 7 类异常的汇总 + 扫描范围。供 routes_data_quality jsonify。"""
+    """顶层入口：返回 7 类异常的汇总 + 扫描范围。供 routes_data_quality / 简报 jsonify。
+
+    60s 内存缓存 + 锁防 thundering herd (review #5, 同 list_sku_summary 模式):
+    异常只在导入后变化, 每次页面加载重扫 3 次全表 (whitespace/duplicate_segments/
+    negative_stock 各拉全部行进 Python) 太贵。
+    """
+    now = time.time()
+    if _REPORT_CACHE["value"] is not None and now - _REPORT_CACHE["ts"] < _REPORT_TTL_SECONDS:
+        return _REPORT_CACHE["value"]
+    with _REPORT_LOCK:
+        now = time.time()
+        if _REPORT_CACHE["value"] is not None and now - _REPORT_CACHE["ts"] < _REPORT_TTL_SECONDS:
+            return _REPORT_CACHE["value"]
+        result = _build_report_impl()
+        _REPORT_CACHE["value"] = result
+        _REPORT_CACHE["ts"] = now
+        return result
+
+
+def _build_report_impl() -> dict:
     with stockpile_db._session() as session:
         return {
             "scanned_count": _scanned_count(session),

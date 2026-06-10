@@ -254,6 +254,155 @@ def base_demand_view(
     }
 
 
+def base_demand_views_bulk(
+    barcodes: list[str],
+    end_date: date,
+    weeks: int,
+    session: Session | None = None,
+) -> dict[str, dict]:
+    """base_demand_view 的批量版: 常数次查询 (≤4), 单 SKU 结果与逐个调用一致.
+
+    给简报等一次算几千 SKU 的调用方用, 避免 N+1 (逐个调用每 SKU 3-5 次查询)。
+    取数 3 次按 barcode 集合取齐: last_sale / 全历史 doc-net / 窗口事件,
+    出现 mixed 再 +1 次客户类型; 分类复用 categorizer 纯函数
+    (classify_sku_type_from_docs + dying 周数判定, as_of=end_date 同 base_demand_view)。
+    """
+    if weeks < 1:
+        raise ValueError("weeks must be >= 1")
+    barcodes = list(dict.fromkeys(barcodes))
+    if not barcodes:
+        return {}
+    if session is None:
+        with stockpile_db._session() as s:
+            return base_demand_views_bulk(barcodes, end_date, weeks, s)
+
+    from sqlalchemy import String, cast, func, literal
+
+    from app.utils.categorizer import (
+        _DYING_WEEKS,
+        _parse_date,
+        classify_sku_type_from_docs,
+    )
+
+    # 1) 每 SKU 最后销售时间 (dying 判定)
+    last_sale = dict(
+        session.execute(
+            select(InventoryEvent.product_barcode, func.max(InventoryEvent.event_at))
+            .where(
+                InventoryEvent.event_type == "sale",
+                InventoryEvent.product_barcode.in_(barcodes),
+            )
+            .group_by(InventoryEvent.product_barcode)
+        ).all()
+    )
+
+    # 2) 每 SKU 全历史 doc-net qty (语义同 _fetch_sku_doc_net_qty: 同 doc 求和,
+    #    NULL doc 按事件各自独立, 净量 <= 0 丢弃)
+    doc_key = func.coalesce(
+        InventoryEvent.document_no,
+        literal("__null__").op("||")(cast(InventoryEvent.id, String)),
+    )
+    doc_nets: dict[str, list[int]] = defaultdict(list)
+    for bc, net in session.execute(
+        select(InventoryEvent.product_barcode, func.sum(InventoryEvent.qty))
+        .where(
+            InventoryEvent.event_type == "sale",
+            InventoryEvent.product_barcode.in_(barcodes),
+        )
+        .group_by(InventoryEvent.product_barcode, doc_key)
+        .having(func.sum(InventoryEvent.qty) > 0)
+    ).all():
+        doc_nets[bc].append(int(net))
+
+    def _classify(bc: str) -> str:
+        last_at = last_sale.get(bc)
+        if last_at is None:
+            return "unclassified"
+        if (end_date - _parse_date(str(last_at))).days // 7 >= _DYING_WEEKS:
+            return "dying"
+        return classify_sku_type_from_docs(doc_nets.get(bc, []))
+
+    sku_types = {bc: _classify(bc) for bc in barcodes}
+    out: dict[str, dict] = {}
+    active: list[str] = []
+    for bc in barcodes:
+        if sku_types[bc] in ("wholesale_only", "dying", "unclassified"):
+            out[bc] = {
+                "sku_type": sku_types[bc],
+                "series": None,
+                "exclusion_count": 0,
+                "exclusion_qty": 0,
+            }
+        else:
+            active.append(bc)
+    if not active:
+        return out
+
+    end_monday = _monday(end_date)
+    week_starts = [end_monday - timedelta(days=7 * (weeks - 1 - i)) for i in range(weeks)]
+    window_start = week_starts[0]
+    window_end_exclusive = end_monday + timedelta(days=7)
+
+    # 3) 窗口事件 (仅 retail_dominant / mixed 需要)
+    win_rows = session.execute(
+        select(
+            InventoryEvent.product_barcode,
+            InventoryEvent.event_at,
+            InventoryEvent.qty,
+            InventoryEvent.document_no,
+            InventoryEvent.id,
+            InventoryEvent.customer_id,
+        ).where(
+            InventoryEvent.event_type == "sale",
+            InventoryEvent.product_barcode.in_(active),
+            InventoryEvent.event_at >= window_start.isoformat(),
+            InventoryEvent.event_at < window_end_exclusive.isoformat(),
+        )
+    ).all()
+
+    # 4) mixed SKU 的客户类型
+    mixed_cust_ids = {r[5] for r in win_rows if r[5] and sku_types[r[0]] == "mixed"}
+    cust_types = _fetch_customer_types(mixed_cust_ids, session) if mixed_cust_ids else {}
+
+    buckets: dict[str, dict[str, list[tuple[date, int, str | None]]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
+    for bc, event_at, qty, doc_no, ev_id, cust_id in win_rows:
+        key = doc_no if doc_no else f"__null__{ev_id}"
+        buckets[bc][key].append((_parse_event_date(event_at), qty, cust_id))
+
+    for bc in active:
+        stats = compute_doc_qty_stats(doc_nets.get(bc, []))
+        series: dict[date, int] = {w: 0 for w in week_starts}
+        excl_count = 0
+        excl_qty = 0
+        for items in buckets.get(bc, {}).values():
+            net = sum(q for _, q, _ in items)
+            if net <= 0:
+                continue
+            if is_bulk_order(net, stats):
+                excl_count += 1
+                excl_qty += net
+                continue
+            if sku_types[bc] == "mixed":
+                cust_id = items[0][2]
+                cust_type = cust_types.get(cust_id) if cust_id else None
+                if cust_type not in _MIXED_KEEP_CUSTOMER_TYPES:
+                    excl_count += 1
+                    excl_qty += net
+                    continue
+            week = _monday(min(d for d, _, _ in items))
+            if week in series:
+                series[week] += net
+        out[bc] = {
+            "sku_type": sku_types[bc],
+            "series": series,
+            "exclusion_count": excl_count,
+            "exclusion_qty": excl_qty,
+        }
+    return out
+
+
 def _fetch_customer_types(cust_ids: set[str], session: Session) -> dict[str, str]:
     if not cust_ids:
         return {}

@@ -155,6 +155,7 @@ document.addEventListener("alpine:init", () => {
     _initedPages: [],
     _callbacks: {},
     pages: [
+      { id: "briefing",          label: "最新批次简报", icon: "dashboard",  code: "★", shortcut: "" },
       { id: "dashboard",         label: "总览",       icon: "dashboard",  code: "00", shortcut: "`" },
       { id: "main",              label: "标签处理",   icon: "tags",       code: "01", shortcut: "1" },
       { id: "dup",               label: "标签查重",   icon: "dedupe",     code: "02", shortcut: "2" },
@@ -210,6 +211,16 @@ document.addEventListener("alpine:init", () => {
     initFromStorage() {
       try {
         this.collapsed = localStorage.getItem("nav.collapsed") === "1";
+      } catch (_) {
+        /* ignore */
+      }
+      // 直达带页面前缀的 URL(目前仅 /briefing 有独立路由) → 激活对应 tab,
+      // 否则停在默认 current。pathname 首段匹配某个 page.id 才切, 防误判。
+      try {
+        const seg = window.location.pathname.split("/").filter(Boolean)[0];
+        if (seg && this.pages.some((p) => p.id === seg)) {
+          this.current = seg;
+        }
       } catch (_) {
         /* ignore */
       }

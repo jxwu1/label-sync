@@ -3214,3 +3214,65 @@
 .fe-row--prod { background: color-mix(in srgb, var(--accent) 10%, transparent); font-weight: 600; }
 .fe-empty { text-align: center; color: var(--ink-3); }
 #purOrders .po-status.error { color: var(--error); }
+
+/* ===== 最新批次简报 (briefing) ===== */
+/* .page.active 默认 align-content:stretch 会把内容撑满视口高度致行间空隙+无法滚动;
+   改 start 让内容从顶部自然排布, 超出时 .page.active 的 overflow-y:auto 才生效。 */
+#pageBriefing { align-content: start; }
+#pageBriefing [x-cloak] { display: none !important; }
+
+.briefing-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.briefing-head h2 { font-family: var(--display); font-size: var(--fs-2xl); font-weight: 700; color: var(--ink-0); letter-spacing: -0.01em; }
+.briefing-sub { font-family: var(--mono); font-size: var(--fs-xs); color: var(--ink-2); margin-top: 4px; }
+.briefing-sub strong { color: var(--ink-1); }
+
+/* 状态色: good/warn/danger/neutral —— 设局部 --st 变量, 由卡片左缘/数字/点/徽章读取 */
+#pageBriefing .status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; background: var(--st, var(--ink-3)); vertical-align: middle; }
+#pageBriefing .is-good { --st: var(--success); --st-bd: var(--success-subtle-border); --st-bg: var(--success-subtle); }
+#pageBriefing .is-warn { --st: var(--warn); --st-bd: var(--warn-subtle-border); --st-bg: var(--warn-subtle); }
+#pageBriefing .is-danger { --st: var(--error); --st-bd: var(--error-subtle-border); --st-bg: var(--error-subtle); }
+#pageBriefing .is-neutral { --st: var(--ink-3); --st-bd: var(--line); --st-bg: transparent; }
+#pageBriefing .muted { color: var(--ink-3); }
+
+/* 页面级状态: 加载 / 错误 */
+.briefing-state { padding: 28px; text-align: center; color: var(--ink-2); font-size: var(--fs-base); }
+#pageBriefing .briefing-state.is-danger { color: var(--error); }
+.briefing-retry { margin-left: 10px; font-size: var(--fs-xs); padding: 3px 10px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--bg-2); color: var(--ink-1); cursor: pointer; }
+.briefing-retry:hover { border-color: var(--ink-3); }
+
+.briefing-pill { align-self: center; font-size: var(--fs-xs); font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--st-bd, var(--line)); background: var(--st-bg, transparent); color: var(--st, var(--ink-1)); white-space: nowrap; }
+
+.briefing-body { display: flex; flex-direction: column; gap: 14px; }
+
+/* 主卡 (本批次销售健康) */
+#pageBriefing .kpi-hero { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; background: var(--bg-1); border: 1px solid var(--line-soft); border-left: 3px solid var(--st, var(--line)); border-radius: var(--r-md); padding: 18px 22px; }
+#pageBriefing .kpi-hero-label { display: flex; align-items: center; font-size: var(--fs-sm); font-weight: 600; color: var(--ink-1); }
+#pageBriefing .kpi-hero-value { font-family: var(--display); font-size: var(--fs-4xl); font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; color: var(--st, var(--ink-0)); margin-top: 6px; }
+#pageBriefing .kpi-hero-value.muted { color: var(--ink-2); font-size: var(--fs-2xl); }
+#pageBriefing .kpi-hero-verdict { font-size: var(--fs-sm); color: var(--ink-2); margin-top: 4px; }
+#pageBriefing .kpi-hero-right { display: flex; gap: 26px; align-items: center; }
+#pageBriefing .hero-stat-label { font-size: var(--fs-xs); color: var(--ink-3); }
+#pageBriefing .hero-stat-val { font-family: var(--display); font-size: var(--fs-lg); font-weight: 600; color: var(--ink-0); margin-top: 2px; }
+
+/* 风险卡 */
+.briefing-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+#pageBriefing .kpi-card { background: var(--bg-1); border: 1px solid var(--line-soft); border-left: 3px solid var(--st, var(--line-soft)); border-radius: var(--r-md); padding: 13px 16px; display: flex; flex-direction: column; gap: 6px; min-height: 92px; }
+#pageBriefing .kpi-title { display: flex; align-items: center; font-size: var(--fs-sm); color: var(--ink-1); font-weight: 600; }
+#pageBriefing .kpi-value { font-family: var(--display); font-size: var(--fs-3xl); font-weight: 700; color: var(--st, var(--ink-0)); letter-spacing: -0.02em; line-height: 1.1; }
+#pageBriefing .kpi-value small { font-family: var(--display); font-size: var(--fs-md); font-weight: 600; color: var(--ink-2); }
+#pageBriefing .kpi-value.muted { color: var(--ink-2); font-size: var(--fs-lg); }
+#pageBriefing .kpi-sub { font-size: var(--fs-xs); color: var(--ink-2); line-height: 1.45; }
+#pageBriefing .kpi-sub strong { color: var(--ink-1); }
+
+/* 行动面板 */
+.briefing-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+#pageBriefing .action-list { background: var(--bg-1); border: 1px solid var(--line-soft); border-radius: var(--r-md); padding: 12px 14px; display: flex; flex-direction: column; }
+#pageBriefing .action-head { display: flex; align-items: center; justify-content: space-between; font-size: var(--fs-sm); font-weight: 700; color: var(--ink-0); padding-bottom: 8px; margin-bottom: 4px; border-bottom: 1px solid var(--line-soft); }
+#pageBriefing .action-all { font-size: var(--fs-xs); font-weight: 600; color: var(--accent); text-decoration: none; white-space: nowrap; cursor: pointer; }
+#pageBriefing .action-all:hover { text-decoration: underline; }
+#pageBriefing .action-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 10px; padding: 7px 0; border-bottom: 1px solid var(--line-soft); }
+#pageBriefing .action-row:last-child { border-bottom: none; }
+#pageBriefing .action-row-main { grid-column: 1; font-size: var(--fs-sm); font-weight: 600; color: var(--ink-0); font-family: var(--mono); }
+#pageBriefing .action-row-meta { grid-column: 1; font-size: var(--fs-xs); color: var(--ink-2); }
+#pageBriefing .action-badge { grid-column: 2; grid-row: 1 / span 2; justify-self: end; align-self: center; font-size: var(--fs-xs); font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--st-bd, var(--line)); background: var(--st-bg, transparent); color: var(--st, var(--ink-1)); white-space: nowrap; }
+#pageBriefing .action-empty { font-size: var(--fs-sm); color: var(--ink-3); padding: 10px 0; text-align: center; }

@@ -330,3 +330,35 @@ class DataQualityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class BuildReportCacheTests(unittest.TestCase):
+    """review #5: build_report 每次简报/质量页加载全量重扫 3 次全表 → 60s 缓存。"""
+
+    def setUp(self) -> None:
+        data_quality_service.clear_report_cache()
+
+    def tearDown(self) -> None:
+        data_quality_service.clear_report_cache()
+
+    def test_build_report_cached_within_ttl(self) -> None:
+        from unittest import mock
+
+        with mock.patch.object(
+            data_quality_service, "_build_report_impl", return_value={"scanned_count": 0}
+        ) as m:
+            r1 = data_quality_service.build_report()
+            r2 = data_quality_service.build_report()
+        self.assertEqual(m.call_count, 1)
+        self.assertIs(r1, r2)
+
+    def test_clear_report_cache_forces_recompute(self) -> None:
+        from unittest import mock
+
+        with mock.patch.object(
+            data_quality_service, "_build_report_impl", return_value={"scanned_count": 0}
+        ) as m:
+            data_quality_service.build_report()
+            data_quality_service.clear_report_cache()
+            data_quality_service.build_report()
+        self.assertEqual(m.call_count, 2)
+

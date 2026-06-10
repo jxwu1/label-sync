@@ -11,6 +11,9 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
 <script>window.__IS_ADMIN = {{ 'true' if is_admin else 'false' }};</script>
 <script defer src="{{ url_for('static', filename='js/store.js') }}"></script>
+<!-- briefing.js 必须在 alpine 之前: alpine 在 readyState=interactive 即自启,
+     若晚于 alpine 加载, x-data="briefingPage()" 求值时函数尚未定义 → 组件失效。 -->
+<script defer src="{{ url_for('static', filename='js/briefing.js') }}"></script>
 <script defer src="{{ url_for('static', filename='vendor/alpinejs/alpine.min.js') }}"></script>
 <script>
   (function () {
@@ -178,6 +181,7 @@
     <div class="content" role="main">
 
 <!-- ═══ Dashboard ═══ -->
+{% include 'partials/_page_briefing.html' %}
 {% include 'partials/_page_dashboard.html' %}
 
 {% include 'partials/_page_main.html' %}

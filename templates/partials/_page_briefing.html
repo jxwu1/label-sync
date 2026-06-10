@@ -1,0 +1,191 @@
+<div class="page" id="pageBriefing" x-data="briefingPage()"
+     :class="$store.nav.current === 'briefing' ? 'active' : ''">
+  <header class="briefing-head">
+    <div class="briefing-head-main">
+      <h2>最新批次简报</h2>
+      <p class="briefing-sub" x-show="data">
+        截至 <strong x-text="data?.data_week || '—'"></strong>
+        · 数据更新于 <span x-text="data?.cards?.data_health?.last_import_date || '—'"></span>
+        · 本页生成 <span x-text="fmtGenTime()"></span>
+      </p>
+    </div>
+    <span class="briefing-pill is-danger" x-show="data?.cards?.data_health?.stale">
+      数据已超过 <span x-text="data?.cards?.data_health?.days_since"></span> 天未刷新
+    </span>
+  </header>
+
+  <!-- 加载 / 错误 / 内容 三态 -->
+  <div class="briefing-state" x-show="!data && !error">正在加载简报…</div>
+  <div class="briefing-state is-danger" x-show="error" x-cloak>
+    简报加载失败：<span x-text="error"></span>
+    <button class="briefing-retry" @click="load()">重试</button>
+  </div>
+
+  <template x-if="data">
+    <div class="briefing-body">
+      <!-- 主卡: 本批次销售健康 -->
+      <article class="kpi-hero" :class="'is-' + heroStatus()">
+        <div class="kpi-hero-left">
+          <div class="kpi-hero-label"><span class="status-dot"></span>本批次销售健康</div>
+          <template x-if="card('sales_health')?.ok && card('sales_health')?.status==='ok'">
+            <div class="kpi-hero-value" x-text="(card('sales_health').delta_pct>=0?'+':'') + card('sales_health').delta_pct + '%'"></div>
+          </template>
+          <template x-if="card('sales_health')?.status==='coverage_insufficient'">
+            <div class="kpi-hero-value muted">覆盖不足</div>
+          </template>
+          <template x-if="card('sales_health')?.status==='no_previous_week'">
+            <div class="kpi-hero-value" x-text="card('sales_health').current_qty + ' 件'"></div>
+          </template>
+          <template x-if="card('sales_health')?.status==='week_incomplete'">
+            <div class="kpi-hero-value muted">数据周未完整</div>
+          </template>
+          <template x-if="card('sales_health') && !card('sales_health').ok">
+            <div class="kpi-hero-value muted">暂不可用</div>
+          </template>
+          <div class="kpi-hero-verdict">
+            <template x-if="card('sales_health')?.status==='ok'">
+              <span x-text="card('sales_health').delta_pct>=0 ? '清洗后销量较上批增长' : '清洗后销量较上批下滑'"></span>
+            </template>
+            <template x-if="card('sales_health')?.status==='coverage_insufficient'">
+              <span>预测覆盖 SKU 太少，暂不给销售结论</span>
+            </template>
+            <template x-if="card('sales_health')?.status==='no_previous_week'">
+              <span>本批次销量（无上一完整周可比）</span>
+            </template>
+            <template x-if="card('sales_health')?.status==='week_incomplete'">
+              <span>最新数据未满一个完整周</span>
+            </template>
+          </div>
+        </div>
+        <div class="kpi-hero-right" x-show="card('sales_health')?.ok && card('sales_health')?.status==='ok'">
+          <div class="hero-stat">
+            <div class="hero-stat-label">下期系统预期</div>
+            <div class="hero-stat-val"><span x-text="Math.round(card('sales_health')?.forecast_next_p50 || 0)"></span> 件</div>
+          </div>
+          <div class="hero-stat" x-show="card('sales_health')?.model_bias_units !== null">
+            <div class="hero-stat-label">模型近期校准</div>
+            <div class="hero-stat-val">回测偏<span x-text="(card('sales_health')?.model_bias_units||0)>=0?'高':'低'"></span>
+              <span x-text="Math.abs(card('sales_health')?.model_bias_units||0)"></span> 件/周</div>
+          </div>
+          <div class="hero-stat">
+            <div class="hero-stat-label">参与预测 SKU</div>
+            <div class="hero-stat-val" x-text="card('sales_health')?.covered_skus || 0"></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 风险卡 -->
+      <section class="briefing-cards">
+        <article class="kpi-card" :class="'is-' + riskStatus('restock_risk')">
+          <div class="kpi-title"><span class="status-dot"></span>当前补货风险</div>
+          <template x-if="card('restock_risk')?.ok">
+            <div>
+              <div class="kpi-value"><span x-text="card('restock_risk').total"></span> <small>个 SKU</small></div>
+              <div class="kpi-sub">建议补货 · 紧急
+                <strong x-text="card('restock_risk').urgent"></strong> 个（可售 ≤ 2 周）</div>
+            </div>
+          </template>
+          <template x-if="card('restock_risk') && !card('restock_risk').ok">
+            <div class="kpi-sub muted">暂不可用</div></template>
+        </article>
+
+        <article class="kpi-card" :class="'is-' + riskStatus('stockout_impact')">
+          <div class="kpi-title"><span class="status-dot"></span>疑似缺货影响</div>
+          <template x-if="card('stockout_impact')?.ok">
+            <div>
+              <div class="kpi-value"><span x-text="card('stockout_impact').total"></span> <small>个 SKU</small></div>
+              <div class="kpi-sub">近期零销疑因缺货，补货后或恢复</div>
+            </div>
+          </template>
+          <template x-if="card('stockout_impact') && !card('stockout_impact').ok">
+            <div class="kpi-sub muted">暂不可用</div></template>
+        </article>
+
+        <article class="kpi-card" :class="'is-' + riskStatus('overstock_risk')">
+          <div class="kpi-title"><span class="status-dot"></span>当前压货风险</div>
+          <template x-if="card('overstock_risk')?.ok">
+            <div>
+              <div class="kpi-value"><span x-text="card('overstock_risk').total"></span> <small>个 SKU</small></div>
+              <div class="kpi-sub">滞销/呆滞仍有库存
+                <strong x-text="card('overstock_risk').stock_qty"></strong> 件<template
+                  x-if="card('overstock_risk').cost_available"><span>，约 €<span
+                  x-text="card('overstock_risk').overstock_value_eur"></span>（<span
+                  x-text="card('overstock_risk').costed_skus"></span>/<span
+                  x-text="card('overstock_risk').total"></span> 个有成本）</span></template><template
+                  x-if="!card('overstock_risk').cost_available"><span class="muted"> · 无成本数据</span></template>
+              </div>
+            </div>
+          </template>
+          <template x-if="card('overstock_risk') && !card('overstock_risk').ok">
+            <div class="kpi-sub muted">暂不可用</div></template>
+        </article>
+
+        <article class="kpi-card" :class="'is-' + riskStatus('data_health')">
+          <div class="kpi-title"><span class="status-dot"></span>数据新鲜度</div>
+          <template x-if="card('data_health')?.ok">
+            <div>
+              <div class="kpi-value" x-show="card('data_health').days_since !== null">
+                <span x-text="card('data_health').days_since"></span> <small>天前</small></div>
+              <div class="kpi-value muted" x-show="card('data_health').days_since === null">暂无数据</div>
+              <div class="kpi-sub">数据截止 <span x-text="card('data_health').last_import_date || '—'"></span>
+                · 成本覆盖 <span x-text="card('data_health').cost_coverage_pct ?? '—'"></span>%</div>
+            </div>
+          </template>
+          <template x-if="card('data_health') && !card('data_health').ok">
+            <div class="kpi-sub muted">暂不可用</div></template>
+        </article>
+      </section>
+
+      <!-- 行动列表 -->
+      <section class="briefing-actions">
+        <div class="action-list">
+          <div class="action-head"><span>建议补货</span>
+            <a href="#" @click.prevent="$store.nav.switch('restock')" class="action-all">查看全部 →</a></div>
+          <template x-if="action('restock') && !action('restock').ok">
+            <div class="action-empty muted">暂不可用</div></template>
+          <template x-for="it in (action('restock')?.items || [])" :key="it.barcode">
+            <div class="action-row">
+              <span class="action-row-main" x-text="it.model || it.barcode"></span>
+              <span class="action-row-meta">库存 <span x-text="it.qty_total"></span> · 周销 <span x-text="it.weekly_velocity"></span> · 建议 <span x-text="it.restock_qty_p50"></span></span>
+              <span class="action-badge" :class="(it.weeks_of_cover !== null && it.weeks_of_cover <= 2) ? 'is-danger' : 'is-warn'"
+                    x-text="(it.weeks_of_cover ?? '—') + ' 周'"></span>
+            </div>
+          </template>
+          <div class="action-empty" x-show="action('restock')?.ok && (action('restock')?.items || []).length === 0">无</div>
+        </div>
+
+        <div class="action-list">
+          <div class="action-head"><span>建议催/确认</span>
+            <a href="#" @click.prevent="$store.nav.switch('purchase')" class="action-all">查看全部 →</a></div>
+          <template x-if="action('follow_up') && !action('follow_up').ok">
+            <div class="action-empty muted">暂不可用</div></template>
+          <template x-if="action('follow_up')?.status === 'empty'">
+            <div class="action-empty">暂无采购订单</div></template>
+          <template x-for="it in (action('follow_up')?.items || [])" :key="it.id">
+            <div class="action-row">
+              <span class="action-row-main" x-text="it.supplier_name || it.supplier_id"></span>
+              <span class="action-row-meta">数量 <span x-text="it.total_qty"></span> · 下单 <span x-text="it.order_date"></span></span>
+              <span class="action-badge" :class="it.overdue_state === 'overdue' ? 'is-danger' : 'is-neutral'"
+                    x-text="it.overdue_state === 'overdue' ? ('逾期 ' + it.overdue_days + ' 天')
+                            : (it.overdue_state === 'not_due' ? '未到期' : '待确认')"></span>
+            </div>
+          </template>
+        </div>
+
+        <div class="action-list">
+          <div class="action-head"><span>建议复查异常</span>
+            <a href="#" @click.prevent="$store.nav.switch('data_quality')" class="action-all">查看全部 →</a></div>
+          <template x-if="action('review_anomalies') && !action('review_anomalies').ok">
+            <div class="action-empty muted">暂不可用</div></template>
+          <template x-for="it in (action('review_anomalies')?.items || [])" :key="it.kind">
+            <div class="action-row">
+              <span class="action-row-main" x-text="it.kind"></span>
+              <span class="action-badge is-warn" x-text="it.count + ' 条'"></span>
+            </div>
+          </template>
+          <div class="action-empty" x-show="action('review_anomalies')?.ok && (action('review_anomalies')?.items || []).length === 0">无异常</div>
+        </div>
+      </section>
+    </div>
+  </template>
+</div>
