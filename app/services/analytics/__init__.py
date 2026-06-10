@@ -19,18 +19,18 @@ summary / categories），本文件仅做 re-export，外部 import 路径 (app.
 """
 
 from app.services.analytics._shared import *  # noqa: F401,F403
-from app.services.analytics.freshness import *  # noqa: F401,F403
-from app.services.analytics.metrics import *  # noqa: F401,F403
-from app.services.analytics.restock_calc import *  # noqa: F401,F403
-from app.services.analytics.summary import *  # noqa: F401,F403
-from app.services.analytics.categories import *  # noqa: F401,F403
 
 # import * 不带下划线符号, 测试依赖的私有显式补:
 from app.services.analytics._shared import (  # noqa: F401
     _fetch_all_rows_with_doc_no,
     _today,
 )
+from app.services.analytics.categories import *  # noqa: F401,F403
+from app.services.analytics.freshness import *  # noqa: F401,F403
+from app.services.analytics.metrics import *  # noqa: F401,F403
+from app.services.analytics.restock_calc import *  # noqa: F401,F403
 from app.services.analytics.restock_calc import _compute_urgency_score  # noqa: F401
+from app.services.analytics.summary import *  # noqa: F401,F403
 from app.services.analytics.summary import (  # noqa: F401
     _LIST_CACHE,
     _list_sku_summary_impl,

@@ -331,6 +331,7 @@ class DataQualityTests(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 
+
 class BuildReportCacheTests(unittest.TestCase):
     """review #5: build_report 每次简报/质量页加载全量重扫 3 次全表 → 60s 缓存。"""
 
@@ -361,4 +362,3 @@ class BuildReportCacheTests(unittest.TestCase):
             data_quality_service.clear_report_cache()
             data_quality_service.build_report()
         self.assertEqual(m.call_count, 2)
-

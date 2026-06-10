@@ -142,7 +142,7 @@ def test_downgrade_floor_at_low():
     assert any("recent_zero_demand" in r for r in res.reasons)
 
 
-from app.services.forecast_eval import confidence_tier as _ct
+_ct = confidence_tier
 
 
 def test_six_zero_all_stockout_no_downgrade():

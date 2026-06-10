@@ -1,7 +1,5 @@
 """简报路由集成测试。"""
 
-from unittest import mock
-
 import pytest
 from flask import Flask
 from flask_login import LoginManager

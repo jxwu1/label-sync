@@ -29,8 +29,8 @@ def _resolve_secret_key(debug: bool) -> str:
     if debug:
         return _DEV_SECRET
     raise RuntimeError(
-        "FLASK_SECRET_KEY 未注入: 生产拒绝使用可伪造的默认 secret. "
-        '请在部署环境(Coolify) 注入一个随机值, 例如 `python -c "import secrets; print(secrets.token_hex(32))"`.'
+        "FLASK_SECRET_KEY 未注入: 生产拒绝使用可伪造的默认 secret. 请在部署环境(Coolify) "
+        '注入一个随机值, 例如 `python -c "import secrets; print(secrets.token_hex(32))"`.'
     )
 
 

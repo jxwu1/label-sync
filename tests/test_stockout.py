@@ -11,6 +11,7 @@ from sqlalchemy import insert
 
 from app.models import Stockpile, StockpileInventorySnapshot
 from app.repositories import stockpile_db
+from app.services.forecast_eval import stockout_zero_weeks_last8
 from app.services.stockout import stockout_weeks
 
 
@@ -106,9 +107,6 @@ def test_multi_barcode_same_model_share_qty():
 def test_barcode_without_model_returns_empty():
     out = stockout_weeks("NO_SUCH_BC", _END, weeks=3)
     assert out == set()
-
-
-from app.services.forecast_eval import stockout_zero_weeks_last8
 
 
 def _series(*pairs):

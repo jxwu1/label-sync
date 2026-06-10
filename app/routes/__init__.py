@@ -6,9 +6,9 @@
 
 from app.config import CONFIG
 from app.routes.admin import bp as admin_bp
-from app.routes.briefing import bp as briefing_bp
 from app.routes.analytics import bp as analytics_bp
 from app.routes.attendance import bp as attendance_bp
+from app.routes.briefing import bp as briefing_bp
 from app.routes.dashboard import bp as dashboard_bp
 from app.routes.data_quality import bp as data_quality_bp
 from app.routes.foreign_customers import bp as foreign_customers_bp
