@@ -221,6 +221,10 @@ def do_import(file_type: str) -> tuple:
     finally:
         _cleanup(path)
 
+    # 导入改变了质量报告的输入 → 失效 60s 缓存, 用户导完立刻看到新异常
+    from app.services.data_quality import clear_report_cache
+
+    clear_report_cache()
     return jsonify(
         {
             "ok": True,
@@ -281,6 +285,10 @@ def do_import_product_master() -> tuple:
         except OSError:
             pass
 
+    # 主档导入同样改变质量报告输入 → 失效缓存
+    from app.services.data_quality import clear_report_cache
+
+    clear_report_cache()
     return jsonify(
         {
             "ok": True,

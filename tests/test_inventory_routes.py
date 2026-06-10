@@ -246,3 +246,58 @@ class RecentImportsTests(_BaseRouteTest):
 
 if __name__ == "__main__":
     unittest.main()
+
+class ImportInvalidatesQualityCacheTests(_BaseRouteTest):
+    """review round3 建议项: 导入成功后必须清 data_quality 报告缓存,
+    否则导入完立刻看 dashboard/数据质量/简报, 最多 60s 是旧异常报告。"""
+
+    def test_event_import_clears_quality_report_cache(self) -> None:
+        from app.services import data_quality
+
+        before = data_quality.build_report()
+        rv = self._upload("/inventory/import/sales", "sales_sample.xls")
+        self.assertEqual(rv.status_code, 200)
+        after = data_quality.build_report()
+        # 缓存若未失效会拿回同一个对象
+        self.assertIsNot(after, before)
+        self.assertGreater(after["scanned_count"], before["scanned_count"])
+
+    def test_product_master_import_clears_quality_report_cache(self) -> None:
+        import pandas as pd
+
+        from app.services import data_quality
+
+        before = data_quality.build_report()
+        self.assertEqual(before["scanned_count"], 0)
+        csv = (
+            pd.DataFrame(
+                [
+                    {
+                        "product_barcode": "5828079113422",
+                        "product_model": "11342",
+                        "product_description": "x",
+                        "local_description": "x",
+                        "stockpile_location": "A14-12-01",
+                        "product_kind_id": "FL004-01",
+                        "product_kind_name": "x",
+                        "valid_grade": 3,
+                        "stock_price": 1.0,
+                        "sale_price": 2.0,
+                        "provider_id": "GR0001",
+                        "provider_name": "X",
+                        "web_status": "Y",
+                    }
+                ]
+            )
+            .to_csv(index=False)
+            .encode("utf-8-sig")
+        )
+        rv = self.client.post(
+            "/inventory/import/product-master",
+            data={"file": (io.BytesIO(csv), "product.csv")},
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(rv.status_code, 200)
+        after = data_quality.build_report()
+        self.assertEqual(after["scanned_count"], 1)
+

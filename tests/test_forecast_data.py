@@ -453,6 +453,24 @@ class BulkBaseDemandViewTests(_BaseDemandViewBase):
         for bc in self._BARCODES:
             assert bulk[bc] == base_demand_view(bc, end_date=end, weeks=4), bc
 
+    def test_bulk_matches_per_sku_on_empty_string_doc_no(self) -> None:
+        """review 阻断项: 导入器把空单号写成 ''(不是 NULL, 见 importers/inventory.py)。
+
+        旧路径 `doc_no if doc_no else ...` 把 '' 当独立事件; bulk 的 SQL 分组若只
+        coalesce NULL, 会把同 SKU 所有空单号历史合并成一个 doc → IQR/分类/简报口径漂移。
+        覆盖: 多条正销售 + 孤立负退货 + 大额单, 全部 document_no=''。
+        """
+        from app.utils.forecast_data import base_demand_view, base_demand_views_bulk
+
+        for _ in range(8):
+            self._add_sale(barcode="B_E", event_at="2026-05-06", qty=10, document_no="")
+        self._add_sale(barcode="B_E", event_at="2026-05-07", qty=-3, document_no="")
+        # 混一条大额空单号: 若历史被错误合并, IQR stats 与大单判定都会变
+        self._add_sale(barcode="B_E", event_at="2026-05-07", qty=1000, document_no="")
+        end = date(2026, 5, 11)
+        bulk = base_demand_views_bulk(["B_E"], end_date=end, weeks=4)
+        assert bulk["B_E"] == base_demand_view("B_E", end_date=end, weeks=4)
+
     def test_bulk_empty_barcodes(self) -> None:
         from app.utils.forecast_data import base_demand_views_bulk
 

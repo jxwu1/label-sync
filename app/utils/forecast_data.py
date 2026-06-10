@@ -276,7 +276,7 @@ def base_demand_views_bulk(
         with stockpile_db._session() as s:
             return base_demand_views_bulk(barcodes, end_date, weeks, s)
 
-    from sqlalchemy import String, cast, func, literal
+    from sqlalchemy import String, case, cast, func, literal, or_
 
     from app.utils.categorizer import (
         _DYING_WEEKS,
@@ -297,10 +297,16 @@ def base_demand_views_bulk(
     )
 
     # 2) 每 SKU 全历史 doc-net qty (语义同 _fetch_sku_doc_net_qty: 同 doc 求和,
-    #    NULL doc 按事件各自独立, 净量 <= 0 丢弃)
-    doc_key = func.coalesce(
-        InventoryEvent.document_no,
-        literal("__null__").op("||")(cast(InventoryEvent.id, String)),
+    #    无单号按事件各自独立, 净量 <= 0 丢弃)。
+    # 注意: 导入器把空单号写成 ''(非 NULL), Python 路径 `doc_no if doc_no else ...`
+    # 对 '' 同样按独立事件处理 → SQL 分组必须 NULL 和 '' 都落到 per-id 键, 否则
+    # 同 SKU 全部空单号历史被并成一个 doc, IQR/分类口径漂移 (review 阻断项)。
+    doc_key = case(
+        (
+            or_(InventoryEvent.document_no.is_(None), InventoryEvent.document_no == ""),
+            literal("__null__").op("||")(cast(InventoryEvent.id, String)),
+        ),
+        else_=InventoryEvent.document_no,
     )
     doc_nets: dict[str, list[int]] = defaultdict(list)
     for bc, net in session.execute(

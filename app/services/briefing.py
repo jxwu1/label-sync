@@ -9,7 +9,10 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Any
 
-URGENT_COVER_WEEKS = 2.0
+# 与补货页 KPI 同阈值 (restock.js renderKpi: 紧急>=70 / 关注40-69)。
+# review round3: p50>0 全集在生产 ~1 万 SKU, 对老板是噪音 → 简报只看 关注+紧急。
+URGENT_URGENCY_SCORE = 70
+WATCH_URGENCY_SCORE = 40
 SALES_MIN_COVER_SKUS = 5
 ACTION_LIST_LIMIT = 5
 # 压货判定的两套词表 (review #2): auto_category 域 = categorizer.CATEGORIES
@@ -188,13 +191,15 @@ def _suppressed_barcodes(session) -> set[str]:
 
 def _restock_candidates(session, rows) -> list[dict[str, Any]]:
     """与补货页 KPI 池同口径 (review #7, restock.js KPI pool):
-    p50>0 且非真停用/非新品/未被 skip 抑制。否则简报数字和「查看全部→」落地页对不上。
+    p50>0 且非真停用/非新品/未被 skip 抑制, 且 urgency_score >= 关注线(40)。
+    否则简报数字和「查看全部→」落地页对不上, 且 p50>0 全集是上万 SKU 的噪音。
     (「已下单」标记是补货页 localStorage 客户端态, 服务端无从对齐, 不在此剔。)"""
     suppressed = _suppressed_barcodes(session)
     return [
         r
         for r in rows
         if (r.get("restock_qty_p50") or 0) > 0
+        and (r.get("urgency_score") or 0) >= WATCH_URGENCY_SCORE
         and not r.get("is_truly_discontinued")
         and not r.get("is_new_item")
         and r["barcode"] not in suppressed
@@ -203,11 +208,7 @@ def _restock_candidates(session, rows) -> list[dict[str, Any]]:
 
 def compute_restock_risk(session, rows) -> dict[str, Any]:
     cands = _restock_candidates(session, rows)
-    urgent = sum(
-        1
-        for r in cands
-        if r.get("weeks_of_cover") is not None and r["weeks_of_cover"] <= URGENT_COVER_WEEKS
-    )
+    urgent = sum(1 for r in cands if (r.get("urgency_score") or 0) >= URGENT_URGENCY_SCORE)
     return {"ok": True, "total": len(cands), "urgent": urgent}
 
 

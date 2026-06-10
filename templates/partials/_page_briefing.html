@@ -81,8 +81,8 @@
           <template x-if="card('restock_risk')?.ok">
             <div>
               <div class="kpi-value"><span x-text="card('restock_risk').total"></span> <small>个 SKU</small></div>
-              <div class="kpi-sub">建议补货 · 紧急
-                <strong x-text="card('restock_risk').urgent"></strong> 个（可售 ≤ 2 周）</div>
+              <div class="kpi-sub">关注+紧急档建议补货 · 紧急
+                <strong x-text="card('restock_risk').urgent"></strong> 个（与补货页同口径）</div>
             </div>
           </template>
           <template x-if="card('restock_risk') && !card('restock_risk').ok">

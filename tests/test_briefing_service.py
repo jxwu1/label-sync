@@ -145,23 +145,41 @@ def _row(bc, **kw):
         "inventory_cost_value_eur": None,
         "is_truly_discontinued": False,
         "is_new_item": False,
+        "urgency_score": 80,
     }
     base.update(kw)
     return base
 
 
 def test_restock_risk_counts_and_urgent(monkeypatch):
+    # 与补货页 KPI 同口径 (review round3): total = 关注+紧急(score>=40), urgent = 紧急(>=70)
     rows = [
-        _row("a", weeks_of_cover=1.0),
-        _row("b", weeks_of_cover=8.0),
-        _row("c", restock_qty_p50=0),
-        _row("d", weeks_of_cover=None),
+        _row("a", urgency_score=75),
+        _row("b", urgency_score=45),
+        _row("c", restock_qty_p50=0, urgency_score=90),
+        _row("d", urgency_score=None),
     ]
     monkeypatch.setattr(briefing, "_suppressed_barcodes", lambda s: set())
     card = briefing.compute_restock_risk(session=None, rows=rows)
     assert card["ok"] is True
-    assert card["total"] == 3
+    assert card["total"] == 2
     assert card["urgent"] == 1
+
+
+def test_restock_candidates_exclude_low_urgency(monkeypatch):
+    """review round3: p50>0 全集 ~1 万 SKU 对老板是噪音; 低分长尾(<40)和无分(新品等)不进简报。"""
+    rows = [
+        _row("hot", urgency_score=70),
+        _row("watch", urgency_score=40),
+        _row("calm", urgency_score=39.9),
+        _row("none", urgency_score=None),
+    ]
+    monkeypatch.setattr(briefing, "_suppressed_barcodes", lambda s: set())
+    card = briefing.compute_restock_risk(session=None, rows=rows)
+    assert card["total"] == 2
+    assert card["urgent"] == 1
+    out = briefing.build_restock_actions(session=None, rows=rows)
+    assert {i["barcode"] for i in out["items"]} == {"hot", "watch"}
 
 
 def test_restock_candidates_exclude_disc_and_new(monkeypatch):
