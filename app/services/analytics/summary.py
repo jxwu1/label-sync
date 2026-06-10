@@ -56,9 +56,8 @@ def refresh_sku_summary(as_of: date | None = None) -> int:
     """
     from sqlalchemy import delete, insert
 
-    from app.models import SkuSummary
-
     import app.services.analytics as _pkg
+    from app.models import SkuSummary
 
     as_of = as_of or _today()
     items = _pkg._list_sku_summary_impl(as_of)

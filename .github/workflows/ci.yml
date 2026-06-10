@@ -9,6 +9,25 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        db: [sqlite, postgres]
+    # service 容器无法按矩阵腿条件挂载，sqlite 腿也会起一个 PG（闲置，无害）
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: label_sync_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -23,12 +42,17 @@ jobs:
           pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Lint (ruff check)
+        if: matrix.db == 'sqlite'
         run: ruff check .
 
       - name: Format check (ruff format)
+        if: matrix.db == 'sqlite'
         run: ruff format --check .
 
-      - name: Run tests
+      - name: Run tests (${{ matrix.db }})
+        env:
+          # 空串 = falsy，conftest 走默认 tmp sqlite 模式
+          TEST_DATABASE_URL: ${{ matrix.db == 'postgres' && 'postgresql+psycopg://ci:ci@localhost:5432/label_sync_test' || '' }}
         run: pytest tests/ -v
 
   docker:

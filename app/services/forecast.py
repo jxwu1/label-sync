@@ -135,7 +135,7 @@ def refresh_forecast_output(
             end_monday = _monday(end_date)
             n = len(series)
             week_keys = [end_monday - dt.timedelta(days=7 * (n - 1 - i)) for i in range(n)]
-            series_dict = dict(zip(week_keys, series))
+            series_dict = dict(zip(week_keys, series, strict=True))
             sw = stockout_weeks(bc, end_date, n, session=s)
             szw8 = stockout_zero_weeks_last8(series_dict, sw)
 

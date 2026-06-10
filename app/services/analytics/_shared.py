@@ -9,7 +9,7 @@ from datetime import date, datetime
 from typing import Any
 
 import numpy as np
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Customer, InventoryEvent

@@ -9,52 +9,57 @@
 - source / change_type 取组内最新
 """
 
-import sqlite3
-
 import pytest
+from sqlalchemy import text
 
 
 @pytest.fixture
 def memdb(db_path):
-    """conftest autouse 已用 app.db 在 db_path 建表并把统一 engine 指向同一 tmp 文件，
-    故 stockpile_db 读取与本文件裸 sqlite3 写入天然一致。直接返回 db_path 即可。
+    """conftest autouse 已把统一 engine 指向隔离库（tmp sqlite 或 PG 测试库），
+    seed 走下方 SQLAlchemy 工具，sqlite/PG 双后端通用。返回 db_path 仅为兼容旧签名。
     """
     return db_path
 
 
+def _exec(sql, params):
+    from app import db
+
+    with db.get_engine().begin() as conn:
+        conn.execute(text(sql), params)
+
+
 def _insert_stockpile(db_path, **kwargs):
-    conn = sqlite3.connect(str(db_path))
     cols = ",".join(kwargs.keys())
-    placeholders = ",".join("?" * len(kwargs))
-    conn.execute(f"INSERT INTO stockpile ({cols}) VALUES ({placeholders})", tuple(kwargs.values()))
-    conn.commit()
-    conn.close()
+    binds = ",".join(f":{k}" for k in kwargs)
+    _exec(f"INSERT INTO stockpile ({cols}) VALUES ({binds})", kwargs)
 
 
 def _insert_change(db_path, barcode, field, old, new, ctype, at):
-    conn = sqlite3.connect(str(db_path))
-    conn.execute(
+    _exec(
         "INSERT INTO stockpile_changes "
         "(product_barcode, field_name, old_value, new_value, change_type, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (barcode, field, old, new, ctype, at),
+        "VALUES (:barcode, :field, :old, :new, :ctype, :at)",
+        {"barcode": barcode, "field": field, "old": old, "new": new, "ctype": ctype, "at": at},
     )
-    conn.commit()
-    conn.close()
 
 
 def _insert_inventory_event(
     db_path, barcode, event_type, qty, at, unit_price=None, customer_id=None, supplier_id=None
 ):
-    conn = sqlite3.connect(str(db_path))
-    conn.execute(
+    _exec(
         "INSERT INTO inventory_events "
         "(product_barcode, event_type, qty, unit_price, customer_id, supplier_id, event_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (barcode, event_type, qty, unit_price, customer_id, supplier_id, at),
+        "VALUES (:barcode, :event_type, :qty, :unit_price, :customer_id, :supplier_id, :at)",
+        {
+            "barcode": barcode,
+            "event_type": event_type,
+            "qty": qty,
+            "unit_price": unit_price,
+            "customer_id": customer_id,
+            "supplier_id": supplier_id,
+            "at": at,
+        },
     )
-    conn.commit()
-    conn.close()
 
 
 def test_find_record_by_barcode(memdb):

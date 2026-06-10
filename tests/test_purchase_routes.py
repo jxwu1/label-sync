@@ -7,7 +7,7 @@ import openpyxl
 from flask import Flask
 from sqlalchemy import insert
 
-from app.models import PurchaseOrder, get_session
+from app.models import PurchaseOrder, Supplier, get_session
 from app.routes.purchase import bp
 
 
@@ -183,6 +183,13 @@ class TestOrderEditRoutes(unittest.TestCase):
         vals = {"supplier_id": "S1", "order_date": "2026-05-01", "status": "placed", "total_qty": 1}
         vals.update(kw)
         with get_session() as s:
+            # PG 强制 supplier_id 外键（SQLite 默认不查），先补对应 supplier
+            if s.get(Supplier, vals["supplier_id"]) is None:
+                s.execute(
+                    insert(Supplier).values(
+                        supplier_id=vals["supplier_id"], supplier_name="测试供应商"
+                    )
+                )
             res = s.execute(insert(PurchaseOrder).values(**vals))
             s.commit()
             return res.inserted_primary_key[0]

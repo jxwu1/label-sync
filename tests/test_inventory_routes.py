@@ -247,6 +247,7 @@ class RecentImportsTests(_BaseRouteTest):
 if __name__ == "__main__":
     unittest.main()
 
+
 class ImportInvalidatesQualityCacheTests(_BaseRouteTest):
     """review round3 建议项: 导入成功后必须清 data_quality 报告缓存,
     否则导入完立刻看 dashboard/数据质量/简报, 最多 60s 是旧异常报告。"""
@@ -300,4 +301,3 @@ class ImportInvalidatesQualityCacheTests(_BaseRouteTest):
         self.assertEqual(rv.status_code, 200)
         after = data_quality.build_report()
         self.assertEqual(after["scanned_count"], 1)
-
