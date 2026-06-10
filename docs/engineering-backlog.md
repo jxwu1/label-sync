@@ -5,6 +5,8 @@
 >
 > 已完成：✅ 前端工具层统一（shared.js: esc/byId/qs/apiFetch，14 文件去重，`fc0d72a`）
 > ✅ cron 失败告警接通（TG 每日巡检 + scraper 失败直报，`e809f7d`，2026-06-10）
+> ✅ CI 测试双矩阵 sqlite+postgres（PG 专属 SQL 错误进 CI 即被抓；附带 ruff 全量修绿，
+>   首跑即抓出 11 个 FK/时间戳真实差异，PR #37，2026-06-10）
 
 ---
 
