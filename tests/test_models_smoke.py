@@ -8,12 +8,16 @@ import json
 import sqlite3
 import unittest
 
+import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session
 
 from app import db
 from app.repositories import stockpile_db
+
+# 本文件专测 raw sqlite3 与 ORM 行为一致性，PG 后端无意义
+pytestmark = pytest.mark.sqlite_only
 
 
 class ModelsSmokeTests(unittest.TestCase):

@@ -32,12 +32,6 @@ class StockpileRoutesTests(unittest.TestCase):
         for p in self._patches:
             p.start()
             self.addCleanup(p.stop)
-        # 清空 DB
-        with stockpile_db._connect() as conn:
-            conn.execute("DELETE FROM stockpile")
-            conn.execute("DELETE FROM stockpile_changes")
-            conn.execute("DELETE FROM schema_meta")
-
         app = Flask(__name__)
         app.config["TESTING"] = True
         app.register_blueprint(stockpile_bp)
@@ -107,9 +101,10 @@ class StockpileRoutesTests(unittest.TestCase):
         self.assertEqual(status["count"], 2)
         self.assertEqual(status["active_count"], 2)
         self.assertEqual(status["inactive_count"], 0)
-        # init 完成 → snapshot 写入 → last_import_at 应该是 "YYYY-MM-DD HH:MM:SS" 格式
+        # init 完成 → snapshot 写入 → last_import_at 以 "YYYY-MM-DD HH:MM:SS" 开头
+        # （CURRENT_TIMESTAMP 文本化后 sqlite 到秒，PG 带微秒+时区，断言只锚前缀）
         self.assertIsNotNone(status["last_import_at"])
-        self.assertRegex(status["last_import_at"], r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
+        self.assertRegex(status["last_import_at"], r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}")
 
     def test_compare_returns_diff(self):
         # 先初始化

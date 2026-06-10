@@ -2,9 +2,13 @@ import json
 import unittest
 
 import pandas as pd
+import pytest
 
 from app import db
 from app.repositories import stockpile_db
+
+# 断言大量走 stockpile_db._connect()（raw sqlite3 + sqlite_master），PG 模式跳过
+pytestmark = pytest.mark.sqlite_only
 
 
 class StockpileDbTests(unittest.TestCase):

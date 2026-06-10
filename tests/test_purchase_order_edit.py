@@ -12,6 +12,13 @@ from app.models import PurchaseOrder, Supplier, get_session
 from app.services import purchase as svc
 
 
+def _seed_supplier(supplier_id="S1", supplier_name="供应商一") -> None:
+    with get_session() as s:
+        if s.get(Supplier, supplier_id) is None:
+            s.execute(insert(Supplier).values(supplier_id=supplier_id, supplier_name=supplier_name))
+            s.commit()
+
+
 def _seed_order(**kw) -> int:
     vals = {
         "supplier_id": "S1",
@@ -21,17 +28,12 @@ def _seed_order(**kw) -> int:
         "total_amount": 100.0,
     }
     vals.update(kw)
+    # PG 强制 supplier_id 外键（SQLite 默认不查），seed 单子前先补对应 supplier
+    _seed_supplier(vals["supplier_id"])
     with get_session() as s:
         res = s.execute(insert(PurchaseOrder).values(**vals))
         s.commit()
         return res.inserted_primary_key[0]
-
-
-def _seed_supplier(supplier_id="S1", supplier_name="供应商一") -> None:
-    with get_session() as s:
-        if s.get(Supplier, supplier_id) is None:
-            s.execute(insert(Supplier).values(supplier_id=supplier_id, supplier_name=supplier_name))
-            s.commit()
 
 
 def test_update_order_changes_order_date():
