@@ -417,7 +417,9 @@ def compute_supplier_lead_times(limit: int = 50) -> list[dict]:
             select(PurchaseOrder.supplier_id, Supplier.supplier_name)
             .join(Supplier, Supplier.supplier_id == PurchaseOrder.supplier_id)
             .where(PurchaseOrder.arrival_date.isnot(None), PurchaseOrder.status != "void")
-            .group_by(PurchaseOrder.supplier_id)
+            # supplier_name 必须进 GROUP BY: sqlite 容忍裸列, PG 直接 GroupingError
+            # (对 supplier_id 函数依赖, 不改变结果)
+            .group_by(PurchaseOrder.supplier_id, Supplier.supplier_name)
         ).all()
 
         results = []
