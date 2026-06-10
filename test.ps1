@@ -9,8 +9,15 @@
 # xdist 的 worker 库 label_sync_test_gwN 留在容器里复用，不用清。
 $ErrorActionPreference = 'Stop'
 
-# 1. 确保本地 PG 起着（与 dev.ps1 同一容器），等到能接连接为止
-docker compose -f docker-compose.dev.yml up -d
+# 1. 确保本地 PG 起着（与 dev.ps1 同一容器），等到能接连接为止。
+# 容器在跑/存在时不走 compose——compose 项目按目录名识别，从 worktree 等
+# 不同目录调过 up 的同名容器会报 Conflict 红字（无害但吓人）。
+$state = docker inspect -f '{{.State.Running}}' label-sync-dev-pg 2>$null
+if ($LASTEXITCODE -ne 0) {
+    docker compose -f docker-compose.dev.yml up -d   # 容器不存在 → 创建
+} elseif ($state -ne 'true') {
+    docker start label-sync-dev-pg | Out-Null        # 存在但停着 → 直接启动
+}
 $ready = $false
 for ($i = 0; $i -lt 30; $i++) {
     docker exec label-sync-dev-pg pg_isready -U dev *> $null
