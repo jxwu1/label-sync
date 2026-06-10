@@ -71,9 +71,13 @@ label-sync/
 ## 测试
 
 ```bash
-pytest tests/        # 单元 + 集成，1018 个 case
+pytest tests/        # 单元 + 集成（默认 tmp sqlite，最快迭代循环）
+./test.ps1           # 同一套测试跑本地 PG + xdist 并行（对齐生产后端，合并前建议过一遍）
 pytest e2e/          # Playwright 浏览器烟雾测试（opt-in）
 ```
+
+CI 对 push/PR 自动跑 sqlite + postgres 双矩阵。测试 seed 禁止裸 sqlite3 写库（PG 腿会挂），
+走 SQLAlchemy；确需测 raw sqlite 行为的文件标 `pytestmark = pytest.mark.sqlite_only`。
 
 ## 本地开发
 
