@@ -8,3 +8,6 @@ ruff==0.15.12
 # E2E 浏览器烟雾测试
 playwright
 pytest-playwright
+
+# 测试并行（./test.ps1 默认 -n auto；PG 模式 conftest 给每个 worker 独立库）
+pytest-xdist
