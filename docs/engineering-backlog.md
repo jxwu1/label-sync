@@ -4,14 +4,17 @@
 > + shared.js 统一实操中的发现。与论文 Phase 无关的工程债集中在这里，做完打勾。
 >
 > 已完成：✅ 前端工具层统一（shared.js: esc/byId/qs/apiFetch，14 文件去重，`fc0d72a`）
+> ✅ cron 失败告警接通（TG 每日巡检 + scraper 失败直报，`e809f7d`，2026-06-10）
 
 ---
 
 ## P0 — 价值兑现 + 防盲飞（各 2-3 天）
 
-- [ ] **forecast_output 表 + dashboard 预测卡片** — 回测已验证（EmpiricalQuantile 胜出）但无 UI 出口，
-  算法投入对补货决策零收益；方案见 `docs/superpowers/plans/2026-05-12-forecast-and-backtest.md` §3.7
-- [ ] **cron 失败告警接通** — heartbeat 判定已有但告警渠道没接，抓取/预测失败时盲飞
+- [ ] **dashboard 预测卡片** — forecast_output 表已建并被简报/补货页消费（本条原表述过时），
+  剩 dashboard 的 UI 出口半截；方案见 `docs/superpowers/plans/2026-05-12-forecast-and-backtest.md` §3.7
+- [x] **cron 失败告警接通** — ✅ 2026-06-10（`e809f7d`）：服务端每日 07:30 巡检三类数据超期 → TG
+  推送（每日限频）+ run_weekly.ps1 失败直报；残余风险（cron 容器自身死亡不报警）见
+  `docs/superpowers/specs/2026-06-10-cron-failure-alert-design.md`，v2 候选外部死人开关
 
 ## P1 — 工程质量收口（各 0.5-2 天，独立可发布）
 
