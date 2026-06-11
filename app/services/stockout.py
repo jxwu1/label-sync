@@ -60,3 +60,15 @@ def stockout_weeks(
         return _q(session)
     with stockpile_db._session() as s:
         return _q(s)
+
+
+def exclude_stockout_weeks(
+    series: dict[date, float],
+    stockout: set[date],
+) -> dict[date, float]:
+    """缺货周从训练序列剔除（当缺失，不填 0 不插值）— RL-3 / ADR-0001 D7.
+
+    缺货周的 0 销量是删失观测不是真实需求，入训练会拉低分位数 →
+    补货更少 → 更缺货（死亡螺旋）。
+    """
+    return {wk: qty for wk, qty in series.items() if wk not in stockout}

@@ -216,16 +216,22 @@ def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
         ).all()
         from app.models import ForecastOutput
 
+        # RL-1: 消费 horizon 列 (p50_h/p98_h = H 周总量), 不再用 周分位 × N
         forecast_rows = session.execute(
             select(
                 ForecastOutput.product_barcode,
-                ForecastOutput.p50,
-                ForecastOutput.p98,
+                ForecastOutput.p50_h,
+                ForecastOutput.p98_h,
                 ForecastOutput.model_used,
                 ForecastOutput.stockout_zero_weeks_last8,
             )
         ).all()
         _, qty_by_model = _snapshot_qty_lookup(session)
+
+        # RL-2: 在途量 (qty_ordered − qty_arrived, 非作废单)
+        from app.services.purchase import on_order_by_barcode
+
+        on_order_map = on_order_by_barcode(session)
 
     by_bc: dict[str, list] = {}
     for r in sales_rows:
@@ -233,9 +239,11 @@ def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
 
     forecast_by_bc: dict[str, tuple[float, float, str, int]] = {}
     for r in forecast_rows:
+        if r.p50_h is None or r.p98_h is None:
+            continue  # 旧行未刷 horizon 列 → 走 velocity 回退
         forecast_by_bc[r.product_barcode] = (
-            r.p50,
-            r.p98,
+            r.p50_h,
+            r.p98_h,
             r.model_used,
             r.stockout_zero_weeks_last8,
         )
@@ -542,6 +550,7 @@ def _list_sku_summary_impl(as_of: date | None = None) -> list[dict[str, Any]]:
                     forecast_by_bc,
                     last_purchase_qty_by_bc,
                     middle_qty=mid_qty_by_bc.get(bc),
+                    on_order=on_order_map.get(bc, 0),
                 ),
             }
         )

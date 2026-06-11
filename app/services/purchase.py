@@ -454,3 +454,68 @@ def compute_supplier_lead_times(limit: int = 50) -> list[dict]:
                     }
                 )
         return results
+
+
+_LEAD_TIME_MIN_SAMPLES = 20
+_LEAD_TIME_MAX_PLAUSIBLE_DAYS = 365  # 超一年的样本视为脏数据
+
+
+def lead_time_weeks(session) -> tuple[int, str, int]:
+    """补货 lead time（周）— (weeks, source, n_samples)，ADR-0001 D4.
+
+    样本 ≥ 20 单 → 经验 p90 天数向上取整为周（右偏分布取 p90 偏保守）；
+    否则配置先验 CONFIG.replenish_lead_time_weeks。source ∈ {'prior', 'empirical'}。
+    供应商级展示统计见 compute_supplier_lead_times（目的不同：那边是看板，
+    这边是补货保护期 H = R + L 的策略输入）。
+    """
+    import datetime as dt
+
+    import numpy as np
+    from sqlalchemy import select
+
+    from app.models import PurchaseOrder
+
+    rows = session.execute(
+        select(PurchaseOrder.order_date, PurchaseOrder.arrival_date).where(
+            PurchaseOrder.arrival_date.is_not(None),
+            PurchaseOrder.status.not_in(("cancelled", "void")),
+        )
+    ).all()
+    days = []
+    for od, ad in rows:
+        try:
+            d = (dt.date.fromisoformat(ad[:10]) - dt.date.fromisoformat(od[:10])).days
+        except (ValueError, TypeError):
+            continue
+        if 0 <= d <= _LEAD_TIME_MAX_PLAUSIBLE_DAYS:
+            days.append(d)
+    if len(days) >= _LEAD_TIME_MIN_SAMPLES:
+        p90 = float(np.quantile(np.asarray(days, dtype=float), 0.90))
+        return max(1, math.ceil(p90 / 7)), "empirical", len(days)
+    return CONFIG.replenish_lead_time_weeks, "prior", len(days)
+
+
+def on_order_by_barcode(session) -> dict[str, int]:
+    """各 SKU 在途量 = Σ max(0, qty_ordered − qty_arrived)，非作废单（RL-2）.
+
+    只返回在途 > 0 的条目。超收（arrived > ordered）按 0 计不为负。
+    """
+    from sqlalchemy import select
+
+    from app.models import PurchaseOrder, PurchaseOrderLine
+
+    rows = session.execute(
+        select(
+            PurchaseOrderLine.product_barcode,
+            PurchaseOrderLine.qty_ordered,
+            PurchaseOrderLine.qty_arrived,
+        )
+        .join(PurchaseOrder, PurchaseOrder.id == PurchaseOrderLine.order_id)
+        .where(PurchaseOrder.status.not_in(("cancelled", "void")))
+    ).all()
+    out: dict[str, int] = {}
+    for bc, ordered, arrived in rows:
+        pending = max(0, int(ordered or 0) - int(arrived or 0))
+        if pending > 0:
+            out[bc] = out.get(bc, 0) + pending
+    return out

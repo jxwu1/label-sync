@@ -55,6 +55,40 @@ def _backtest_days_since(session, as_of: date) -> int | None:
     return (as_of - _parse_date(str(val))).days if val else None
 
 
+def _missing_monday_snapshots(session, as_of: date, n_weeks: int = 4) -> list[str]:
+    """最近 n_weeks 个已过去的周一中无库存快照的日期（RL-10）。
+
+    无周一快照 → stockout_weeks 对该周返回 unknown → 缺货修正(RL-3)
+    对该周静默失效, 必须有信号。
+    快照表全空 → 冷启动不报 (同 heartbeat 口径)；as_of 当天是周一不算
+    "已过去" (scraper 可能还没跑)。
+    """
+    from datetime import timedelta
+
+    from sqlalchemy import func, select
+
+    from app.models import StockpileInventorySnapshot
+    from app.utils.forecast_data import _monday
+
+    total = session.execute(select(func.count(StockpileInventorySnapshot.id))).scalar()
+    if not total:
+        return []
+
+    this_monday = _monday(as_of)
+    start = 0 if as_of > this_monday else 1
+    mondays = [this_monday - timedelta(days=7 * i) for i in range(start, start + n_weeks)]
+    monday_strs = [m.isoformat() for m in mondays]
+    have = {
+        r[0]
+        for r in session.execute(
+            select(StockpileInventorySnapshot.snapshot_date.distinct()).where(
+                StockpileInventorySnapshot.snapshot_date.in_(monday_strs)
+            )
+        )
+    }
+    return [m for m in monday_strs if m not in have]
+
+
 def collect_alerts(session, as_of: date) -> list[dict[str, Any]]:
     """三类巡检 (spec §2), 返回当前全部异常 (聚合, 不止报第一个)。
 
@@ -97,6 +131,16 @@ def collect_alerts(session, as_of: date) -> list[dict[str, Any]]:
                 "kind": "backtest_run",
                 "days_since": bt,
                 "message": f"回测 run 超期 {bt} 天 (阈值 {BACKTEST_STALE_DAYS})",
+            }
+        )
+
+    missing = _missing_monday_snapshots(session, as_of)
+    if missing:
+        out.append(
+            {
+                "kind": "missing_monday_snapshot",
+                "days_since": None,
+                "message": f"缺周一库存快照: {', '.join(missing)} (削弱缺货修正 RL-10)",
             }
         )
 

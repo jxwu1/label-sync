@@ -20,12 +20,32 @@ import numpy as np
 from app.services.backtest import ForecastDist, _build_series
 from app.services.forecast_eval import demand_history_stats, stockout_zero_weeks_last8
 from app.services.stockout import stockout_weeks
-from app.utils.forecast_data import _monday
 
 # refresh_forecast_output: 序列太短就跳过 (与 backtest min_weeks 对齐)
 _MIN_FIT_WEEKS = 13
 
 _Z98 = 2.054  # Φ⁻¹(0.98)
+
+
+def horizon_quantile(
+    history: list[float],
+    horizon_weeks: int,
+    q: float,
+    n_boot: int = 2000,
+    seed: int = 42,
+) -> float:
+    """H 周需求总和的经验分位数（bootstrap，ADR-0001 D5 / RL-1）.
+
+    周分位数不可线性放大到多周（Q_α(ΣD) ≪ N·Q_α(D)，√N 律），
+    这里有放回抽 horizon_weeks 个周值求和 × n_boot 次，取和的分位数。
+    i.i.d. 假设与 EmpiricalQuantile 模型一致。固定 seed 保证可复现。
+    """
+    if not history or horizon_weeks < 1:
+        return 0.0
+    arr = np.asarray(history, dtype=float)
+    rng = np.random.default_rng(seed)
+    sums = rng.choice(arr, size=(n_boot, horizon_weeks), replace=True).sum(axis=1)
+    return float(max(0.0, np.quantile(sums, q)))
 
 
 def _zero_dist() -> ForecastDist:
@@ -41,6 +61,10 @@ def _dist_from_mu_sigma(mu: float, sigma: float) -> ForecastDist:
         p50=mu_clipped,
         p98=max(0.0, mu_clipped + _Z98 * s),
     )
+
+
+_SHRINK_BELOW_WEEKS = 30  # 序列短于此用收缩尾部 (RL-4)
+_SHRINK_P90_FACTOR = 1.5
 
 
 class EmpiricalQuantileModel:
@@ -75,7 +99,11 @@ class EmpiricalQuantileModel:
         sigma = float(arr.std()) if len(arr) > 1 else 0.0
         p50 = float(np.quantile(arr, 0.5))
         p98 = float(np.quantile(arr, 0.98))
-        p98 = max(p98, 0.0)
+        if len(arr) < _SHRINK_BELOW_WEEKS:
+            # RL-4: 小样本经验 p98 ≈ max(单笔大单)，用 p90×1.5 收缩
+            p90 = float(np.quantile(arr, 0.90))
+            p98 = min(p98, p90 * _SHRINK_P90_FACTOR)
+        p98 = max(p98, p50, 0.0)  # 收缩不破坏 p50 ≤ p98 单调
         self._dist = ForecastDist(mu=mu, sigma=sigma, p50=p50, p98=p98)
 
     def predict(self, steps: int = 1) -> ForecastDist:
@@ -113,13 +141,19 @@ def refresh_forecast_output(
             ).all()
             barcodes = [r[0] for r in rows]
 
+        # ADR-0001 D2: 保护期 H = R + L, R=1 周。L 先验 4 周 / 样本够切经验 p90。
+        from app.services.purchase import lead_time_weeks
+
+        lt_weeks, lt_source, _lt_n = lead_time_weeks(s)
+        horizon = 1 + lt_weeks
+
         n_total = len(barcodes)
         n_written = 0
         for bc in barcodes:
             built = _build_series(bc, end_date, weeks, "base_demand", session=s)
             if built is None:
                 continue
-            series, sku_type = built
+            series, sku_type, n_excluded = built
             if len(series) < _MIN_FIT_WEEKS:
                 continue
 
@@ -130,14 +164,18 @@ def refresh_forecast_output(
             # 置信度分层输入 (第1期任务③): 顺手算非零周数 + 近期零需求周数。
             nonzero_weeks, zero_weeks_last8 = demand_history_stats(series)
 
-            # 缺货零销周数 (spec 2026-06-09): 重建与 _build_series sorted keys 同口径
-            # 的周一列表 (不改 _build_series 返回契约), zip 成 dict 判周。
-            end_monday = _monday(end_date)
-            n = len(series)
-            week_keys = [end_monday - dt.timedelta(days=7 * (n - 1 - i)) for i in range(n)]
-            series_dict = dict(zip(week_keys, series, strict=True))
-            sw = stockout_weeks(bc, end_date, n, session=s)
-            szw8 = stockout_zero_weeks_last8(series_dict, sw)
+            # 缺货零销周数 (spec 2026-06-09): 在剔除前的原始视图上算 ——
+            # RL-3 剔除后 series 周键不连续, 不能再按 end_monday 倒推重建。
+            from app.utils.forecast_data import base_demand_view as _bdv
+
+            raw = _bdv(bc, end_date, weeks, session=s)["series"] or {}
+            sw = stockout_weeks(bc, end_date, max(len(raw), 1), session=s)
+            szw8 = stockout_zero_weeks_last8(raw, sw)
+
+            # RL-1: horizon 分位数 = bootstrap 和分位, 消费端禁用 周分位 × N。
+            p50_h = horizon_quantile(series, horizon, 0.50)
+            p98_h = horizon_quantile(series, horizon, 0.98)
+            p98_13w = horizon_quantile(series, 13, 0.98)
 
             # SQLite 不支持原生 ON CONFLICT for SQLAlchemy core 跨方言; delete+insert
             # 简单可靠. PG/SQLite 行为一致.
@@ -155,6 +193,11 @@ def refresh_forecast_output(
                     sigma=d.sigma,
                     p50=d.p50,
                     p98=d.p98,
+                    horizon_weeks=horizon,
+                    p50_h=p50_h,
+                    p98_h=p98_h,
+                    p98_13w=p98_13w,
+                    stockout_weeks_excluded=n_excluded,
                 )
             )
             n_written += 1
@@ -163,6 +206,8 @@ def refresh_forecast_output(
             "n_total": n_total,
             "n_written": n_written,
             "n_skipped": n_total - n_written,
+            "horizon_weeks": horizon,
+            "lead_time_source": lt_source,
         }
 
 

@@ -156,7 +156,6 @@ class TestRL7NegativeStock:
 _INTERMITTENT_52W = [0.0, 0.0, 0.0, 20.0] * 13  # 75% 零周 + 13 笔 20 件大单
 
 
-@pytest.mark.skip(reason="RL-1 待实现: horizon_quantile (plan 2026-06-11 Task 1)")
 class TestRL1HorizonQuantile:
     def test_rl1_horizon_quantile_below_linear_scaling(self):
         from app.services.forecast import horizon_quantile
@@ -201,7 +200,6 @@ class TestRL1HorizonQuantile:
 # ──────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.skip(reason="RL-2 待实现: 在途扣减 (plan 2026-06-11 Task 3)")
 class TestRL2OnOrderNetting:
     def test_rl2_on_order_netting(self):
         # 缺口 = ceil(40) − 10 = 30；在途 50 ≥ 30 → 推荐 0
@@ -270,7 +268,6 @@ class TestRL2OnOrderNetting:
 # ──────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.skip(reason="RL-3 待实现: 缺货周剔除 (plan 2026-06-11 Task 4)")
 class TestRL3StockoutExclusion:
     def test_rl3_stockout_weeks_excluded_from_series(self):
         import datetime as dt
@@ -310,7 +307,6 @@ class TestRL3StockoutExclusion:
 # ──────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.skip(reason="RL-4 待实现: 短序列尾部收缩 (plan 2026-06-11 Task 5)")
 class TestRL4ShortSeriesTail:
     def test_rl4_short_series_tail_shrinkage(self):
         # 13 周: 12 周卖 1 件 + 单笔 100 件大单。
@@ -344,7 +340,6 @@ class TestRL4ShortSeriesTail:
 # ──────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.skip(reason="RL-6 待实现: sanity flag (plan 2026-06-11 Task 6)")
 class TestRL6SanityGate:
     def test_rl6_sanity_flag_on_extreme_qty(self):
         rec = _restock_recommendation(
@@ -380,7 +375,6 @@ class TestRL6SanityGate:
 # ──────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.skip(reason="RL-8 待实现: 反震荡阈值 (plan 2026-06-11 Task 7)")
 class TestRL8AntiChurn:
     def test_rl8_no_churn_below_threshold(self):
         # S(p98)=40, IP=38 → 缺口 2 < max(12, 10) → 不触发，推荐 0
@@ -414,7 +408,6 @@ class TestRL8AntiChurn:
 # ──────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.skip(reason="RL-9 待实现: staleness 检测 (plan 2026-06-11 Task 8)")
 class TestRL9Staleness:
     def test_rl9_staleness_detection(self):
         import datetime as dt
@@ -425,3 +418,78 @@ class TestRL9Staleness:
         assert forecast_is_stale("2026-05-20 03:00:00", today) is True  # 22 天
         assert forecast_is_stale("2026-06-05 03:00:00", today) is False  # 6 天
         assert forecast_is_stale(None, today) is True  # 无记录 = 过期
+
+
+# ──────────────────────────────────────────────────────────────────────
+# ADR-0001 D4: lead time 先验 + 经验切换
+# 接口（plan Task 5）: app/services/purchase.py::lead_time_weeks(session)
+#     -> (weeks: int, source: 'prior'|'empirical', n_samples: int)
+# ──────────────────────────────────────────────────────────────────────
+
+
+class TestLeadTime:
+    def test_prior_when_insufficient_samples(self):
+        from app.repositories import stockpile_db
+        from app.services.purchase import lead_time_weeks
+
+        with stockpile_db._session() as s:
+            weeks, source, _n = lead_time_weeks(s)
+        assert source == "prior"
+        assert weeks >= 1
+
+    def test_empirical_p90_when_enough_samples(self):
+        from app.models import PurchaseOrder
+        from app.repositories import stockpile_db
+        from app.services.purchase import lead_time_weeks
+
+        with stockpile_db._session() as s:
+            # 20 单：19 单 lead 21 天 + 1 单 70 天 → p90 = 21 天 → 3 周
+            for _ in range(19):
+                s.add(
+                    PurchaseOrder(
+                        order_date="2026-01-01", arrival_date="2026-01-22", status="arrived"
+                    )
+                )
+            s.add(
+                PurchaseOrder(order_date="2026-01-01", arrival_date="2026-03-12", status="arrived")
+            )
+            s.commit()
+            weeks, source, n = lead_time_weeks(s)
+        assert source == "empirical"
+        assert n == 20
+        assert weeks == 3
+
+
+# ──────────────────────────────────────────────────────────────────────
+# RL-10 [监控] 快照缺失周巡检
+# ──────────────────────────────────────────────────────────────────────
+
+
+class TestRL10MissingSnapshot:
+    def test_rl10_missing_monday_snapshot_detected(self):
+        import datetime as dt
+
+        from app.models import StockpileInventorySnapshot
+        from app.repositories import stockpile_db
+        from app.services.alerts import _missing_monday_snapshots
+
+        with stockpile_db._session() as s:
+            # 种最旧周一的快照（绕过冷启动守卫），其余 3 个周一缺失。
+            # as_of=周四 → 本周一(06-08)已过去，必须计入。
+            s.add(
+                StockpileInventorySnapshot(
+                    snapshot_date="2026-05-18", product_model="M1", qty_total=5
+                )
+            )
+            s.commit()
+            missing = _missing_monday_snapshots(s, dt.date(2026, 6, 11), n_weeks=4)
+        assert missing == ["2026-06-08", "2026-06-01", "2026-05-25"]
+
+    def test_rl10_empty_table_cold_start_silent(self):
+        import datetime as dt
+
+        from app.repositories import stockpile_db
+        from app.services.alerts import _missing_monday_snapshots
+
+        with stockpile_db._session() as s:
+            assert _missing_monday_snapshots(s, dt.date(2026, 6, 11)) == []
