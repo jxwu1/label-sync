@@ -422,3 +422,43 @@ class TestRL9Staleness:
         assert forecast_is_stale("2026-05-20 03:00:00", today) is True  # 22 天
         assert forecast_is_stale("2026-06-05 03:00:00", today) is False  # 6 天
         assert forecast_is_stale(None, today) is True  # 无记录 = 过期
+
+
+# ──────────────────────────────────────────────────────────────────────
+# ADR-0001 D4: lead time 先验 + 经验切换
+# 接口（plan Task 5）: app/services/purchase.py::lead_time_weeks(session)
+#     -> (weeks: int, source: 'prior'|'empirical', n_samples: int)
+# ──────────────────────────────────────────────────────────────────────
+
+
+class TestLeadTime:
+    def test_prior_when_insufficient_samples(self):
+        from app.repositories import stockpile_db
+        from app.services.purchase import lead_time_weeks
+
+        with stockpile_db._session() as s:
+            weeks, source, _n = lead_time_weeks(s)
+        assert source == "prior"
+        assert weeks >= 1
+
+    def test_empirical_p90_when_enough_samples(self):
+        from app.models import PurchaseOrder
+        from app.repositories import stockpile_db
+        from app.services.purchase import lead_time_weeks
+
+        with stockpile_db._session() as s:
+            # 20 单：19 单 lead 21 天 + 1 单 70 天 → p90 = 21 天 → 3 周
+            for _ in range(19):
+                s.add(
+                    PurchaseOrder(
+                        order_date="2026-01-01", arrival_date="2026-01-22", status="arrived"
+                    )
+                )
+            s.add(
+                PurchaseOrder(order_date="2026-01-01", arrival_date="2026-03-12", status="arrived")
+            )
+            s.commit()
+            weeks, source, n = lead_time_weeks(s)
+        assert source == "empirical"
+        assert n == 20
+        assert weeks == 3

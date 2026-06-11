@@ -80,6 +80,10 @@ class AppConfig:
     # 错误覆盖, 但样本足够时尊重历史事实.
     retail_observed_min_qty: int = 3
 
+    # 补货 lead time 先验（周）。ADR-0001 D4：PO 到货样本 ≥20 后自动切经验 p90。
+    # 默认 4 周 = 用户 2026-06-11 校准值（中国采购→希腊到货）。
+    replenish_lead_time_weeks: int = 4
+
     @property
     def input_dir(self) -> Path:
         return self.base_dir / "input"
@@ -136,4 +140,5 @@ CONFIG = AppConfig(
     resource_dir=_resource_dir(),
     debug=_env_bool("LABEL_SYNC_DEBUG"),
     max_upload_mb=_env_int("LABEL_SYNC_MAX_UPLOAD_MB", 256),
+    replenish_lead_time_weeks=_env_int("REPLENISH_LEAD_TIME_WEEKS", 4),
 )
