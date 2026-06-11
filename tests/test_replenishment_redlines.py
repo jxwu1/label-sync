@@ -156,7 +156,6 @@ class TestRL7NegativeStock:
 _INTERMITTENT_52W = [0.0, 0.0, 0.0, 20.0] * 13  # 75% 零周 + 13 笔 20 件大单
 
 
-@pytest.mark.skip(reason="RL-1 待实现: horizon_quantile (plan 2026-06-11 Task 1)")
 class TestRL1HorizonQuantile:
     def test_rl1_horizon_quantile_below_linear_scaling(self):
         from app.services.forecast import horizon_quantile

@@ -28,6 +28,27 @@ _MIN_FIT_WEEKS = 13
 _Z98 = 2.054  # Φ⁻¹(0.98)
 
 
+def horizon_quantile(
+    history: list[float],
+    horizon_weeks: int,
+    q: float,
+    n_boot: int = 2000,
+    seed: int = 42,
+) -> float:
+    """H 周需求总和的经验分位数（bootstrap，ADR-0001 D5 / RL-1）.
+
+    周分位数不可线性放大到多周（Q_α(ΣD) ≪ N·Q_α(D)，√N 律），
+    这里有放回抽 horizon_weeks 个周值求和 × n_boot 次，取和的分位数。
+    i.i.d. 假设与 EmpiricalQuantile 模型一致。固定 seed 保证可复现。
+    """
+    if not history or horizon_weeks < 1:
+        return 0.0
+    arr = np.asarray(history, dtype=float)
+    rng = np.random.default_rng(seed)
+    sums = rng.choice(arr, size=(n_boot, horizon_weeks), replace=True).sum(axis=1)
+    return float(max(0.0, np.quantile(sums, q)))
+
+
 def _zero_dist() -> ForecastDist:
     return ForecastDist(mu=0.0, sigma=0.0, p50=0.0, p98=0.0)
 
