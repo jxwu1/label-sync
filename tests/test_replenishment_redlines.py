@@ -269,7 +269,6 @@ class TestRL2OnOrderNetting:
 # ──────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.skip(reason="RL-3 待实现: 缺货周剔除 (plan 2026-06-11 Task 4)")
 class TestRL3StockoutExclusion:
     def test_rl3_stockout_weeks_excluded_from_series(self):
         import datetime as dt

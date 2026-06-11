@@ -284,8 +284,12 @@ def _build_series(
     weeks: int,
     view: str,
     session=None,
-) -> tuple[list[float], str] | None:
-    """从 DB 拉单 SKU 周序列 + sku_type. None = SKU 不可回测."""
+) -> tuple[list[float], str, int] | None:
+    """从 DB 拉单 SKU 周序列 + sku_type + 剔除的缺货周数. None = 不可回测.
+
+    base_demand 视图剔除缺货周（RL-3 / ADR-0001 D7）；all 视图保留原始信号不剔。
+    """
+    from app.services.stockout import exclude_stockout_weeks, stockout_weeks
     from app.utils.categorizer import classify_sku_type
     from app.utils.forecast_data import base_demand_view, weekly_demand_series
 
@@ -293,13 +297,16 @@ def _build_series(
         v = base_demand_view(barcode, end_date, weeks, session=session)
         if v["series"] is None:
             return None
-        return [v["series"][k] for k in sorted(v["series"])], v["sku_type"]
+        so = stockout_weeks(barcode, end_date, weeks, session=session)
+        kept = exclude_stockout_weeks(v["series"], so)
+        n_excluded = len(v["series"]) - len(kept)
+        return [kept[k] for k in sorted(kept)], v["sku_type"], n_excluded
     if view == "all":
         sku_type = classify_sku_type(barcode, session=session, as_of=end_date)
         if sku_type in ("unclassified", "dying"):
             return None
         d = weekly_demand_series(barcode, end_date, weeks, session=session)
-        return [d[k] for k in sorted(d)], sku_type
+        return [d[k] for k in sorted(d)], sku_type, 0
     raise ValueError(f"unknown view: {view}")
 
 
@@ -324,7 +331,7 @@ def run_backtest_for_sku(
     built = _build_series(barcode, end_date, weeks, view, session)
     if built is None:
         return None
-    series, sku_type = built
+    series, sku_type, _n_excluded = built
 
     if len(series) < window_train + window_test:
         return None

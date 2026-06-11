@@ -170,14 +170,31 @@ def test_refresh_writes_stockout_column(monkeypatch):
     _add_snap("MX", "2026-06-08", 0)  # 末周(6-08)周一缺货
 
     end = date(2026, 6, 8)
-    # _build_series 返回 (list[float], sku_type); 末周零销 → 与缺货周交叉 → szw8=1
+    # _build_series 返回 (list[float], sku_type, n_excluded)
     monkeypatch.setattr(
         fc,
         "_build_series",
         lambda barcode, end_date, weeks, view, session=None: (
             [1.0] * 12 + [0.0],
             "retail_dominant",
+            0,
         ),
+    )
+    # szw8 (RL-3 后) 在剔除前的原始视图上算 → 同步 fake base_demand_view:
+    # 13 周末周(6-08)零销, 与缺货周交叉 → szw8=1
+    from datetime import timedelta
+
+    import app.utils.forecast_data as fd
+
+    mondays = [date(2026, 6, 8) - timedelta(days=7 * (12 - i)) for i in range(13)]
+    raw_series = {wk: (1.0 if i < 12 else 0.0) for i, wk in enumerate(mondays)}
+    monkeypatch.setattr(
+        fd,
+        "base_demand_view",
+        lambda barcode, end_date, weeks, session=None: {
+            "series": raw_series,
+            "sku_type": "retail_dominant",
+        },
     )
 
     fc.refresh_forecast_output(end_date=end, weeks=13, barcodes=[bc])

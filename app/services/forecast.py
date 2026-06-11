@@ -148,7 +148,7 @@ def refresh_forecast_output(
             built = _build_series(bc, end_date, weeks, "base_demand", session=s)
             if built is None:
                 continue
-            series, sku_type = built
+            series, sku_type, n_excluded = built
             if len(series) < _MIN_FIT_WEEKS:
                 continue
 
@@ -159,14 +159,13 @@ def refresh_forecast_output(
             # 置信度分层输入 (第1期任务③): 顺手算非零周数 + 近期零需求周数。
             nonzero_weeks, zero_weeks_last8 = demand_history_stats(series)
 
-            # 缺货零销周数 (spec 2026-06-09): 重建与 _build_series sorted keys 同口径
-            # 的周一列表 (不改 _build_series 返回契约), zip 成 dict 判周。
-            end_monday = _monday(end_date)
-            n = len(series)
-            week_keys = [end_monday - dt.timedelta(days=7 * (n - 1 - i)) for i in range(n)]
-            series_dict = dict(zip(week_keys, series, strict=True))
-            sw = stockout_weeks(bc, end_date, n, session=s)
-            szw8 = stockout_zero_weeks_last8(series_dict, sw)
+            # 缺货零销周数 (spec 2026-06-09): 在剔除前的原始视图上算 ——
+            # RL-3 剔除后 series 周键不连续, 不能再按 end_monday 倒推重建。
+            from app.utils.forecast_data import base_demand_view as _bdv
+
+            raw = _bdv(bc, end_date, weeks, session=s)["series"] or {}
+            sw = stockout_weeks(bc, end_date, max(len(raw), 1), session=s)
+            szw8 = stockout_zero_weeks_last8(raw, sw)
 
             # SQLite 不支持原生 ON CONFLICT for SQLAlchemy core 跨方言; delete+insert
             # 简单可靠. PG/SQLite 行为一致.
