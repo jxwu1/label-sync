@@ -62,8 +62,17 @@ def compute_forecast_snapshot(
             "weekly_mu": round(float(row.mu), 2),
             "weekly_p50": round(float(row.p50), 2),
             "weekly_p98": round(float(row.p98), 2),
-            "quarter_mu": round(float(row.mu) * 13, 0),
-            "quarter_p98": round(float(row.p98) * 13, 0),
+            "quarter_mu": round(float(row.mu) * 13, 0),  # 均值可线性相加，保留
+            # RL-1: 季度 p98 用 bootstrap 列；旧行未刷则回退线性值（过渡期）
+            "quarter_p98": (
+                round(float(row.p98_13w), 0)
+                if row.p98_13w is not None
+                else round(float(row.p98) * 13, 0)
+            ),
+            "horizon_weeks": row.horizon_weeks,
+            "p50_h": round(float(row.p50_h), 2) if row.p50_h is not None else None,
+            "p98_h": round(float(row.p98_h), 2) if row.p98_h is not None else None,
+            "stockout_weeks_excluded": row.stockout_weeks_excluded,
             "computed_at": row.computed_at,
         }
 
@@ -251,6 +260,21 @@ def _round_up_to_pack(qty: int | None, pack: int | None) -> int | None:
     return math.ceil(qty / pack) * pack
 
 
+_CHURN_MIN_FRACTION = 0.25  # 反震荡: 缺口 < 25% S 且不足一个中包 → 持有 (RL-8)
+_SANITY_HISTORICAL_MULT = 3  # 合理性闸: 推荐 > 历史最大单次进货 × 3 → 标记 (RL-6)
+_SANITY_PACK_MULT = 10
+
+
+def _churn_gate(qty: int, s_level: int, stock: int, pack: int | None) -> int:
+    """RL-8 反震荡触发阈值（ADR-0001 D6）。断货必触发；缺口不足阈值 → 持有(0)。"""
+    if qty <= 0:
+        return 0
+    if stock <= 0 and s_level > 0:
+        return qty
+    threshold = max(pack or 1, _CHURN_MIN_FRACTION * s_level)
+    return qty if qty >= threshold else 0
+
+
 def _restock_recommendation(
     barcode: str,
     qty_total: int,
@@ -258,24 +282,31 @@ def _restock_recommendation(
     forecast_by_bc: dict,
     last_purchase_qty_by_bc: dict,
     middle_qty: int | None = None,
+    on_order: int = 0,
 ) -> dict:
-    """计算推荐补货量: 优先预测模型 p50/p98, 回退销速, 再回退上次进货量.
+    """推荐补货量 = max(0, S − IP)，S = horizon 分位数（ADR-0001 D2）.
+
+    IP = 现库存(负取0) + 在途(RL-2)。fc 元组为 (p50_h, p98_h, model, szw8) ——
+    forecast_output 的 horizon 列，已是 H 周总量，不得再乘周数（RL-1）。
+    回退链: forecast → velocity(×8周口径) → last_purchase。
     结果向上凑整到中包倍数 (middle_qty)。"""
     import math
 
-    target = _RESTOCK_TARGET_WEEKS
+    target = _RESTOCK_TARGET_WEEKS  # 仅 velocity 回退路径使用
     last_pq = last_purchase_qty_by_bc.get(barcode)
     fc = forecast_by_bc.get(barcode)
-    stock = qty_total or 0
+    stock = max(0, qty_total or 0)
+    ip = stock + max(0, on_order)
 
     if fc:
-        p50, p98, model, _stockout_zw8 = fc
-        qty_p50 = max(0, math.ceil(p50 * target) - stock)
-        qty_p98 = max(0, math.ceil(p98 * target) - stock)
+        p50_h, p98_h, model, _stockout_zw8 = fc
+        s50, s98 = math.ceil(p50_h), math.ceil(p98_h)
+        qty_p50 = _churn_gate(max(0, s50 - ip), s50, stock, middle_qty)
+        qty_p98 = _churn_gate(max(0, s98 - ip), s98, stock, middle_qty)
         source = f"forecast:{model}"
     elif weekly_velocity > 0:
-        qty_p50 = max(0, math.ceil(weekly_velocity * target) - stock)
-        qty_p98 = max(0, math.ceil(weekly_velocity * target * 1.5) - stock)
+        qty_p50 = max(0, math.ceil(weekly_velocity * target) - ip)
+        qty_p98 = max(0, math.ceil(weekly_velocity * target * 1.5) - ip)
         source = "velocity"
     elif last_pq:
         qty_p50 = last_pq
@@ -289,6 +320,16 @@ def _restock_recommendation(
     qty_p50 = _round_up_to_pack(qty_p50, middle_qty)
     qty_p98 = _round_up_to_pack(qty_p98, middle_qty)
 
+    # RL-6 合理性闸: 只标记不截断（截断会掩盖上游 bug）
+    sanity_flag = None
+    if qty_p98 and last_pq:
+        cap = max(
+            last_pq * _SANITY_HISTORICAL_MULT,
+            (middle_qty or 1) * _SANITY_PACK_MULT,
+        )
+        if qty_p98 > cap:
+            sanity_flag = "exceeds_historical_max"
+
     return {
         "restock_qty_p50": qty_p50,
         "restock_qty_p98": qty_p98,
@@ -297,4 +338,6 @@ def _restock_recommendation(
         "forecast_p50": round(fc[0], 2) if fc else None,
         "forecast_p98": round(fc[1], 2) if fc else None,
         "stockout_zero_weeks_last8": fc[3] if fc else 0,
+        "on_order": on_order,
+        "sanity_flag": sanity_flag,
     }

@@ -201,7 +201,6 @@ class TestRL1HorizonQuantile:
 
 
 class TestRL2OnOrderNetting:
-    @pytest.mark.skip(reason="待 Task 7: _restock_recommendation 新签名")
     def test_rl2_on_order_netting(self):
         # 缺口 = ceil(40) − 10 = 30；在途 50 ≥ 30 → 推荐 0
         rec = _restock_recommendation(
@@ -341,7 +340,6 @@ class TestRL4ShortSeriesTail:
 # ──────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.skip(reason="RL-6 待实现: sanity flag (plan 2026-06-11 Task 6)")
 class TestRL6SanityGate:
     def test_rl6_sanity_flag_on_extreme_qty(self):
         rec = _restock_recommendation(
@@ -377,7 +375,6 @@ class TestRL6SanityGate:
 # ──────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.skip(reason="RL-8 待实现: 反震荡阈值 (plan 2026-06-11 Task 7)")
 class TestRL8AntiChurn:
     def test_rl8_no_churn_below_threshold(self):
         # S(p98)=40, IP=38 → 缺口 2 < max(12, 10) → 不触发，推荐 0
