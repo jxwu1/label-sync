@@ -153,7 +153,6 @@ class TestRefreshWithRouting:
 class TestRL11DegradationAlerts:
     def test_rl11_coverage_collapse_alert(self):
         """forecast 覆盖率 < 15% 且非冷启动 → 告警。"""
-        import datetime as dt
 
         from app.services.alerts import _forecast_routing_degraded
 
@@ -221,3 +220,74 @@ class TestRL11DegradationAlerts:
 
         with stockpile_db._session() as s:
             assert _forecast_routing_degraded(s) == []
+
+
+# ── full refresh 清理不再够格 SKU 的陈旧行 ─────────────────────────────
+
+
+class TestRefreshCleansStaleRows:
+    def test_full_refresh_deletes_ineligible_rows(self):
+        """全量 refresh 后, 本轮未写入的 SKU 旧行被清除（防僵尸预测）。"""
+        from app.services.forecast import refresh_forecast_output
+
+        stale_bc = "7700000000099"
+        live_bc = "7700000000098"
+        with stockpile_db._session() as s:
+            s.add(
+                ForecastOutput(
+                    product_barcode=stale_bc,  # 不在 stockpile, 本轮必不写
+                    model_used="EmpiricalQuantile",
+                    sku_type="retail_dominant",
+                    n_weeks_history=20,
+                    mu=1.0,
+                    sigma=0.5,
+                    p50=1.0,
+                    p98=2.0,
+                )
+            )
+            s.commit()
+        _seed_stockpile(live_bc)
+        _seed_sales(live_bc, [(w % 12, 2) for w in range(30)])
+
+        refresh_forecast_output(end_date=_AS_OF, weeks=13)  # barcodes=None → 全量
+
+        with stockpile_db._session() as s:
+            remaining = {
+                r[0]
+                for r in s.execute(select(ForecastOutput.product_barcode)).all()
+            }
+        assert stale_bc not in remaining
+        assert live_bc in remaining
+
+    def test_partial_refresh_keeps_other_rows(self):
+        """指定 barcodes 的局部 refresh 不清别人的行。"""
+        from app.services.forecast import refresh_forecast_output
+
+        keep_bc = "7700000000097"
+        target_bc = "7700000000096"
+        with stockpile_db._session() as s:
+            s.add(
+                ForecastOutput(
+                    product_barcode=keep_bc,
+                    model_used="EmpiricalQuantile",
+                    sku_type="retail_dominant",
+                    n_weeks_history=20,
+                    mu=1.0,
+                    sigma=0.5,
+                    p50=1.0,
+                    p98=2.0,
+                )
+            )
+            s.commit()
+        _seed_stockpile(target_bc)
+        _seed_sales(target_bc, [(w % 12, 2) for w in range(30)])
+
+        refresh_forecast_output(end_date=_AS_OF, weeks=13, barcodes=[target_bc])
+
+        with stockpile_db._session() as s:
+            remaining = {
+                r[0]
+                for r in s.execute(select(ForecastOutput.product_barcode)).all()
+            }
+        assert keep_bc in remaining  # 局部刷新不动它
+        assert target_bc in remaining

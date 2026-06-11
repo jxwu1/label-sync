@@ -188,6 +188,7 @@ def refresh_forecast_output(
         end_date = dt.date.today()
 
     with stockpile_db._session() as s:
+        full_refresh = barcodes is None
         if barcodes is None:
             rows = s.execute(
                 select(Stockpile.product_barcode).where(Stockpile.is_active == 1)
@@ -202,6 +203,7 @@ def refresh_forecast_output(
 
         n_total = len(barcodes)
         n_written = 0
+        written: list[str] = []
         for bc in barcodes:
             built = build_routed_series(bc, end_date, weeks, session=s)
             if built is None:
@@ -251,6 +253,10 @@ def refresh_forecast_output(
                 )
             )
             n_written += 1
+            written.append(bc)
+        if full_refresh:
+            # 全量模式收尾: 清掉本轮不再够格 SKU 的旧行 (转 dying/路由变更后的僵尸预测)
+            s.execute(delete(ForecastOutput).where(ForecastOutput.product_barcode.not_in(written)))
         s.commit()
         return {
             "n_total": n_total,
