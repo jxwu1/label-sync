@@ -295,6 +295,37 @@ class ClassifySkuTypeDyingTests(_SkuTypeBase):
             self._add_event(qty=720, document_no=f"D{i}", event_at="2024-01-01")
         assert classify_sku_type("B1", as_of=date(2026, 5, 13)) == "dying"
 
+    def test_wholesale_marginal_band_not_dying(self) -> None:
+        """类型感知 dying (ADR-0002 实施验证): wholesale 18 周前最后销售 → 仍活.
+
+        批发节奏长 (组合 ADI p90≈9 周), 13 周一个正常下单间隔会误判 dying;
+        边际带 [13, 26) 内 wholesale_only 不判死.
+        """
+        from app.utils.categorizer import classify_sku_type
+
+        for i in range(5):
+            d = (date(2026, 5, 13) - timedelta(weeks=18 + i * 4)).isoformat()
+            self._add_event(qty=720, document_no=f"W{i}", event_at=d)
+        assert classify_sku_type("B1", as_of=date(2026, 5, 13)) == "wholesale_only"
+
+    def test_wholesale_deep_dying_at_26_weeks(self) -> None:
+        """wholesale 26 周(含)以上无销 → 仍是 dying (深度死亡不分型)."""
+        from app.utils.categorizer import classify_sku_type
+
+        for i in range(5):
+            d = (date(2026, 5, 13) - timedelta(weeks=26 + i * 4)).isoformat()
+            self._add_event(qty=720, document_no=f"W{i}", event_at=d)
+        assert classify_sku_type("B1", as_of=date(2026, 5, 13)) == "dying"
+
+    def test_retail_marginal_band_still_dying(self) -> None:
+        """retail 18 周前最后销售 → dying 不变 (零售节奏 13 周阈值合理)."""
+        from app.utils.categorizer import classify_sku_type
+
+        for i in range(10):
+            d = (date(2026, 5, 13) - timedelta(weeks=18 + i)).isoformat()
+            self._add_event(qty=10, document_no=f"R{i}", event_at=d)
+        assert classify_sku_type("B1", as_of=date(2026, 5, 13)) == "dying"
+
     def test_as_of_none_uses_today(self) -> None:
         """as_of=None 用 datetime.now().date()."""
         from app.utils.categorizer import classify_sku_type

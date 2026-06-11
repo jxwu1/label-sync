@@ -280,6 +280,7 @@ def base_demand_views_bulk(
 
     from app.utils.categorizer import (
         _DYING_WEEKS,
+        _DYING_WEEKS_WHOLESALE,
         _parse_date,
         classify_sku_type_from_docs,
     )
@@ -321,12 +322,18 @@ def base_demand_views_bulk(
         doc_nets[bc].append(int(net))
 
     def _classify(bc: str) -> str:
+        # 与 categorizer.classify_sku_type 同语义 (类型感知 dying, ADR-0002):
+        # 一致性由 test_bulk_matches_per_sku_view 守护。
         last_at = last_sale.get(bc)
         if last_at is None:
             return "unclassified"
-        if (end_date - _parse_date(str(last_at))).days // 7 >= _DYING_WEEKS:
+        weeks_since = (end_date - _parse_date(str(last_at))).days // 7
+        if weeks_since >= _DYING_WEEKS_WHOLESALE:
             return "dying"
-        return classify_sku_type_from_docs(doc_nets.get(bc, []))
+        base = classify_sku_type_from_docs(doc_nets.get(bc, []))
+        if weeks_since >= _DYING_WEEKS and base != "wholesale_only":
+            return "dying"
+        return base
 
     sku_types = {bc: _classify(bc) for bc in barcodes}
     out: dict[str, dict] = {}
