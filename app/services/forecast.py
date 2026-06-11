@@ -20,7 +20,6 @@ import numpy as np
 from app.services.backtest import ForecastDist, _build_series
 from app.services.forecast_eval import demand_history_stats, stockout_zero_weeks_last8
 from app.services.stockout import stockout_weeks
-from app.utils.forecast_data import _monday
 
 # refresh_forecast_output: 序列太短就跳过 (与 backtest min_weeks 对齐)
 _MIN_FIT_WEEKS = 13
