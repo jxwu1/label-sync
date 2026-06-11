@@ -309,7 +309,6 @@ class TestRL3StockoutExclusion:
 # ──────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.skip(reason="RL-4 待实现: 短序列尾部收缩 (plan 2026-06-11 Task 5)")
 class TestRL4ShortSeriesTail:
     def test_rl4_short_series_tail_shrinkage(self):
         # 13 周: 12 周卖 1 件 + 单笔 100 件大单。

@@ -64,6 +64,10 @@ def _dist_from_mu_sigma(mu: float, sigma: float) -> ForecastDist:
     )
 
 
+_SHRINK_BELOW_WEEKS = 30  # 序列短于此用收缩尾部 (RL-4)
+_SHRINK_P90_FACTOR = 1.5
+
+
 class EmpiricalQuantileModel:
     """直接对历史取经验分位数 (p50 / p98).
 
@@ -96,7 +100,11 @@ class EmpiricalQuantileModel:
         sigma = float(arr.std()) if len(arr) > 1 else 0.0
         p50 = float(np.quantile(arr, 0.5))
         p98 = float(np.quantile(arr, 0.98))
-        p98 = max(p98, 0.0)
+        if len(arr) < _SHRINK_BELOW_WEEKS:
+            # RL-4: 小样本经验 p98 ≈ max(单笔大单)，用 p90×1.5 收缩
+            p90 = float(np.quantile(arr, 0.90))
+            p98 = min(p98, p90 * _SHRINK_P90_FACTOR)
+        p98 = max(p98, p50, 0.0)  # 收缩不破坏 p50 ≤ p98 单调
         self._dist = ForecastDist(mu=mu, sigma=sigma, p50=p50, p98=p98)
 
     def predict(self, steps: int = 1) -> ForecastDist:
