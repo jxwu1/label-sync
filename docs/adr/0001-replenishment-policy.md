@@ -1,6 +1,6 @@
 # ADR-0001: 补货策略形式化 — (R,S) 周期盘点制
 
-> **Status**: Proposed（待用户批准）
+> **Status**: Accepted（2026-06-11 用户批准；lead time 先验定为 4 周）
 > **Date**: 2026-06-11
 > **作者**: Fable 5（判断层产出，实施由后续 plan 执行）
 > **关联**: `docs/adr/replenishment-redlines.md`（红线清单）、`docs/superpowers/plans/2026-06-11-replenishment-correctness.md`（实施 plan）
@@ -83,8 +83,8 @@ IP     = 现库存(qty_total, 负值取0) + 在途(Σ qty_ordered − qty_arrive
 
 lead time 历史不可得（审计事实 1），因此：
 
-1. **现在**：全局配置 `REPLENISH_LEAD_TIME_WEEKS`，**默认 6 周，标记待校准** ——
-   用户必须按实际供应链（中国采购 → 希腊到货，海运为主）校准此值。
+1. **现在**：全局配置 `REPLENISH_LEAD_TIME_WEEKS`，**默认 4 周（用户 2026-06-11
+   按实际供应链校准：中国采购 → 希腊到货约 4 周）**。
    配置进 `app/config.py` 或环境变量，不硬编码进算法。
 2. **自动切换**：当 `purchase_orders` 中 `arrival_date` 非空的样本 ≥ 20 单时，
    切换为经验分布：L 取样本 **p90**（不取均值 —— lead time 右偏，均值低估风险），
@@ -92,8 +92,9 @@ lead time 历史不可得（审计事实 1），因此：
 3. **为什么 p90 不是 p50**：L 进入保护期 H，H 偏短的代价（缺货）远大于偏长的代价
    （多备 1-2 周库存）。在样本少时尤其要偏保守。
 
-注意：现行 8 周 target 在 L≈6-7 周时恰好近似 H = R + L，**现状的数字碰巧合理，
-但结构是错的**（L 变化时 8 周不会跟着变）。形式化后 target 周数退役，由 H 取代。
+注意：L=4 周时 H = R + L = 5 周，**小于现行 8 周 target** —— 形式化后推荐量
+在 horizon 维度也会下降（叠加 D5 的聚合修正），这是回到正确水位，不是回归。
+target 周数退役，由 H 取代。
 
 ### D5. 跨期聚合：bootstrap 求和分位数，废除 周分位 × N
 
@@ -163,7 +164,7 @@ walk-forward 框架可直接评估 H 周和的覆盖率（coverage@p98 对 8 周
 - 推荐量普遍下降初期会让用户感觉"系统变保守了"——需在 PR 描述和系统页说明原因
 - bootstrap 引入随机性（已用固定 seed 消除不可复现性）
 - `forecast_output` 需要加列（schema 迁移），restock 页消费逻辑同步改
-- L 默认 6 周若与实际偏差大，上线初期 H 错位 —— **依赖用户校准，上线前必须确认**
+- L 先验 4 周为用户经验值，PO 到货样本满 20 单后自动切经验 p90 自我修正
 
 ## 备选方案（已否决）
 

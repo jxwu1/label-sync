@@ -346,8 +346,8 @@ Expected: 2 FAIL（`lead_time_weeks` 不存在）
 
 ```python
 # 补货 lead time 先验（周）。ADR-0001 D4：PO 到货样本 ≥20 后自动切经验 p90。
-# !! 默认 6 周为占位，上线前必须按实际供应链校准（中国采购→希腊海运）。
-REPLENISH_LEAD_TIME_WEEKS = _env_int("REPLENISH_LEAD_TIME_WEEKS", 6)
+# 默认 4 周 = 用户 2026-06-11 校准值（中国采购→希腊到货）。
+REPLENISH_LEAD_TIME_WEEKS = _env_int("REPLENISH_LEAD_TIME_WEEKS", 4)
 ```
 
 `app/services/purchase.py` 末尾加：
@@ -818,8 +818,8 @@ python -c "from app.services.forecast import refresh_forecast_output; print(refr
 - [ ] **Step 5: PR**
 
 分支 squash merge 回 main（项目惯例）。PR 描述必须包含：
-"推荐量普遍下降是 RL-1 修复的预期结果（旧口径数学性高估 2-3 倍），不是回归" +
-ADR 链接。**合并前确认用户已校准 `REPLENISH_LEAD_TIME_WEEKS`**（ADR D4 风险项）。
+"推荐量普遍下降是 RL-1 修复 + H=5周(L=4) 的预期结果（旧口径 = 数学性高估 2-3 倍
+× 8 周 target），不是回归" + ADR 链接。lead time 已校准（4 周，2026-06-11）。
 合并后线上跑一次 `refresh_forecast_output`（或等周刷 cron）。
 
 ---
