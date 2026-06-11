@@ -252,10 +252,7 @@ class TestRefreshCleansStaleRows:
         refresh_forecast_output(end_date=_AS_OF, weeks=13)  # barcodes=None → 全量
 
         with stockpile_db._session() as s:
-            remaining = {
-                r[0]
-                for r in s.execute(select(ForecastOutput.product_barcode)).all()
-            }
+            remaining = {r[0] for r in s.execute(select(ForecastOutput.product_barcode)).all()}
         assert stale_bc not in remaining
         assert live_bc in remaining
 
@@ -285,9 +282,6 @@ class TestRefreshCleansStaleRows:
         refresh_forecast_output(end_date=_AS_OF, weeks=13, barcodes=[target_bc])
 
         with stockpile_db._session() as s:
-            remaining = {
-                r[0]
-                for r in s.execute(select(ForecastOutput.product_barcode)).all()
-            }
+            remaining = {r[0] for r in s.execute(select(ForecastOutput.product_barcode)).all()}
         assert keep_bc in remaining  # 局部刷新不动它
         assert target_bc in remaining
