@@ -145,3 +145,79 @@ class TestRefreshWithRouting:
             ).scalar_one()
         assert row.model_used == "EmpiricalQuantile"
         assert row.sku_type == "retail_dominant"
+
+
+# ── RL-11 退化检测 (ADR-0002 D5) ───────────────────────────────────────
+
+
+class TestRL11DegradationAlerts:
+    def test_rl11_coverage_collapse_alert(self):
+        """forecast 覆盖率 < 15% 且非冷启动 → 告警。"""
+        import datetime as dt
+
+        from app.services.alerts import _forecast_routing_degraded
+
+        with stockpile_db._session() as s:
+            # 100 个 active SKU, 只 3 个有预测 → 3% < 15% → 报
+            for i in range(100):
+                s.add(
+                    Stockpile(
+                        product_barcode=f"66000000{i:05d}",
+                        product_model=f"C{i:05d}",
+                        stockpile_location="A1",
+                        is_active=1,
+                    )
+                )
+            for i in range(3):
+                s.add(
+                    ForecastOutput(
+                        product_barcode=f"66000000{i:05d}",
+                        model_used="EmpiricalQuantile",
+                        sku_type="retail_dominant",
+                        n_weeks_history=20,
+                        mu=1.0,
+                        sigma=0.5,
+                        p50=1.0,
+                        p98=2.0,
+                    )
+                )
+            s.commit()
+            msgs = _forecast_routing_degraded(s)
+        assert any("覆盖率" in m for m in msgs)
+
+    def test_rl11_sku_type_monopoly_alert(self):
+        """任一 sku_type 占 forecast_output > 97% → 告警(wholesale 腿断)。"""
+        from app.services.alerts import _forecast_routing_degraded
+
+        with stockpile_db._session() as s:
+            for i in range(50):
+                s.add(
+                    Stockpile(
+                        product_barcode=f"65000000{i:05d}",
+                        product_model=f"D{i:05d}",
+                        stockpile_location="A1",
+                        is_active=1,
+                    )
+                )
+                s.add(
+                    ForecastOutput(
+                        product_barcode=f"65000000{i:05d}",
+                        model_used="EmpiricalQuantile",
+                        sku_type="retail_dominant",  # 100% 单一类型
+                        n_weeks_history=20,
+                        mu=1.0,
+                        sigma=0.5,
+                        p50=1.0,
+                        p98=2.0,
+                    )
+                )
+            s.commit()
+            msgs = _forecast_routing_degraded(s)
+        assert any("垄断" in m or "单一" in m for m in msgs)
+
+    def test_rl11_empty_table_cold_start_silent(self):
+        """forecast_output 全空 → 冷启动不报(既有'表空'告警兜底)。"""
+        from app.services.alerts import _forecast_routing_degraded
+
+        with stockpile_db._session() as s:
+            assert _forecast_routing_degraded(s) == []

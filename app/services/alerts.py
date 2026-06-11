@@ -89,6 +89,45 @@ def _missing_monday_snapshots(session, as_of: date, n_weeks: int = 4) -> list[st
     return [m for m in monday_strs if m not in have]
 
 
+_FORECAST_COVERAGE_MIN = 0.15  # RL-11: 覆盖率跌破即塌方 (路由上线后预期 ~20%+)
+_SKU_TYPE_MONOPOLY = 0.97  # RL-11: 任一类型占比超此值 = 某条路由腿断了
+_MONOPOLY_MIN_ROWS = 20  # 小样本不谈垄断 (测试/冷启动期免误报)
+
+
+def _forecast_routing_degraded(session) -> list[str]:
+    """RL-11 (ADR-0002 D5): 预测覆盖率塌方 + sku_type 垄断。
+
+    forecast_output 全空 → 冷启动不报 (既有"表空"告警兜底)。
+    """
+    from sqlalchemy import func, select
+
+    from app.models import ForecastOutput, Stockpile
+
+    n_fc = session.execute(select(func.count(ForecastOutput.product_barcode))).scalar() or 0
+    if not n_fc:
+        return []
+    msgs: list[str] = []
+    n_active = (
+        session.execute(select(func.count(Stockpile.id)).where(Stockpile.is_active == 1)).scalar()
+        or 0
+    )
+    if n_active and n_fc / n_active < _FORECAST_COVERAGE_MIN:
+        msgs.append(
+            f"预测覆盖率塌方: {n_fc}/{n_active} = {n_fc / n_active * 100:.1f}% "
+            f"(阈值 {_FORECAST_COVERAGE_MIN * 100:.0f}%)"
+        )
+    if n_fc >= _MONOPOLY_MIN_ROWS:
+        for sku_type, n in session.execute(
+            select(ForecastOutput.sku_type, func.count()).group_by(ForecastOutput.sku_type)
+        ):
+            if n / n_fc > _SKU_TYPE_MONOPOLY:
+                msgs.append(
+                    f"sku_type 垄断: {sku_type} 占预测 {n / n_fc * 100:.1f}% "
+                    f"(阈值 {_SKU_TYPE_MONOPOLY * 100:.0f}%) — 检查路由腿"
+                )
+    return msgs
+
+
 def collect_alerts(session, as_of: date) -> list[dict[str, Any]]:
     """三类巡检 (spec §2), 返回当前全部异常 (聚合, 不止报第一个)。
 
@@ -143,6 +182,9 @@ def collect_alerts(session, as_of: date) -> list[dict[str, Any]]:
                 "message": f"缺周一库存快照: {', '.join(missing)} (削弱缺货修正 RL-10)",
             }
         )
+
+    for msg in _forecast_routing_degraded(session):
+        out.append({"kind": "forecast_routing", "days_since": None, "message": msg})
 
     return out
 

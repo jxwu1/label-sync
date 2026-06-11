@@ -132,6 +132,17 @@
   （接入既有 scrape-failure-alert 通道）。
 - **测试**: 巡检函数单测 `test_rl10_missing_monday_snapshot_detected`。
 
+## RL-11 [监控] 预测路由退化 —— 覆盖塌方与类型垄断
+
+- **触发条件**: ① forecast_output 行数 / active SKU < 15%（分类或路由把 SKU
+  批量甩出预测）；② 任一 sku_type 占 forecast_output > 97% 且行数 ≥ 20
+  （wholesale 路由腿断了，回到单类型垄断）。
+- **当前行为**: 已接 `alerts._forecast_routing_degraded`（ADR-0002 D5）。
+- **期望行为**: 维持。改 ROUTING 表 / categorizer 阈值前先重跑
+  `tools/calibrate_model_routing.py`（ADR-0002 D6），输出贴进 PR。
+- **测试**: `test_rl11_coverage_collapse_alert`、`test_rl11_sku_type_monopoly_alert`、
+  `test_rl11_empty_table_cold_start_silent`（tests/test_model_routing.py）。
+
 ---
 
 ## 蒸馏指引（P3 消费本节）
