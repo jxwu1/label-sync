@@ -449,6 +449,16 @@ class ForecastOutput(Base):
     sigma: Mapped[float] = mapped_column(nullable=False)
     p50: Mapped[float] = mapped_column(nullable=False)
     p98: Mapped[float] = mapped_column(nullable=False)
+    # ADR-0001: 保护期 H = R + L 的 horizon 分位数（bootstrap，RL-1 修复）。
+    # 消费端用这两列，不得再用 周分位 × N。p98_13w = 季度展示口径。
+    horizon_weeks: Mapped[int | None] = mapped_column(Integer)
+    p50_h: Mapped[float | None] = mapped_column()
+    p98_h: Mapped[float | None] = mapped_column()
+    p98_13w: Mapped[float | None] = mapped_column()
+    # RL-3: 本次训练序列里被剔除的缺货周数（置信分层/可解释性消费）。
+    stockout_weeks_excluded: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     computed_at: Mapped[str] = mapped_column(
         Text, nullable=False, server_default=func.current_timestamp()
     )

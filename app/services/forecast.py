@@ -142,6 +142,12 @@ def refresh_forecast_output(
             ).all()
             barcodes = [r[0] for r in rows]
 
+        # ADR-0001 D2: 保护期 H = R + L, R=1 周。L 先验 4 周 / 样本够切经验 p90。
+        from app.services.purchase import lead_time_weeks
+
+        lt_weeks, lt_source, _lt_n = lead_time_weeks(s)
+        horizon = 1 + lt_weeks
+
         n_total = len(barcodes)
         n_written = 0
         for bc in barcodes:
@@ -167,6 +173,11 @@ def refresh_forecast_output(
             sw = stockout_weeks(bc, end_date, max(len(raw), 1), session=s)
             szw8 = stockout_zero_weeks_last8(raw, sw)
 
+            # RL-1: horizon 分位数 = bootstrap 和分位, 消费端禁用 周分位 × N。
+            p50_h = horizon_quantile(series, horizon, 0.50)
+            p98_h = horizon_quantile(series, horizon, 0.98)
+            p98_13w = horizon_quantile(series, 13, 0.98)
+
             # SQLite 不支持原生 ON CONFLICT for SQLAlchemy core 跨方言; delete+insert
             # 简单可靠. PG/SQLite 行为一致.
             s.execute(delete(ForecastOutput).where(ForecastOutput.product_barcode == bc))
@@ -183,6 +194,11 @@ def refresh_forecast_output(
                     sigma=d.sigma,
                     p50=d.p50,
                     p98=d.p98,
+                    horizon_weeks=horizon,
+                    p50_h=p50_h,
+                    p98_h=p98_h,
+                    p98_13w=p98_13w,
+                    stockout_weeks_excluded=n_excluded,
                 )
             )
             n_written += 1
@@ -191,6 +207,8 @@ def refresh_forecast_output(
             "n_total": n_total,
             "n_written": n_written,
             "n_skipped": n_total - n_written,
+            "horizon_weeks": horizon,
+            "lead_time_source": lt_source,
         }
 
 
