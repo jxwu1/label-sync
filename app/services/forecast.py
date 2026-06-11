@@ -17,7 +17,7 @@ import warnings
 
 import numpy as np
 
-from app.services.backtest import ForecastDist, _build_series
+from app.services.backtest import CrostonSBA, ForecastDist
 from app.services.forecast_eval import demand_history_stats, stockout_zero_weeks_last8
 from app.services.stockout import stockout_weeks
 
@@ -110,6 +110,61 @@ class EmpiricalQuantileModel:
         return self._dist
 
 
+_WHOLESALE_MIN_NONZERO_WEEKS = 5  # CrostonSBA interval 估计 <5 个观测点是噪声 (ADR-0002 D1)
+
+# ADR-0002 D1 路由表 (sku_type → 周模型)。改这里前先重跑
+# tools/calibrate_model_routing.py 并把输出贴进 PR (D6)。
+ROUTING: dict[str, str] = {
+    "retail_dominant": "EmpiricalQuantile",
+    "mixed": "EmpiricalQuantile",
+    "wholesale_only": "CrostonSBA",
+    # dying / unclassified: 不预测 (回测: 强预测 dying bias +0.89; 冷启动另案)
+}
+
+_MODEL_REGISTRY = {
+    "EmpiricalQuantile": EmpiricalQuantileModel,
+    "CrostonSBA": CrostonSBA,
+}
+
+
+def build_routed_series(
+    barcode: str,
+    end_date: dt.date,
+    weeks: int,
+    session=None,
+) -> tuple[list[float], str, int, str, dict] | None:
+    """ADR-0002 D1 路由: (series, sku_type, n_excluded, model_name, raw_dict) 或 None.
+
+    - retail/mixed: base_demand 视图 (剔大单)
+    - wholesale_only: weekly_demand_series 原始序列 (大单是其需求本体, 不剔);
+      非零周 < _WHOLESALE_MIN_NONZERO_WEEKS 不预测
+    - dying / unclassified: None
+    - 两条路径都剔缺货周 (RL-3); raw_dict = 剔除前原始周序列 (szw8 消费)
+    """
+    from app.services.stockout import exclude_stockout_weeks
+    from app.utils.forecast_data import base_demand_view, weekly_demand_series
+
+    v = base_demand_view(barcode, end_date, weeks, session=session)
+    sku_type = v["sku_type"]
+    model_name = ROUTING.get(sku_type)
+    if model_name is None:
+        return None
+
+    if sku_type == "wholesale_only":
+        raw = weekly_demand_series(barcode, end_date, weeks, session=session)
+        if sum(1 for q in raw.values() if q > 0) < _WHOLESALE_MIN_NONZERO_WEEKS:
+            return None
+    else:
+        if v["series"] is None:
+            return None
+        raw = v["series"]
+
+    so = stockout_weeks(barcode, end_date, weeks, session=session)
+    kept = exclude_stockout_weeks(raw, so)
+    series = [kept[k] for k in sorted(kept)]
+    return series, sku_type, len(raw) - len(kept), model_name, raw
+
+
 def refresh_forecast_output(
     end_date: dt.date | None = None,
     weeks: int = 156,
@@ -117,14 +172,12 @@ def refresh_forecast_output(
 ) -> dict:
     """对全部 active SKU 算最新预测快照, upsert 到 forecast_output 表.
 
-    模型路由 (§3.7 设计 3-B):
-        retail_dominant / mixed → EmpiricalQuantile (base_demand_view)
-        wholesale_only / dying / unclassified → 跳过
+    模型路由 = ADR-0002 D1 (build_routed_series):
+        retail_dominant / mixed → EmpiricalQuantile (base_demand)
+        wholesale_only → CrostonSBA (原始周序列, 非零周 ≥5)
+        dying / unclassified → 跳过
 
-    跳过逻辑由 backtest._build_series(view='base_demand') 承担: 它对非
-    retail/mixed 直接返回 None.
-
-    返回 {"n_total", "n_written", "n_skipped"}.
+    返回 {"n_total", "n_written", "n_skipped", "horizon_weeks", "lead_time_source"}.
     """
     from sqlalchemy import delete, insert, select
 
@@ -135,6 +188,7 @@ def refresh_forecast_output(
         end_date = dt.date.today()
 
     with stockpile_db._session() as s:
+        full_refresh = barcodes is None
         if barcodes is None:
             rows = s.execute(
                 select(Stockpile.product_barcode).where(Stockpile.is_active == 1)
@@ -149,26 +203,24 @@ def refresh_forecast_output(
 
         n_total = len(barcodes)
         n_written = 0
+        written: list[str] = []
         for bc in barcodes:
-            built = _build_series(bc, end_date, weeks, "base_demand", session=s)
+            built = build_routed_series(bc, end_date, weeks, session=s)
             if built is None:
                 continue
-            series, sku_type, n_excluded = built
+            series, sku_type, n_excluded, model_name, raw = built
             if len(series) < _MIN_FIT_WEEKS:
                 continue
 
-            model = EmpiricalQuantileModel()
+            model = _MODEL_REGISTRY[model_name]()
             model.fit(series)
             d = model.predict(steps=1)
 
             # 置信度分层输入 (第1期任务③): 顺手算非零周数 + 近期零需求周数。
             nonzero_weeks, zero_weeks_last8 = demand_history_stats(series)
 
-            # 缺货零销周数 (spec 2026-06-09): 在剔除前的原始视图上算 ——
-            # RL-3 剔除后 series 周键不连续, 不能再按 end_monday 倒推重建。
-            from app.utils.forecast_data import base_demand_view as _bdv
-
-            raw = _bdv(bc, end_date, weeks, session=s)["series"] or {}
+            # 缺货零销周数 (spec 2026-06-09): 在剔除前的原始序列上算 ——
+            # RL-3 剔除后 series 周键不连续。raw 由路由函数顺带返回, 免二次查询。
             sw = stockout_weeks(bc, end_date, max(len(raw), 1), session=s)
             szw8 = stockout_zero_weeks_last8(raw, sw)
 
@@ -201,6 +253,10 @@ def refresh_forecast_output(
                 )
             )
             n_written += 1
+            written.append(bc)
+        if full_refresh:
+            # 全量模式收尾: 清掉本轮不再够格 SKU 的旧行 (转 dying/路由变更后的僵尸预测)
+            s.execute(delete(ForecastOutput).where(ForecastOutput.product_barcode.not_in(written)))
         s.commit()
         return {
             "n_total": n_total,
