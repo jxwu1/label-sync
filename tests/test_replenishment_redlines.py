@@ -408,7 +408,6 @@ class TestRL8AntiChurn:
 # ──────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.skip(reason="RL-9 待实现: staleness 检测 (plan 2026-06-11 Task 8)")
 class TestRL9Staleness:
     def test_rl9_staleness_detection(self):
         import datetime as dt
@@ -459,3 +458,38 @@ class TestLeadTime:
         assert source == "empirical"
         assert n == 20
         assert weeks == 3
+
+
+# ──────────────────────────────────────────────────────────────────────
+# RL-10 [监控] 快照缺失周巡检
+# ──────────────────────────────────────────────────────────────────────
+
+
+class TestRL10MissingSnapshot:
+    def test_rl10_missing_monday_snapshot_detected(self):
+        import datetime as dt
+
+        from app.models import StockpileInventorySnapshot
+        from app.repositories import stockpile_db
+        from app.services.alerts import _missing_monday_snapshots
+
+        with stockpile_db._session() as s:
+            # 种最旧周一的快照（绕过冷启动守卫），其余 3 个周一缺失。
+            # as_of=周四 → 本周一(06-08)已过去，必须计入。
+            s.add(
+                StockpileInventorySnapshot(
+                    snapshot_date="2026-05-18", product_model="M1", qty_total=5
+                )
+            )
+            s.commit()
+            missing = _missing_monday_snapshots(s, dt.date(2026, 6, 11), n_weeks=4)
+        assert missing == ["2026-06-08", "2026-06-01", "2026-05-25"]
+
+    def test_rl10_empty_table_cold_start_silent(self):
+        import datetime as dt
+
+        from app.repositories import stockpile_db
+        from app.services.alerts import _missing_monday_snapshots
+
+        with stockpile_db._session() as s:
+            assert _missing_monday_snapshots(s, dt.date(2026, 6, 11)) == []

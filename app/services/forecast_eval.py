@@ -68,6 +68,27 @@ def _is_usable_metric(x: float | None) -> bool:
     return x is not None and not (isinstance(x, float) and math.isnan(x))
 
 
+def forecast_is_stale(
+    computed_at: str | None,
+    today,
+    max_age_days: int = 14,
+) -> bool:
+    """forecast_output 单行是否过期（RL-9）。None/解析失败 = 过期。
+
+    整表新鲜度告警在 alerts._forecast_days_since；本函数是单行粒度，
+    给 restock 页"预测过期"标记用。
+    """
+    import datetime as dt
+
+    if not computed_at:
+        return True
+    try:
+        d = dt.date.fromisoformat(str(computed_at)[:10])
+    except ValueError:
+        return True
+    return (today - d).days > max_age_days
+
+
 def confidence_tier(
     *,
     history_weeks: int,
