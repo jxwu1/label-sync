@@ -1,6 +1,6 @@
 # ADR-0002: 预测模型选择路由 — 实证标定的决策树
 
-> **Status**: Proposed（待用户批准）
+> **Status**: Accepted（2026-06-11 用户批准）
 > **Date**: 2026-06-11
 > **作者**: Fable 5（标定数据 = 本地 PG 镜像 2026-06-10，backtest runs 36-49）
 > **关联**: ADR-0001（补货策略，horizon 列消费方）、`docs/backtest-results-2026-05-19.md`、
