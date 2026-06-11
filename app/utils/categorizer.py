@@ -56,6 +56,10 @@ _RETAIL_DOMINANT_RATIO = 0.80
 # dying 阈值: 最后销售距 as_of >= 13 周 (无 sale event) → dying
 # 阻止 CrostonSBA / NaiveSeasonal 在 dying SKU 上过预测 (4 baseline 回测发现 +0.89 系统性 bias)
 _DYING_WEEKS = 13
+# 类型感知 (ADR-0002 实施验证): 批发节奏长 (组合 ADI p90≈9 周), 13 周只是一个
+# 正常下单间隔, 会把活批发 SKU 误判 dying 甩出预测 (边际带实测 1,199 个)。
+# 边际带 [13, 26) 内 wholesale_only 不判死; >= 26 周深度死亡不分型。
+_DYING_WEEKS_WHOLESALE = 26
 
 
 def _today() -> date:
@@ -261,8 +265,11 @@ def classify_sku_type(barcode: str, session=None, as_of: date | None = None) -> 
 
     判定顺序 (优先级从高到低):
     1. 无任何销售 → unclassified
-    2. 最后销售距 as_of >= _DYING_WEEKS 周 → dying (优先于 wholesale, 因为停售更紧急)
-    3. doc-net qty 算 retail_dominant / mixed / wholesale_only
+    2. 最后销售距 as_of >= _DYING_WEEKS_WHOLESALE (26) 周 → dying (深度死亡不分型,
+       短路省 doc-net 查询 — 该带占 active 的 ~64%)
+    3. 边际带 [_DYING_WEEKS, _DYING_WEEKS_WHOLESALE) 周: 批发节奏长不判死 —
+       wholesale_only 存活, 其余 dying (类型感知, ADR-0002 实施验证)
+    4. < _DYING_WEEKS 周: doc-net qty 算 retail_dominant / mixed / wholesale_only
 
     as_of 默认 today; 跟回测窗口配套时应传 backtest 的 end_date.
     """
@@ -271,10 +278,13 @@ def classify_sku_type(barcode: str, session=None, as_of: date | None = None) -> 
     if last_at is None:
         return "unclassified"
     weeks_since = (as_of - _parse_date(last_at)).days // 7
-    if weeks_since >= _DYING_WEEKS:
+    if weeks_since >= _DYING_WEEKS_WHOLESALE:
         return "dying"
     net_qtys = _fetch_sku_doc_net_qty(barcode, session)
-    return classify_sku_type_from_docs(net_qtys)
+    base = classify_sku_type_from_docs(net_qtys)
+    if weeks_since >= _DYING_WEEKS and base != "wholesale_only":
+        return "dying"
+    return base
 
 
 def _fetch_last_sale_at(barcode: str, session) -> str | None:

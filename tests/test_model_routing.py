@@ -89,13 +89,30 @@ class TestBuildRoutedSeries:
         assert model_name == "EmpiricalQuantile"
 
     def test_dying_not_forecast(self):
-        """最后销售 20 周前 → dying → None（回测: 强预测 bias +0.89）。"""
+        """深度死亡（最后销售 ≥26 周前）→ None，批发也不豁免。"""
         from app.services.forecast import build_routed_series
 
         bc = "7700000000004"
-        _seed_sales(bc, [(20, 100), (22, 100), (24, 100), (26, 100), (28, 100)])
+        _seed_sales(bc, [(27, 100), (29, 100), (31, 100), (33, 100), (35, 100)])
         with stockpile_db._session() as s:
-            assert build_routed_series(bc, _AS_OF, weeks=30, session=s) is None
+            assert build_routed_series(bc, _AS_OF, weeks=40, session=s) is None
+
+    def test_wholesale_marginal_band_routes(self):
+        """边际带（13-26 周）的 wholesale → 仍路由 CrostonSBA（dying 分型）。
+
+        注意 Croston 对长零尾不衰减（TSB 才修，ADR-0002 D4）——
+        补货量由 bootstrap horizon 列兜底，零周稀释了分位数。
+        """
+        from app.services.forecast import build_routed_series
+
+        bc = "7700000000006"
+        _seed_sales(bc, [(18, 100), (20, 100), (22, 100), (24, 100), (25, 100)])
+        with stockpile_db._session() as s:
+            built = build_routed_series(bc, _AS_OF, weeks=30, session=s)
+        assert built is not None
+        _series, sku_type, _n_excl, model_name, _raw = built
+        assert sku_type == "wholesale_only"
+        assert model_name == "CrostonSBA"
 
     def test_no_sales_unclassified_none(self):
         from app.services.forecast import build_routed_series
