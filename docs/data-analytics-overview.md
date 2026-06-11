@@ -1,6 +1,10 @@
 # 数据分析现状盘点
 
-> **创建**: 2026-05-18
+> **创建**: 2026-05-18 ⚠️ 本文档整体状态停在 5 月中，全文刷新待 P5。
+> **2026-06-11 起补货策略已形式化**：见 `docs/adr/0001-replenishment-policy.md`
+> （(R,S) 周期盘点、horizon 分位数、在途扣减、缺货周剔除）+
+> `docs/adr/replenishment-redlines.md`（数值红线 RL-1~10）。
+> forecast_output 已上线并扩展 horizon 列；本文 §3.7"待办"等描述已过时。
 > **状态**: 阶段 3 主力模型刚 ship（EmpiricalQuantile + HoltWinters），forecast_output 表 + 每日刷新 / Dashboard 集成待办
 > **关联 plan**: `docs/superpowers/plans/2026-05-12-forecast-and-backtest.md`（详细技术 plan）
 
