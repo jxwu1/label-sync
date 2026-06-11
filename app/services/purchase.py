@@ -454,3 +454,29 @@ def compute_supplier_lead_times(limit: int = 50) -> list[dict]:
                     }
                 )
         return results
+
+
+def on_order_by_barcode(session) -> dict[str, int]:
+    """各 SKU 在途量 = Σ max(0, qty_ordered − qty_arrived)，非作废单（RL-2）.
+
+    只返回在途 > 0 的条目。超收（arrived > ordered）按 0 计不为负。
+    """
+    from sqlalchemy import select
+
+    from app.models import PurchaseOrder, PurchaseOrderLine
+
+    rows = session.execute(
+        select(
+            PurchaseOrderLine.product_barcode,
+            PurchaseOrderLine.qty_ordered,
+            PurchaseOrderLine.qty_arrived,
+        )
+        .join(PurchaseOrder, PurchaseOrder.id == PurchaseOrderLine.order_id)
+        .where(PurchaseOrder.status.not_in(("cancelled", "void")))
+    ).all()
+    out: dict[str, int] = {}
+    for bc, ordered, arrived in rows:
+        pending = max(0, int(ordered or 0) - int(arrived or 0))
+        if pending > 0:
+            out[bc] = out.get(bc, 0) + pending
+    return out

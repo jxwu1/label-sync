@@ -200,8 +200,8 @@ class TestRL1HorizonQuantile:
 # ──────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.skip(reason="RL-2 待实现: 在途扣减 (plan 2026-06-11 Task 3)")
 class TestRL2OnOrderNetting:
+    @pytest.mark.skip(reason="待 Task 7: _restock_recommendation 新签名")
     def test_rl2_on_order_netting(self):
         # 缺口 = ceil(40) − 10 = 30；在途 50 ≥ 30 → 推荐 0
         rec = _restock_recommendation(
