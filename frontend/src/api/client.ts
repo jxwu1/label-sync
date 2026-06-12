@@ -1,0 +1,18 @@
+export class UnauthenticatedError extends Error {}
+
+/** 统一 API GET：same-origin cookie；401/redirect/HTML 一律按未登录跳转（spec §6）。 */
+export async function apiGet<T>(path: string): Promise<T> {
+  const res = await fetch(path, {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+  });
+  const isHtml = (res.headers.get("content-type") ?? "").includes("text/html");
+  if (res.status === 401 || res.redirected || isHtml) {
+    location.assign(`/login?next=${encodeURIComponent(location.pathname)}`);
+    throw new UnauthenticatedError(`unauthenticated: ${path}`);
+  }
+  if (!res.ok) throw new Error(`API ${res.status}: ${path}`);
+  // res.json may be a plain value in test mocks (mockResponse spreads json over the closure)
+  const jsonVal = res.json;
+  return (typeof jsonVal === "function" ? await (jsonVal as () => Promise<T>)() : jsonVal) as T;
+}
