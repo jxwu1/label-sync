@@ -194,7 +194,7 @@ Vue Router + Tailwind v4（`@tailwindcss/vite`）。
 | Storybook/类型生成变成没人维护的摆设 | 全部进 CI（story build 红 = 立刻发现；types.gen 漂移 = 红） |
 | 简报页 API 现状不明 | 实施 plan Task 1 = 端点核对（含现有 /briefing/data 消费链审计），spec 不预设 |
 | Node 供应链引入 | 锁 package-lock + frontend 圈定 + CI npm ci 固定解析 + 根目录无 Node 守护断言 |
-| 401 契约改动影响旧页 | unauthorized handler 仅对 /api/* 分流，其余路径 302 行为不变；加路由测试守护 |
+| 401 契约改动影响旧页/cron | `_require_login` 内仅对 /api/* 分流，其余路径 302 与 X-Upload-Token 分支原样；§6 集成测试三件套守护 |
 
 **实施前置**：仓库根当前有一个 untracked `package-lock.json`，与"根目录
 无 Node 痕迹"冲突——实施 plan 第一步**先确认来源**（对照内容判断是否
