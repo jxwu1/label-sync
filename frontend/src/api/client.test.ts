@@ -1,14 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { apiGet, UnauthenticatedError } from "./client";
 
-function mockResponse(init: Partial<Response> & { json?: unknown }) {
+function mockResponse(init: Partial<Response> & { payload?: unknown }) {
+  const { payload, ...rest } = init;
   return {
     ok: true,
     status: 200,
     redirected: false,
     headers: new Headers({ "content-type": "application/json" }),
-    json: async () => init.json ?? {},
-    ...init,
+    ...rest,
+    json: async () => payload ?? {},
   } as unknown as Response;
 }
 
@@ -16,7 +17,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("apiGet", () => {
   it("返回 JSON 数据", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => mockResponse({ json: { ok: true } })));
+    vi.stubGlobal("fetch", vi.fn(async () => mockResponse({ payload: { ok: true } })));
     expect(await apiGet("/api/briefing/data")).toEqual({ ok: true });
   });
 

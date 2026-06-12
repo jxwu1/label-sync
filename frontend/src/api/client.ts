@@ -12,7 +12,5 @@ export async function apiGet<T>(path: string): Promise<T> {
     throw new UnauthenticatedError(`unauthenticated: ${path}`);
   }
   if (!res.ok) throw new Error(`API ${res.status}: ${path}`);
-  // res.json may be a plain value in test mocks (mockResponse spreads json over the closure)
-  const jsonVal = res.json;
-  return (typeof jsonVal === "function" ? await (jsonVal as () => Promise<T>)() : jsonVal) as T;
+  return (await res.json()) as T;
 }
