@@ -8,7 +8,7 @@ export async function apiGet<T>(path: string): Promise<T> {
   });
   const isHtml = (res.headers.get("content-type") ?? "").includes("text/html");
   if (res.status === 401 || res.redirected || isHtml) {
-    location.assign(`/login?next=${encodeURIComponent(location.pathname)}`);
+    location.assign(`/login?next=${encodeURIComponent(location.pathname + location.search)}`);
     throw new UnauthenticatedError(`unauthenticated: ${path}`);
   }
   if (!res.ok) throw new Error(`API ${res.status}: ${path}`);

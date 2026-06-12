@@ -24,7 +24,7 @@ describe("apiGet", () => {
   it("401 → 跳登录并抛 UnauthenticatedError", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => mockResponse({ ok: false, status: 401 })));
     const assign = vi.fn();
-    vi.stubGlobal("location", { assign, pathname: "/ui/briefing" });
+    vi.stubGlobal("location", { assign, pathname: "/ui/briefing", search: "" });
     await expect(apiGet("/x")).rejects.toBeInstanceOf(UnauthenticatedError);
     expect(assign).toHaveBeenCalledWith("/login?next=%2Fui%2Fbriefing");
   });
@@ -34,7 +34,17 @@ describe("apiGet", () => {
       mockResponse({ redirected: true, headers: new Headers({ "content-type": "text/html" }) }),
     ));
     const assign = vi.fn();
-    vi.stubGlobal("location", { assign, pathname: "/ui/briefing" });
+    vi.stubGlobal("location", { assign, pathname: "/ui/briefing", search: "" });
     await expect(apiGet("/x")).rejects.toBeInstanceOf(UnauthenticatedError);
+  });
+
+  it("500 → 抛普通 Error 且不跳转", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => mockResponse({ ok: false, status: 500 })));
+    const assign = vi.fn();
+    vi.stubGlobal("location", { assign, pathname: "/ui/briefing", search: "" });
+    const err = await apiGet("/x").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(UnauthenticatedError);
+    expect(assign).not.toHaveBeenCalled();
   });
 });
