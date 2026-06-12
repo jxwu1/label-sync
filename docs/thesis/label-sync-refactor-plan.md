@@ -5,6 +5,29 @@
 
 ---
 
+## ✅ 状态对账（2026-06-12，Fable 复核仓库现状）
+
+**本 plan 已基本执行完毕**，以下为逐 Phase 对账。后续读者：本文档价值已转为
+历史记录 + plan 写作范本（批次 commit / 复审补丁模式被 `docs/plan-templates.md`
+收编），不要再按"待执行"理解。
+
+| Phase | 状态 | 证据 |
+|---|---|---|
+| 0 安全审查 | 🟡 大体完成，残余在册 | secret env / cron 鉴权等残余项已并入 Codex review backlog（`docs/engineering-backlog.md`），不在本 plan 追踪 |
+| 1 CLAUDE.md 重写 | ✅ | 当前 CLAUDE.md 即项目上下文 + CodeGraph（GitNexus 已于 2026-05-29 移除，"保留 GitNexus"的指示已被现实取代） |
+| 2 目录结构 app/ 包 | ✅ | `ad908ea Merge Phase 2: app/ package refactor`（8 批次执行，import-audit before/after 在 docs/refactor/） |
+| 3 中文目录名清理 | ✅ | 仓库无 `垃圾桶` 引用，运行时目录 = archive/ |
+| 4 Node 配置清理 | ✅ | package.json / eslint.config.js 已不在仓库（注意：Tailwind v4 用 standalone CLI，无 Node 依赖） |
+| 5 CI/CD | ✅ 且超额 | `.github/workflows/ci.yml`：pytest sqlite+postgres 双矩阵 + ruff + docker（#37），超出原 plan 的单腿设计 |
+| 6 README/元信息 | ✅ | README 重写 + GitHub description/topics 已设置 |
+| 7 PostgreSQL 迁移 | ✅ 且超额 | 已切 Coolify shared-pg17 为主库（原 plan 仅"可选支持"），engine 单源 `app/db.py` |
+
+**风险分级结论（原"第 8 项"问题的答案）**：plan 已执行完，分级问题消解。
+留给未来同类重构的经验已蒸馏进 `docs/plan-templates.md` 反例库
+（E11 飞行任务冲突、E12 工具链漂移、工时 ×3 规则、批次独立 commit）。
+
+---
+
 ## ⚠️ 执行前置条件（2026-05-15 复审补充）
 
 **开干 Phase 0 之前必须满足**:
