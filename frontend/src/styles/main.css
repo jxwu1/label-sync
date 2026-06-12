@@ -1,0 +1,16 @@
+/* 单源 tokens：仓库根 static/css/tokens.css（spec §7 — 绝不复制） */
+@import "../../../static/css/tokens.css";
+@import "tailwindcss";
+
+/* @theme 映射层：把单源 CSS 变量暴露成 Tailwind 工具类（新栈私有，不回写单源） */
+@theme {
+  --spacing-1: var(--sp-1);
+  --spacing-2: var(--sp-2);
+  --spacing-3: var(--sp-3);
+  --spacing-4: var(--sp-4);
+  --spacing-6: var(--sp-6);
+  --font-size-sm: var(--fs-sm);
+  --font-size-base: var(--fs-base);
+  --font-size-lg: var(--fs-lg);
+  --font-size-xl: var(--fs-xl);
+}
