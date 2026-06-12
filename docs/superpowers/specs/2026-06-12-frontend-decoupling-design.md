@@ -1,8 +1,8 @@
 # 前端独立化 · 阶段 0+1 设计（地基 + 简报试点页）
 
-> **Date**: 2026-06-12（v3：二轮 review 修正 401 实施点 = init_auth 全局
-> before_request 闸而非 unauthorized handler + cron token 分支保护 + 端点定死
-> GET /api/briefing/data；v2：一轮 review 4 阻断项 + 4 建议项）
+> **Date**: 2026-06-12（v4：三轮 review 补 Vite server.fs.allow 跨 root 读
+> tokens 方案 + vitest run 非 watch + 验收 #6 三段验证；v3：401 实施点 =
+> init_auth 全局闸；v2：一轮 review 4 阻断项 + 4 建议项）
 > **状态**: 设计稿待用户审阅（审阅通过后出实施 plan）
 > **作者**: Fable 5（brainstorming 产出）
 > **决策记录**: 用户痛点全选（开发体验/现代框架/代码组织/部署分离）；
@@ -87,7 +87,8 @@ Vue Router + Tailwind v4（`@tailwindcss/vite`）。
   后端 app 排除 `frontend/**` —— 前端发布不再重启 Flask（不杀后台长任务，
   E10 的痛缩到只剩后端自身）；不支持则接受双触发，不劣于现状。
 - **CI** 新增 frontend job，命令名定死（防 package scripts 自由发挥）：
-  `npm ci` → `npm run typecheck` → `npm test` → `npm run build` →
+  `npm ci` → `npm run typecheck` → `npm test`（package script 定死为
+  **`vitest run` 非 watch 模式**，防 CI 挂住）→ `npm run build` →
   `npm run build-storybook`，外加 `python tools/gen_ts_types.py --check`
   与"仓库根无 package.json / package-lock.json"守护断言。
   现有 python 三腿不动。
@@ -102,7 +103,7 @@ Vue Router + Tailwind v4（`@tailwindcss/vite`）。
 - 实施 plan Task 1 = 简报端点与数据形状核对，**审计范围必须包含现有
   `/briefing/data` 的消费链**（简报服务读 forecast_output.p50 ——
   红线 B1 的 computed_at 过期 + stockout_weeks_excluded 两件套要在
-  新 `/api/briefing/*` 链路里确认处理，不只约束"新增端点"这四个字）。
+  新 `GET /api/briefing/data` 链路里确认处理，不只约束"新增端点"这四个字）。
 - **新 API 规矩**（写进 CLAUDE.md/AGENTS.md）：请求/响应用 pydantic schema
   声明（`app/schemas.py` 先例）；`tools/gen_ts_types.py` 基于
   **pydantic `model_json_schema()`** 自写轻量转换生成
@@ -136,6 +137,13 @@ Vue Router + Tailwind v4（`@tailwindcss/vite`）。
 - frontend/ 消费方式：import 同一份 `static/css/tokens.css`，然后在
   **frontend 自己的 Tailwind entry** 里做 `@theme` 映射（引用 var()），
   Tailwind 工具类由映射层生成——@theme 属于新栈私有，不污染单源文件。
+- **跨 root 导入方案（v4 定死，防 Vite 白名单拒读）**：frontend 工程 root
+  在 `frontend/`，import `../static/css/tokens.css` 默认会被 Vite dev
+  server 的 fs 白名单拦（"outside of Vite serving allow list"）。解法：
+  `vite.config.ts` 显式配 `server.fs.allow: [searchForWorkspaceRoot(...),
+  '../static/css']`（或等价的仓库根白名单）；**不用复制/软链接方案**——
+  那会制造第二份文件，单源名存实亡。dev 与 build 双路径都要验证该外部
+  import 生效（进 §10 验收 #6）。
 - 本期对 tokens.css 的改动仅限：补简报页所需但缺名的变量 + 合并明显
   重复项；全量清理散落硬编码是后续迁移的副产品，不在本期强求。
 - 验收：改一个 token 色值，旧页与 /ui 新页同时变。
@@ -170,7 +178,9 @@ Vue Router + Tailwind v4（`@tailwindcss/vite`）。
 4. CI 前端腿（type-check + vitest + build + storybook build）绿，
    python 三腿不受影响
 5. 新旧简报页并存可访问，行为一致
-6. tokens 单源生效：改一个色值，新旧两页同步变化
+6. tokens 单源生效（三段验证）：`npm run dev` 能加载跨 root 的
+   token CSS；`npm run build` 产物包含 token 变量；改
+   `static/css/tokens.css` 一个色值后旧页与 `/ui/briefing` 同步变化
 7. Storybook 本地可跑，基础组件 + tokens 页齐全
 8. 新 API 端点有 pydantic schema，`types.gen.ts` 与 schema 一致
    （`gen_ts_types.py --check` 进 CI）
