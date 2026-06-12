@@ -22,7 +22,7 @@ withDefaults(defineProps<{ tone?: "ok" | "warn" | "danger" | "muted" }>(), {
   background: var(--success-subtle);
 }
 .badge--warn {
-  color: var(--warn);
+  color: var(--warn-dim);
   background: var(--warn-subtle);
 }
 .badge--danger {
