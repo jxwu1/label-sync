@@ -8,10 +8,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class BriefingCards(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     sales_health: dict[str, Any]
     restock_risk: dict[str, Any]
     stockout_impact: dict[str, Any]
@@ -20,6 +22,8 @@ class BriefingCards(BaseModel):
 
 
 class BriefingActions(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     restock: dict[str, Any]
     follow_up: dict[str, Any]
     review_anomalies: dict[str, Any]
@@ -28,6 +32,8 @@ class BriefingActions(BaseModel):
 class BriefingData(BaseModel):
     """GET /api/briefing/data 响应。card/action 内层形状多态，v1 透传；
     前端组件消费到哪层，类型就加深到哪层（progressive typing）。"""
+
+    model_config = ConfigDict(extra="forbid")
 
     ok: bool
     generated_at: str
