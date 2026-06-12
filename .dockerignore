@@ -42,3 +42,8 @@ Thumbs.db
 # docs 太大且非运行需要
 docs/
 CHANGELOG.md
+
+# 前端独立镜像构建上下文清洁 (frontend/Dockerfile 从根上下文构建)
+frontend/node_modules/
+frontend/dist/
+frontend/storybook-static/

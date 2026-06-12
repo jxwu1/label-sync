@@ -68,6 +68,18 @@ label-sync/
 - 文件系统访问收敛到 `*_repository.py`
 - 数据库 schema 单源：`models.py`，新增字段走 `alembic revision --autogenerate`
 
+## 前端独立化（阶段 0+1 试点期）
+
+- 新 API 端点：响应模型声明在 `app/schemas_api.py`（pydantic），改后跑
+  `python tools/gen_ts_types.py` 同步 TS 类型（CI --check 守护漂移）
+- `/api/*` 未登录返回 JSON 401（auth.py `_require_login` 分流）；
+  X-Upload-Token cron 分支语义不可动
+- frontend/ 是独立 Vite 工程（Node 严格圈在该目录，仓库根禁 package.json）；
+  本地 `./dev.ps1 -Frontend` 或 `cd frontend && npm run dev`
+- tokens 单源 = `static/css/tokens.css`（纯 CSS 变量），新栈经
+  frontend/src/styles/main.css 的 @theme 映射消费——绝不复制该文件
+- 设计 spec：docs/superpowers/specs/2026-06-12-frontend-decoupling-design.md
+
 ## 测试
 
 ```bash

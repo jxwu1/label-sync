@@ -8,6 +8,7 @@ from app.config import CONFIG
 from app.routes.admin import bp as admin_bp
 from app.routes.analytics import bp as analytics_bp
 from app.routes.attendance import bp as attendance_bp
+from app.routes.briefing import api_bp as briefing_api_bp
 from app.routes.briefing import bp as briefing_bp
 from app.routes.dashboard import bp as dashboard_bp
 from app.routes.data_quality import bp as data_quality_bp
@@ -28,6 +29,7 @@ from app.routes.stockpile import bp as stockpile_bp
 def register_routes(app) -> None:
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(briefing_bp)
+    app.register_blueprint(briefing_api_bp)
     app.register_blueprint(pages_tasks_bp)
     app.register_blueprint(query_bp)
     app.register_blueprint(history_bp)

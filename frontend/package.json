@@ -1,0 +1,47 @@
+{
+  "name": "frontend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run --project=unit",
+    "build-storybook": "storybook build",
+    "storybook": "storybook dev -p 6006"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "pinia": "^3.0.4",
+    "vue": "^3.5.38",
+    "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@chromatic-com/storybook": "^5.2.1",
+    "@storybook/addon-a11y": "^10.4.4",
+    "@storybook/addon-docs": "^10.4.4",
+    "@storybook/addon-onboarding": "^10.4.4",
+    "@storybook/addon-vitest": "^10.4.4",
+    "@storybook/vue3": "^10.4.4",
+    "@storybook/vue3-vite": "^10.4.4",
+    "@tailwindcss/vite": "^4.3.0",
+    "@types/node": "^25.9.3",
+    "@vitejs/plugin-vue": "^6.0.7",
+    "@vitest/browser-playwright": "^4.1.8",
+    "@vitest/coverage-v8": "^4.1.8",
+    "@vue/test-utils": "^2.4.11",
+    "jsdom": "^29.1.1",
+    "playwright": "^1.60.0",
+    "storybook": "^10.4.4",
+    "tailwindcss": "^4.3.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.8",
+    "vue-tsc": "^3.3.4"
+  }
+}
