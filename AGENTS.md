@@ -115,6 +115,7 @@ docker compose up -d
 - `docs/dev-setup.md` — 开发环境
 - `docs/deploy-plan.md` — Hetzner / Coolify 部署 plan
 - `docs/superpowers/plans/2026-05-12-forecast-and-backtest.md` — 预测算法主 plan
+- `docs/system-mental-model.md` — 系统心智模型（数据流/模块假设/耦合点/改动波及表，改链路前先查）
 - `docs/thesis/参考论文.md` — 毕业论文参考稿（双人 joint paper）
 - `docs/thesis/项目说明.md` — 给同学的分工说明
 - `docs/thesis/迭代路线图.md` — 半年路线图
