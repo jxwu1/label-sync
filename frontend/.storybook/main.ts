@@ -1,5 +1,5 @@
-import { fileURLToPath, URL } from "node:url";
 import type { StorybookConfig } from "@storybook/vue3-vite";
+import { fsAllow } from "../fs-allow.js";
 
 const config: StorybookConfig = {
   framework: "@storybook/vue3-vite",
@@ -17,10 +17,7 @@ const config: StorybookConfig = {
     cfg.server = cfg.server ?? {};
     cfg.server.fs = {
       ...cfg.server.fs,
-      allow: [
-        fileURLToPath(new URL("..", import.meta.url)),
-        fileURLToPath(new URL("../../static/css", import.meta.url)),
-      ],
+      allow: fsAllow,
     };
     return cfg;
   },
