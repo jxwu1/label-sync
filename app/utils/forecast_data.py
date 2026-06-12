@@ -96,6 +96,63 @@ def weekly_demand_series(
     return series
 
 
+def weekly_demand_series_bulk(
+    barcodes: list[str],
+    end_date: date,
+    weeks: int,
+    session: Session | None = None,
+) -> dict[str, dict[date, int]]:
+    """weekly_demand_series 的批量版：一次窗口查询取齐全部 SKU。
+
+    逐 SKU 结果与单个调用一致（test_forecast_bulk 等价测试守护）。
+    退货归并语义同单 SKU 版：doc 桶按 (barcode, doc_key) 分组，空单号
+    （None/''）按事件主键独立。
+    """
+    if weeks < 1:
+        raise ValueError("weeks must be >= 1")
+    barcodes = list(dict.fromkeys(barcodes))
+    if not barcodes:
+        return {}
+    if session is None:
+        with stockpile_db._session() as s:
+            return weekly_demand_series_bulk(barcodes, end_date, weeks, s)
+
+    end_monday = _monday(end_date)
+    week_starts = [end_monday - timedelta(days=7 * (weeks - 1 - i)) for i in range(weeks)]
+    window_start = week_starts[0]
+    window_end_exclusive = end_monday + timedelta(days=7)
+
+    rows = session.execute(
+        select(
+            InventoryEvent.product_barcode,
+            InventoryEvent.event_at,
+            InventoryEvent.qty,
+            InventoryEvent.document_no,
+            InventoryEvent.id,
+        ).where(
+            InventoryEvent.event_type == "sale",
+            InventoryEvent.product_barcode.in_(barcodes),
+            InventoryEvent.event_at >= window_start.isoformat(),
+            InventoryEvent.event_at < window_end_exclusive.isoformat(),
+        )
+    ).all()
+
+    buckets: dict[tuple[str, str], list[tuple[date, int]]] = defaultdict(list)
+    for bc, event_at, qty, doc_no, ev_id in rows:
+        key = (bc, doc_no if doc_no else f"__null__{ev_id}")
+        buckets[key].append((_parse_event_date(event_at), qty))
+
+    out: dict[str, dict[date, int]] = {bc: {w: 0 for w in week_starts} for bc in barcodes}
+    for (bc, _doc), items in buckets.items():
+        net = sum(q for _, q in items)
+        if net <= 0:
+            continue
+        earliest_week = _monday(min(d for d, _ in items))
+        if earliest_week in out[bc]:
+            out[bc][earliest_week] += net
+    return out
+
+
 # ---- §1.3 winsorize ----------------------------------------------------------
 
 

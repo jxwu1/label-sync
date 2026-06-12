@@ -165,6 +165,60 @@ def build_routed_series(
     return series, sku_type, len(raw) - len(kept), model_name, raw
 
 
+def build_routed_series_bulk(
+    barcodes: list[str],
+    end_date: dt.date,
+    weeks: int,
+    session=None,
+) -> dict[str, tuple[list[float], str, int, str, dict] | None]:
+    """build_routed_series 的批量版：每批常数次查询（≤7），逐 SKU 结果与
+    单个调用完全一致（test_forecast_bulk 等价测试守护）。
+
+    refresh 周刷此前每 SKU 走 3-6 次查询（4k SKU ≈ 2.5-3 万次/轮）；
+    批量化后 = base_demand bulk(≤4) + wholesale 原始序列(1) + stockout(2)。
+    """
+    from app.services.stockout import exclude_stockout_weeks, stockout_weeks_bulk
+    from app.utils.forecast_data import base_demand_views_bulk, weekly_demand_series_bulk
+
+    barcodes = list(dict.fromkeys(barcodes))
+    out: dict[str, tuple[list[float], str, int, str, dict] | None] = {}
+    if not barcodes:
+        return out
+
+    views = base_demand_views_bulk(barcodes, end_date, weeks, session=session)
+
+    wholesale = [bc for bc in barcodes if views[bc]["sku_type"] == "wholesale_only"]
+    raw_wh = (
+        weekly_demand_series_bulk(wholesale, end_date, weeks, session=session) if wholesale else {}
+    )
+
+    raws: dict[str, dict] = {}
+    for bc in barcodes:
+        v = views[bc]
+        if ROUTING.get(v["sku_type"]) is None:
+            out[bc] = None
+            continue
+        if v["sku_type"] == "wholesale_only":
+            raw = raw_wh.get(bc, {})
+            if sum(1 for q in raw.values() if q > 0) < _WHOLESALE_MIN_NONZERO_WEEKS:
+                out[bc] = None
+                continue
+        else:
+            if v["series"] is None:
+                out[bc] = None
+                continue
+            raw = v["series"]
+        raws[bc] = raw
+
+    so_map = stockout_weeks_bulk(list(raws), end_date, weeks, session=session) if raws else {}
+    for bc, raw in raws.items():
+        kept = exclude_stockout_weeks(raw, so_map.get(bc, set()))
+        series = [kept[k] for k in sorted(kept)]
+        sku_type = views[bc]["sku_type"]
+        out[bc] = (series, sku_type, len(raw) - len(kept), ROUTING[sku_type], raw)
+    return out
+
+
 def refresh_forecast_output(
     end_date: dt.date | None = None,
     weeks: int = 156,
@@ -204,56 +258,63 @@ def refresh_forecast_output(
         n_total = len(barcodes)
         n_written = 0
         written: list[str] = []
-        for bc in barcodes:
-            built = build_routed_series(bc, end_date, weeks, session=s)
-            if built is None:
-                continue
-            series, sku_type, n_excluded, model_name, raw = built
-            if len(series) < _MIN_FIT_WEEKS:
-                continue
+        # 批量预取（每批常数次查询）替代逐 SKU 查询风暴；500/批兼顾
+        # sqlite 参数上限与内存（156 周窗口事件量）。
+        from app.services.stockout import stockout_weeks_bulk
 
-            model = _MODEL_REGISTRY[model_name]()
-            model.fit(series)
-            d = model.predict(steps=1)
-
-            # 置信度分层输入 (第1期任务③): 顺手算非零周数 + 近期零需求周数。
-            nonzero_weeks, zero_weeks_last8 = demand_history_stats(series)
-
+        _chunk = 500
+        for start in range(0, len(barcodes), _chunk):
+            chunk = barcodes[start : start + _chunk]
+            built_map = build_routed_series_bulk(chunk, end_date, weeks, session=s)
+            admitted = [
+                bc
+                for bc in chunk
+                if built_map.get(bc) is not None and len(built_map[bc][0]) >= _MIN_FIT_WEEKS
+            ]
             # 缺货零销周数 (spec 2026-06-09): 在剔除前的原始序列上算 ——
-            # RL-3 剔除后 series 周键不连续。raw 由路由函数顺带返回, 免二次查询。
-            sw = stockout_weeks(bc, end_date, max(len(raw), 1), session=s)
-            szw8 = stockout_zero_weeks_last8(raw, sw)
+            # RL-3 剔除后 series 周键不连续。窗口同 raw（恒为 weeks 个周键）。
+            so_map = stockout_weeks_bulk(admitted, end_date, weeks, session=s) if admitted else {}
+            for bc in admitted:
+                series, sku_type, n_excluded, model_name, raw = built_map[bc]
 
-            # RL-1: horizon 分位数 = bootstrap 和分位, 消费端禁用 周分位 × N。
-            p50_h = horizon_quantile(series, horizon, 0.50)
-            p98_h = horizon_quantile(series, horizon, 0.98)
-            p98_13w = horizon_quantile(series, 13, 0.98)
+                model = _MODEL_REGISTRY[model_name]()
+                model.fit(series)
+                d = model.predict(steps=1)
 
-            # SQLite 不支持原生 ON CONFLICT for SQLAlchemy core 跨方言; delete+insert
-            # 简单可靠. PG/SQLite 行为一致.
-            s.execute(delete(ForecastOutput).where(ForecastOutput.product_barcode == bc))
-            s.execute(
-                insert(ForecastOutput).values(
-                    product_barcode=bc,
-                    model_used=model.name,
-                    sku_type=sku_type,
-                    n_weeks_history=len(series),
-                    nonzero_weeks=nonzero_weeks,
-                    zero_weeks_last8=zero_weeks_last8,
-                    stockout_zero_weeks_last8=szw8,
-                    mu=d.mu,
-                    sigma=d.sigma,
-                    p50=d.p50,
-                    p98=d.p98,
-                    horizon_weeks=horizon,
-                    p50_h=p50_h,
-                    p98_h=p98_h,
-                    p98_13w=p98_13w,
-                    stockout_weeks_excluded=n_excluded,
+                # 置信度分层输入 (第1期任务③): 顺手算非零周数 + 近期零需求周数。
+                nonzero_weeks, zero_weeks_last8 = demand_history_stats(series)
+                szw8 = stockout_zero_weeks_last8(raw, so_map.get(bc, set()))
+
+                # RL-1: horizon 分位数 = bootstrap 和分位, 消费端禁用 周分位 × N。
+                p50_h = horizon_quantile(series, horizon, 0.50)
+                p98_h = horizon_quantile(series, horizon, 0.98)
+                p98_13w = horizon_quantile(series, 13, 0.98)
+
+                # SQLite 不支持原生 ON CONFLICT for SQLAlchemy core 跨方言; delete+insert
+                # 简单可靠. PG/SQLite 行为一致.
+                s.execute(delete(ForecastOutput).where(ForecastOutput.product_barcode == bc))
+                s.execute(
+                    insert(ForecastOutput).values(
+                        product_barcode=bc,
+                        model_used=model.name,
+                        sku_type=sku_type,
+                        n_weeks_history=len(series),
+                        nonzero_weeks=nonzero_weeks,
+                        zero_weeks_last8=zero_weeks_last8,
+                        stockout_zero_weeks_last8=szw8,
+                        mu=d.mu,
+                        sigma=d.sigma,
+                        p50=d.p50,
+                        p98=d.p98,
+                        horizon_weeks=horizon,
+                        p50_h=p50_h,
+                        p98_h=p98_h,
+                        p98_13w=p98_13w,
+                        stockout_weeks_excluded=n_excluded,
+                    )
                 )
-            )
-            n_written += 1
-            written.append(bc)
+                n_written += 1
+                written.append(bc)
         if full_refresh:
             # 全量模式收尾: 清掉本轮不再够格 SKU 的旧行 (转 dying/路由变更后的僵尸预测)
             s.execute(delete(ForecastOutput).where(ForecastOutput.product_barcode.not_in(written)))

@@ -28,10 +28,12 @@
 - [ ] **修 e2e 烟雾测试** — `test_smoke_nav.py` / `test_nav_lazy_load.py` 在 main 上已坏
   （auth 后没更新被 302 到登录墙 + 引用已下线的 sales_analytics/transfer 页）；
   修法：`page.request.post("/login")` + nav 列表从 Alpine store 动态取
-- [ ] **requirements.txt 锁版本** — 目前全裸名，每次 Coolify build 赌上游兼容
+- [x] **requirements.txt 锁版本** — ✅ 2026-06-12：生产+dev 全部钉死（本地全量测试验证版本），升级走 PR 由 CI 双矩阵守
 
 ## P2 — 结构债（无依赖，有重构窗口时整体做）
 
+- [ ] `run_backtest_all_skus` bulk 化 — refresh 已改批量预取（2026-06-12，build_routed_series_bulk），
+  回测全量入口仍逐 SKU 查询（45k 主档 × 3-5 查询/SKU）；bulk 基础函数已就位，照 refresh 模式分块改造
 - [ ] 拆 `app/routes/analytics.py`（983 行单蓝图 → sku / restock / forecast 子蓝图）
 - [ ] 拆 `app/services/attendance.py`（794 行混 CRUD / 假期 / 报表 / 导入四职责）
 - [ ] route→service 越层收口（20+ 处路由直接 ORM：`dashboard.py:119-285`、
