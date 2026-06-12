@@ -121,6 +121,9 @@ def init_auth(app, *, seed_users: bool = True):
             if not (ep.startswith("pda.") or ep.startswith("auth.") or ep == "static"):
                 return redirect(url_for("pda.scan_page"))
         if not current_user.is_authenticated:
+            # SPA fetch 不能吃 302 登录页 HTML（spec §6 v3）：/api/* 返回 JSON 401
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "unauthenticated"}), 401
             return redirect(url_for("auth.login", next=request.url))
 
     @app.after_request
