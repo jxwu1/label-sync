@@ -238,7 +238,7 @@ def base_demand_view(
             "exclusion_qty": 0,
         }
 
-    all_doc_qtys = _fetch_sku_doc_net_qty(barcode, session)
+    all_doc_qtys = _fetch_sku_doc_net_qty(barcode, session, as_of=end_date)
     stats = compute_doc_qty_stats(all_doc_qtys)
 
     if weeks < 1:
@@ -342,6 +342,11 @@ def base_demand_views_bulk(
         classify_sku_type_from_docs,
     )
 
+    # as_of 上界 (审计 LK-1)：与单 SKU 路径 _fetch_last_sale_at / _fetch_sku_doc_net_qty
+    # 的 cutoff 同语义 (含 end_date 的 ISO 周下一个周一)。生产 end_date=today 行为不变；
+    # last_sale 与 doc_nets 两个查询都必须挡未来事件，漏一个 test_bulk_matches_per_sku_view 会红。
+    asof_cutoff = (_monday(end_date) + timedelta(days=7)).isoformat()
+
     # 1) 每 SKU 最后销售时间 (dying 判定)
     last_sale = dict(
         session.execute(
@@ -349,6 +354,7 @@ def base_demand_views_bulk(
             .where(
                 InventoryEvent.event_type == "sale",
                 InventoryEvent.product_barcode.in_(barcodes),
+                InventoryEvent.event_at < asof_cutoff,
             )
             .group_by(InventoryEvent.product_barcode)
         ).all()
@@ -372,6 +378,7 @@ def base_demand_views_bulk(
         .where(
             InventoryEvent.event_type == "sale",
             InventoryEvent.product_barcode.in_(barcodes),
+            InventoryEvent.event_at < asof_cutoff,
         )
         .group_by(InventoryEvent.product_barcode, doc_key)
         .having(func.sum(InventoryEvent.qty) > 0)

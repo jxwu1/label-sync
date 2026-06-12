@@ -36,7 +36,14 @@ ADI 分位：p10=1.88 / p50=3.64 / p90=8.94 —— **整个组合都在文献切
 
 intermittent / lumpy（合计 99%）× base_demand 视图，最新 runs：
 
-| 模型 | medMASE (int./lumpy) | avgCov@98 (int./lumpy) | 角色 |
+> **⚠️ 口径注记（2026-06-12 batch1）**：F2/F3 表中 medMASE 均为**旧 MASE 定义**
+> （展平 lag-1 分母，审计 MT-1），绝对值不可与文献对标。代码已切标准 MASE
+> （`backtest.mase_from_records`，逐窗 in-sample naive MAE）；新口径数字待全模型
+> 重跑回填（重跑 blocked，详见审计第五节修复记录）。**模型相对排序由同一分母
+> 横评决定，与分母口径无关**，故 D 系列路由决策（EmpQuant 主力 / CrostonSBA
+> wholesale）不动摇。avgCov@98 含零周机械覆盖（MT-5）。
+
+| 模型 | medMASE (int./lumpy)〔旧口径〕 | avgCov@98 (int./lumpy) | 角色 |
 |---|---|---|---|
 | NaiveMean4W | **0.949 / 0.930** ⭐点最准 | 0.894 / 0.882 ✗尾部最差 | 点基准 |
 | EmpiricalQuantile | 0.977 / 0.969 | **0.974 / 0.970** ⭐唯一近标称 | 补货主力 |
@@ -49,7 +56,9 @@ erratic（n=38）里 CrostonSBA/EmpQuant 领先，排序同向。smooth n<20 无
 
 非 retail/mixed 的活跃 SKU（'all' 视图有回测分的，n=27）：
 
-| 模型 | medMASE | avgCov@98 |
+> medMASE 同 F2 注记：旧口径，相对排序成立，绝对值待标准 MASE 重跑刷新。
+
+| 模型 | medMASE〔旧口径〕 | avgCov@98 |
 |---|---|---|
 | **CrostonSBA** | **0.966** | 0.930 |
 | NaiveMean4W | 0.978 | 0.909 |
