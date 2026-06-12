@@ -2,6 +2,7 @@ import { createPinia, setActivePinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../api/client", () => ({
+  UnauthenticatedError: class UnauthenticatedError extends Error {},
   apiGet: vi.fn(async () => ({
     ok: true,
     generated_at: "2026-06-12T09:00:00",
@@ -18,6 +19,7 @@ vi.mock("../api/client", () => ({
   })),
 }));
 
+import { apiGet, UnauthenticatedError } from "../api/client";
 import { useBriefingStore } from "./briefing";
 
 describe("briefing store", () => {
@@ -32,5 +34,22 @@ describe("briefing store", () => {
     expect(s.loading).toBe(false);
     expect(s.data?.data_week).toBe("2026-06-08");
     expect(s.error).toBeNull();
+  });
+
+  it("load 失败 → error 填充, data 保持 null, loading 清掉", async () => {
+    const s = useBriefingStore();
+    vi.mocked(apiGet).mockRejectedValueOnce(new Error("boom"));
+    await s.load();
+    expect(s.loading).toBe(false);
+    expect(s.error).toBe("boom");
+    expect(s.data).toBeNull();
+  });
+
+  it("未登录错误被吞掉（跳转接管 UX），不污染 error", async () => {
+    const s = useBriefingStore();
+    vi.mocked(apiGet).mockRejectedValueOnce(new UnauthenticatedError("x"));
+    await s.load();
+    expect(s.error).toBeNull();
+    expect(s.loading).toBe(false);
   });
 });
