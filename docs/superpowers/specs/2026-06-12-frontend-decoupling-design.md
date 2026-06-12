@@ -1,6 +1,7 @@
 # 前端独立化 · 阶段 0+1 设计（地基 + 简报试点页）
 
-> **Date**: 2026-06-12
+> **Date**: 2026-06-12（v2 修订：采纳同日 review 的 4 个阻断项 + 4 个建议项，
+> 涉及 /ui 资产路径、API canonical 路径、401 契约、tokens 现状对齐）
 > **状态**: 设计稿待用户审阅（审阅通过后出实施 plan）
 > **作者**: Fable 5（brainstorming 产出）
 > **决策记录**: 用户痛点全选（开发体验/现代框架/代码组织/部署分离）；
@@ -32,8 +33,13 @@ Traefik（Coolify 管理）
 ```
 
 - 同域 ⇒ flask-login session cookie 直接复用、零 CORS。
-- Vue Router `base: '/ui/'`，history 模式；静态服务配 SPA fallback
-  （未命中文件 → index.html）。
+- **/ui 前缀服务方案（定死，防资产 404）**：Traefik **不做 StripPrefix**，
+  请求原样带 `/ui/...` 进静态容器；`vite.config.ts` 设 `base: '/ui/'`；
+  Dockerfile 把构建产物 COPY 到 web 根的 `ui/` 子目录（如
+  `/usr/share/nginx/html/ui/`），nginx `location /ui/ { try_files $uri
+  /ui/index.html; }` —— 资产请求 `/ui/assets/*.js` 与磁盘路径天然对齐，
+  SPA fallback 指向 `/ui/index.html`。可验证：`curl /ui/assets/<hash>.js`
+  返回 JS（content-type 正确），`curl /ui/briefing` 刷新直达返回 index.html。
 - 双栈并存：旧简报页保留原路径；新版 `/ui/briefing`。验收通过后旧页删除，
   原路径 302 → `/ui/briefing`。
 
@@ -65,7 +71,9 @@ Vue Router + Tailwind v4（`@tailwindcss/vite`）。
 ## 4. 开发体验
 
 - `cd frontend && npm run dev` → Vite :5173，HMR 热重载；
-  `/api` 与会话路径 proxy 到本地 Flask :5000（cookie 透传）。
+  proxy 规则**只有 `/api` 一条**（cookie 透传到本地 Flask :5000）——
+  成立前提是 §6 的 canonical 决策：新前端只消费 `/api/*`，绝不直接调
+  `/briefing/data` 这类旧页端点。
 - 改组件即时生效 —— 模板缓存、改 HTML 要重启、僵尸 :5000 端口三个坑
   （反例 E7 / 项目记忆）在新栈结构性消失。
 - `dev.ps1` 后续加 `-Frontend` 开关一键起双进程（实施 plan 内含）。
@@ -77,30 +85,47 @@ Vue Router + Tailwind v4（`@tailwindcss/vite`）。
 - **watch paths**：若 Coolify 版本支持，前端 app 配 `frontend/**`、
   后端 app 排除 `frontend/**` —— 前端发布不再重启 Flask（不杀后台长任务，
   E10 的痛缩到只剩后端自身）；不支持则接受双触发，不劣于现状。
-- **CI** 新增 frontend job：`npm ci` → type-check → vitest → build →
-  Storybook build（防 story 腐烂）。现有 python 三腿不动。
+- **CI** 新增 frontend job，命令名定死（防 package scripts 自由发挥）：
+  `npm ci` → `npm run typecheck` → `npm test` → `npm run build` →
+  `npm run build-storybook`，外加 `python tools/gen_ts_types.py --check`
+  与"仓库根无 package.json / package-lock.json"守护断言。
+  现有 python 三腿不动。
 
 ## 6. API 与类型契约（留 Flask 的前提下拿到 FastAPI 的好处）
 
-- 试点所需端点：核对简报页现有 routes，缺 JSON 端点则在
-  `app/routes/analytics.py`（或对应蓝图）补 `/api/briefing/*`。
-  实施 plan 第一个 Task 就是这次核对（端点清单进 plan，不在 spec 拍脑袋）。
+- **canonical 路径决策（定死）**：新前端只消费 `/api/*`。试点新增
+  `/api/briefing/*`（pydantic schema + TS 类型）；现有 `/briefing/data`
+  **只留给旧页**，简报迁移验收删除旧页时一并退役。Vite proxy 因此只需
+  `/api` 一条规则。
+- 实施 plan Task 1 = 简报端点与数据形状核对，**审计范围必须包含现有
+  `/briefing/data` 的消费链**（简报服务读 forecast_output.p50 ——
+  红线 B1 的 computed_at 过期 + stockout_weeks_excluded 两件套要在
+  新 `/api/briefing/*` 链路里确认处理，不只约束"新增端点"这四个字）。
 - **新 API 规矩**（写进 CLAUDE.md/AGENTS.md）：请求/响应用 pydantic schema
-  声明（`app/schemas.py` 先例）；新增 `tools/gen_ts_types.py` 从 pydantic
-  模型生成 `frontend/src/api/types.gen.ts`（CI 校验生成物与 schema 同步，
-  漂移即红）。
-- 消费 forecast_output 类数据的端点遵守红线 B1（computed_at 过期 +
-  stockout_weeks_excluded 两件套）。
-- 认证：same-origin fetch 自带 session cookie；401 统一拦截 →
-  `window.location = '/login?next=...'`。
+  声明（`app/schemas.py` 先例）；`tools/gen_ts_types.py` 基于
+  **pydantic `model_json_schema()`** 自写轻量转换生成
+  `frontend/src/api/types.gen.ts`，**不引入重型生成器**；漂移检查命令
+  定死为 `python tools/gen_ts_types.py --check`（生成物与 schema 不一致
+  时退出码非 0，进 CI）。
+- **401 认证契约（解决与全局登录闸的冲突）**：现状 Flask 未登录一律
+  302 → `/login`，SPA fetch 会拿到登录页 HTML。修正：flask-login 的
+  unauthorized handler 按路径分流——`request.path.startswith('/api/')`
+  → 返回 `401 {"error": "unauthenticated"}`（JSON），其余路径维持 302。
+  前端 fetch 封装统一拦截 401 → `window.location = '/login?next=...'`；
+  防御性兜底：`response.redirected` 或 content-type 为 text/html 时
+  按未登录同样处理（防中间件行为漂移）。
 
 ## 7. Design Tokens（UI 规范化）
 
-- 单源文件 `static/tokens.css`（位置让新旧两栈都能引）：Tailwind v4
-  `@theme` 声明色板/间距/字号/圆角/阴影 + 现有**双主题**变量。
-- 消费：旧页 standalone CLI 构建引入（替换散落的硬编码值**仅限简报页
-  相关与明显重复项**，全量清理是后续迁移的副产品，不在本期强求）；
-  frontend/ 经 `@tailwindcss/vite` 引入同一文件。
+- **单源 = 现有 `static/css/tokens.css`，路径与格式都不动**（review 纠正：
+  原稿写 `static/tokens.css` + @theme 会造成单源分裂——旧页浏览器直接
+  link 的文件不能改成 Tailwind 专用格式）。该文件保持**纯 CSS 自定义
+  属性**（含现有双主题变量），旧页继续直接 link。
+- frontend/ 消费方式：import 同一份 `static/css/tokens.css`，然后在
+  **frontend 自己的 Tailwind entry** 里做 `@theme` 映射（引用 var()），
+  Tailwind 工具类由映射层生成——@theme 属于新栈私有，不污染单源文件。
+- 本期对 tokens.css 的改动仅限：补简报页所需但缺名的变量 + 合并明显
+  重复项；全量清理散落硬编码是后续迁移的副产品，不在本期强求。
 - 验收：改一个 token 色值，旧页与 /ui 新页同时变。
 - 来源：前端重排第二轮（docs/design 红稿）已沉淀的视觉决策——本节是把
   它们从"散在 CSS 里"升格为"有名字的规范"。
@@ -135,7 +160,12 @@ Vue Router + Tailwind v4（`@tailwindcss/vite`）。
 5. 新旧简报页并存可访问，行为一致
 6. tokens 单源生效：改一个色值，新旧两页同步变化
 7. Storybook 本地可跑，基础组件 + tokens 页齐全
-8. 新 API 端点有 pydantic schema，`types.gen.ts` 与 schema 一致（CI 校验）
+8. 新 API 端点有 pydantic schema，`types.gen.ts` 与 schema 一致
+   （`gen_ts_types.py --check` 进 CI）
+9. `/ui/briefing` 浏览器刷新直达 200（SPA fallback 生效，非 404）
+10. `/ui/assets/*` 实际返回 JS/CSS（content-type 正确），不是 index.html
+11. 未登录 fetch `/api/*` 返回 JSON 401（不是登录页 HTML / 302）
+12. 仓库根无 package.json / package-lock.json（CI 守护断言）
 
 ## 11. 双栈期规范（验收后写进 CLAUDE.md / AGENTS.md）
 
@@ -150,5 +180,9 @@ Vue Router + Tailwind v4（`@tailwindcss/vite`）。
 | 双栈并存期长，视觉/行为漂移 | tokens 单源（§7）+ 双栈期规范（§11） |
 | Coolify watch paths 不可用 → 前端 push 仍杀后端任务 | 验收标准 3 降级条款；长任务窗口照旧走 E10 纪律 |
 | Storybook/类型生成变成没人维护的摆设 | 全部进 CI（story build 红 = 立刻发现；types.gen 漂移 = 红） |
-| 简报页 API 现状不明 | 实施 plan Task 1 = 端点核对，spec 不预设 |
-| Node 供应链引入 | 锁 package-lock + frontend 圈定 + CI npm ci 固定解析 |
+| 简报页 API 现状不明 | 实施 plan Task 1 = 端点核对（含现有 /briefing/data 消费链审计），spec 不预设 |
+| Node 供应链引入 | 锁 package-lock + frontend 圈定 + CI npm ci 固定解析 + 根目录无 Node 守护断言 |
+| 401 契约改动影响旧页 | unauthorized handler 仅对 /api/* 分流，其余路径 302 行为不变；加路由测试守护 |
+
+**实施前置**：仓库根当前有一个 untracked `package-lock.json`（来源不明的
+npx 残留，与"根目录无 Node 痕迹"冲突）——实施 plan 第一步删除。
