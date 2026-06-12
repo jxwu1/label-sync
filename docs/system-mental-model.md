@@ -88,8 +88,13 @@ flowchart TD
 - 周界 = ISO 周一；`event_at` 前 10 字符可解析为日期。
 
 ### categorizer.classify_sku_type
-- doc-net 分布跨期平稳（全历史一把算，**无 as_of 上界** —— 审计 LK-1，
-  生产 as_of=today 时无害，回测/历史时点调用时是 look-ahead）。
+- doc-net 分布跨期平稳（一把算）；~~**无 as_of 上界** —— 审计 LK-1，回测/历史
+  时点调用时是 look-ahead~~ **已修（2026-06-12 batch1）**：`_fetch_last_sale_at`
+  / `_fetch_sku_doc_net_qty` 加 `as_of` 上界（cutoff = 含 as_of 的 ISO 周下一个
+  周一，与 `weekly_demand_series.window_end_exclusive` 同源），`classify_sku_type`
+  透传；bulk 路径 `base_demand_views_bulk` 的 last_sale/doc_nets 两查询同步加 cutoff
+  （C5 三处一致，`test_categorizer_asof` + `test_bulk_matches_per_sku_view` 守护）。
+  生产 as_of=today 时未来不存在，行为不变。
 - "死活"由最后销售距今决定：≥26 周深度死亡不分型；[13,26) 边际带
   wholesale_only 不判死（批发 ADI p90≈9 周，13 周只是正常下单间隔）。
 - 阈值常量是 spike 实证锁定的，不是可随手调的参数 —— 改它触发 C3。
@@ -98,7 +103,9 @@ flowchart TD
 
 ### base_demand_view
 - "大单 = 噪声"**仅对 retail_dominant/mixed 成立**；wholesale 的大单是需求本体。
-- IQR 阈值（median + 3·IQR）用全历史 doc-net 估计，假设分布稳定（同 LK-1）。
+- IQR 阈值（median + 3·IQR）用 doc-net 估计，假设分布稳定；**已加 as_of 上界**
+  （2026-06-12 batch1，LK-1）—— 阈值只看 ≤ end_date 的 doc，不含未来大单。
+  注：仍是回测期末的"全可见历史"阈值，逐截点重估留作 future work（审计 LK-2）。
 - mixed 的客户过滤假设 customer_type 维护是可信的。
 
 ### stockout

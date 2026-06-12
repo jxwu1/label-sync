@@ -46,15 +46,67 @@ class MetricsTests(unittest.TestCase):
 
         assert abs(bias([10, 20], [12, 17]) - (-0.5)) < 1e-9
 
-    def test_mase(self) -> None:
-        from app.services.backtest import mase
+    def test_in_sample_naive_mae(self) -> None:
+        from app.services.backtest import _in_sample_naive_mae
 
-        assert abs(mase([10, 20, 30, 40], [15, 25, 35, 45]) - 0.5) < 1e-9
+        # |12-10|,|8-12|,|14-8| = 2,4,6 → 12/3 = 4
+        assert abs(_in_sample_naive_mae([10, 12, 8, 14]) - 4.0) < 1e-9
 
-    def test_mase_constant_actuals_none(self) -> None:
-        from app.services.backtest import mase
+    def test_in_sample_naive_mae_constant_none(self) -> None:
+        from app.services.backtest import _in_sample_naive_mae
 
-        assert mase([5, 5, 5], [4, 6, 5]) is None
+        assert _in_sample_naive_mae([5, 5, 5]) is None  # 差分全 0
+
+    def test_in_sample_naive_mae_short_none(self) -> None:
+        from app.services.backtest import _in_sample_naive_mae
+
+        assert _in_sample_naive_mae([5]) is None
+
+    def test_mase_from_records_paper_value(self) -> None:
+        """标准 MASE 逐窗标准化, 纸面精确值 (Hyndman & Koehler 2006)。
+
+        walk_forward 是 expanding window: train=series[:train_end] (累计扩张),
+        NaiveMean4W.predict 用 train 最后 4 周均值。
+        series=[10,12,8,14,20,6], window_train=4, window_test=1:
+          窗0 train=[10,12,8,14]
+              naive_mae=mean(2,4,6)=4    pred=mean(10,12,8,14)=11   |20-11|/4 = 2.25
+          窗1 train=[10,12,8,14,20]
+              naive_mae=mean(2,4,6,6)=4.5 pred=mean(12,8,14,20)=13.5 |6-13.5|/4.5 = 5/3
+        MASE = (2.25 + 5/3)/2 = 1.9583333…
+        """
+        from app.services.backtest import NaiveMean4W, mase_from_records, walk_forward_backtest
+
+        records = walk_forward_backtest(
+            [10, 12, 8, 14, 20, 6], NaiveMean4W, window_train=4, window_test=1
+        )
+        assert abs(mase_from_records(records) - (2.25 + 5 / 3) / 2) < 1e-9
+
+    def test_mase_from_records_all_constant_train_none(self) -> None:
+        """全常数序列 → 每窗 train_naive_mae=0 被剔 → None。"""
+        from app.services.backtest import NaiveMean4W, mase_from_records, walk_forward_backtest
+
+        records = walk_forward_backtest(
+            [5, 5, 5, 5, 5, 5], NaiveMean4W, window_train=4, window_test=1
+        )
+        assert mase_from_records(records) is None
+
+    def test_mase_from_records_empty_none(self) -> None:
+        from app.services.backtest import mase_from_records
+
+        assert mase_from_records([]) is None
+
+    def test_mase_from_records_single_window(self) -> None:
+        """单窗序列: 只产出一组 record, MASE = 该窗 scaled error 均值。
+
+        series=[10,12,8,14,20], window_train=4, window_test=1:
+          窗0 train=[10,12,8,14] naive_mae=4 pred=11 |20-11|/4 = 2.25
+        """
+        from app.services.backtest import NaiveMean4W, mase_from_records, walk_forward_backtest
+
+        records = walk_forward_backtest(
+            [10, 12, 8, 14, 20], NaiveMean4W, window_train=4, window_test=1
+        )
+        assert abs(mase_from_records(records) - 2.25) < 1e-9
 
     def test_coverage_p98_in_bound(self) -> None:
         from app.services.backtest import coverage_p98
@@ -204,6 +256,7 @@ class WalkForwardTests(unittest.TestCase):
             "p50",
             "p98",
             "actual",
+            "train_naive_mae",
         }
 
     def test_horizon_cycles(self) -> None:
@@ -365,6 +418,64 @@ class RunBacktestForSkuTests(_DBBase):
         )
         assert r is not None
         assert r["sku_type"] == "wholesale_only"
+
+
+class RunBacktestSelectionSn2Tests(_DBBase):
+    """SN-2: 入选过滤只数训练可用段, 测试期销量不参与准入判定 (审计 #5)."""
+
+    _END = date(2026, 5, 13)
+    _WEEKS = 30
+
+    def _seed_weeks(self, barcode: str, week_offsets: list[int], qty: int = 5) -> None:
+        """在距 end_date 第 week_offsets[i] 周 (0=末周) 各灌一笔零售单。"""
+        from datetime import timedelta
+
+        with stockpile_db._session() as s:
+            for w in week_offsets:
+                event_at = (self._END - timedelta(days=w * 7)).isoformat()
+                s.execute(
+                    insert(InventoryEvent).values(
+                        event_at=event_at,
+                        event_type="sale",
+                        product_barcode=barcode,
+                        qty=qty,
+                        document_no=f"{barcode}-W{w}",
+                    )
+                )
+            s.commit()
+
+    def test_test_period_burst_excluded(self) -> None:
+        """训练段稀疏 (< min_weeks 非零), 测试段 (末 window_test 周) 爆发 → 仍排除。"""
+        from app.services.backtest import NaiveMean4W, run_backtest_for_sku
+
+        # 末 4 周 (offset 0..3 = 测试期) 每周都有量; 训练段只有 3 个非零周
+        self._seed_weeks("SP", [0, 1, 2, 3] + [10, 15, 20])
+        r = run_backtest_for_sku(
+            "SP",
+            end_date=self._END,
+            weeks=self._WEEKS,
+            model_cls=NaiveMean4W,
+            window_test=4,
+            min_weeks=12,
+        )
+        assert r is None
+
+    def test_training_dense_test_zero_included(self) -> None:
+        """训练段达标 (>= min_weeks 非零), 测试段 (末 4 周) 归零 → 仍入选。"""
+        from app.services.backtest import NaiveMean4W, run_backtest_for_sku
+
+        # 训练段 offset 4..21 共 18 个非零周, 测试段 offset 0..3 全空
+        self._seed_weeks("DN", list(range(4, 22)))
+        r = run_backtest_for_sku(
+            "DN",
+            end_date=self._END,
+            weeks=self._WEEKS,
+            model_cls=NaiveMean4W,
+            window_test=4,
+            min_weeks=12,
+        )
+        assert r is not None
+        assert r["barcode"] == "DN"
 
 
 class RunBacktestAllSkusTests(_DBBase):

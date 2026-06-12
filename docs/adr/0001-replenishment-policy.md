@@ -40,7 +40,16 @@
 
 ### 回测事实（run 44，2026-05-19）
 
-- 生产模型 EmpiricalQuantile（base_demand 视图）：MAPE 0.814 / MASE 0.978 / **Cov@98 0.972**
+> **⚠️ 口径注记（2026-06-12 batch1）**：下列 MASE 0.978 为**旧 MASE 定义**
+> （展平 records 序列的 lag-1 差分做分母，无统计语义，审计 MT-1），**不可与
+> 文献口径对标**。代码已改为标准 MASE（逐窗 in-sample naive MAE，Hyndman &
+> Koehler 2006，`backtest.mase_from_records`）；新口径数字待全模型重跑后回填
+> （重跑 blocked：本地无 prod 镜像数据，见 `docs/thesis/回测方法论审计-2026-06-12.md`
+> 第五节修复记录）。**模型相对排序不受分母口径影响**（分母与模型无关），
+> 故 D 系列基于排序的决策不动摇。Cov@98 0.972 含零周机械覆盖（MT-5），绝对值
+> 解读见审计 MT-5。
+
+- 生产模型 EmpiricalQuantile（base_demand 视图）：MAPE 0.814 / MASE 0.978（旧口径）/ **Cov@98 0.972**
 - 点预测仅略优于 naive；**分布校准是这套系统真正可靠的部分** → 策略设计应消费分位数而非点估计
 - 正态近似（μ+z·σ）的 Cov@98 在 0.886–0.926，被经验分位数全面压制 → 不走参数化安全库存公式
 

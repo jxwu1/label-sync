@@ -13,7 +13,9 @@
 - sigma 用训练残差 std
 - 多步预测对 naive baselines 等于单步重复 (不做衰减), HW 阶段再做多步
 - MAPE 对 actual=0 周剔除, 全零返回 None
-- MASE 用 lag-1 naive MAE 做分母; 分母为 0 返回 None
+- MASE 标准定义 (Hyndman & Koehler 2006): 逐窗用训练集 in-sample one-step
+  naive MAE 做该窗 record 的分母, scaled error 跨全部窗聚合后平均
+  (mase_from_records); 分母为 0 的窗剔除, 全部窗为 0 → None
 """
 
 from __future__ import annotations
@@ -200,6 +202,9 @@ def walk_forward_backtest(
         train_end = start + window_train
         train = series[:train_end]
         test = series[train_end : train_end + window_test]
+        # 该窗训练集 in-sample one-step naive MAE (Hyndman & Koehler 2006 标准 MASE 分母)。
+        # 用 train[:train_end] 而非展平 actual 序列, 杜绝跨窗跳变 / 同周重复 (审计 MT-1)。
+        train_naive_mae = _in_sample_naive_mae(train)
         model = model_cls()
         model.fit(list(train))
         for h in range(1, window_test + 1):
@@ -212,9 +217,22 @@ def walk_forward_backtest(
                     "p50": float(d.p50),
                     "p98": float(d.p98),
                     "actual": float(test[h - 1]),
+                    "train_naive_mae": train_naive_mae,
                 }
             )
     return records
+
+
+def _in_sample_naive_mae(train: list[float]) -> float | None:
+    """训练集内 one-step naive 预测 (上一周) 的 MAE = mean(|train[i]-train[i-1]|).
+
+    < 2 点或全常数 (差分全 0) → None (该窗无法标准化, 调用方剔除)。
+    """
+    if len(train) < 2:
+        return None
+    diffs = [abs(train[i] - train[i - 1]) for i in range(1, len(train))]
+    mae = sum(diffs) / len(diffs)
+    return mae if mae > 0 else None
 
 
 def mape(actual: list[float], predicted: list[float]) -> float | None:
@@ -233,16 +251,24 @@ def bias(actual: list[float], predicted: list[float]) -> float:
     return float(sum(diffs) / len(diffs))
 
 
-def mase(actual: list[float], predicted: list[float]) -> float | None:
-    if len(actual) < 2:
+def mase_from_records(records: list[dict]) -> float | None:
+    """标准 MASE (Hyndman & Koehler 2006), expanding-window 逐窗标准化。
+
+    每条 record 的 scaled error = |actual - predicted| / train_naive_mae(该窗)。
+    train_naive_mae 为 None 的窗 (训练集常数 / <2 点) 整窗剔除;
+    无任何可用 record → None (沿用旧 None 语义)。
+
+    分母与模型无关, 故 6 模型相对排序不受影响 (审计 MT-1 预言)。
+    """
+    scaled: list[float] = []
+    for r in records:
+        denom = r.get("train_naive_mae")
+        if denom is None or denom <= 0:
+            continue
+        scaled.append(abs(r["actual"] - r["predicted"]) / denom)
+    if not scaled:
         return None
-    model_mae = sum(abs(a - p) for a, p in zip(actual, predicted, strict=False)) / len(actual)
-    naive_mae = sum(abs(actual[i] - actual[i - 1]) for i in range(1, len(actual))) / (
-        len(actual) - 1
-    )
-    if naive_mae == 0:
-        return None
-    return float(model_mae / naive_mae)
+    return float(sum(scaled) / len(scaled))
 
 
 def coverage_p98(actual: list[float], p98: list[float]) -> float:
@@ -335,7 +361,11 @@ def run_backtest_for_sku(
 
     if len(series) < window_train + window_test:
         return None
-    nonzero = sum(1 for v in series if v > 0)
+    # 入选过滤只数训练可用段 (审计 SN-2): 测试期销量不再决定该 SKU 是否入选,
+    # 否则"后来才卖起来"的 SKU 被纳入 = 幸存者偏差。最后 window_test 周是
+    # 末窗的测试期, 必从分母排除。
+    train_avail = series[: len(series) - window_test]
+    nonzero = sum(1 for v in train_avail if v > 0)
     if nonzero < min_weeks:
         return None
 
@@ -353,7 +383,7 @@ def run_backtest_for_sku(
         "n_weeks_train": window_train,
         "n_weeks_test": window_test,
         "mape": mape(actual, pred),
-        "mase": mase(actual, pred),
+        "mase": mase_from_records(records),
         "bias": bias(actual, pred),
         "coverage_p98": coverage_p98(actual, p98_list),
         "mean_actual": sum(actual) / n,

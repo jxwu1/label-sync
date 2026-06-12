@@ -70,6 +70,18 @@ def _parse_date(s: str) -> date:
     return datetime.strptime(s[:10], "%Y-%m-%d").date()
 
 
+def _asof_cutoff(as_of: date) -> str:
+    """回测时点的事件上界 (exclusive)，与 weekly_demand_series 的
+    window_end_exclusive 同一周界语义 (单源)：含 as_of 的 ISO 周的下一个周一。
+
+    生产 as_of=today 时未来事件不存在，加该上界行为不变；历史时点回测时
+    它把 as_of 之后的销售/大单挡在分类与 IQR 阈值之外 (审计 LK-1)。
+    """
+    from app.utils.forecast_data import _monday
+
+    return (_monday(as_of) + timedelta(days=7)).isoformat()
+
+
 def classify_sku(
     barcode: str,
     as_of: date | None = None,
@@ -274,27 +286,32 @@ def classify_sku_type(barcode: str, session=None, as_of: date | None = None) -> 
     as_of 默认 today; 跟回测窗口配套时应传 backtest 的 end_date.
     """
     as_of = as_of or _today()
-    last_at = _fetch_last_sale_at(barcode, session)
+    last_at = _fetch_last_sale_at(barcode, session, as_of=as_of)
     if last_at is None:
         return "unclassified"
     weeks_since = (as_of - _parse_date(last_at)).days // 7
     if weeks_since >= _DYING_WEEKS_WHOLESALE:
         return "dying"
-    net_qtys = _fetch_sku_doc_net_qty(barcode, session)
+    net_qtys = _fetch_sku_doc_net_qty(barcode, session, as_of=as_of)
     base = classify_sku_type_from_docs(net_qtys)
     if weeks_since >= _DYING_WEEKS and base != "wholesale_only":
         return "dying"
     return base
 
 
-def _fetch_last_sale_at(barcode: str, session) -> str | None:
-    """返回该 SKU 最后一笔 sale 的 event_at (str), 无销售返回 None."""
+def _fetch_last_sale_at(barcode: str, session, as_of: date | None = None) -> str | None:
+    """返回该 SKU 最后一笔 sale 的 event_at (str), 无销售返回 None.
+
+    as_of 非 None 时只看 cutoff 之前的事件 (审计 LK-1: 回测时点不读未来销售)。
+    """
     from sqlalchemy import func as sa_func
 
     stmt = select(sa_func.max(InventoryEvent.event_at)).where(
         InventoryEvent.event_type == "sale",
         InventoryEvent.product_barcode == barcode,
     )
+    if as_of is not None:
+        stmt = stmt.where(InventoryEvent.event_at < _asof_cutoff(as_of))
     if session is not None:
         return session.execute(stmt).scalar()
     with stockpile_db._session() as s:
@@ -323,11 +340,13 @@ def classify_sku_type_from_docs(net_qtys: list[int]) -> str:
     return "mixed"
 
 
-def _fetch_sku_doc_net_qty(barcode: str, session) -> list[int]:
-    """单 SKU 全历史 sale doc-net qty 列表 (> 0).
+def _fetch_sku_doc_net_qty(barcode: str, session, as_of: date | None = None) -> list[int]:
+    """单 SKU sale doc-net qty 列表 (> 0).
 
     同 document_no 内所有事件 qty 求和; None doc_no 按事件主键各自独立.
     净量 <= 0 (孤儿退货 / 完全冲销) 丢弃, 不参与分母.
+
+    as_of 非 None 时只统计 cutoff 之前的 doc (审计 LK-1: IQR 阈值不含未来大单)。
     """
     stmt = select(
         InventoryEvent.document_no,
@@ -337,6 +356,8 @@ def _fetch_sku_doc_net_qty(barcode: str, session) -> list[int]:
         InventoryEvent.event_type == "sale",
         InventoryEvent.product_barcode == barcode,
     )
+    if as_of is not None:
+        stmt = stmt.where(InventoryEvent.event_at < _asof_cutoff(as_of))
     if session is not None:
         rows = list(session.execute(stmt).all())
     else:
