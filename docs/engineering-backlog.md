@@ -52,6 +52,14 @@
 
 ## P4 — 小项（顺手做）
 
+前端独立化阶段 0+1 遗留债（2026-06-12 终审登记，均 Minor 非阻断）：
+
+- [ ] Tokens.stories.ts 硬编码 token 列表与 tokens.css 无同步守护
+- [ ] briefing store load() 无 in-flight 去重（加刷新按钮/路由复用前要补）
+- [ ] gen_ts_types 多模型同名 interface 静默去重（API_MODELS 增长前加冲突报错）
+- [ ] dev.ps1 -Frontend 起的 Vite 窗口不随主进程退出（同 :5000 僵尸坑同类）
+- [ ] CLAUDE.md/AGENTS.md 测试计数过期（写 1018，实际 1328+）
+
 - [ ] 折叠控件补 `aria-expanded` + 键盘支持（`_page_admin.html:60`、`_page_history.html:54` onclick 改 Alpine）
 - [ ] 2 处 `x-html` 审核，能换 `x-text` 就换（`_page_dashboard.html:91`、`_page_main.html:181`）
 - [ ] 搜索框补关联 label（`_page_restock.html:33`、`_page_history.html:14`）
