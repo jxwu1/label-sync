@@ -8,6 +8,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "typecheck": "vue-tsc --noEmit",
     "test": "vitest run",
+    "test:unit": "vitest run --project=unit",
     "build-storybook": "storybook build",
     "storybook": "storybook dev -p 6006"
   },
