@@ -103,3 +103,6 @@ stockpile.db.retired-*
 
 # Scraper 事故/staging 归档 (业务数据, 本地留存)
 scraper/staging_archive/
+
+# hypothesis property 测试的样例数据库
+.hypothesis/

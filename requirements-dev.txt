@@ -11,3 +11,6 @@ pytest-playwright
 
 # 测试并行（./test.ps1 默认 -n auto；PG 模式 conftest 给每个 worker 独立库）
 pytest-xdist
+
+# 数值不变量 property 测试（tests/test_replenishment_properties.py）
+hypothesis
