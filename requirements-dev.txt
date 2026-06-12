@@ -11,7 +11,7 @@ ruff==0.15.12
 
 # E2E 浏览器烟雾测试（pytest-playwright 本地按需装，钉到当前稳定版由 CI 验证）
 playwright==1.60.0
-pytest-playwright==0.7.0
+pytest-playwright==0.8.0
 
 # 测试并行（./test.ps1 默认 -n auto；PG 模式 conftest 给每个 worker 独立库）
 pytest-xdist==3.8.0
