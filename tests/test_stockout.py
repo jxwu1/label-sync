@@ -176,16 +176,13 @@ def test_refresh_writes_stockout_column(monkeypatch):
 
     mondays = [date(2026, 6, 8) - timedelta(days=7 * (12 - i)) for i in range(13)]
     raw_series = {wk: (1.0 if i < 12 else 0.0) for i, wk in enumerate(mondays)}
+    # refresh 已改走 bulk 接缝 (2026-06-12 查询风暴改造)
     monkeypatch.setattr(
         fc,
-        "build_routed_series",
-        lambda barcode, end_date, weeks, session=None: (
-            [1.0] * 12 + [0.0],
-            "retail_dominant",
-            0,
-            "EmpiricalQuantile",
-            raw_series,
-        ),
+        "build_routed_series_bulk",
+        lambda barcodes, end_date, weeks, session=None: {
+            bc: ([1.0] * 12 + [0.0], "retail_dominant", 0, "EmpiricalQuantile", raw_series)
+        },
     )
 
     fc.refresh_forecast_output(end_date=end, weeks=13, barcodes=[bc])

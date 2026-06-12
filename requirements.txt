@@ -1,16 +1,19 @@
-flask
-pandas
-openpyxl
-python-calamine
-pyarrow
-lxml
-sqlalchemy
-alembic
-psycopg[binary]>=3.2
-reportlab
-pydantic
-waitress
-flask-login
-bcrypt
-numpy
-statsmodels
+# 生产依赖。版本钉死（2026-06-12，engineering-backlog P1）：
+# 此前全裸名 = 每次 Coolify build 赌上游兼容。除 waitress（本地不装，
+# 生产 WSGI）外全部为本地全量测试套件验证过的版本；升级走 PR 让 CI 双矩阵守。
+flask==3.1.3
+pandas==3.0.3
+openpyxl==3.1.5
+python-calamine==0.6.2
+pyarrow==24.0.0
+lxml==6.1.0
+sqlalchemy==2.0.49
+alembic==1.18.4
+psycopg[binary]==3.3.4
+reportlab==4.5.1
+pydantic==2.13.4
+waitress==3.0.2
+flask-login==0.6.3
+bcrypt==5.0.0
+numpy==2.4.4
+statsmodels==0.14.6

@@ -62,6 +62,63 @@ def stockout_weeks(
         return _q(s)
 
 
+def stockout_weeks_bulk(
+    barcodes: list[str],
+    end_date: date,
+    weeks: int,
+    session: Session | None = None,
+) -> dict[str, set[date]]:
+    """stockout_weeks 的批量版（2 次查询取齐全部 SKU）。
+
+    逐 SKU 结果与单个调用一致（test_forecast_bulk 等价测试守护）。
+    无主档/无快照的 barcode 返回空集（同单 SKU 版口径）。
+    """
+    if weeks < 1:
+        raise ValueError("weeks must be >= 1")
+    barcodes = list(dict.fromkeys(barcodes))
+    if not barcodes:
+        return {}
+    if session is None:
+        with stockpile_db._session() as s:
+            return stockout_weeks_bulk(barcodes, end_date, weeks, s)
+
+    end_monday = _monday(end_date)
+    week_mondays = [end_monday - timedelta(days=7 * (weeks - 1 - i)) for i in range(weeks)]
+    monday_strs = [w.isoformat() for w in week_mondays]
+
+    model_by_bc: dict[str, str | None] = dict(
+        session.execute(
+            select(Stockpile.product_barcode, Stockpile.product_model).where(
+                Stockpile.product_barcode.in_(barcodes)
+            )
+        ).all()
+    )
+    out: dict[str, set[date]] = {bc: set() for bc in barcodes}
+    models = {m for m in model_by_bc.values() if m is not None}
+    if not models:
+        return out
+
+    from collections import defaultdict
+
+    so_by_model: dict[str, set[date]] = defaultdict(set)
+    for model, d, qty in session.execute(
+        select(
+            StockpileInventorySnapshot.product_model,
+            StockpileInventorySnapshot.snapshot_date,
+            StockpileInventorySnapshot.qty_total,
+        ).where(
+            StockpileInventorySnapshot.product_model.in_(models),
+            StockpileInventorySnapshot.snapshot_date.in_(monday_strs),
+        )
+    ).all():
+        if qty <= 0:
+            so_by_model[model].add(date.fromisoformat(d))
+    for bc, model in model_by_bc.items():
+        if model is not None and model in so_by_model:
+            out[bc] = set(so_by_model[model])
+    return out
+
+
 def exclude_stockout_weeks(
     series: dict[date, float],
     stockout: set[date],

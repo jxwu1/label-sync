@@ -1,16 +1,20 @@
 # 开发与测试环境额外依赖。生产部署不需要装。
 # 安装：pip install -r requirements-dev.txt && playwright install chromium
+# 版本钉死（2026-06-12）：升级走 PR 让 CI 验证，不再裸名漂移。
+
+# 测试框架（此前作为 pytest-* 插件的传递依赖隐式安装，显式钉死）
+pytest==9.0.3
 
 # Lint/format：钉死版本与 .pre-commit-config.yaml / CI 一致，避免本地 ruff 漂移
 # （新版 ruff 规则更严会对既有代码大量误报，护栏 hook 也依赖一致的 ruff）
 ruff==0.15.12
 
-# E2E 浏览器烟雾测试
-playwright
-pytest-playwright
+# E2E 浏览器烟雾测试（pytest-playwright 本地按需装，钉到当前稳定版由 CI 验证）
+playwright==1.60.0
+pytest-playwright==0.7.0
 
 # 测试并行（./test.ps1 默认 -n auto；PG 模式 conftest 给每个 worker 独立库）
-pytest-xdist
+pytest-xdist==3.8.0
 
 # 数值不变量 property 测试（tests/test_replenishment_properties.py）
-hypothesis
+hypothesis==6.155.2
