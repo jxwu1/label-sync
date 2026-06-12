@@ -1,7 +1,8 @@
 # 前端独立化 · 阶段 0+1 设计（地基 + 简报试点页）
 
-> **Date**: 2026-06-12（v2 修订：采纳同日 review 的 4 个阻断项 + 4 个建议项，
-> 涉及 /ui 资产路径、API canonical 路径、401 契约、tokens 现状对齐）
+> **Date**: 2026-06-12（v3：二轮 review 修正 401 实施点 = init_auth 全局
+> before_request 闸而非 unauthorized handler + cron token 分支保护 + 端点定死
+> GET /api/briefing/data；v2：一轮 review 4 阻断项 + 4 建议项）
 > **状态**: 设计稿待用户审阅（审阅通过后出实施 plan）
 > **作者**: Fable 5（brainstorming 产出）
 > **决策记录**: 用户痛点全选（开发体验/现代框架/代码组织/部署分离）；
@@ -93,10 +94,11 @@ Vue Router + Tailwind v4（`@tailwindcss/vite`）。
 
 ## 6. API 与类型契约（留 Flask 的前提下拿到 FastAPI 的好处）
 
-- **canonical 路径决策（定死）**：新前端只消费 `/api/*`。试点新增
-  `/api/briefing/*`（pydantic schema + TS 类型）；现有 `/briefing/data`
-  **只留给旧页**，简报迁移验收删除旧页时一并退役。Vite proxy 因此只需
-  `/api` 一条规则。
+- **canonical 路径决策（定死）**：新前端只消费 `/api/*`。试点端点**具体
+  定死为 `GET /api/briefing/data`**（与旧 `/briefing/data` 一一对照，
+  响应用 pydantic schema + TS 类型；若 Task 1 核对发现需要拆分端点，
+  在 plan 里列明每一条，不留通配）。现有 `/briefing/data` **只留给旧页**，
+  简报迁移验收删除旧页时一并退役。Vite proxy 因此只需 `/api` 一条规则。
 - 实施 plan Task 1 = 简报端点与数据形状核对，**审计范围必须包含现有
   `/briefing/data` 的消费链**（简报服务读 forecast_output.p50 ——
   红线 B1 的 computed_at 过期 + stockout_weeks_excluded 两件套要在
@@ -107,11 +109,21 @@ Vue Router + Tailwind v4（`@tailwindcss/vite`）。
   `frontend/src/api/types.gen.ts`，**不引入重型生成器**；漂移检查命令
   定死为 `python tools/gen_ts_types.py --check`（生成物与 schema 不一致
   时退出码非 0，进 CI）。
-- **401 认证契约（解决与全局登录闸的冲突）**：现状 Flask 未登录一律
-  302 → `/login`，SPA fetch 会拿到登录页 HTML。修正：flask-login 的
-  unauthorized handler 按路径分流——`request.path.startswith('/api/')`
-  → 返回 `401 {"error": "unauthenticated"}`（JSON），其余路径维持 302。
-  前端 fetch 封装统一拦截 401 → `window.location = '/login?next=...'`；
+- **401 认证契约（v3 修正实施点）**：未登录拦截发生在
+  `app/auth.py::init_auth` 内的全局 `@app.before_request _require_login`
+  （auth.py:101），**不是** flask-login 的 unauthorized handler——在那里
+  注册 handler 永远轮不到执行（全局闸先 302）。正确改法：在
+  `_require_login` 的 `not current_user.is_authenticated` 分支里，
+  `request.path.startswith('/api/')` → 返回
+  `401 {"error": "unauthenticated"}`（JSON），其余路径维持现有 302
+  `/login`。**绝不触碰** 同函数内的 X-Upload-Token cron 分支（其
+  "响亮 4xx/5xx、一律不重定向"语义是 #5 静默空转事故的修复，原样保留）。
+- **认证集成测试必须用真实 app**（完整 `init_auth` 闸，不许只注册裸
+  blueprint 绕过 before_request），三件套：①未登录 GET
+  `/api/briefing/data` → 401 + application/json；②未登录 GET
+  `/briefing` → 302 `/login`（旧页行为不回归）；③带正确
+  X-Upload-Token 的 cron 路径放行不回归（错误 token 仍 401）。
+- 前端 fetch 封装统一拦截 401 → `window.location = '/login?next=...'`；
   防御性兜底：`response.redirected` 或 content-type 为 text/html 时
   按未登录同样处理（防中间件行为漂移）。
 
@@ -182,7 +194,9 @@ Vue Router + Tailwind v4（`@tailwindcss/vite`）。
 | Storybook/类型生成变成没人维护的摆设 | 全部进 CI（story build 红 = 立刻发现；types.gen 漂移 = 红） |
 | 简报页 API 现状不明 | 实施 plan Task 1 = 端点核对（含现有 /briefing/data 消费链审计），spec 不预设 |
 | Node 供应链引入 | 锁 package-lock + frontend 圈定 + CI npm ci 固定解析 + 根目录无 Node 守护断言 |
-| 401 契约改动影响旧页 | unauthorized handler 仅对 /api/* 分流，其余路径 302 行为不变；加路由测试守护 |
+| 401 契约改动影响旧页/cron | `_require_login` 内仅对 /api/* 分流，其余路径 302 与 X-Upload-Token 分支原样；§6 集成测试三件套守护 |
 
-**实施前置**：仓库根当前有一个 untracked `package-lock.json`（来源不明的
-npx 残留，与"根目录无 Node 痕迹"冲突）——实施 plan 第一步删除。
+**实施前置**：仓库根当前有一个 untracked `package-lock.json`，与"根目录
+无 Node 痕迹"冲突——实施 plan 第一步**先确认来源**（对照内容判断是否
+npx/codegraph 残留、是否用户有意保留），确认后删除或迁移，不默认删
+未知的用户产物。
