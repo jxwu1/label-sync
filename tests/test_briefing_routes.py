@@ -18,6 +18,16 @@ def client():
     return app.test_client()
 
 
+def test_briefing_page_redirects_to_ui(client):
+    """旧简报页已迁 Vue /ui/briefing: 原 /briefing 路由 302 跳转 (spec §11 收尾)。
+
+    数据端点 /briefing/data 保留 (鉴权契约测试样本), 仅删 HTML 页。
+    """
+    resp = client.get("/briefing")
+    assert resp.status_code == 302
+    assert resp.headers["Location"].rstrip("/").endswith("/ui/briefing")
+
+
 def test_briefing_data_ok(client):
     resp = client.get("/briefing/data")
     assert resp.status_code == 200

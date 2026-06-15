@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from flask import Blueprint, jsonify, render_template
-from flask_login import current_user
+from flask import Blueprint, jsonify, redirect
 
-from app.config import CONFIG
 from app.services import briefing as briefing_service
 from app.services.analytics._shared import _today
 
@@ -16,11 +14,10 @@ bp = Blueprint("briefing", __name__, url_prefix="/briefing")
 
 @bp.get("")
 def page():
-    return render_template(
-        "index.html",
-        enable_transfer=CONFIG.enable_transfer,
-        is_admin=(getattr(current_user, "role", None) == "admin"),
-    )
+    # 简报页已迁 Vue 独立栈 /ui/briefing (前端独立化 §11 收尾, 2026-06-15)。
+    # 原路径 302 跳转, 不再渲染旧 Alpine SPA 的简报标签。
+    # 注: 数据端点 /briefing/data 保留 (鉴权契约测试样本); canonical = /api/briefing/data。
+    return redirect("/ui/briefing", code=302)
 
 
 @bp.get("/data")

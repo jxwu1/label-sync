@@ -3,7 +3,8 @@
 > **Date**: 2026-06-12（v4：三轮 review 补 Vite server.fs.allow 跨 root 读
 > tokens 方案 + vitest run 非 watch + 验收 #6 三段验证；v3：401 实施点 =
 > init_auth 全局闸；v2：一轮 review 4 阻断项 + 4 建议项）
-> **状态**: 设计稿待用户审阅（审阅通过后出实施 plan）
+> **状态**: 已验收（2026-06-15 生产部署跑通 erp.jxwu.dev/ui，#2/#6/#9/#10 实测全过；
+> #3 watch paths 不配→降级 E10 纪律；旧简报页已删+302→/ui/briefing）
 > **作者**: Fable 5（brainstorming 产出）
 > **决策记录**: 用户痛点全选（开发体验/现代框架/代码组织/部署分离）；
 > 策略=地基+试点页；框架=Vue 3 + Vite + TS；形态=同仓 frontend/ + 独立静态服务；
