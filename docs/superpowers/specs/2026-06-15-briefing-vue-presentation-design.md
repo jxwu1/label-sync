@@ -1,7 +1,7 @@
 # 晨间简报 Vue 呈现层迁移 — 设计
 
 **Date:** 2026-06-15
-**Status:** 已批准（2026-06-15）
+**Status:** 待审批
 **Owner:** jxwu1
 **前置:** [[project_frontend_decoupling]] 前端独立化 §11；数据口径源 = `docs/superpowers/specs/2026-06-09-morning-briefing-design.md`
 
@@ -107,11 +107,14 @@ PageHeader: 晨间简报 / 数据周 <data_week> · 数据刷新于 <last_import
 
 **硬验收 #3：实际链接为 `/?page=restock`、`/?page=purchase`、`/?page=data_quality`，参数不带空格。**
 
-### legacy `static/js/store.js` 兼容
-- 抽纯函数 `resolveInitialPage(pathname, search, pageIds)` 返回应激活的 page id 或 `null`，供单测。
+### legacy 兼容（classic script，禁 ESM）
+**约束（阻断级）**：`static/js/store.js` 在 `templates/index.html:13` 以 classic `<script defer>` 加载（**非** `type="module"`）。**绝不给 store.js 或新文件加 `export`/`import`** —— 旧 SPA 首页会直接语法错打挂。
+
+- 纯函数 `resolveInitialPage(pathname, search, pageIds)` 放**新文件 `static/js/nav-resolve.js`**（classic，顶层函数声明，无 export），返回应激活的 page id 或 `null`。
+- `templates/index.html` 在 store.js 之前加 `<script defer src=".../nav-resolve.js">`（defer 按序执行，store.js 运行时该全局函数已就绪）。
 - **硬验收 #4：优先级 = query `page` 命中 `pageIds` > pathname 首段命中 `pageIds` > 返回 null（保留默认 `current`）。**
-- `initFromStorage()` 改为调用该函数：`const seg = resolveInitialPage(location.pathname, location.search, this.pages.map(p=>p.id)); if (seg) this.current = seg;`
-- 仅此一处 legacy 改动；后端不动。
+- `initFromStorage()` 改为调用该全局函数：`const seg = resolveInitialPage(location.pathname, location.search, this.pages.map(p=>p.id)); if (seg) this.current = seg;`
+- legacy 改动仅限：新增 `nav-resolve.js`、`index.html` 加一行 script、`store.js` 改 `initFromStorage` 一处；后端不动。
 
 ---
 
@@ -126,12 +129,12 @@ PageHeader: 晨间简报 / 数据周 <data_week> · 数据刷新于 <last_import
 - 组件渲染测（沿用 `briefing.test.ts` 风格）：Hero 各 status、ActionList 空/有数据、StatCard、stale 红条（含 `days_since==null` → 「刷新时间未知」）、空库空态。
 - store：系统级失败走 error；401 不渲染误导文案。
 
-### legacy（store.js）
+### legacy（nav-resolve.js）
 - `resolveInitialPage` 单测：
   - `?page=restock|purchase|data_quality` → 对应 id。
   - query 命中优先于 pathname；query 未命中回退 pathname；都不命中 → null。
   - 非法 page 值 → null。
-- 测试落点：在 frontend vitest 下以纯函数导入测试，或新增轻量 node 测试；`resolveInitialPage` 设计为无副作用纯函数以便导入。
+- **测试落点（不靠 ESM import）**：vitest 用 `fs.readFileSync` 读 `static/js/nav-resolve.js`，经 `new Function(code + "; return resolveInitialPage;")()` 取出函数再断言。`nav-resolve.js` 保持 classic（无 export），所以**不能** `import` 它——只能这样 eval 验证。
 
 ---
 
