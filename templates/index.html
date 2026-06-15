@@ -100,6 +100,14 @@
     </div>
     <nav class="sidebar-nav">
       <div class="sidebar-section">MODULES · <span x-text="$store.nav.visiblePages.length"></span></div>
+      <!-- 简报已迁 Vue 独立栈 /ui/briefing: 链接式入口(整页跳转), 非 Alpine 标签 -->
+      <a class="nav-item" href="/ui/briefing" data-tooltip="最新批次简报">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-dashboard"></use></svg>
+        </span>
+        <span class="nav-label">最新批次简报</span>
+        <span class="nav-kbd">↗</span>
+      </a>
       <template x-for="p in $store.nav.visiblePages" :key="p.id">
         <button class="nav-item"
                 :class="$store.nav.current === p.id && 'active'"
