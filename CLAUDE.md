@@ -68,7 +68,13 @@ label-sync/
 - 文件系统访问收敛到 `*_repository.py`
 - 数据库 schema 单源：`models.py`，新增字段走 `alembic revision --autogenerate`
 
-## 前端独立化（阶段 0+1 试点期）
+## 前端独立化（阶段 0+1 已上线，erp.jxwu.dev/ui）
+
+> 简报页已迁 Vue 独立栈 `/ui/briefing`（旧 Alpine 标签已删，`/briefing` 路由 302 跳转）。
+> 架构=剥前缀：Caddy(Coolify proxy，非 Traefik) `handle_path` 剥 `/ui` → nginx 按根 serve，
+> vite base 保持绝对 `/ui/`。watch paths 不配（public repo 失效+版本不支持）→ 后端长任务
+> 窗口（周一 14:00 scraper）禁任何 Coolify 部署（E10 纪律）。后续页面按 spec §11 迁移。
+
 
 - 新 API 端点：响应模型声明在 `app/schemas_api.py`（pydantic），改后跑
   `python tools/gen_ts_types.py` 同步 TS 类型（CI --check 守护漂移）

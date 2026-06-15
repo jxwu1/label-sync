@@ -155,7 +155,7 @@ document.addEventListener("alpine:init", () => {
     _initedPages: [],
     _callbacks: {},
     pages: [
-      { id: "briefing",          label: "最新批次简报", icon: "dashboard",  code: "★", shortcut: "" },
+      // 简报已迁 Vue 独立栈 /ui/briefing (前端独立化 §11), 旧 Alpine 标签移除; /briefing 路由 302 跳转。
       { id: "dashboard",         label: "总览",       icon: "dashboard",  code: "00", shortcut: "`" },
       { id: "main",              label: "标签处理",   icon: "tags",       code: "01", shortcut: "1" },
       { id: "dup",               label: "标签查重",   icon: "dedupe",     code: "02", shortcut: "2" },
@@ -214,8 +214,8 @@ document.addEventListener("alpine:init", () => {
       } catch (_) {
         /* ignore */
       }
-      // 直达带页面前缀的 URL(目前仅 /briefing 有独立路由) → 激活对应 tab,
-      // 否则停在默认 current。pathname 首段匹配某个 page.id 才切, 防误判。
+      // 直达带页面前缀的 URL → 激活对应 tab, 否则停在默认 current。
+      // pathname 首段匹配某个 page.id 才切, 防误判。(/briefing 已迁 /ui, 不再命中此表)
       try {
         const seg = window.location.pathname.split("/").filter(Boolean)[0];
         if (seg && this.pages.some((p) => p.id === seg)) {
