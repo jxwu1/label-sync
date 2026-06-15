@@ -26,21 +26,35 @@
 ## 2. 架构与路由拓扑
 
 ```
-浏览器（内网，同一域名）
+浏览器（内网，同一域名 erp.jxwu.dev）
    │
-Traefik（Coolify 管理）
-   ├── PathPrefix(/ui)  → 前端静态服务容器（nginx/caddy，托管 Vite dist）
-   └── 其余全部路径      → Flask（旧页 + /api/*，原样不动）
+Caddy（Coolify 管理的 proxy — 不是 Traefik）
+   ├── handle /ui/*  → handle_path 剥 /ui → 前端静态容器（nginx 托管 Vite dist）
+   └── 其余全部路径   → Flask（旧页 + /api/*，原样不动）
 ```
 
 - 同域 ⇒ flask-login session cookie 直接复用、零 CORS。
-- **/ui 前缀服务方案（定死，防资产 404）**：Traefik **不做 StripPrefix**，
-  请求原样带 `/ui/...` 进静态容器；`vite.config.ts` 设 `base: '/ui/'`；
-  Dockerfile 把构建产物 COPY 到 web 根的 `ui/` 子目录（如
-  `/usr/share/nginx/html/ui/`），nginx `location /ui/ { try_files $uri
-  /ui/index.html; }` —— 资产请求 `/ui/assets/*.js` 与磁盘路径天然对齐，
-  SPA fallback 指向 `/ui/index.html`。可验证：`curl /ui/assets/<hash>.js`
-  返回 JS（content-type 正确），`curl /ui/briefing` 刷新直达返回 index.html。
+- **/ui 前缀服务方案（2026-06-15 修订：剥前缀版，防资产 404）**：
+  早期定死「Caddy 不剥 + nginx 内部按 /ui/ 提供」。实际部署发现 Coolify 用
+  **Caddy**（非 Traefik），其 `/ui` Domain 默认生成 `handle_path`（**剥前缀**）。
+  改为等价且更标准的机制 —— Caddy `handle_path` 剥 `/ui`，nginx 按**根**提供：
+  - `vite.config.ts` 设 `base: '/ui/'`（**保持绝对**；相对 base 会把资产 404
+    从「所有路由」搬到「嵌套路由」，试点单层侥幸过、嵌套时引爆）
+  - `src/router.ts` history base 吃 `import.meta.env.BASE_URL`（单源=vite base）
+  - Dockerfile 把 dist COPY 到 web **根** `/usr/share/nginx/html/`（非 `ui/` 子目录）
+  - nginx `location / { try_files $uri $uri/ /index.html; }` —— 剥完前缀按根命中；
+    资产匹配 `^/assets/...`；删旧 `return 302 /ui/`（剥前缀下自跳成死循环）；
+    加 `absolute_redirect off;`（剥前缀下 nginx 绝对重定向会丢 /ui 前缀）
+  - 资产 URL 是绝对 `/ui/assets/...` → 浏览器请求 `/ui/assets/x.js` → Caddy 剥
+    → nginx `/assets/x.js` → 命中；任意嵌套深度都解析成 `/ui/assets/`，全深度安全。
+  - 可验证：`curl /ui/assets/<hash>.js` 返回 JS（content-type 正确），
+    `curl /ui/briefing` 刷新直达返回 index.html。
+  - 生产验收实测（2026-06-15）：`/ui`→200、`/ui/briefing`→200、资产
+    content-type=application/javascript，全过。
+  - 踩坑记录：首次部署 502/重定向死循环/404 三连 = **忘点 Coolify Redeploy**，
+    线上跑的还是 main 旧镜像（旧「不剥」nginx + 剥前缀 Caddy 撞出的精确指纹）；
+    强制重建后症状全消。教训：改 nginx/Dockerfile 后必须确认 Coolify 真用了新镜像
+    （`docker exec <c> cat /etc/nginx/conf.d/default.conf` 对比，别只看浏览器）。
 - 双栈并存：旧简报页保留原路径；新版 `/ui/briefing`。验收通过后旧页删除，
   原路径 302 → `/ui/briefing`。
 
@@ -173,8 +187,12 @@ Vue Router + Tailwind v4（`@tailwindcss/vite`）。
 
 1. 本地 `npm run dev` 热重载：改简报组件免重启即生效
 2. 生产 `/ui/briefing` 登录态下数据与旧简报页一致
-3. 仅改 `frontend/**` 的 push 不重启 Flask（验证后台长任务存活；
-   若 Coolify 不支持 watch paths，本条降级为"前端容器独立重建成功"）
+3. ~~仅改 `frontend/**` 的 push 不重启 Flask（watch paths）~~
+   **2026-06-15 决定：watch paths 不配**（public repo 下 Coolify watch paths
+   不生效 + 当前 Coolify 版本不支持/找不到该选项）。本条**永久降级为 E10 纪律**：
+   后端长任务窗口（周一 14:00 scraper 那几分钟）内禁止任何 Coolify 部署。
+   血的教训：2026-06-15 部署 /ui 期间 Flask 被 redeploy 打掉，撞掉 scraper 上传
+   （`no available server`），靠 `scraper/reupload.ps1` 补传救回。
 4. CI 前端腿（type-check + vitest + build + storybook build）绿，
    python 三腿不受影响
 5. 新旧简报页并存可访问，行为一致
