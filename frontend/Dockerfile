@@ -14,4 +14,5 @@ RUN npm run build
 
 FROM nginx:alpine
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /repo/frontend/dist/ /usr/share/nginx/html/ui/
+# 剥前缀架构: dist 拷到根, Caddy 剥 /ui 后 nginx 按根 serve (nginx.conf location /)
+COPY --from=build /repo/frontend/dist/ /usr/share/nginx/html/
