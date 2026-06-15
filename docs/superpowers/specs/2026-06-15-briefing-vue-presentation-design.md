@@ -1,7 +1,7 @@
 # 晨间简报 Vue 呈现层迁移 — 设计
 
 **Date:** 2026-06-15
-**Status:** 待审批
+**Status:** 已批准（2026-06-15）
 **Owner:** jxwu1
 **前置:** [[project_frontend_decoupling]] 前端独立化 §11；数据口径源 = `docs/superpowers/specs/2026-06-09-morning-briefing-design.md`
 
@@ -36,7 +36,7 @@
 
 ## 3. 布局（方案 C — 按阅读优先级单列流）
 
-桌面全宽（侧栏 200px 外的主内容区，不做移动端适配）。自上而下：
+桌面全宽（`/ui` 独立主内容区 —— 新栈 `App.vue` 仅 `<RouterView/>`，无旧 SPA 侧栏，实施时不要加左侧补偿；不做移动端适配）。自上而下：
 
 ```
 PageHeader: 晨间简报 / 数据周 <data_week> · 数据刷新于 <last_import_date>
