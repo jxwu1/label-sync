@@ -90,8 +90,15 @@ def _missing_monday_snapshots(session, as_of: date, n_weeks: int = 4) -> list[st
 
 
 _FORECAST_COVERAGE_MIN = 0.15  # RL-11: 覆盖率跌破即塌方 (路由上线后预期 ~20%+)
-_SKU_TYPE_MONOPOLY = 0.97  # RL-11: 任一类型占比超此值 = 某条路由腿断了
-_MONOPOLY_MIN_ROWS = 20  # 小样本不谈垄断 (测试/冷启动期免误报)
+# RL-11 垄断阈值: 抬到 0.99。retail_dominant 天然就占 ~98% (ADR-0002 实施验证基线
+# 6170/74/49 = 98.0%): wholesale_only 过 "非零周≥5 + 拟合周≥13" 双闸后只剩 ~49 行,
+# 结构性占比 ~1%。旧值 0.97 设在健康基线之下, 上线即误报 (本次修复)。0.99 只抓
+# "单一类型吃掉一切" 的分类全面塌方。"wholesale 腿断了" 改由下面的归零探针专抓。
+_SKU_TYPE_MONOPOLY = 0.99
+_MONOPOLY_MIN_ROWS = 20  # 小样本不谈垄断/腿归零 (测试/冷启动期免误报)
+# ADR D5.2 真正担心断的腿: wholesale_only(CrostonSBA 唯一消费方)。它占比太小,
+# 用占比阈值盯不住 (49→0 时 retail 也才 98.0%→98.8%), 直接探 "归零"。
+_WHOLESALE_LEG = "wholesale_only"
 
 
 def _forecast_routing_degraded(session) -> list[str]:
@@ -117,14 +124,23 @@ def _forecast_routing_degraded(session) -> list[str]:
             f"(阈值 {_FORECAST_COVERAGE_MIN * 100:.0f}%)"
         )
     if n_fc >= _MONOPOLY_MIN_ROWS:
-        for sku_type, n in session.execute(
-            select(ForecastOutput.sku_type, func.count()).group_by(ForecastOutput.sku_type)
-        ):
+        counts = dict(
+            session.execute(
+                select(ForecastOutput.sku_type, func.count()).group_by(ForecastOutput.sku_type)
+            ).all()
+        )
+        for sku_type, n in counts.items():
             if n / n_fc > _SKU_TYPE_MONOPOLY:
                 msgs.append(
                     f"sku_type 垄断: {sku_type} 占预测 {n / n_fc * 100:.1f}% "
                     f"(阈值 {_SKU_TYPE_MONOPOLY * 100:.0f}%) — 检查路由腿"
                 )
+        # wholesale_only(CrostonSBA) 腿归零: 占比太小垄断阈值盯不住, 直接探 0。
+        # 健康基线 ~49 行; 归零 = 分类不再产出 wholesale_only 或路由表丢了该腿。
+        if counts.get(_WHOLESALE_LEG, 0) == 0:
+            msgs.append(
+                f"{_WHOLESALE_LEG} 腿归零: forecast_output 无 CrostonSBA 输出 — 检查分类/路由腿"
+            )
     return msgs
 
 
