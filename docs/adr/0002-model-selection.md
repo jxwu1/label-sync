@@ -120,8 +120,14 @@ TSB（Teunter-Syntetos-Babai）相对 Croston/SBA 的增量价值 = 处理需求
 
 1. **预测覆盖率塌方**：`forecast_output 行数 / active SKU 数 < 15%` → 告警。
    （路由上线后预期 ~25%+；跌破说明分类或路由把 SKU 批量甩出了预测。）
-2. **sku_type 垄断**：forecast_output 里任一 sku_type 占比 > 97% → 告警。
-   （wholesale 路由上线后 retail 占比应 < 97%；回到 97%+ = wholesale 腿断了。）
+2. **sku_type 垄断**：forecast_output 里任一 sku_type 占比 > 99% → 告警。
+   （阈值勘误 2026-06-13：原文写「retail 应 < 97%」与本 ADR「实施验证」基线
+   6170/74/49 = **retail 98.0%** 自相矛盾 —— wholesale_only 过双闸后结构性只占
+   ~1%，retail 天然 ~98%，0.97 阈值上线即误报。已抬到 0.99，只抓「单一类型吃掉
+   一切」的分类全面塌方。）
+2b. **wholesale 腿归零**：forecast_output 里 wholesale_only 行数 == 0 → 告警。
+   （ADR 真正担心的「wholesale 腿断了」由此专抓 —— 它占比太小，用垄断阈值盯不住
+   〔49→0 时 retail 也才 98.0%→98.8%〕，直接探归零。健康基线 ~49 行。）
 3. 生命周期分类的 97% unclassified 是**已知未修**状态（F4），不挂告警
    （挂了就是永远红的噪声）；重标定完成后由其 plan 自带告警阈值。
 

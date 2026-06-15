@@ -244,6 +244,75 @@ def test_check_send_failure_does_not_record_date(monkeypatch):
         assert s.get(SystemSetting, alerts.LAST_SENT_KEY) is None  # 没发出去不算发过
 
 
+# ---- _forecast_routing_degraded: RL-11 垄断 + wholesale 腿归零 ----
+
+
+def _add_forecast_rows(sku_type, n, start=0):
+    from app.models import ForecastOutput
+
+    with stockpile_db._session() as s:
+        for i in range(n):
+            s.execute(
+                insert(ForecastOutput).values(
+                    product_barcode=f"{sku_type}-{start + i}",
+                    model_used="EmpiricalQuantile",
+                    sku_type=sku_type,
+                    n_weeks_history=10,
+                    mu=1.0,
+                    sigma=1.0,
+                    p50=1.0,
+                    p98=2.0,
+                    computed_at="2026-06-09 03:00:00",
+                )
+            )
+        s.commit()
+
+
+def test_routing_baseline_98pct_not_flagged():
+    # ADR-0002 实施验证基线: retail ~98% (6170/74/49) 是健康结构, 不该报。
+    # 旧阈值 0.97 会在此误报 (本次修复的回归守护)。
+    from app.services import alerts
+
+    _add_forecast_rows("retail_dominant", 196)
+    _add_forecast_rows("wholesale_only", 2)
+    _add_forecast_rows("mixed", 2)
+    with stockpile_db._session() as s:
+        assert alerts._forecast_routing_degraded(s) == []
+
+
+def test_routing_wholesale_leg_zero_flagged():
+    # ADR D5.2 真正担心的故障: wholesale(CrostonSBA) 腿断 → forecast_output 里归零。
+    # retail 98% < 0.99 不触发垄断, 由专门的归零探针抓。
+    from app.services import alerts
+
+    _add_forecast_rows("retail_dominant", 196)
+    _add_forecast_rows("mixed", 4)
+    with stockpile_db._session() as s:
+        msgs = alerts._forecast_routing_degraded(s)
+    assert any("wholesale" in m for m in msgs)
+
+
+def test_routing_true_monopoly_flagged():
+    # 单一类型 > 99% (分类全面塌方把 SKU 全甩进 retail) 仍要报。
+    from app.services import alerts
+
+    _add_forecast_rows("retail_dominant", 199)
+    _add_forecast_rows("wholesale_only", 1)  # wholesale 非空 → 只触发垄断, 不触发归零
+    with stockpile_db._session() as s:
+        msgs = alerts._forecast_routing_degraded(s)
+    assert any("垄断" in m for m in msgs)
+    assert not any("归零" in m for m in msgs)
+
+
+def test_routing_small_sample_silent():
+    # < _MONOPOLY_MIN_ROWS: 测试/冷启动期不谈垄断, 也不谈腿归零。
+    from app.services import alerts
+
+    _add_forecast_rows("retail_dominant", 10)
+    with stockpile_db._session() as s:
+        assert alerts._forecast_routing_degraded(s) == []
+
+
 def test_send_telegram_posts_to_api(monkeypatch):
     from app.services import alerts
 
