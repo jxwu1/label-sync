@@ -41,6 +41,10 @@ def create_app(*, seed_auth: bool = True, prewarm: bool = True) -> Flask:
                 from app.services import analytics
 
                 analytics.prewarm_sku_summary()
+                # sku_summary 暖好后再暖简报重核心 (依赖 sku_summary rows), 部署后首载即命中。
+                from app.services import briefing
+
+                briefing.prewarm_briefing()
             except Exception:
                 import logging
 
