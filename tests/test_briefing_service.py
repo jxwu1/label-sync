@@ -537,3 +537,28 @@ def test_build_briefing_propagates_system_error(monkeypatch):
 
     with pytest.raises(ProgrammingError):
         briefing.build_briefing(as_of=date(2026, 6, 9), generated_at="2026-06-09T13:40:00")
+
+
+def test_sales_health_rounds_forecast_total(monkeypatch):
+    """下期系统预期是件数, 取整 (Σmu 带小数, 不能显 17572.170751934093)。"""
+    monkeypatch.setattr(
+        briefing, "_forecast_covered_barcodes", lambda s: ["b1", "b2", "b3", "b4", "b5", "b6"]
+    )
+    monkeypatch.setattr(briefing, "_forecast_mu_sum", lambda s: 17572.170751934093)
+    monkeypatch.setattr(briefing, "_latest_backtest_bias", lambda s: 0.2)
+    monkeypatch.setattr(
+        briefing,
+        "_base_demand_views_bulk",
+        lambda barcodes, *a, **k: {
+            bc: {
+                "series": {date(2026, 6, 1): 20, date(2026, 5, 25): 16},
+                "sku_type": "retail_dominant",
+            }
+            for bc in barcodes
+        },
+    )
+    card = briefing.compute_sales_health(
+        session=None, data_week=date(2026, 6, 1), data_week_complete=True
+    )
+    assert card["forecast_next_total"] == 17572
+    assert isinstance(card["forecast_next_total"], int)

@@ -148,7 +148,8 @@ def compute_sales_health(session, data_week, data_week_complete) -> dict[str, An
             cur_sum += int(series.get(data_week, 0))
             prev_sum += int(series.get(prev_week, 0))
 
-    forecast_next = _forecast_mu_sum(session)
+    # 件数取整: Σmu 带小数, 前端「下期系统预期约 N 件」不显 17572.170751934093。
+    forecast_next = round(_forecast_mu_sum(session))
     bias = _latest_backtest_bias(session)
     # bias 是 mean(pred-actual) 的绝对件数/周 (review #4), 不是分数, 不能 x100 当百分比
     model_bias_units = round(bias, 1) if bias is not None else None
