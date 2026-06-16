@@ -10,7 +10,7 @@ export interface SalesHealthVM {
   deltaPct: number | null;
   currentQty: number | null;
   previousQty: number | null;
-  forecastNextP50: number | null;
+  forecastNextTotal: number | null;
   modelBiasUnits: number | null;
   coveredSkus: number;
 }

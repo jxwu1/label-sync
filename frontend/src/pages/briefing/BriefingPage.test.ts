@@ -6,7 +6,7 @@ function vmStub(over: Partial<BriefingViewModel> = {}): BriefingViewModel {
   return {
     dataWeek: "2026-06-08",
     dataWeekComplete: true,
-    salesHealth: { available: true, status: "ok", deltaPct: 12, currentQty: 4715, previousQty: 4210, forecastNextP50: 380, modelBiasUnits: 6, coveredSkus: 42 },
+    salesHealth: { available: true, status: "ok", deltaPct: 12, currentQty: 4715, previousQty: 4210, forecastNextTotal: 380, modelBiasUnits: 6, coveredSkus: 42 },
     restockRisk: { available: true, total: 38, urgent: 12 },
     stockoutImpact: { available: true, total: 12, samples: [] },
     overstockRisk: { available: true, total: 396, stockQty: 124991, costAvailable: true, costedSkus: 392, overstockValueEur: 83382.82, samples: [] },

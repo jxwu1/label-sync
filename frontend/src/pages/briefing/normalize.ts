@@ -57,7 +57,7 @@ function normSalesHealth(x: unknown): SalesHealthVM | Unavailable {
     deltaPct: num(r.delta_pct),
     currentQty: num(r.current_qty),
     previousQty: num(r.previous_qty),
-    forecastNextP50: num(r.forecast_next_p50),
+    forecastNextTotal: num(r.forecast_next_total),
     modelBiasUnits: num(r.model_bias_units),
     coveredSkus: num(r.covered_skus) ?? 0,
   };
