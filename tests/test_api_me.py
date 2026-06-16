@@ -2,8 +2,8 @@
 
 import pytest
 
-from app.models import User
 from app.auth import hash_password
+from app.models import User
 from app.repositories import stockpile_db
 
 
