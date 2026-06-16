@@ -263,6 +263,8 @@ class InventoryEvent(Base):
         Index("idx_events_customer", "customer_id"),
         Index("idx_events_supplier", "supplier_id"),
         Index("idx_events_type_at", "event_type", "event_at"),
+        # 简报数据新鲜度 MAX(imported_at) 原全表扫 290 万行 (~1.3s); 索引→亚毫秒。
+        Index("idx_events_imported_at", "imported_at"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
