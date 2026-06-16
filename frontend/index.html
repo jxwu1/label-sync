@@ -4,6 +4,23 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>label-sync</title>
+    <!-- 主题引导：颜色 token 仅在 [data-theme] 作用域下生效（static/css/tokens.css），
+         挂载前先设 data-theme 防闪烁。复用旧 SPA 同一个 localStorage 'theme' key，新旧栈同步。 -->
+    <script>
+      (function () {
+        var VALID = ['dark', 'light'];
+        var MIGRATE = { 'apple-dark': 'dark', 'apple-light': 'light', 'terminal': 'dark' };
+        try {
+          var raw = localStorage.getItem('theme') || 'dark';
+          var t = MIGRATE[raw] || raw;
+          if (VALID.indexOf(t) === -1) t = 'dark';
+          if (t !== raw) localStorage.setItem('theme', t);
+          document.documentElement.dataset.theme = t;
+        } catch (e) {
+          document.documentElement.dataset.theme = 'dark';
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>
