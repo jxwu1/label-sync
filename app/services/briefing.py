@@ -441,18 +441,16 @@ def build_briefing(as_of: date, generated_at: str) -> dict[str, Any]:
     }
 
 
-# ── 缓存层 ────────────────────────────────────────────────────────────────
-# build_briefing 每次重算全部 8 块 ~12s (sales_health 的 base_demand_views_bulk
-# 全表扫 290 万销售事件占 8s)。这些数字只在「新数据导入 / 跨日」时才变, 却被每次
-# 页面加载重算。缓存 key = (as_of 日期, MAX(InventoryEvent.id) 数据版本):
-#   - MAX(id) 走 PK 索引, 微秒级; 新导入追加事件 → id 增 → 自动失效。
-#   - as_of 日期入 key → 跨日(数据周完整性/逾期天数随 as_of 变)自动失效, 每天至多重算一次。
-# TTL 兜底: 订单/补货抑制等用户操作不动 inventory_events, 靠 TTL 在 _CACHE_TTL 内反映。
-# 单操作员无并发 → 锁仅防偶发竞态, 冷缓存即便重复算也无害。build_briefing 本体保持
-# 纯函数不缓存 (既有 service 测试与显式新鲜路径仍可直调)。
-_CACHE_TTL = 1800  # 30 分钟兜底
+# ── 缓存层 (拆分: 重核心按数据版本缓存 + 轻叠加日期敏感现算) ──────────────────
+# build_briefing 每次重算 8 块 ~12s, 其中 sales_health 8s + load_rows 1.5s + review 1s
+# 只随「新数据导入 / 数据周」变, 导入间不变 → 缓存为「重核心」, key=(data_week, MAX(event.id))。
+# follow_up(逾期天数) 和 data_health(距今天数) 随 as_of 逐日变但便宜 → 每次现算保新鲜
+# (imported_at 索引后 freshness 亚毫秒)。效果: 跨天首载只算轻叠加 ~0.2s, 重核心命中;
+# 仅新导入(event.id 变)或数据周变才重算重核心(~10s, 约每周一次)。日期敏感字段零陈旧。
+# 单操作员无并发 → 锁仅防偶发竞态。build_briefing 本体保持纯全量 (测试/直调用)。
+_CORE_TTL = 6 * 3600  # 6h 兜底 (主失效 = 数据版本 + 数据周)
 _cache_lock = threading.Lock()
-_cache: dict[str, Any] = {"key": None, "payload": None, "ts": 0.0}
+_core_cache: dict[str, Any] = {"key": None, "core": None, "ts": 0.0}
 
 
 def _now() -> float:
@@ -470,28 +468,80 @@ def _data_version() -> int | None:
         return session.execute(select(func.max(InventoryEvent.id))).scalar()
 
 
+def _resolve_data_week(as_of: date) -> tuple[date | None, bool]:
+    """便宜地定位数据周 (latest/prior 事件查询走索引)。缓存 key 与核心都用它。"""
+    latest = _latest_event_date()
+    prior = None
+    if latest is not None:
+        wk = _monday(latest)
+        if wk + timedelta(days=7) > as_of:
+            prior = _event_date_before(wk)
+    return compute_data_week(latest, as_of, prior)
+
+
+def _compute_core(data_week: date | None, complete: bool) -> dict[str, Any]:
+    """重核心: 只随数据版本/数据周变的块 (sales_health / sku_summary 卡片 / review)。"""
+    from app.repositories import stockpile_db
+
+    rows = _load_rows()
+    with stockpile_db._session() as session:
+        return {
+            "rows": rows,
+            "cards": {
+                "sales_health": _safe(lambda: compute_sales_health(session, data_week, complete)),
+                "restock_risk": _safe(lambda: compute_restock_risk(session, rows)),
+                "stockout_impact": _safe(lambda: compute_stockout_impact(rows)),
+                "overstock_risk": _safe(lambda: compute_overstock_risk(rows)),
+            },
+            "restock_action": _safe(lambda: build_restock_actions(session, rows)),
+            "review_action": _safe(build_review_actions),
+        }
+
+
 def reset_briefing_cache() -> None:
     """清空缓存 (测试 / 导入后显式失效用)。"""
     with _cache_lock:
-        _cache["key"] = None
-        _cache["payload"] = None
-        _cache["ts"] = 0.0
+        _core_cache["key"] = None
+        _core_cache["core"] = None
+        _core_cache["ts"] = 0.0
 
 
 def build_briefing_cached(
-    as_of: date, generated_at: str, *, ttl: int = _CACHE_TTL
+    as_of: date, generated_at: str, *, ttl: int = _CORE_TTL
 ) -> dict[str, Any]:
-    """build_briefing 的缓存包装 (路由用)。命中返回缓存 payload (含原 generated_at)。"""
-    key = (as_of.isoformat(), _data_version())
+    """路由用。重核心按 (data_week, 数据版本) 缓存; follow_up/data_health 每次现算保新鲜。"""
+    data_week, complete = _resolve_data_week(as_of)
+    key = (data_week.isoformat() if data_week else None, complete, _data_version())
     with _cache_lock:
-        if _cache["payload"] is not None and _cache["key"] == key and (_now() - _cache["ts"]) < ttl:
-            return _cache["payload"]
-    payload = build_briefing(as_of, generated_at)
-    with _cache_lock:
-        _cache["key"] = key
-        _cache["payload"] = payload
-        _cache["ts"] = _now()
-    return payload
+        hit = (
+            _core_cache["core"] is not None
+            and _core_cache["key"] == key
+            and (_now() - _core_cache["ts"]) < ttl
+        )
+        core = _core_cache["core"] if hit else None
+    if core is None:
+        core = _compute_core(data_week, complete)
+        with _cache_lock:
+            _core_cache["key"] = key
+            _core_cache["core"] = core
+            _core_cache["ts"] = _now()
+
+    # 轻叠加: 日期敏感且便宜, 每次现算保新鲜 (不进缓存)。
+    rows = core["rows"]
+    data_health = _safe(lambda: compute_data_health(rows))
+    follow_up = _safe(lambda: build_follow_up_actions(as_of))
+    return {
+        "ok": True,
+        "generated_at": generated_at,
+        "data_week": data_week.isoformat() if data_week else None,
+        "data_week_complete": complete,
+        "cards": {**core["cards"], "data_health": data_health},
+        "actions": {
+            "restock": core["restock_action"],
+            "follow_up": follow_up,
+            "review_anomalies": core["review_action"],
+        },
+    }
 
 
 def build_follow_up_actions(as_of: date) -> dict[str, Any]:

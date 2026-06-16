@@ -49,7 +49,7 @@ def test_briefing_data_system_failure_returns_500(client, monkeypatch):
     def boom(*a, **k):
         raise RuntimeError("db down")
 
-    monkeypatch.setattr(briefing, "build_briefing", boom)
+    monkeypatch.setattr(briefing, "_compute_core", boom)
     # 模拟生产: 异常交给 Flask 自己的 500 处理, 而非测试模式直接上抛
     client.application.config["PROPAGATE_EXCEPTIONS"] = False
     resp = client.get("/briefing/data")
@@ -67,7 +67,7 @@ def test_briefing_data_500_does_not_leak_sql(client, monkeypatch):
             "SELECT secret_col FROM hidden_table", {}, Exception("column does not exist")
         )
 
-    monkeypatch.setattr(briefing, "build_briefing", schema_boom)
+    monkeypatch.setattr(briefing, "_compute_core", schema_boom)
     client.application.config["PROPAGATE_EXCEPTIONS"] = False
     resp = client.get("/briefing/data")
     assert resp.status_code == 500
