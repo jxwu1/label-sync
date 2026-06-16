@@ -25,7 +25,7 @@ def data():
     # 系统级异常(DB/schema)不在此吞 (review #6): _safe 特意重抛 SQLAlchemyError,
     # 这里不准再 except 接住 — str(exc) 会把 SQL 语句发给客户端, 且丢 Flask 的
     # traceback 日志。让其冒泡 → Flask 通用 500。
-    payload = briefing_service.build_briefing(
+    payload = briefing_service.build_briefing_cached(
         as_of=_today(),
         generated_at=datetime.now().isoformat(timespec="seconds"),
     )
@@ -45,7 +45,7 @@ def api_data():
     """
     from app.schemas_api import BriefingData
 
-    payload = briefing_service.build_briefing(
+    payload = briefing_service.build_briefing_cached(
         as_of=_today(),
         generated_at=datetime.now().isoformat(timespec="seconds"),
     )

@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import threading
+import time
 from datetime import date, timedelta
 from typing import Any
 
@@ -432,6 +434,59 @@ def build_briefing(as_of: date, generated_at: str) -> dict[str, Any]:
         "cards": cards,
         "actions": actions,
     }
+
+
+# ── 缓存层 ────────────────────────────────────────────────────────────────
+# build_briefing 每次重算全部 8 块 ~12s (sales_health 的 base_demand_views_bulk
+# 全表扫 290 万销售事件占 8s)。这些数字只在「新数据导入 / 跨日」时才变, 却被每次
+# 页面加载重算。缓存 key = (as_of 日期, MAX(InventoryEvent.id) 数据版本):
+#   - MAX(id) 走 PK 索引, 微秒级; 新导入追加事件 → id 增 → 自动失效。
+#   - as_of 日期入 key → 跨日(数据周完整性/逾期天数随 as_of 变)自动失效, 每天至多重算一次。
+# TTL 兜底: 订单/补货抑制等用户操作不动 inventory_events, 靠 TTL 在 _CACHE_TTL 内反映。
+# 单操作员无并发 → 锁仅防偶发竞态, 冷缓存即便重复算也无害。build_briefing 本体保持
+# 纯函数不缓存 (既有 service 测试与显式新鲜路径仍可直调)。
+_CACHE_TTL = 1800  # 30 分钟兜底
+_cache_lock = threading.Lock()
+_cache: dict[str, Any] = {"key": None, "payload": None, "ts": 0.0}
+
+
+def _now() -> float:
+    return time.monotonic()
+
+
+def _data_version() -> int | None:
+    """数据版本号 = MAX(InventoryEvent.id) (PK 索引, 微秒级)。新导入即变。"""
+    from sqlalchemy import func, select
+
+    from app.models import InventoryEvent
+    from app.repositories import stockpile_db
+
+    with stockpile_db._session() as session:
+        return session.execute(select(func.max(InventoryEvent.id))).scalar()
+
+
+def reset_briefing_cache() -> None:
+    """清空缓存 (测试 / 导入后显式失效用)。"""
+    with _cache_lock:
+        _cache["key"] = None
+        _cache["payload"] = None
+        _cache["ts"] = 0.0
+
+
+def build_briefing_cached(
+    as_of: date, generated_at: str, *, ttl: int = _CACHE_TTL
+) -> dict[str, Any]:
+    """build_briefing 的缓存包装 (路由用)。命中返回缓存 payload (含原 generated_at)。"""
+    key = (as_of.isoformat(), _data_version())
+    with _cache_lock:
+        if _cache["payload"] is not None and _cache["key"] == key and (_now() - _cache["ts"]) < ttl:
+            return _cache["payload"]
+    payload = build_briefing(as_of, generated_at)
+    with _cache_lock:
+        _cache["key"] = key
+        _cache["payload"] = payload
+        _cache["ts"] = _now()
+    return payload
 
 
 def build_follow_up_actions(as_of: date) -> dict[str, Any]:
