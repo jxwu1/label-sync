@@ -75,7 +75,7 @@ def test_sales_health_normal(monkeypatch):
     monkeypatch.setattr(
         briefing, "_forecast_covered_barcodes", lambda s: ["b1", "b2", "b3", "b4", "b5", "b6"]
     )
-    monkeypatch.setattr(briefing, "_forecast_p50_sum", lambda s: 380.0)
+    monkeypatch.setattr(briefing, "_forecast_mu_sum", lambda s: 380.0)
     # 真实口径: BacktestResult.bias = mean(pred-actual) 的绝对件数 (review #4),
     # 不是分数; 0.89 件/周是 4 baseline 回测里实际出现过的量级。
     monkeypatch.setattr(briefing, "_latest_backtest_bias", lambda s: 0.89)
@@ -97,13 +97,62 @@ def test_sales_health_normal(monkeypatch):
     assert card["current_qty"] == 120
     assert card["previous_qty"] == 96
     assert card["delta_pct"] == 25.0
-    assert card["forecast_next_p50"] == 380.0
+    assert card["forecast_next_total"] == 380.0
     assert card["model_bias_units"] == 0.9
+
+
+def test_forecast_mu_sum_uses_mu_not_p50():
+    """下期系统预期 = Σmu(均值, 可加), 不是 Σp50(中位数, 间歇需求下塌成0严重低估)。
+
+    仅 retail_dominant/mixed 计入 (wholesale_only 不进零售需求口径)。
+    """
+    from app.models import ForecastOutput
+    from app.repositories import stockpile_db
+
+    with stockpile_db._session() as s:
+        s.add_all(
+            [
+                ForecastOutput(
+                    product_barcode="mu_b1",
+                    model_used="EmpiricalQuantile",
+                    sku_type="retail_dominant",
+                    n_weeks_history=20,
+                    mu=10.0,
+                    sigma=1.0,
+                    p50=0.0,
+                    p98=30.0,  # 间歇: p50=0 但 mu=10
+                ),
+                ForecastOutput(
+                    product_barcode="mu_b2",
+                    model_used="EmpiricalQuantile",
+                    sku_type="mixed",
+                    n_weeks_history=20,
+                    mu=5.0,
+                    sigma=1.0,
+                    p50=1.0,
+                    p98=20.0,
+                ),
+                ForecastOutput(
+                    product_barcode="mu_b3",
+                    model_used="EmpiricalQuantile",
+                    sku_type="wholesale_only",
+                    n_weeks_history=20,
+                    mu=100.0,
+                    sigma=1.0,
+                    p50=99.0,
+                    p98=200.0,  # 不计入
+                ),
+            ]
+        )
+        s.commit()
+        total = briefing._forecast_mu_sum(s)
+
+    assert total == 15.0  # Σmu(10+5); 若误用 p50 会得 1.0; wholesale 的 100 被排除
 
 
 def test_sales_health_coverage_insufficient(monkeypatch):
     monkeypatch.setattr(briefing, "_forecast_covered_barcodes", lambda s: ["b1", "b2"])
-    monkeypatch.setattr(briefing, "_forecast_p50_sum", lambda s: 0.0)
+    monkeypatch.setattr(briefing, "_forecast_mu_sum", lambda s: 0.0)
     monkeypatch.setattr(briefing, "_latest_backtest_bias", lambda s: None)
     monkeypatch.setattr(
         briefing,

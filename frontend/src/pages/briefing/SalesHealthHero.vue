@@ -37,7 +37,7 @@ const tone = computed(() => {
       <div class="hero__delta">{{ deltaText }}</div>
       <div class="hero__sub">
         本批次清洗后销量较上批 {{ deltaText }}（{{ vm.previousQty }} → {{ vm.currentQty }} 件）<br />
-        <template v-if="vm.forecastNextP50 !== null">下期系统预期约 {{ vm.forecastNextP50 }} 件</template>
+        <template v-if="vm.forecastNextTotal !== null">下期系统预期约 {{ vm.forecastNextTotal }} 件</template>
         <template v-if="vm.modelBiasUnits !== null"> · 模型近期校准：回测整体偏移 {{ vm.modelBiasUnits }} 件/周</template>
       </div>
     </template>

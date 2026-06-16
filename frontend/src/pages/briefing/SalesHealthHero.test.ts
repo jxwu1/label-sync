@@ -5,7 +5,7 @@ import type { SalesHealthVM } from "./types";
 
 const ok: SalesHealthVM = {
   available: true, status: "ok", deltaPct: 12, currentQty: 4715, previousQty: 4210,
-  forecastNextP50: 380, modelBiasUnits: 6, coveredSkus: 42,
+  forecastNextTotal: 380, modelBiasUnits: 6, coveredSkus: 42,
 };
 
 describe("SalesHealthHero", () => {

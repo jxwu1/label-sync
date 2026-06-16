@@ -76,13 +76,18 @@ def _forecast_covered_barcodes(session) -> list[str]:
     return list(rows)
 
 
-def _forecast_p50_sum(session) -> float:
+def _forecast_mu_sum(session) -> float:
+    """下期系统预期总量 = Σmu(均值, 可加)。
+
+    不用 Σp50: 多数零售 SKU 间歇销售, 周销中位数=0 → Σp50 几乎只剩稳定款, 严重
+    低估总需求 (实测 Σp50≈2.6k vs Σmu≈17.5k≈实际周销量)。均值 mu = E[需求] 才可加。
+    """
     from sqlalchemy import func, select
 
     from app.models import ForecastOutput
 
     total = session.execute(
-        select(func.coalesce(func.sum(ForecastOutput.p50), 0.0)).where(
+        select(func.coalesce(func.sum(ForecastOutput.mu), 0.0)).where(
             ForecastOutput.sku_type.in_(("retail_dominant", "mixed"))
         )
     ).scalar()
@@ -125,7 +130,7 @@ def compute_sales_health(session, data_week, data_week_complete) -> dict[str, An
             "delta_pct": None,
             "current_qty": None,
             "previous_qty": None,
-            "forecast_next_p50": None,
+            "forecast_next_total": None,
             "model_bias_units": None,
             "covered_skus": 0,
         }
@@ -143,7 +148,7 @@ def compute_sales_health(session, data_week, data_week_complete) -> dict[str, An
             cur_sum += int(series.get(data_week, 0))
             prev_sum += int(series.get(prev_week, 0))
 
-    forecast_next = _forecast_p50_sum(session)
+    forecast_next = _forecast_mu_sum(session)
     bias = _latest_backtest_bias(session)
     # bias 是 mean(pred-actual) 的绝对件数/周 (review #4), 不是分数, 不能 x100 当百分比
     model_bias_units = round(bias, 1) if bias is not None else None
@@ -155,7 +160,7 @@ def compute_sales_health(session, data_week, data_week_complete) -> dict[str, An
             "delta_pct": None,
             "current_qty": cur_sum,
             "previous_qty": None,
-            "forecast_next_p50": forecast_next,
+            "forecast_next_total": forecast_next,
             "model_bias_units": model_bias_units,
             "covered_skus": covered,
         }
@@ -167,7 +172,7 @@ def compute_sales_health(session, data_week, data_week_complete) -> dict[str, An
             "delta_pct": None,
             "current_qty": cur_sum,
             "previous_qty": prev_sum,
-            "forecast_next_p50": forecast_next,
+            "forecast_next_total": forecast_next,
             "model_bias_units": model_bias_units,
             "covered_skus": covered,
         }
@@ -179,7 +184,7 @@ def compute_sales_health(session, data_week, data_week_complete) -> dict[str, An
         "delta_pct": delta_pct,
         "current_qty": cur_sum,
         "previous_qty": prev_sum,
-        "forecast_next_p50": forecast_next,
+        "forecast_next_total": forecast_next,
         "model_bias_units": model_bias_units,
         "covered_skus": covered,
     }

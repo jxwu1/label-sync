@@ -9,7 +9,7 @@ function raw(over: Partial<BriefingData> = {}): BriefingData {
     data_week: "2026-06-08",
     data_week_complete: true,
     cards: {
-      sales_health: { ok: true, status: "ok", delta_pct: 12, current_qty: 4715, previous_qty: 4210, forecast_next_p50: 380, model_bias_units: 6, covered_skus: 42 },
+      sales_health: { ok: true, status: "ok", delta_pct: 12, current_qty: 4715, previous_qty: 4210, forecast_next_total: 380, model_bias_units: 6, covered_skus: 42 },
       restock_risk: { ok: true, total: 38, urgent: 12 },
       stockout_impact: { ok: true, total: 12, samples: [{ barcode: "5828079342495", model: "34249", zero_weeks: 3, qty_total: 0 }] },
       overstock_risk: { ok: true, total: 396, stock_qty: 124991, cost_available: true, costed_skus: 392, overstock_value_eur: 83382.82, samples: [{ barcode: "5828079342495", model: "34249", qty_total: 4884, cost_value_eur: 2176.8 }] },
