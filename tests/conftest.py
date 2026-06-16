@@ -111,7 +111,7 @@ def _isolate_db(db_path, monkeypatch, request):
     # 生产 fail-fast(FLASK_SECRET_KEY 缺失则拒启)。需要测该分支的用例自行 delenv。
     monkeypatch.setenv("FLASK_SECRET_KEY", "test-secret-key")
     from app import db
-    from app.services import data_quality
+    from app.services import briefing, data_quality
 
     if TEST_PG_URL:
         request.getfixturevalue("_pg_schema")
@@ -126,6 +126,7 @@ def _isolate_db(db_path, monkeypatch, request):
         db.ensure_db()
     # 模块级缓存与 per-test DB 隔离冲突：上个测试的报告不能漏进下个测试
     data_quality.clear_report_cache()
+    briefing.reset_briefing_cache()
     yield
     if not TEST_PG_URL:
         db.reset_engine(db_path)  # 收尾 dispose，防止 tmp 文件句柄泄漏；PG engine 留给下个测试复用
