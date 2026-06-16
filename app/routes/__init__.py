@@ -15,6 +15,7 @@ from app.routes.data_quality import bp as data_quality_bp
 from app.routes.foreign_customers import bp as foreign_customers_bp
 from app.routes.history import bp as history_bp
 from app.routes.inventory import bp as inventory_bp
+from app.routes.me import bp as api_me_bp
 from app.routes.monthly_summary import bp as monthly_summary_bp
 from app.routes.pages_tasks import bp as pages_tasks_bp
 from app.routes.pda import bp as pda_bp
@@ -41,6 +42,7 @@ def register_routes(app) -> None:
     app.register_blueprint(scan_history_bp)
     app.register_blueprint(stockpile_bp)
     app.register_blueprint(inventory_bp)
+    app.register_blueprint(api_me_bp)
     app.register_blueprint(foreign_customers_bp)
     app.register_blueprint(analytics_bp)
     app.register_blueprint(restock_bp)

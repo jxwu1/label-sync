@@ -43,5 +43,10 @@ class BriefingData(BaseModel):
     actions: BriefingActions
 
 
+class MeData(BaseModel):
+    display_name: str
+    is_admin: bool
+
+
 # gen_ts_types.py 的导出清单：新增模型加进来即自动进 types.gen.ts
-API_MODELS: list[type[BaseModel]] = [BriefingData]
+API_MODELS: list[type[BaseModel]] = [BriefingData, MeData]
