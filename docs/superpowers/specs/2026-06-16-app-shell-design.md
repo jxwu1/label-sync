@@ -95,7 +95,7 @@ export interface NavItem {
   requiresAdmin?: boolean; // pda_pending / admin = true
 }
 ```
-约束：每项 **`routeName` 与 `legacyPageId` 二选一必有其一**。当前仅 `briefing` 有 `routeName`，其余有 `legacyPageId`。13 项 + 顺序/分组对齐旧 `store.js` nav.pages。
+约束：每项 **`routeName` 与 `legacyPageId` 二选一必有其一**。当前仅 `briefing` 有 `routeName`，其余有 `legacyPageId`。共 14 项（briefing 1 + legacy 13；侧栏 "MODULES · N" 只计 13 个 legacy 模块）+ 顺序/分组对齐旧 `store.js` nav.pages。
 
 ## 7. 路由
 
@@ -123,8 +123,8 @@ load(): 调 apiGet<MeData>("/api/me")
 - **仅 500/网络失败** → 降级 `isAdmin=false`、`displayName` 留兜底（如空或 "—"）。
 - **不缓存 isAdmin 到 localStorage**（review：避免角色变化后 stale privilege）。
 
-### 8.2 collapse
-复用旧 key `localStorage['nav.collapsed']`（与旧栈同步）。
+### 8.2 collapse（延后 — 不在 app-shell 首期）
+原定复用旧 key `localStorage['nav.collapsed']`（与旧栈同步）。**首期实现未做**（plan 2026-06-16-app-shell.md 未含此项），改为 §11 后续项，跟踪见 follow-up issue。首期侧栏为静态宽度。
 
 ### 8.3 主题（决策 B：浏览器本地）
 新栈主题切换**只写 `localStorage['theme']` + data-theme**，**不 PUT `/admin/api/theme`**。

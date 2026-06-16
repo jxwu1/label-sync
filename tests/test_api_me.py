@@ -57,4 +57,13 @@ def test_me_scanner_is_not_admin_and_not_redirected(client):
 def test_me_unauthenticated_returns_json_401(client):
     r = client.get("/api/me")
     assert r.status_code == 401
+
+
+def test_me_token_only_no_session_returns_401(monkeypatch, client):
+    """带正确 X-Upload-Token 但无登录 session：current_user 是匿名，
+    不能 500——必须 JSON 401（/api/me 是 session-only，token bypass 不给身份）。"""
+    monkeypatch.setenv("UPLOAD_TOKEN", "tok-xyz")
+    r = client.get("/api/me", headers={"X-Upload-Token": "tok-xyz"})
+    assert r.status_code == 401
+    assert r.get_json() == {"error": "unauthenticated"}
     assert r.get_json() == {"error": "unauthenticated"}
