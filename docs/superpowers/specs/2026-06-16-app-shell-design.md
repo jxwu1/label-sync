@@ -1,6 +1,6 @@
 # App Shell（新 Vite 栈导航壳）设计 spec
 
-**Status:** 设计待批准
+**Status:** 已批准（2026-06-16）
 **Date:** 2026-06-16
 **关联:** 前端独立化 spec `2026-06-12-frontend-decoupling-design.md` §11；简报迁移 `2026-06-15-briefing-vue-presentation-design.md`
 
@@ -59,7 +59,7 @@ class MeData(BaseModel):
 def me():
     return jsonify(MeData(
         display_name=current_user.display_name or current_user.username,
-        is_admin=getattr(current_user, "role", "admin") == "admin",
+        is_admin=getattr(current_user, "role", None) == "admin",  # 缺字段默认非 admin（安全默认，对齐 §8.4）
     ).model_dump())
 ```
 
