@@ -550,7 +550,10 @@ def test_sales_health_rounds_forecast_total(monkeypatch):
         briefing,
         "_base_demand_views_bulk",
         lambda barcodes, *a, **k: {
-            bc: {"series": {date(2026, 6, 1): 20, date(2026, 5, 25): 16}, "sku_type": "retail_dominant"}
+            bc: {
+                "series": {date(2026, 6, 1): 20, date(2026, 5, 25): 16},
+                "sku_type": "retail_dominant",
+            }
             for bc in barcodes
         },
     )
