@@ -22,6 +22,13 @@ export default defineConfig({
       "/api": {
         target: "http://127.0.0.1:5000",
         changeOrigin: false
+      },
+      // dev 跨栈：vite base 是 /ui/，自身 dev 资源全在 /ui/ 下；其余路径（旧 SPA 的
+      // /?page=、/static、/login、各旧接口）一律转 Flask，让本地点未迁页也能真加载旧页、
+      // 与生产同源行为一致。仅 dev server 生效，不影响 vite build 产物。
+      "^(?!/ui/).+": {
+        target: "http://127.0.0.1:5000",
+        changeOrigin: false
       }
     }
   },
