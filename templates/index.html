@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
 <script>window.__IS_ADMIN = {{ 'true' if is_admin else 'false' }};</script>
+<script defer src="{{ url_for('static', filename='js/nav-resolve.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/store.js') }}"></script>
 <script defer src="{{ url_for('static', filename='vendor/alpinejs/alpine.min.js') }}"></script>
 <script>

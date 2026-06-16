@@ -214,13 +214,15 @@ document.addEventListener("alpine:init", () => {
       } catch (_) {
         /* ignore */
       }
-      // 直达带页面前缀的 URL → 激活对应 tab, 否则停在默认 current。
-      // pathname 首段匹配某个 page.id 才切, 防误判。(/briefing 已迁 /ui, 不再命中此表)
+      // 深链 tab 解析（query ?page= 优先 > pathname 首段）抽到 nav-resolve.js 纯函数,
+      // /ui 简报页深链 /?page=restock 等经此激活对应 tab。(/briefing 已迁 /ui)
       try {
-        const seg = window.location.pathname.split("/").filter(Boolean)[0];
-        if (seg && this.pages.some((p) => p.id === seg)) {
-          this.current = seg;
-        }
+        const seg = resolveInitialPage(
+          window.location.pathname,
+          window.location.search,
+          this.pages.map((p) => p.id),
+        );
+        if (seg) this.current = seg;
       } catch (_) {
         /* ignore */
       }
