@@ -720,6 +720,10 @@ def data_upload():
             return jsonify({"ok": False, "msg": f"导入失败: {exc}"}), 500
         # 数据变了, 清 list_sku_summary 缓存让下次请求拿新数据
         analytics_service.refresh_sku_summary()
+        # 新事件 → 简报重核心失效; 后台预热让导入后首载命中 (不阻塞本响应)。
+        from app.services import briefing as briefing_service
+
+        briefing_service.prewarm_briefing_async()
         return jsonify(
             {
                 "ok": True,
@@ -929,6 +933,10 @@ def forecast_refresh():
         return jsonify({"ok": False, "msg": f"刷新失败：{exc}"}), 500
     # forecast 进 list_sku_summary payload, 同步重建物化表
     analytics_service.refresh_sku_summary()
+    # forecast 变 → 简报 sales_health 失效; 后台预热让下次首载命中 (不阻塞本响应)。
+    from app.services import briefing as briefing_service
+
+    briefing_service.prewarm_briefing_async()
     return jsonify({"ok": True, **stats})
 
 

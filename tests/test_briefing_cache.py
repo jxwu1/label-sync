@@ -116,3 +116,28 @@ def test_core_hit_within_ttl(patched):
     briefing.build_briefing_cached(date(2026, 6, 16), "g2", ttl=300)
     assert counts["core"] == 1  # TTL 内 → 核心命中
     assert counts["follow_up"] == 2  # 叠加仍每次现算
+
+
+def test_prewarm_briefing_warms_cache(monkeypatch):
+    """prewarm_briefing 用当天日期调 build_briefing_cached 一次 (导入/部署后暖核心)。"""
+    calls = {"n": 0, "as_of": None}
+
+    def fake_cached(as_of, generated_at, **kw):
+        calls["n"] += 1
+        calls["as_of"] = as_of
+        return {"ok": True}
+
+    monkeypatch.setattr(briefing, "build_briefing_cached", fake_cached)
+    briefing.prewarm_briefing()
+    assert calls["n"] == 1
+    assert isinstance(calls["as_of"], date)
+
+
+def test_prewarm_briefing_swallows_errors(monkeypatch):
+    """预热失败不得冒泡 (不能拖垮导入/启动流程)。"""
+
+    def boom(*a, **k):
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(briefing, "build_briefing_cached", boom)
+    briefing.prewarm_briefing()  # 不抛即通过

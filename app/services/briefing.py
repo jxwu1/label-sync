@@ -457,15 +457,22 @@ def _now() -> float:
     return time.monotonic()
 
 
-def _data_version() -> int | None:
-    """数据版本号 = MAX(InventoryEvent.id) (PK 索引, 微秒级)。新导入即变。"""
+def _data_version() -> tuple[int | None, str | None]:
+    """数据版本 = (MAX(InventoryEvent.id), MAX(ForecastOutput.computed_at))。
+
+    重核心依赖 events(sales_health/review) + forecast(sales_health 的覆盖/预期)。
+    两者各有索引(id PK / idx_forecast_output_computed_at), 微秒级。新导入→event.id 变;
+    手动重算 forecast(无新 event)→computed_at 变 → 都正确失效缓存(否则 sales_health 陈旧)。
+    """
     from sqlalchemy import func, select
 
-    from app.models import InventoryEvent
+    from app.models import ForecastOutput, InventoryEvent
     from app.repositories import stockpile_db
 
     with stockpile_db._session() as session:
-        return session.execute(select(func.max(InventoryEvent.id))).scalar()
+        ev = session.execute(select(func.max(InventoryEvent.id))).scalar()
+        fc = session.execute(select(func.max(ForecastOutput.computed_at))).scalar()
+    return (ev, fc)
 
 
 def _resolve_data_week(as_of: date) -> tuple[date | None, bool]:
@@ -542,6 +549,25 @@ def build_briefing_cached(
             "review_anomalies": core["review_action"],
         },
     }
+
+
+def prewarm_briefing() -> None:
+    """同步预热重核心 (导入/部署后调, 让用户首载命中)。错误吞掉, 不拖垮调用方。"""
+    from datetime import datetime
+
+    from app.services.analytics._shared import _today
+
+    try:
+        build_briefing_cached(_today(), datetime.now().isoformat(timespec="seconds"))
+    except Exception:  # noqa: BLE001 — 预热失败不影响导入/启动主流程
+        import logging
+
+        logging.exception("briefing prewarm 失败")
+
+
+def prewarm_briefing_async() -> None:
+    """后台线程预热 (导入端点用, 不阻塞响应)。"""
+    threading.Thread(target=prewarm_briefing, daemon=True, name="briefing-prewarm").start()
 
 
 def build_follow_up_actions(as_of: date) -> dict[str, Any]:
