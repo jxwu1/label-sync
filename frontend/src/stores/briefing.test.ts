@@ -32,7 +32,8 @@ describe("briefing store", () => {
     expect(s.loading).toBe(true);
     await p;
     expect(s.loading).toBe(false);
-    expect(s.data?.data_week).toBe("2026-06-08");
+    expect(s.vm?.dataWeek).toBe("2026-06-08");
+    expect(s.vm?.salesHealth.available).toBe(true);
     expect(s.error).toBeNull();
   });
 
@@ -42,7 +43,7 @@ describe("briefing store", () => {
     await s.load();
     expect(s.loading).toBe(false);
     expect(s.error).toBe("boom");
-    expect(s.data).toBeNull();
+    expect(s.vm).toBeNull();
   });
 
   it("未登录错误被吞掉（跳转接管 UX），不污染 error", async () => {
