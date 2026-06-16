@@ -22,3 +22,8 @@ export interface BriefingData {
   cards: BriefingCards;
   actions: BriefingActions;
 }
+
+export interface MeData {
+  display_name: string;
+  is_admin: boolean;
+}

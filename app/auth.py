@@ -118,7 +118,12 @@ def init_auth(app, *, seed_users: bool = True):
             return jsonify({"ok": False, "msg": "无效 X-Upload-Token"}), 401
         if current_user.is_authenticated and getattr(current_user, "role", "admin") == "scanner":
             ep = request.endpoint or ""
-            if not (ep.startswith("pda.") or ep.startswith("auth.") or ep == "static"):
+            if not (
+                ep.startswith("pda.")
+                or ep.startswith("auth.")
+                or ep == "static"
+                or request.path == "/api/me"  # 壳需要：scanner 也能拿 JSON 而非被跳 PDA
+            ):
                 return redirect(url_for("pda.scan_page"))
         if not current_user.is_authenticated:
             # SPA fetch 不能吃 302 登录页 HTML（spec §6 v3）：/api/* 返回 JSON 401
