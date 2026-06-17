@@ -13,6 +13,7 @@ export const useHistoryStore = defineStore("history", () => {
   async function load(q: string) {
     loading.value = true;
     error.value = null;
+    result.value = null;   // 开查询即清旧结果：失败/401 时不残留上次 hit（防 RECENT 误写）
     try {
       const raw = await apiGet<HistorySearchData>(`/api/history?q=${encodeURIComponent(q)}`);
       result.value = normalizeHistory(raw);
@@ -24,5 +25,11 @@ export const useHistoryStore = defineStore("history", () => {
     }
   }
 
-  return { result, loading, error, load };
+  function reset() {
+    result.value = null;
+    error.value = null;
+    loading.value = false;
+  }
+
+  return { result, loading, error, load, reset };
 });

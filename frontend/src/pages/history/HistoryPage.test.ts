@@ -93,6 +93,30 @@ describe("HistoryPage", () => {
     localStorage.clear();
   });
 
+  it("RECENT：旧 hit 残留 + 新查询失败 → 不写入 RECENT（回归）", async () => {
+    reset();
+    localStorage.setItem("history.recentQueries", JSON.stringify(["OLD1"]));
+    // 模拟：load 失败时 store 把 result 清成 null、error 置位（修复后行为）
+    state.load = vi.fn(async () => { state.result = null; state.error = "boom"; });
+    const w = mount(HistoryPage);
+    await w.find("input.history__input").setValue("FAILQ");
+    await w.find("input.history__input").trigger("keydown.enter");
+    await Promise.resolve(); await Promise.resolve();
+    const stored = JSON.parse(localStorage.getItem("history.recentQueries") || "[]");
+    expect(stored).not.toContain("FAILQ");   // 失败查询不得进 RECENT
+    expect(stored).toEqual(["OLD1"]);
+    localStorage.clear();
+  });
+
+  it("RECENT：点击 chip 触发查询（load 被调用）", async () => {
+    reset();
+    localStorage.setItem("history.recentQueries", JSON.stringify(["CHIP1"]));
+    const w = mount(HistoryPage);
+    await w.find("button.history__recent-chip").trigger("click");
+    expect(state.load).toHaveBeenCalledWith("CHIP1");
+    localStorage.clear();
+  });
+
   it("RECENT：命中查询后去重前置写回 localStorage（上限 6）", async () => {
     reset();
     localStorage.setItem("history.recentQueries", JSON.stringify(["OLD1", "ABC123"]));

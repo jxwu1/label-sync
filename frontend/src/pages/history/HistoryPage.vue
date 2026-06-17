@@ -26,7 +26,7 @@ function pushRecent(query: string) {
 }
 async function runSearch(query: string) {
   await store.load(query);
-  if (store.result && store.result.kind === "hit") pushRecent(query);
+  if (!store.error && store.result && store.result.kind === "hit") pushRecent(query);
 }
 
 const SOURCE_CN: Record<string, string> = {
@@ -55,6 +55,10 @@ function pickRecent(query: string) {
   q.value = query;
   runSearch(query);
 }
+function doReset() {
+  q.value = "";
+  store.reset();
+}
 async function copyBarcode(bc: string) {
   // 内网 HTTP 非 secure context：navigator.clipboard 可能不可用 → execCommand 兜底
   if (navigator.clipboard?.writeText) {
@@ -80,7 +84,7 @@ async function copyBarcode(bc: string) {
         v-model="q" class="history__input" type="text" placeholder="输入条码 / 型号后查询"
         @keydown.enter="doSearch" />
       <button class="history__btn" type="button" @click="doSearch">⌕ 查询</button>
-      <button class="history__btn history__btn--ghost" type="button" @click="q = ''; store.result = null">↺ 重置</button>
+      <button class="history__btn history__btn--ghost" type="button" @click="doReset">↺ 重置</button>
     </div>
 
     <div v-if="recent.length" class="history__recent">

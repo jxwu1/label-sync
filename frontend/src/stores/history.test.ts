@@ -40,4 +40,24 @@ describe("history store", () => {
     await s.load("x");
     expect(s.error).toBeNull();
   });
+
+  it("load 失败后清空上次 result（不残留旧 hit）", async () => {
+    const s = useHistoryStore();
+    // 先成功命中（默认 mock 返回 fuzzy；关键是 result 非 null）
+    await s.load("A");
+    expect(s.result).not.toBeNull();
+    // 再失败查询
+    vi.mocked(apiGet).mockRejectedValueOnce(new Error("boom"));
+    await s.load("B");
+    expect(s.result).toBeNull();   // 旧结果必须被清，不能残留
+    expect(s.error).toBe("boom");
+  });
+
+  it("reset() 清空 result/error", async () => {
+    const s = useHistoryStore();
+    await s.load("A");
+    s.reset();
+    expect(s.result).toBeNull();
+    expect(s.error).toBeNull();
+  });
 });
