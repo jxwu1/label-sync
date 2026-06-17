@@ -27,3 +27,47 @@ export interface MeData {
   display_name: string;
   is_admin: boolean;
 }
+
+export interface ForecastEvalByType {
+  sku_type: string;
+  n: number;
+  median_mase: number | null;
+  beats_naive_pct: number | null;
+  avg_coverage_p98: number | null;
+}
+
+export interface ForecastEvalMetrics {
+  n: number;
+  median_mase: number | null;
+  beats_naive_pct: number | null;
+  avg_coverage_p98: number | null;
+}
+
+export interface ForecastEvalModelRow {
+  model_name: string;
+  run_id: number;
+  created_at: string | null;
+  is_production: boolean;
+  n: number;
+  median_mase: number | null;
+  beats_naive_pct: number | null;
+  avg_coverage_p98: number | null;
+}
+
+export interface ForecastEvalTiers {
+  high: number;
+  medium: number;
+  low: number;
+}
+
+export interface ForecastEvalData {
+  ok: boolean;
+  run_id: number | null;
+  backtest_date: string | null;
+  forecast_skus: number;
+  scored_skus: number;
+  tiers: ForecastEvalTiers;
+  headline: ForecastEvalMetrics;
+  by_sku_type: ForecastEvalByType[];
+  models: ForecastEvalModelRow[];
+}
