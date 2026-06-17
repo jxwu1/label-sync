@@ -20,7 +20,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "data_quality", label: "数据质量", icon: "quality", code: "06", legacyPageId: "data_quality" },
   { id: "inventory", label: "数据健康", icon: "inout", code: "07", legacyPageId: "inventory" },
   { id: "foreign_customers", label: "老外客人", icon: "overseas", code: "08", legacyPageId: "foreign_customers" },
-  { id: "forecast_eval", label: "预测效果", icon: "sales", code: "09", legacyPageId: "forecast_eval" },
+  { id: "forecast_eval", label: "预测效果", icon: "sales", code: "09", routeName: "forecast-eval" },
   { id: "restock", label: "补货决策", icon: "sales", code: "11", legacyPageId: "restock" },
   { id: "pda_pending", label: "PDA 待处理", icon: "tags", code: "12", legacyPageId: "pda_pending", requiresAdmin: true },
   { id: "admin", label: "系统管理", icon: "quality", code: "SYS", legacyPageId: "admin", requiresAdmin: true },

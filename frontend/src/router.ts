@@ -11,6 +11,7 @@ export const router = createRouter({
       children: [
         { path: "", redirect: { name: "briefing" } },
         { path: "briefing", name: "briefing", component: () => import("./pages/briefing/BriefingPage.vue") },
+        { path: "forecast-eval", name: "forecast-eval", component: () => import("./pages/forecast-eval/ForecastEvalPage.vue") },
       ],
     },
   ],
