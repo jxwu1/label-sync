@@ -1,6 +1,6 @@
 # 货号历史页迁移 Vue —— Phase 1（核心查询 + 变更溯源）设计
 
-**状态：** 已批准（边界 + 5 条硬约束，2026-06-17）
+**状态：** 已审批（2026-06-17，边界 + 5 条硬约束）→ 待实施
 
 ## 目标
 
@@ -83,8 +83,8 @@ class HistoryChange(BaseModel):
 class HistoryEvent(BaseModel):
     model_config = ConfigDict(extra="forbid")
     at: str
-    change_type: str | None        # HC-2 注：build_response 后 source 可能仍为 None（record.source 本身 str|None）
-    source: str | None
+    change_type: str | None
+    source: str | None             # 注：build_response 后 source 可能仍为 None（record.source 本身 str|None），故 Optional
     summary: str | None = None     # 仅 inventory_events 事件有；stockpile changes 走 changes[]
     changes: list[HistoryChange]   # inventory_events 为 []
 
@@ -153,7 +153,7 @@ export type HistoryResult =
 （"初始 / loading / 失败"是 store 的 `loading`/`error`/`result===null` 状态，不在 result union 里。）
 
 ### normalize（`frontend/src/pages/history/normalize.ts`，HC-5 单点收窄）
-入 `HistorySearchData` → 出 `HistoryResult`：`found===false && fuzzy_matches?.length` → `fuzzy`；`found===false` → `notfound`；`found===true` → `hit`（current + events 全字段 camelCase 收窄，null/缺字段兜底）。组件只吃 `HistoryResult`。
+入 `HistorySearchData` → 出 `HistoryResult`：`found===false && fuzzy_matches?.length` → `fuzzy`；`found===false` → `notfound`；`found===true` → `hit`。**schema 校验完整 raw 字段（HC-6），但 VM 仅暴露 Phase 1 UI 所需字段**（CurrentVM 不必透传所有 raw 字段，如 createdAt/erpCategory/stockPrice 等 Phase 1 不展示的不进 VM）；映射时 camelCase + null/缺字段兜底。组件只吃 `HistoryResult`。
 
 ### store（`frontend/src/stores/history.ts`，镜像 briefing/forecastEval）
 `result: HistoryResult | null`、`loading`、`error`、`load(q: string)`。`load` 调 `apiGet<HistorySearchData>('/api/history?q=' + encodeURIComponent(q))` → normalize；`UnauthenticatedError` 吞（apiGet 已跳登录）；其它 error 填 `error`。**store/client 只允许 `/api/history`（HC-2 第一层防线）**。
@@ -183,7 +183,7 @@ export type HistoryResult =
 - seed 走 SQLAlchemy（参照既有 history/stockpile 测试 seed）
 
 ### 前端（vitest）
-- `normalize.test.ts`：notfound / fuzzy / hit（含 location split change + inventory summary event + 空 events）三/四分支
+- `normalize.test.ts`：notfound / fuzzy / hit 分支。**hit 分支必须含两类最易漂移的 event 样例**（钉死 shape）：①一个库位变更事件（`field=="stockpile_location"`，带 `old_split`/`new_split`）；②一个 inventory_events 事件（带 `summary`、`changes:[]`）；外加一个空 `events:[]` 样例
 - `history.test.ts`（store）：load 命中填 result、load 失败填 error、unauth 吞
 - `HistoryPage.test.ts`：七状态各渲染断言 + fuzzy 行点击触发 load + 「完整分析（旧版）」链接存在且 href=`/?page=history`（mock store plain object 范式）
 - `SidebarNav.test.ts`：history=RouterLink + 不再有 `/?page=history` 的 legacy nav `<a>`（注：与上面页面内 back-link 区分——back-link 在 HistoryPage 不在 SidebarNav）
