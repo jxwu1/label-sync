@@ -2,8 +2,10 @@
 import { ref } from "vue";
 import PageHeader from "../../components/PageHeader.vue";
 import { useHistoryStore } from "../../stores/history";
+import { useSkuAnalyticsStore } from "../../stores/skuAnalytics";
 
 const store = useHistoryStore();
+const analyticsStore = useSkuAnalyticsStore();
 const q = ref("");
 
 const RECENT_KEY = "history.recentQueries";
@@ -26,7 +28,12 @@ function pushRecent(query: string) {
 }
 async function runSearch(query: string) {
   await store.load(query);
-  if (!store.error && store.result && store.result.kind === "hit") pushRecent(query);
+  if (!store.error && store.result && store.result.kind === "hit") {
+    pushRecent(query);
+    analyticsStore.load(store.result.current.barcode);
+  } else {
+    analyticsStore.reset();
+  }
 }
 
 const SOURCE_CN: Record<string, string> = {
@@ -42,6 +49,9 @@ const CHANGE_TYPE_CN: Record<string, string> = {
   reactivate: "上架", sale: "销售", purchase: "采购",
 };
 const cn = (m: Record<string, string>, k: string | null) => (k ? m[k] ?? k : "");
+const fmtPct = (v: number | null) => (v == null ? "—" : `${v}%`);
+const eur = (v: number | null) => (v == null ? "—" : `€${v.toFixed(2)}`);
+const dayN = (v: number | null) => (v == null ? "—" : `${v} 天`);
 
 function doSearch() {
   const v = q.value.trim();
@@ -58,6 +68,7 @@ function pickRecent(query: string) {
 function doReset() {
   q.value = "";
   store.reset();
+  analyticsStore.reset();
 }
 async function copyBarcode(bc: string) {
   // 内网 HTTP 非 secure context：navigator.clipboard 可能不可用 → execCommand 兜底
@@ -139,6 +150,44 @@ async function copyBarcode(bc: string) {
         <dt>最后更新</dt><dd>{{ store.result.current.updatedAt ?? "—" }}</dd>
       </dl>
 
+      <section class="history__analytics">
+        <p v-if="analyticsStore.loading" class="history__msg">分析加载中…</p>
+        <p v-else-if="analyticsStore.error" class="history__error">分析加载失败：{{ analyticsStore.error }}</p>
+        <template v-else-if="analyticsStore.vm">
+          <div class="history__sec-hd">销售分析</div>
+          <div class="history__metrics">
+            <div class="history__kv"><span>总销量</span><b>{{ analyticsStore.vm.sales.totalQty }}</b></div>
+            <div class="history__kv"><span>总营收</span><b>{{ eur(analyticsStore.vm.sales.totalRevenue) }}</b></div>
+            <div class="history__kv"><span>独立客户</span><b>{{ analyticsStore.vm.sales.uniqueCustomers }}</b></div>
+            <div class="history__kv"><span>寿命</span><b>{{ analyticsStore.vm.sales.lifespanDays }} 天</b></div>
+            <div class="history__kv"><span>12 周趋势</span><b>{{ fmtPct(analyticsStore.vm.sales.trendSlopePctPerWeek) }}/周</b></div>
+          </div>
+
+          <div class="history__cards">
+            <div class="history__card">
+              <div class="history__card-hd">CN 中国</div>
+              <div>销量 <b>{{ analyticsStore.vm.cn.qty }}</b> · 客户 <b>{{ analyticsStore.vm.cn.uniqueCustomers }}</b></div>
+              <div>单笔最大 <b>{{ analyticsStore.vm.cn.maxSingleQty }}</b> · 月频 <b>{{ analyticsStore.vm.cn.avgFreqPerMonth }}</b></div>
+              <div>上次 <b>{{ analyticsStore.vm.cn.lastAt ?? "—" }}</b></div>
+            </div>
+            <div class="history__card">
+              <div class="history__card-hd">老外</div>
+              <div>销量 <b>{{ analyticsStore.vm.fo.qty }}</b> · 客户 <b>{{ analyticsStore.vm.fo.uniqueCustomers }}</b></div>
+              <div>单笔最大 <b>{{ analyticsStore.vm.fo.maxSingleQty }}</b> · 月频 <b>{{ analyticsStore.vm.fo.avgFreqPerMonth }}</b></div>
+              <div>上次 <b>{{ analyticsStore.vm.fo.lastAt ?? "—" }}</b></div>
+            </div>
+          </div>
+
+          <div class="history__sec-hd">采购面</div>
+          <div class="history__metrics">
+            <div class="history__kv"><span>库存推算</span><b>{{ analyticsStore.vm.purchase.stockBalance }}</b></div>
+            <div class="history__kv"><span>毛利率</span><b>{{ fmtPct(analyticsStore.vm.purchase.avgMarginPct) }}</b></div>
+            <div class="history__kv"><span>365 天采购</span><b>{{ analyticsStore.vm.purchase.purchaseFreq365d }}</b></div>
+            <div class="history__kv"><span>上次采购</span><b>{{ dayN(analyticsStore.vm.purchase.lastPurchaseDaysAgo) }}</b></div>
+          </div>
+        </template>
+      </section>
+
       <div class="history__timeline">
         <div class="history__timeline-hd">历史时间线</div>
         <p v-if="!store.result.events.length" class="history__msg">暂无历史变更</p>
@@ -199,4 +248,13 @@ async function copyBarcode(bc: string) {
 .history__recent-label { font-size: var(--fs-xs); color: var(--ink-3); }
 .history__recent-chip { font-size: var(--fs-sm); padding: 2px 8px; border: 1px solid var(--line-soft); border-radius: var(--r-sm); background: transparent; color: var(--ink-1); cursor: pointer; }
 .history__recent-chip:hover { background: var(--accent-subtle); }
+.history__analytics { margin-bottom: var(--sp-6); }
+.history__sec-hd { font-size: var(--fs-sm); color: var(--ink-2); margin: var(--sp-4) 0 var(--sp-2); }
+.history__metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--sp-3); margin-bottom: var(--sp-3); }
+.history__kv { display: flex; flex-direction: column; gap: 2px; }
+.history__kv span { font-size: var(--fs-sm); color: var(--ink-2); }
+.history__kv b { font-family: var(--mono); }
+.history__cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--sp-3); margin-bottom: var(--sp-3); }
+.history__card { border: 1px solid var(--line-soft); border-radius: var(--r-sm); padding: var(--sp-3); font-size: var(--fs-sm); }
+.history__card-hd { color: var(--ink-2); margin-bottom: var(--sp-1); }
 </style>

@@ -10,9 +10,22 @@ const state = {
 };
 vi.mock("../../stores/history", () => ({ useHistoryStore: () => state }));
 
+const analyticsState = {
+  vm: null as import("./analytics-types").AnalyticsVM | null,
+  loading: false,
+  error: null as string | null,
+  load: vi.fn(),
+  reset: vi.fn(),
+};
+vi.mock("../../stores/skuAnalytics", () => ({ useSkuAnalyticsStore: () => analyticsState }));
+
 import HistoryPage from "./HistoryPage.vue";
 
-function reset() { state.result = null; state.loading = false; state.error = null; state.load = vi.fn(); }
+function reset() {
+  state.result = null; state.loading = false; state.error = null; state.load = vi.fn();
+  analyticsState.vm = null; analyticsState.loading = false; analyticsState.error = null;
+  analyticsState.load = vi.fn(); analyticsState.reset = vi.fn();
+}
 
 describe("HistoryPage", () => {
   it("初始态：提示输入 + 「完整分析（旧版）」链接指向 /?page=history", () => {
@@ -143,4 +156,56 @@ describe("HistoryPage", () => {
     expect(stored).toContain("OLD1");
     localStorage.clear();
   });
+});
+
+function aVm(): import("./analytics-types").AnalyticsVM {
+  return {
+    sales: { totalQty: 5, totalRevenue: 62.5, uniqueCustomers: 2, lifespanDays: 30, trendSlopePctPerWeek: 1.2 },
+    purchase: { stockBalance: 5, avgMarginPct: 40, purchaseFreq365d: 1, lastPurchaseDaysAgo: 47 },
+    cn: { qty: 3, uniqueCustomers: 1, maxSingleQty: 3, lastAt: "2026-05-08", avgFreqPerMonth: 0.5 },
+    fo: { qty: 2, uniqueCustomers: 1, maxSingleQty: 2, lastAt: null, avgFreqPerMonth: 0 },
+  };
+}
+function hitState() {
+  state.result = {
+    kind: "hit",
+    current: {
+      barcode: "B1", model: "M1", isTrulyDiscontinued: false, manualGrade: null,
+      productNameZh: "名", productNameLocal: null,
+      storeLocations: [], warehouseLocations: [], unknownLocations: [],
+      salePrice: null, source: null, updatedAt: null,
+    },
+    events: [],
+  };
+}
+
+it("命中后渲染分析块（销售分析 + 采购面 + 客户拆分）", () => {
+  reset(); hitState(); analyticsState.vm = aVm();
+  const w = mount(HistoryPage);
+  expect(w.text()).toContain("销售分析");
+  expect(w.text()).toContain("采购面");
+  expect(w.text()).toContain("老外");
+});
+
+it("analytics 普通失败：分析块显错，但 P1 hero/概况/时间线仍在（HC-A4）", () => {
+  reset(); hitState(); analyticsState.error = "API 500: /api/history/B1/analytics";
+  const w = mount(HistoryPage);
+  expect(w.text()).toContain("API 500");
+  expect(w.text()).toContain("M1");
+  expect(w.text()).toContain("名");
+  expect(w.text()).toContain("历史时间线");
+});
+
+it("analytics 401（error 保持 null）：不显块内错误，P1 部分正常", () => {
+  reset(); hitState();
+  const w = mount(HistoryPage);
+  expect(w.text()).not.toContain("分析加载失败");
+  expect(w.text()).toContain("M1");
+});
+
+it("analytics loading：显分析加载中，P1 hero 仍在", () => {
+  reset(); hitState(); analyticsState.loading = true;
+  const w = mount(HistoryPage);
+  expect(w.text()).toContain("分析加载中");
+  expect(w.text()).toContain("M1");
 });
