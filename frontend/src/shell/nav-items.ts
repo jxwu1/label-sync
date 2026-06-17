@@ -8,7 +8,7 @@ export interface NavItem {
   requiresAdmin?: boolean;
 }
 
-// 简报已迁(routeName)；13 个模块页未迁(legacyPageId)。顺序对齐旧侧栏。
+// 简报 + 预测效果已迁(routeName)；其余 12 个模块页未迁(legacyPageId)。顺序对齐旧侧栏。
 export const NAV_ITEMS: NavItem[] = [
   { id: "briefing", label: "最新批次简报", icon: "dashboard", code: "00", routeName: "briefing" },
   { id: "dashboard", label: "总览", icon: "dashboard", code: "00", legacyPageId: "dashboard" },
