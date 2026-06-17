@@ -179,5 +179,58 @@ class HistorySearchData(BaseModel):
     fuzzy_matches: list[HistoryFuzzyMatch] | None = None
 
 
+class SkuSalesMetrics(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    total_qty: int
+    total_revenue: float
+    unique_customers: int
+    lifespan_days: int
+    trend_slope_pct_per_week: float | None
+
+
+class SkuPurchaseMetrics(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    stock_balance: int
+    avg_margin_pct: float | None
+    purchase_freq_365d: int
+    last_purchase_days_ago: int | None
+
+
+class SkuCustomerEnd(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    qty: int
+    unique_customers: int
+    max_single_qty: int
+    last_at: str | None
+    avg_freq_per_month: float
+
+
+class SkuCustomerSplit(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    cn: SkuCustomerEnd
+    fo: SkuCustomerEnd
+
+
+class SkuAnalyticsData(BaseModel):
+    """GET /api/history/<barcode>/analytics 200 响应（Phase 2a canonical 契约）。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ok: bool
+    sales: SkuSalesMetrics
+    purchase: SkuPurchaseMetrics
+    customer_split: SkuCustomerSplit
+
+
 # gen_ts_types.py 的导出清单：新增模型加进来即自动进 types.gen.ts
-API_MODELS: list[type[BaseModel]] = [BriefingData, MeData, ForecastEvalData, HistorySearchData]
+API_MODELS: list[type[BaseModel]] = [
+    BriefingData,
+    MeData,
+    ForecastEvalData,
+    HistorySearchData,
+    SkuAnalyticsData,
+]
