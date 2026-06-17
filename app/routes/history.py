@@ -31,3 +31,18 @@ def search():
 
     result = history_service.build_response(q)
     return jsonify(HistorySearchData.model_validate({"ok": True, **result}).model_dump())
+
+
+@api_bp.get("/<barcode>/analytics")
+def analytics(barcode: str):
+    from app.schemas_api import SkuAnalyticsData
+    from app.services import analytics as analytics_service
+
+    bc = barcode.strip()
+    payload = {
+        "ok": True,
+        "sales": analytics_service.compute_sales_metrics(bc),
+        "purchase": analytics_service.compute_purchase_metrics(bc),
+        "customer_split": analytics_service.compute_customer_split(bc),
+    }
+    return jsonify(SkuAnalyticsData.model_validate(payload).model_dump())

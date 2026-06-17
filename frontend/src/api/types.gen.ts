@@ -129,3 +129,38 @@ export interface HistorySearchData {
   events?: HistoryEvent[] | null;
   fuzzy_matches?: HistoryFuzzyMatch[] | null;
 }
+
+export interface SkuCustomerEnd {
+  qty: number;
+  unique_customers: number;
+  max_single_qty: number;
+  last_at: string | null;
+  avg_freq_per_month: number;
+}
+
+export interface SkuCustomerSplit {
+  cn: SkuCustomerEnd;
+  fo: SkuCustomerEnd;
+}
+
+export interface SkuPurchaseMetrics {
+  stock_balance: number;
+  avg_margin_pct: number | null;
+  purchase_freq_365d: number;
+  last_purchase_days_ago: number | null;
+}
+
+export interface SkuSalesMetrics {
+  total_qty: number;
+  total_revenue: number;
+  unique_customers: number;
+  lifespan_days: number;
+  trend_slope_pct_per_week: number | null;
+}
+
+export interface SkuAnalyticsData {
+  ok: boolean;
+  sales: SkuSalesMetrics;
+  purchase: SkuPurchaseMetrics;
+  customer_split: SkuCustomerSplit;
+}
