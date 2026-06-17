@@ -8,7 +8,7 @@ export interface NavItem {
   requiresAdmin?: boolean;
 }
 
-// 简报 + 预测效果已迁(routeName)；其余 12 个模块页未迁(legacyPageId)。顺序对齐旧侧栏。
+// 简报 + 预测效果 + 货号历史已迁(routeName)；其余 11 个模块页未迁(legacyPageId)。顺序对齐旧侧栏。
 export const NAV_ITEMS: NavItem[] = [
   { id: "briefing", label: "最新批次简报", icon: "dashboard", code: "00", routeName: "briefing" },
   { id: "dashboard", label: "总览", icon: "dashboard", code: "00", legacyPageId: "dashboard" },
@@ -16,7 +16,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "dup", label: "标签查重", icon: "dedupe", code: "02", legacyPageId: "dup" },
   { id: "purchase", label: "采购导入", icon: "purchase", code: "03", legacyPageId: "purchase" },
   { id: "attendance", label: "考勤台账", icon: "attendance", code: "04", legacyPageId: "attendance" },
-  { id: "history", label: "货号历史", icon: "history", code: "05", legacyPageId: "history" },
+  { id: "history", label: "货号历史", icon: "history", code: "05", routeName: "history" },
   { id: "data_quality", label: "数据质量", icon: "quality", code: "06", legacyPageId: "data_quality" },
   { id: "inventory", label: "数据健康", icon: "inout", code: "07", legacyPageId: "inventory" },
   { id: "foreign_customers", label: "老外客人", icon: "overseas", code: "08", legacyPageId: "foreign_customers" },

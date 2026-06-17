@@ -12,6 +12,7 @@ export const router = createRouter({
         { path: "", redirect: { name: "briefing" } },
         { path: "briefing", name: "briefing", component: () => import("./pages/briefing/BriefingPage.vue") },
         { path: "forecast-eval", name: "forecast-eval", component: () => import("./pages/forecast-eval/ForecastEvalPage.vue") },
+        { path: "history", name: "history", component: () => import("./pages/history/HistoryPage.vue") },
       ],
     },
   ],
