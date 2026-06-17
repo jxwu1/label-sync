@@ -6,6 +6,29 @@ import { useHistoryStore } from "../../stores/history";
 const store = useHistoryStore();
 const q = ref("");
 
+const RECENT_KEY = "history.recentQueries";
+const RECENT_MAX = 6;
+const recent = ref<string[]>(loadRecent());
+
+function loadRecent(): string[] {
+  try {
+    const raw = localStorage.getItem(RECENT_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list.filter((x): x is string => typeof x === "string").slice(0, RECENT_MAX) : [];
+  } catch {
+    return [];
+  }
+}
+function pushRecent(query: string) {
+  const next = [query, ...recent.value.filter((x) => x !== query)].slice(0, RECENT_MAX);
+  recent.value = next;
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+}
+async function runSearch(query: string) {
+  await store.load(query);
+  if (store.result && store.result.kind === "hit") pushRecent(query);
+}
+
 const SOURCE_CN: Record<string, string> = {
   scan_import: "扫描导入", user_correction: "手动修正",
   system_export: "系统导出", inventory_events: "进销存",
@@ -22,11 +45,15 @@ const cn = (m: Record<string, string>, k: string | null) => (k ? m[k] ?? k : "")
 
 function doSearch() {
   const v = q.value.trim();
-  if (v) store.load(v);
+  if (v) runSearch(v);
 }
 function pickFuzzy(barcode: string) {
   q.value = barcode;
-  store.load(barcode);
+  runSearch(barcode);
+}
+function pickRecent(query: string) {
+  q.value = query;
+  runSearch(query);
 }
 async function copyBarcode(bc: string) {
   // 内网 HTTP 非 secure context：navigator.clipboard 可能不可用 → execCommand 兜底
@@ -54,6 +81,13 @@ async function copyBarcode(bc: string) {
         @keydown.enter="doSearch" />
       <button class="history__btn" type="button" @click="doSearch">⌕ 查询</button>
       <button class="history__btn history__btn--ghost" type="button" @click="q = ''; store.result = null">↺ 重置</button>
+    </div>
+
+    <div v-if="recent.length" class="history__recent">
+      <span class="history__recent-label">RECENT</span>
+      <button
+        v-for="r in recent" :key="r" type="button" class="history__recent-chip"
+        @click="pickRecent(r)">{{ r }}</button>
     </div>
 
     <p v-if="store.loading" class="history__msg">查询中…</p>
@@ -157,4 +191,8 @@ async function copyBarcode(bc: string) {
 .history__evt-src, .history__evt-time { color: var(--ink-2); }
 .history__evt-detail { margin-top: var(--sp-1); font-size: var(--fs-sm); }
 .history__evt-field { color: var(--ink-3); margin-right: var(--sp-2); }
+.history__recent { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-4); }
+.history__recent-label { font-size: var(--fs-xs); color: var(--ink-3); }
+.history__recent-chip { font-size: var(--fs-sm); padding: 2px 8px; border: 1px solid var(--line-soft); border-radius: var(--r-sm); background: transparent; color: var(--ink-1); cursor: pointer; }
+.history__recent-chip:hover { background: var(--accent-subtle); }
 </style>

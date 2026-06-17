@@ -82,4 +82,41 @@ describe("HistoryPage", () => {
     };
     expect(mount(HistoryPage).text()).toContain("暂无历史变更");
   });
+
+  it("RECENT：初始从 localStorage 读出 chips 渲染", () => {
+    reset();
+    localStorage.setItem("history.recentQueries", JSON.stringify(["8299979002791", "ABC123"]));
+    const w = mount(HistoryPage);
+    const chips = w.findAll("button.history__recent-chip");
+    expect(chips.length).toBe(2);
+    expect(w.text()).toContain("8299979002791");
+    localStorage.clear();
+  });
+
+  it("RECENT：命中查询后去重前置写回 localStorage（上限 6）", async () => {
+    reset();
+    localStorage.setItem("history.recentQueries", JSON.stringify(["OLD1", "ABC123"]));
+    // 让 mock load 设成命中
+    state.load = vi.fn(async () => {
+      state.result = {
+        kind: "hit",
+        current: {
+          barcode: "ABC123", model: "M1", isTrulyDiscontinued: false, manualGrade: null,
+          productNameZh: null, productNameLocal: null,
+          storeLocations: [], warehouseLocations: [], unknownLocations: [],
+          salePrice: null, source: null, updatedAt: null,
+        },
+        events: [],
+      };
+    });
+    const w = mount(HistoryPage);
+    await w.find("input.history__input").setValue("ABC123");
+    await w.find("input.history__input").trigger("keydown.enter");
+    await Promise.resolve(); await Promise.resolve(); // 等 await store.load 链
+    const stored = JSON.parse(localStorage.getItem("history.recentQueries") || "[]");
+    expect(stored[0]).toBe("ABC123");          // 前置
+    expect(stored.filter((x: string) => x === "ABC123").length).toBe(1); // 去重
+    expect(stored).toContain("OLD1");
+    localStorage.clear();
+  });
 });
