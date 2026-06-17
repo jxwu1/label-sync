@@ -48,5 +48,64 @@ class MeData(BaseModel):
     is_admin: bool
 
 
+class ForecastEvalMetrics(BaseModel):
+    """headline / by_sku_type / models 共享的聚合指标块（_aggregate_metrics 输出）。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    n: int
+    median_mase: float | None
+    beats_naive_pct: float | None
+    avg_coverage_p98: float | None
+
+
+class ForecastEvalByType(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    sku_type: str
+    n: int
+    median_mase: float | None
+    beats_naive_pct: float | None
+    avg_coverage_p98: float | None
+
+
+class ForecastEvalModelRow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    model_name: str
+    run_id: int
+    created_at: str | None
+    is_production: bool
+    n: int
+    median_mase: float | None
+    beats_naive_pct: float | None
+    avg_coverage_p98: float | None
+
+
+class ForecastEvalTiers(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    high: int
+    medium: int
+    low: int
+
+
+class ForecastEvalData(BaseModel):
+    """GET /api/forecast-eval/data 响应。形状对齐
+    forecast_eval.build_forecast_eval_dashboard + 路由加的 ok。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ok: bool
+    run_id: int | None
+    backtest_date: str | None
+    forecast_skus: int
+    scored_skus: int
+    tiers: ForecastEvalTiers
+    headline: ForecastEvalMetrics
+    by_sku_type: list[ForecastEvalByType]
+    models: list[ForecastEvalModelRow]
+
+
 # gen_ts_types.py 的导出清单：新增模型加进来即自动进 types.gen.ts
-API_MODELS: list[type[BaseModel]] = [BriefingData, MeData]
+API_MODELS: list[type[BaseModel]] = [BriefingData, MeData, ForecastEvalData]

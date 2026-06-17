@@ -12,6 +12,7 @@ from app.routes.briefing import api_bp as briefing_api_bp
 from app.routes.briefing import bp as briefing_bp
 from app.routes.dashboard import bp as dashboard_bp
 from app.routes.data_quality import bp as data_quality_bp
+from app.routes.forecast_eval import api_bp as forecast_eval_api_bp
 from app.routes.foreign_customers import bp as foreign_customers_bp
 from app.routes.history import bp as history_bp
 from app.routes.inventory import bp as inventory_bp
@@ -45,6 +46,7 @@ def register_routes(app) -> None:
     app.register_blueprint(api_me_bp)
     app.register_blueprint(foreign_customers_bp)
     app.register_blueprint(analytics_bp)
+    app.register_blueprint(forecast_eval_api_bp)
     app.register_blueprint(restock_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(pda_bp)
