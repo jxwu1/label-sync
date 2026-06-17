@@ -30,7 +30,7 @@
 
 **HC-A2（瘦端点，唯一与 strict+只建2a 兼容的形状）：** 新建 `GET /api/history/<barcode>/analytics`，**只调** `compute_sales_metrics` + `compute_purchase_metrics` + `compute_customer_split`，**只返回** `{ok, sales, purchase, customer_split}`。**不复用**胖 `/analytics/sku/<barcode>` 的完整 response；**不计算、不返回** extras / heatmap / restock_snapshot / forecast / timeline / qty_percentile / auto_category。
 
-**HC-A3（strict schema 逐字段对齐真实输出）：** `SkuAnalyticsData` 及嵌套模型 `extra="forbid"`，字段/类型逐字段对齐下方（已核 `app/services/analytics/metrics.py` + `_shared.py` 的真实 return）。**所有时间戳是 Text 字符串**（`last_at` 来自 event_at，无 datetime 对象）。
+**HC-A3（strict schema 逐字段对齐真实输出）：** `SkuAnalyticsData` 及嵌套模型 `extra="forbid"`，字段/类型逐字段对齐下方（已核 `app/services/analytics/metrics.py` + `_shared.py` 的真实 return）。**所有时间戳字段都是 `str`**——`last_at` 是 `_customer_end_metrics` 里 `max(dates).isoformat()`（解析后再序列化成 `YYYY-MM-DD` 字符串，非 datetime 对象），schema `str | None` 安全。
 
 **HC-A4（analytics 失败隔离 + 401 沿用全局语义）：** 分析块用**独立 store**（`useSkuAnalyticsStore`），独立 loading/error。
 - **普通错误**（500 / 网络 / schema 漂移）：只影响分析块（块内显错误态），**不影响** P1 的 hero / 概况 / 历史时间线（由 `useHistoryStore` 渲染，互不依赖）。
