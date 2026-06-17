@@ -107,5 +107,77 @@ class ForecastEvalData(BaseModel):
     models: list[ForecastEvalModelRow]
 
 
+class HistoryLocSplit(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    stores: list[str]
+    warehouses: list[str]
+    unknown: list[str]
+
+
+class HistoryChange(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    field: str
+    old: str | None
+    new: str | None
+    old_split: HistoryLocSplit | None = None
+    new_split: HistoryLocSplit | None = None
+
+
+class HistoryEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    at: str
+    change_type: str | None
+    source: str | None
+    summary: str | None = None
+    changes: list[HistoryChange]
+
+
+class HistoryCurrent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    barcode: str
+    model: str
+    location: str
+    is_active: bool
+    source: str | None
+    created_at: str | None
+    updated_at: str | None
+    product_name_zh: str | None
+    product_name_local: str | None
+    erp_category_raw: str | None
+    erp_category_code: str | None
+    manual_grade: int | None
+    stock_price: float | None
+    sale_price: float | None
+    is_truly_discontinued: bool
+    store_locations: list[str]
+    warehouse_locations: list[str]
+    unknown_locations: list[str]
+
+
+class HistoryFuzzyMatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    barcode: str
+    model: str
+    location: str | None
+    is_active: bool
+
+
+class HistorySearchData(BaseModel):
+    """GET /api/history?q= 的 200 响应。命中/模糊/无 三分支，缺省分支字段 Optional 兜。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ok: bool
+    found: bool
+    current: HistoryCurrent | None = None
+    events: list[HistoryEvent] | None = None
+    fuzzy_matches: list[HistoryFuzzyMatch] | None = None
+
+
 # gen_ts_types.py 的导出清单：新增模型加进来即自动进 types.gen.ts
-API_MODELS: list[type[BaseModel]] = [BriefingData, MeData, ForecastEvalData]
+API_MODELS: list[type[BaseModel]] = [BriefingData, MeData, ForecastEvalData, HistorySearchData]

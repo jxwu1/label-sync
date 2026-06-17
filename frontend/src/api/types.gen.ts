@@ -71,3 +71,61 @@ export interface ForecastEvalData {
   by_sku_type: ForecastEvalByType[];
   models: ForecastEvalModelRow[];
 }
+
+export interface HistoryChange {
+  field: string;
+  old: string | null;
+  new: string | null;
+  old_split?: HistoryLocSplit | null;
+  new_split?: HistoryLocSplit | null;
+}
+
+export interface HistoryCurrent {
+  barcode: string;
+  model: string;
+  location: string;
+  is_active: boolean;
+  source: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  product_name_zh: string | null;
+  product_name_local: string | null;
+  erp_category_raw: string | null;
+  erp_category_code: string | null;
+  manual_grade: number | null;
+  stock_price: number | null;
+  sale_price: number | null;
+  is_truly_discontinued: boolean;
+  store_locations: string[];
+  warehouse_locations: string[];
+  unknown_locations: string[];
+}
+
+export interface HistoryEvent {
+  at: string;
+  change_type: string | null;
+  source: string | null;
+  summary?: string | null;
+  changes: HistoryChange[];
+}
+
+export interface HistoryFuzzyMatch {
+  barcode: string;
+  model: string;
+  location: string | null;
+  is_active: boolean;
+}
+
+export interface HistoryLocSplit {
+  stores: string[];
+  warehouses: string[];
+  unknown: string[];
+}
+
+export interface HistorySearchData {
+  ok: boolean;
+  found: boolean;
+  current?: HistoryCurrent | null;
+  events?: HistoryEvent[] | null;
+  fuzzy_matches?: HistoryFuzzyMatch[] | null;
+}

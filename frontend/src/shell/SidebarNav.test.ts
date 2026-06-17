@@ -35,9 +35,11 @@ describe("SidebarNav", () => {
     expect(links.some((l) => (l.props("to") as { name?: string })?.name === "briefing")).toBe(true);
     // forecast-eval 已迁 → 也是 RouterLink（routeName），不再走 legacy <a>
     expect(links.some((l) => (l.props("to") as { name?: string })?.name === "forecast-eval")).toBe(true);
+    // history 已迁 → 也是 RouterLink（routeName），不再走 legacy <a>
+    expect(links.some((l) => (l.props("to") as { name?: string })?.name === "history")).toBe(true);
     const hrefs = w.findAll("a.nav-item").map((a) => a.attributes("href"));
     expect(hrefs).toContain("/?page=restock");
-    expect(hrefs).toContain("/?page=history");
+    expect(hrefs).not.toContain("/?page=history"); // history 已迁，不再走 legacy nav
     expect(hrefs).not.toContain("/?page=forecast_eval"); // 旧深链已退役
     hrefs.forEach((h) => h && expect(h).not.toContain(" "));
   });
