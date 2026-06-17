@@ -32,7 +32,10 @@
 
 **HC-A3（strict schema 逐字段对齐真实输出）：** `SkuAnalyticsData` 及嵌套模型 `extra="forbid"`，字段/类型逐字段对齐下方（已核 `app/services/analytics/metrics.py` + `_shared.py` 的真实 return）。**所有时间戳是 Text 字符串**（`last_at` 来自 event_at，无 datetime 对象）。
 
-**HC-A4（analytics 失败隔离）：** 分析块用**独立 store**（`useSkuAnalyticsStore`），独立 loading/error。analytics 加载失败 / 401 **只**影响分析块（显该块错误态），**不影响** P1 的 hero / 概况 / 历史时间线（它们由 `useHistoryStore` 渲染，两者互不依赖）。
+**HC-A4（analytics 失败隔离 + 401 沿用全局语义）：** 分析块用**独立 store**（`useSkuAnalyticsStore`），独立 loading/error。
+- **普通错误**（500 / 网络 / schema 漂移）：只影响分析块（块内显错误态），**不影响** P1 的 hero / 概况 / 历史时间线（由 `useHistoryStore` 渲染，互不依赖）。
+- **401 / 未登录**：沿用现有 `apiGet` 语义——`apiGet` 命中 401/HTML 会 `location.assign('/login?...')` 并抛 `UnauthenticatedError`；store **吞掉** `UnauthenticatedError`（`if (e instanceof UnauthenticatedError) return;`），**不写块内 error**（页面即将整页跳登录，块内错误条会一闪而过误导）。与 P1 `useHistoryStore` / briefing / forecastEval 完全一致。
+- 故"块内错误态"只在普通错误时出现；401 不显块内错误。
 
 **HC-A5（2a 不消费 2b 字段）：** 前端 VM / normalize 只含 sales / purchase / customerSplit；后端 thin endpoint 响应 key **恰好** `{ok, sales, purchase, customer_split}`（后端测试断言 key 集合）。P1 的 `no-analytics.test.ts`（禁 `/analytics/sku`、`/timeline`）**继续有效**——本期新端点是 `/api/history/<barcode>/analytics`，不含 `/analytics/sku` 子串，守护不破。
 
@@ -62,7 +65,7 @@ def analytics(barcode: str):
 ```
 
 - 路由 = `/api/history/<barcode>/analytics`（不与 P1 的 `GET ""` 即 `/api/history` 冲突）。
-- **无存在性 404**：3 个 compute 函数对不存在 barcode 返回零值 shape（sales 全 0、purchase stock_balance=0/None、customer_split 两端空）。本端点**只在 P1 命中后被调**，barcode 必然存在；"无销售"是合法状态（显零值，不是错误），故不 404。
+- **无存在性 404**：3 个 compute 函数对不存在 barcode 返回零值 shape（sales 全 0；purchase `stock_balance=0`（int 恒非 None），`avg_margin_pct`/`last_purchase_days_ago` 为 None；customer_split 两端零值）。本端点**只在 P1 命中后被调**，barcode 必然存在；"无销售"是合法状态（显零值，不是错误），故不 404。
 - 系统级异常不在端点吞，冒泡到 Flask 通用 500（对齐 `/api/briefing/data`）。
 - `/api/*` 未登录 → 全局 auth 返回 JSON 401（HC-A4 失败隔离含此路径）。
 
@@ -159,12 +162,41 @@ export interface AnalyticsVM {
 ### normalize（`frontend/src/pages/history/analytics-normalize.ts`，单点收窄）
 入 `SkuAnalyticsData` → 出 `AnalyticsVM`，snake_case→camelCase，null/缺字段兜底（`num()` helper）。只收 sales/purchase/customer_split.cn/.fo —— **不触碰任何 2b 字段（HC-A5）**。
 
-### store（`frontend/src/stores/skuAnalytics.ts`，HC-A4 独立失败）
-独立 pinia store：`vm: AnalyticsVM | null`、`loading`、`error`、`load(barcode)`。`load` 调 `apiGet<SkuAnalyticsData>('/api/history/' + encodeURIComponent(barcode) + '/analytics')` → normalize；`UnauthenticatedError` 吞；其它 error 填 `error`。与 `useHistoryStore` 完全独立。
+### store（`frontend/src/stores/skuAnalytics.ts`，HC-A4 独立失败 + 状态卫生）
+独立 pinia store：`vm: AnalyticsVM | null`、`loading`、`error`、`load(barcode)`、`reset()`。
+- `load` **开头即清旧状态**（防 P1 RECENT 那类残留——先命中 A 加载分析，再命中 B 但 B 加载中/失败时残留 A 的分析数据）：
+  ```typescript
+  async function load(barcode: string) {
+    loading.value = true;
+    error.value = null;
+    vm.value = null;          // 开查询即清旧 VM：失败/401 后不得残留上次分析
+    try {
+      const raw = await apiGet<SkuAnalyticsData>(`/api/history/${encodeURIComponent(barcode)}/analytics`);
+      vm.value = normalizeAnalytics(raw);
+    } catch (e) {
+      if (e instanceof UnauthenticatedError) return;   // 401 走全局跳转，不写块内 error
+      error.value = e instanceof Error ? e.message : String(e);
+    } finally {
+      loading.value = false;
+    }
+  }
+  ```
+- `reset()`：`vm=null; error=null; loading=false`（供非命中态 / 重置调用，见组件）。
+- 与 `useHistoryStore` 完全独立。
 
 ### 组件（`frontend/src/pages/history/HistoryPage.vue` 扩展）
 - P1 命中渲染后（`store.result.kind === "hit"`），在「概况」之后、「历史时间线」之前插入分析块：
-  - **触发点（写死）**：在 `runSearch` 的命中分支里调 `analyticsStore.load(result.current.barcode)`——与 `pushRecent` 同一处（`if (!store.error && store.result?.kind === "hit") { pushRecent(query); analyticsStore.load(store.result.current.barcode); }`）。doSearch / pickFuzzy / pickRecent 都经 runSearch，故只此一个触发点。不另用 watch。
+  - **触发点（写死）**：在 `runSearch` 里——命中则加载分析，**非命中则 reset 分析**（防旧 vm 在下次命中前泄漏，状态卫生）：
+    ```typescript
+    if (!store.error && store.result?.kind === "hit") {
+      pushRecent(query);
+      analyticsStore.load(store.result.current.barcode);
+    } else {
+      analyticsStore.reset();   // notfound/fuzzy/失败 → 清旧分析，分析块不显示
+    }
+    ```
+    doSearch / pickFuzzy / pickRecent 都经 runSearch，故只此一个触发点；不另用 watch。
+  - 「重置」按钮的 `doReset()` 里同时调 `analyticsStore.reset()`（与 `store.reset()` 并列）。
   - **销售分析 SLA**：总销量/总营收/独立客户/寿命/日均件数（total_qty/lifespan_days 算）/12周趋势
   - **客户拆分**：CN / 老外 两张卡（销量/客户数/单笔最大/月频/上次）
   - **采购面 PUR**：库存推算/毛利率/365天采购/上次采购
@@ -187,11 +219,13 @@ Phase 2a 不动 router / nav-items（P1 已把 history 翻 routeName）。纯在
 
 ### 前端（vitest）
 - `analytics-normalize.test.ts`：命中数据 camelCase 映射 + 空值兜底（trend/avg_margin/last_at 为 null 的分支）
-- `skuAnalytics.test.ts`（store）：load 填 vm、load 失败填 error、unauth 吞、调对端点 `/api/history/<bc>/analytics`
+- `skuAnalytics.test.ts`（store）：load 填 vm、load 失败填 error、unauth 吞（error 保持 null）、调对端点 `/api/history/<bc>/analytics`；**+ 旧 vm 存在时新 load 失败 → vm === null**（状态卫生回归：先成功 load A 使 vm 非空，再 `mockRejectedValueOnce` load B，断言 vm===null 且 error 置位）
 - `HistoryPage.test.ts` 扩展：
   - hit 态触发 `analyticsStore.load(barcode)` 且渲染 SLA/PUR/客户卡（mock analytics store 返回数据）
-  - **analytics 失败时**：分析块显错误，但 hero/概况/历史时间线（P1 部分）**仍正常渲染**（HC-A4 回归）
+  - **analytics 普通失败时**：分析块显错误，但 hero/概况/历史时间线（P1 部分）**仍正常渲染**（HC-A4 回归）
+  - **401/UnauthenticatedError**：不要求块内错误条（store 吞、error 保持 null → 分析块不显错误），按全局登录跳转语义处理；P1 部分不受影响
   - analytics loading 时显"分析加载中"，P1 部分不受影响
+  - 非命中态（notfound/fuzzy）→ `analyticsStore.reset()` 被调（分析块不显示）
 
 ### 守护（HC-A5 + 延续 HC-2）
 - `no-analytics.test.ts`（P1 已有）继续通过：pages/history + stores 不含 `/analytics/sku`、`/timeline`（本期端点是 `/api/history/<bc>/analytics`，不命中）
@@ -204,3 +238,14 @@ Phase 2a 不动 router / nav-items（P1 已把 history 翻 routeName）。纯在
 
 ## 不做（YAGNI）
 不为 2b 预建 passthrough / 占位字段；不重排成两列（沿用 P1 单列）；不迁等级对照；不动 router/nav。
+
+---
+
+## 审查修订记录（REQUEST_CHANGES → 已修，2026-06-17）
+
+| # | 类型 | 发现 | 修复 |
+|---|---|---|---|
+| 1 | 阻断 | "analytics 失败/401 显块内错误"与 apiGet 语义冲突（401 走 location.assign + 抛 UnauthenticatedError，store 吞，不会显块内错误） | HC-A4 拆成「普通错误→块内错误」「401→全局跳转 + store 吞 + 不写 error」，与 P1/briefing 一致 |
+| 2 | 阻断 | analytics store 未写"新 load 清旧 vm/error"→ 命中 A 后命中 B 失败会残留 A 的分析（P1 RECENT 同类 bug） | store 段写死 `load` 开头 `vm=null;error=null;loading=true`，加 `reset()`；测试补"旧 vm + 新 load 失败 → vm null" |
+| 3 | 建议 | 404 说明里 `stock_balance=0/None` 措辞错（stock_balance 恒 int，None 的是 avg_margin_pct/last_purchase_days_ago） | 已改准确措辞，防 schema 误放宽 |
+| 4 | 建议 | 非命中/重置时旧 vm 可能泄漏到下次命中 | runSearch 非命中分支 + doReset 调 `analyticsStore.reset()` |
