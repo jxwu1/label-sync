@@ -133,8 +133,10 @@ const pricePath = computed(() => {
     const py = priceY(p);
     if (prevY === null) {
       d += `M${px.toFixed(1)},${py.toFixed(1)}`;
+    } else if (py === prevY) {
+      d += ` L${px.toFixed(1)},${py.toFixed(1)}`;          // 水平保持，无变化不画竖直
     } else {
-      d += ` L${px.toFixed(1)},${prevY.toFixed(1)} L${px.toFixed(1)},${py.toFixed(1)}`;
+      d += ` L${px.toFixed(1)},${prevY.toFixed(1)} L${px.toFixed(1)},${py.toFixed(1)}`;  // 水平保持 + 垂直跳变
     }
     prevY = py;
   }
@@ -180,7 +182,7 @@ const xLabels = computed(() => {
   const out: { x: number; label: string; anchor: string }[] = [];
   for (let i = 0; i < n; i++) {
     const idx = Math.floor(((ms.length - 1) * i) / Math.max(1, n - 1));
-    const anchor = i === 0 ? "start" : i === n - 1 ? "end" : "middle";
+    const anchor = n === 1 ? "middle" : i === 0 ? "start" : i === n - 1 ? "end" : "middle";
     out.push({ x: x(dayNum(ms[idx].monthStart)), label: ms[idx].monthStart.slice(0, 7), anchor });
   }
   return out;

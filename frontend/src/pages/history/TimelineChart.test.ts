@@ -55,6 +55,10 @@ describe("TimelineChart", () => {
     const marker = w.find('[data-kind="net-return"]');
     expect(marker.exists()).toBe(true);
     expect(marker.find("title").text()).toContain("净退货");
+    // 三角几何断言：底 8 × 高 6 viewBox units，坐标跨度必须 > 4
+    const d = marker.attributes("d")!;
+    const nums = [...d.matchAll(/[\d.]+/g)].map((m) => Number(m[0]));
+    expect(Math.max(...nums) - Math.min(...nums)).toBeGreaterThan(4);
   });
 
   it("红队：单负净月无采购 → hasData=true 且退货标记可命中", () => {
@@ -109,6 +113,16 @@ describe("TimelineChart", () => {
     const bw = Number(marBar.attributes("width"));
     expect(dotX).toBeGreaterThanOrEqual(bx);
     expect(dotX).toBeLessThanOrEqual(bx + bw);
+  });
+
+  it("单月：唯一 X 标签 text-anchor=middle", () => {
+    const w = mount(TimelineChart, { props: {
+      weeks: [wk({ weekStart: "2024-06-01" })],
+      monthlySales: [mo("2024-06-01", 5, 0)],
+    }});
+    const labels = w.findAll("text.tml-xlabel");
+    expect(labels.length).toBe(1);
+    expect(labels[0].attributes("text-anchor")).toBe("middle");
   });
 
   it("窄容器：X 首标签 anchor=start、末标签 anchor=end，x 在 [0,W]", () => {
