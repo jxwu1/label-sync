@@ -1,6 +1,6 @@
 # 货号历史页迁移 Vue —— Phase 4a（批次记录 tab 壳 + 最近改动）设计
 
-**状态：** 设计待批（2026-06-18）。三轮审查 REQUEST_CHANGES 已处置（一轮 B1-3/mode-filter/onDrill/红队 MEDIUM；二轮 #7 窗口只读一次防 READ COMMITTED 撕裂 / #8 store 双计数器+成功才置 loaded+await 完整链 / #9 onDrill 写死 q.value；三轮 #10 initGen 代际守 inflight / #11 batches 重试按钮 / #12 reset 三代际）。
+**状态：** 已审批（2026-06-18，终审 APPROVE）。三轮审查 REQUEST_CHANGES 已处置（一轮 B1-3/mode-filter/onDrill/红队 MEDIUM；二轮 #7 窗口只读一次防 READ COMMITTED 撕裂 / #8 store 双计数器+成功才置 loaded+await 完整链 / #9 onDrill 写死 q.value；三轮 #10 initGen 代际守 inflight / #11 batches 重试按钮 / #12 reset 三代际）。
 
 ## 目标
 
@@ -223,7 +223,7 @@ VM camelCase：`RecentBatchVM`(batchId/takenAt/totalLocal/changeCount/affectedBa
 - 行点击 → `emit('drill', barcode)`。
 - **`onMounted` → `store.ensureLoaded()`**（组件 lazy v-if 挂载即首次激活；幂等闸保证回切不重载，首加载链 = ensureLoaded→loadBatches→自动选首项→loadDetail）。
 - **batches 级状态**：`store.loading` → 「批次加载中…」；**`store.error` → 错误条 + 「重试」按钮（点击 `store.ensureLoaded()`，失败后 loaded=false 故可重发）**；成功且 batches 空 → 「还没有 import 记录」。
-- detailLoading/detailError 子态（per-batch，不影响 batches 下拉/查询 tab）。
+- detailLoading/detailError 子态（per-batch，不影响 batches 下拉/查询 tab）；**`detailError` → 「重试当前批次」按钮（→ `store.loadDetail()` 重拉当前 batch+mode+filter）**（终审非阻断建议收编）。
 - 颜色仅 token 变量；FIELD_CN / CHANGE_TYPE_CN 中文映射沿用。
 
 ### HistoryPage 接线（`frontend/src/pages/history/HistoryPage.vue`，HC-4A-6/7）
