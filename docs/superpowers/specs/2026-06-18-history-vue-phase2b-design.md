@@ -42,7 +42,7 @@
 **HC-B3（失败边界 = Phase 2b 原子，与 P1/2a 隔离）：** 端点串行调 5 个 compute 函数，任一抛错 → 整个请求 500 → 整个 2b（Extras + 补货）一起进错误态。这是**原子失败**，不在路由里逐项吞异常返回半成功。隔离粒度 = 「2b 整体 ↔ P1/2a」：2b 用**独立 store** `useSkuExtrasStore`（独立 loading/error），其失败**不影响** P1 的 hero/概况/events（`useHistoryStore`）和 2a 的 SLA/PUR/客户（`useSkuAnalyticsStore`）。401 沿用全局语义：`apiGet` 命中 401 → `location.assign('/login')` + 抛 `UnauthenticatedError`，store **吞掉**不写块内 error（与 P1/2a/briefing 一致）。
 
 **HC-B4（热力图 HTML 表，三补充）：** 月度热力图用 HTML `<table>` + 单元格背景 intensity，不引 SVG。
-- **每年严格 12 个值**：后端 `HeatmapData` 加 pydantic `field_validator`（或 model_validator）强制 `matrix` 每个 year 的 list 长度 == 12，不满足直接 422/校验失败（`compute_monthly_heatmap` 已保证 `[0]*12`，validator 是契约硬守护）；前端 normalize 补齐到 12 仅作纵深防御。
+- **每年严格 12 个值**：后端 `HeatmapData` 加 pydantic `field_validator`（或 model_validator）强制 `matrix` 每个 year 的 list 长度 == 12。这是**输出** schema 校验，不满足时端点 `model_validate` 抛 `ValidationError` → 与系统级异常一致冒泡 Flask 通用 **500**（非 422——422 是请求体校验语义，本端点无请求体）。`compute_monthly_heatmap` 已保证 `[0]*12`，validator 是契约硬守护；前端 normalize 补齐到 12 仅作纵深防御。
 - **max_qty == 0 时 intensity 恒为 0**：防除零（`q / max_qty`）。全零年份所有格显 `—`。
 - **单元格保留数值文本**：`q > 0` 显数字，`q == 0` 显 `—`；颜色只是辅助，不靠颜色单独表达数值（可访问性）。
 
