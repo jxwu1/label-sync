@@ -4,24 +4,35 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const storeFile = join(here, "..", "..", "stores", "history.ts");
+const storesDir = join(here, "..", "..", "stores");
 
-// HC-2：Phase 1 不得引用 analytics/timeline 接口
-const FORBIDDEN = ["/analytics/sku", "/timeline"];
+// HC-P3-5：货号历史新栈不得调用 legacy analytics 端点。
+// /analytics/sku 覆盖旧胖端点（含旧 timeline /analytics/sku/<bc>/timeline）。
+// 新瘦端点 /api/history/<bc>/{analytics,analytics/extras,timeline} 均不含该子串。
+// 裸 /timeline 已移除（会误伤新 timeline 瘦端点 + ./timeline-types import）。
+const FORBIDDEN = ["/analytics/sku"];
 
-function sources(): string[] {
-  const files = readdirSync(here).filter(
-    (f) => (f.endsWith(".ts") || f.endsWith(".vue")) && !f.includes("no-analytics"),
-  );
-  const texts = files.map((f) => readFileSync(join(here, f), "utf-8"));
-  texts.push(readFileSync(storeFile, "utf-8"));
-  return texts;
+const HISTORY_STORES = ["history.ts", "skuAnalytics.ts", "skuExtras.ts", "skuTimeline.ts"];
+
+function sources(): { name: string; text: string }[] {
+  const pageFiles = readdirSync(here)
+    .filter((f) => (f.endsWith(".ts") || f.endsWith(".vue")) && !f.includes("no-analytics"))
+    .map((f) => ({ name: `pages/history/${f}`, text: readFileSync(join(here, f), "utf-8") }));
+  const storeFiles = HISTORY_STORES.map((f) => ({
+    name: `stores/${f}`,
+    text: readFileSync(join(storesDir, f), "utf-8"),
+  }));
+  return [...pageFiles, ...storeFiles];
 }
 
-describe("HC-2 Phase 1 不接分析/SVG 接口", () => {
+describe("货号历史新栈不调用 legacy analytics 端点", () => {
+  it("扫描集确实包含全部 sku* store（防漏扫假保护）", () => {
+    const names = sources().map((s) => s.name);
+    for (const f of HISTORY_STORES) expect(names).toContain(`stores/${f}`);
+  });
   for (const needle of FORBIDDEN) {
-    it(`pages/history 与 stores/history.ts 不含 "${needle}"`, () => {
-      for (const src of sources()) expect(src.includes(needle)).toBe(false);
+    it(`无文件含 "${needle}"`, () => {
+      for (const { text } of sources()) expect(text.includes(needle)).toBe(false);
     });
   }
 });
