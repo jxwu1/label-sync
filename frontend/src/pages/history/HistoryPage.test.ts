@@ -407,3 +407,36 @@ it("2b: HC-B7 门控 — store.load 返回 false → analyticsStore.load / extra
   expect(analyticsState.load).not.toHaveBeenCalled();
   expect(extrasState.load).not.toHaveBeenCalled();
 });
+
+it("2b: demandValidity < 1.0 → ×dv 标签同时出现在库存和距进货行", () => {
+  reset(); hitState();
+  const restock = aRestock();
+  restock.urgencyBreakdown = { cover: 20, recency: 8, velocity: 25, margin: 19, demandValidity: 0.25 };
+  extrasState.vm = aExtrasVm(restock);
+  const w = mount(HistoryPage);
+  // Both cover and recency rows must contain the ×0.25 tag
+  const dvTags = w.findAll("span.rs-dv-tag");
+  expect(dvTags.length).toBe(2);
+  for (const tag of dvTags) {
+    expect(tag.text()).toBe("×0.25");
+    expect(tag.attributes("title")).toBe("长尾活跃度折扣");
+  }
+});
+
+it("2b: demandValidity === 1.0 → 不渲染 ×dv 标签", () => {
+  reset(); hitState();
+  const restock = aRestock();
+  restock.urgencyBreakdown = { cover: 20, recency: 8, velocity: 25, margin: 19, demandValidity: 1.0 };
+  extrasState.vm = aExtrasVm(restock);
+  const w = mount(HistoryPage);
+  expect(w.findAll("span.rs-dv-tag").length).toBe(0);
+});
+
+it("2b: demandValidity === null → 不渲染 ×dv 标签", () => {
+  reset(); hitState();
+  const restock = aRestock();
+  restock.urgencyBreakdown = { cover: 20, recency: 8, velocity: 25, margin: 19, demandValidity: null };
+  extrasState.vm = aExtrasVm(restock);
+  const w = mount(HistoryPage);
+  expect(w.findAll("span.rs-dv-tag").length).toBe(0);
+});

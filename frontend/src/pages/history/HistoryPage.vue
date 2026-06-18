@@ -457,8 +457,14 @@ function isPeak(q: number, maxQty: number): boolean {
               <div class="rst-sec">
                 <h4>🎯 紧迫 {{ extrasStore.vm.restock.urgencyScore ?? '—' }}</h4>
                 <div class="rst-row">销额 <b>{{ extrasStore.vm.restock.urgencyBreakdown?.velocity ?? '—' }}</b>/30</div>
-                <div class="rst-row">库存 <b>{{ extrasStore.vm.restock.urgencyBreakdown?.cover ?? '—' }}</b>/30</div>
-                <div class="rst-row">距进货 <b>{{ extrasStore.vm.restock.urgencyBreakdown?.recency ?? '—' }}</b>/10</div>
+                <div class="rst-row">库存 <b>{{ extrasStore.vm.restock.urgencyBreakdown?.cover ?? '—' }}</b>/30<span
+                    v-if="extrasStore.vm.restock.urgencyBreakdown?.demandValidity != null && extrasStore.vm.restock.urgencyBreakdown.demandValidity < 1.0"
+                    class="rs-dv-tag"
+                    title="长尾活跃度折扣">×{{ extrasStore.vm.restock.urgencyBreakdown.demandValidity }}</span></div>
+                <div class="rst-row">距进货 <b>{{ extrasStore.vm.restock.urgencyBreakdown?.recency ?? '—' }}</b>/10<span
+                    v-if="extrasStore.vm.restock.urgencyBreakdown?.demandValidity != null && extrasStore.vm.restock.urgencyBreakdown.demandValidity < 1.0"
+                    class="rs-dv-tag"
+                    title="长尾活跃度折扣">×{{ extrasStore.vm.restock.urgencyBreakdown.demandValidity }}</span></div>
                 <div class="rst-row">毛利 <b>{{ extrasStore.vm.restock.urgencyBreakdown?.margin ?? '—' }}</b>/30</div>
               </div>
 
@@ -582,4 +588,7 @@ function isPeak(q: number, maxQty: number): boolean {
 .rs-profit-badge--good { background: var(--accent-subtle); color: var(--accent); }
 .rs-profit-badge--mid { background: var(--warn-subtle); color: var(--warn); }
 .rs-profit-badge--bad { color: var(--error); border: 1px solid var(--error); }
+
+/* demand_validity discount tag (×dv) */
+.rs-dv-tag { font-size: var(--fs-xs); color: var(--ink-2); margin-left: 3px; }
 </style>
