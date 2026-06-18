@@ -1,3 +1,4 @@
+import os
 import socket
 
 from flask import Flask
@@ -56,7 +57,13 @@ def create_app(*, seed_auth: bool = True, prewarm: bool = True) -> Flask:
 
 
 if __name__ == "__main__":
-    app = create_app()
+    # 调试 reloader（CONFIG.debug=True）下，werkzeug 会在父(监视)进程与子(服务)
+    # 进程各执行一次本模块 → 两个 prewarm 线程并发刷 sku_summary 物化表，后提交
+    # 者撞 PK（UniqueViolation，非致命但刷红日志）。只在真正服务的进程预热：
+    # reloader 子进程 WERKZEUG_RUN_MAIN=="true"；父监视进程没有该环境变量 → 跳过。
+    # 生产（waitress 经 wsgi.py，debug=False，不走此分支）不受影响。
+    _is_reloader_parent = CONFIG.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true"
+    app = create_app(prewarm=not _is_reloader_parent)
     try:
         ip = socket.gethostbyname(socket.gethostname())
     except OSError:
