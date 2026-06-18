@@ -33,6 +33,106 @@ def search():
     return jsonify(HistorySearchData.model_validate({"ok": True, **result}).model_dump())
 
 
+# Phase 2b: restock 显式投影字段集（HC-B6, 逐字段对齐 summary.py 行）
+_RESTOCK_PROJECTION_KEYS = (
+    "master_sale_price_eur",
+    "sale_net_avg",
+    "retail_price_observed",
+    "retail_price_estimate",
+    "retail_qty_26w",
+    "last_purchase_unit_price",
+    "master_stock_price_eur",
+    "margin_pct",
+    "qty_total",
+    "inventory_sale_value_eur",
+    "inventory_cost_value_eur",
+    "weeks_of_cover",
+    "lifetime_invested_eur",
+    "lifetime_purchase_qty",
+    "lifetime_sale_revenue_eur",
+    "lifetime_sale_qty",
+    "realized_profit_eur",
+    "net_cashflow_eur",
+    "inventory_imbalance_pct",
+    "weekly_velocity",
+    "weekly_revenue",
+    "n_active_weeks_26w",
+    "last_purchase_days_ago",
+    "urgency_score",
+    "urgency_breakdown",
+)
+
+
+# RestockSnapshot 中声明为 int/float (非 Optional) 的字段，None 时补零（计划期无快照时的守护）
+_RESTOCK_INT_DEFAULTS: dict[str, int] = {
+    "retail_qty_26w": 0,
+    "qty_total": 0,
+    "lifetime_purchase_qty": 0,
+    "lifetime_sale_qty": 0,
+    "n_active_weeks_26w": 0,
+}
+_RESTOCK_FLOAT_DEFAULTS: dict[str, float] = {
+    "lifetime_sale_revenue_eur": 0.0,
+    "weekly_velocity": 0.0,
+    "weekly_revenue": 0.0,
+}
+
+
+def _project_restock(row: dict) -> dict:
+    """HC-B6: 从 list_sku_summary 整行投影出 RestockSnapshot 字段子集。
+
+    non-nullable 字段若为 None（无快照时常见），用 0 守护，对齐 pydantic schema。
+    """
+    out: dict = {}
+    for k in _RESTOCK_PROJECTION_KEYS:
+        v = row.get(k)
+        if v is None:
+            if k in _RESTOCK_INT_DEFAULTS:
+                v = _RESTOCK_INT_DEFAULTS[k]
+            elif k in _RESTOCK_FLOAT_DEFAULTS:
+                v = _RESTOCK_FLOAT_DEFAULTS[k]
+        out[k] = v
+    return out
+
+
+@api_bp.get("/<barcode>/analytics/extras")
+def analytics_extras(barcode: str):
+    from app.schemas_api import SkuExtrasResponse
+    from app.services import analytics as analytics_service
+    from app.services.analytics._shared import _today
+    from app.services.forecast_eval import forecast_is_stale
+
+    bc = barcode.strip()
+    rows = analytics_service.fetch_event_rows(bc)  # HC-B2: 取一次喂 extras/holding/heatmap
+    extras = analytics_service.compute_sku_extras(bc, rows=rows)
+    holding = analytics_service.compute_avg_holding_days(bc, rows=rows)
+    heatmap = analytics_service.compute_monthly_heatmap(bc, rows=rows)
+    fc = analytics_service.compute_forecast_snapshot(bc)
+    restock_full = analytics_service.compute_restock_snapshot(bc)
+
+    forecast_brief = None
+    if fc is not None:
+        forecast_brief = {
+            "quarter_mu": fc["quarter_mu"],
+            "quarter_p98": fc["quarter_p98"],
+            "computed_at": fc["computed_at"],
+            "is_stale": forecast_is_stale(fc["computed_at"], _today()),
+            "stockout_weeks_excluded": fc["stockout_weeks_excluded"],
+        }
+
+    restock_brief = _project_restock(restock_full) if restock_full is not None else None
+
+    payload = {
+        "ok": True,
+        "extras": extras,
+        "holding": holding,
+        "heatmap": heatmap,
+        "forecast": forecast_brief,
+        "restock": restock_brief,
+    }
+    return jsonify(SkuExtrasResponse.model_validate(payload).model_dump())
+
+
 @api_bp.get("/<barcode>/analytics")
 def analytics(barcode: str):
     from app.schemas_api import SkuAnalyticsData
