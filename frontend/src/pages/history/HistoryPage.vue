@@ -3,9 +3,11 @@ import { ref } from "vue";
 import PageHeader from "../../components/PageHeader.vue";
 import { useHistoryStore } from "../../stores/history";
 import { useSkuAnalyticsStore } from "../../stores/skuAnalytics";
+import { useSkuExtrasStore } from "../../stores/skuExtras";
 
 const store = useHistoryStore();
 const analyticsStore = useSkuAnalyticsStore();
+const extrasStore = useSkuExtrasStore();
 const q = ref("");
 
 const RECENT_KEY = "history.recentQueries";
@@ -27,12 +29,16 @@ function pushRecent(query: string) {
   try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)); } catch { /* ignore */ }
 }
 async function runSearch(query: string) {
-  await store.load(query);
-  if (!store.error && store.result && store.result.kind === "hit") {
+  const fresh = await store.load(query);
+  if (!fresh) return; // HC-B7: superseded search — don't touch downstream
+  if (!store.error && store.result?.kind === "hit") {
     pushRecent(query);
-    analyticsStore.load(store.result.current.barcode);
+    const bc = store.result.current.barcode;
+    analyticsStore.load(bc);
+    extrasStore.load(bc);
   } else {
     analyticsStore.reset();
+    extrasStore.reset();
   }
 }
 
@@ -50,8 +56,13 @@ const CHANGE_TYPE_CN: Record<string, string> = {
 };
 const cn = (m: Record<string, string>, k: string | null) => (k ? m[k] ?? k : "");
 const fmtPct = (v: number | null) => (v == null ? "—" : `${v}%`);
-const eur = (v: number | null) => (v == null ? "—" : `€${v.toFixed(2)}`);
+const eur = (v: number | null | undefined) => (v == null ? "—" : `€${Number(v).toFixed(2)}`);
 const dayN = (v: number | null) => (v == null ? "—" : `${v} 天`);
+
+// 2b local format helpers
+const fmtNum = (v: number | null | undefined) => (v == null ? "—" : String(Math.round(v)));
+const fmtNum2 = (v: number | null | undefined, d = 2) => (v == null ? "—" : Number(v).toFixed(d));
+const fmtEurInt = (v: number | null | undefined) => (v == null ? "—" : `€${Math.round(Number(v))}`);
 
 function doSearch() {
   const v = q.value.trim();
@@ -69,6 +80,7 @@ function doReset() {
   q.value = "";
   store.reset();
   analyticsStore.reset();
+  extrasStore.reset();
 }
 async function copyBarcode(bc: string) {
   // 内网 HTTP 非 secure context：navigator.clipboard 可能不可用 → execCommand 兜底
@@ -80,6 +92,15 @@ async function copyBarcode(bc: string) {
   document.body.appendChild(ta); ta.select();
   try { document.execCommand("copy"); } catch { /* ignore */ }
   document.body.removeChild(ta);
+}
+
+// heatmap intensity helper (HC-B4: maxQty===0 → intensity 0, no divide-by-zero)
+function heatIntensity(q: number, maxQty: number): number {
+  if (maxQty === 0 || q === 0) return 0;
+  return Math.max(0.12, q / maxQty);
+}
+function isPeak(q: number, maxQty: number): boolean {
+  return q === maxQty && q > 0;
 }
 </script>
 
@@ -150,6 +171,7 @@ async function copyBarcode(bc: string) {
         <dt>最后更新</dt><dd>{{ store.result.current.updatedAt ?? "—" }}</dd>
       </dl>
 
+      <!-- 2a: SLA + PUR + 客户拆分 -->
       <section class="history__analytics">
         <p v-if="analyticsStore.loading" class="history__msg">分析加载中…</p>
         <p v-else-if="analyticsStore.error" class="history__error">分析加载失败：{{ analyticsStore.error }}</p>
@@ -185,6 +207,270 @@ async function copyBarcode(bc: string) {
             <div class="history__kv"><span>365 天采购</span><b>{{ analyticsStore.vm.purchase.purchaseFreq365d }}</b></div>
             <div class="history__kv"><span>上次采购</span><b>{{ dayN(analyticsStore.vm.purchase.lastPurchaseDaysAgo) }}</b></div>
           </div>
+        </template>
+      </section>
+
+      <!-- 2b: extras 深度分析 + 补货快照 -->
+      <section class="history__extras-section">
+        <p v-if="extrasStore.loading" class="history__msg">深度分析加载中…</p>
+        <p v-else-if="extrasStore.error" class="history__error history__error--2b">深度分析加载失败：{{ extrasStore.error }}</p>
+        <template v-else-if="extrasStore.vm">
+
+          <!-- Extras Panel -->
+          <div class="history__panel history__panel--extras">
+            <div class="history__sec-hd">深度分析</div>
+
+            <!-- 1. 退货率 + 价格波动 -->
+            <div class="ext-section">
+              <div class="ext-section-label">退货率 + 价格波动</div>
+              <div class="cur-kv">
+                <span class="cur-kv-label">退货率</span>
+                <span class="cur-kv-val cur-kv-val--mono">
+                  {{ extrasStore.vm.extras.returnRatePct != null ? extrasStore.vm.extras.returnRatePct + '%' : '—' }}
+                  <span class="ext-muted">({{ extrasStore.vm.extras.returnQty }}/{{ extrasStore.vm.extras.totalSaleQtyGross + extrasStore.vm.extras.returnQty }})</span>
+                </span>
+              </div>
+              <div class="cur-kv">
+                <span class="cur-kv-label">批发售价均</span>
+                <span class="cur-kv-val cur-kv-val--mono">
+                  {{ extrasStore.vm.extras.priceStats.mean != null ? '€' + extrasStore.vm.extras.priceStats.mean : '—' }}
+                  ±{{ extrasStore.vm.extras.priceStats.std ?? '—' }}
+                </span>
+              </div>
+              <div class="cur-kv">
+                <span class="cur-kv-label">售价区间</span>
+                <span class="cur-kv-val cur-kv-val--mono">
+                  {{ extrasStore.vm.extras.priceStats.min != null ? '€' + extrasStore.vm.extras.priceStats.min : '—' }}
+                  ~
+                  {{ extrasStore.vm.extras.priceStats.max != null ? '€' + extrasStore.vm.extras.priceStats.max : '—' }}
+                </span>
+              </div>
+            </div>
+
+            <!-- 2. 零售汇总 -->
+            <div class="ext-section">
+              <div class="ext-section-label">零售汇总 (MB700 + ID=0)</div>
+              <template v-if="extrasStore.vm.extras.retailSummary.nTransactions > 0">
+                <div class="cur-kv">
+                  <span class="cur-kv-label">件数 / 营收</span>
+                  <span class="cur-kv-val cur-kv-val--mono">{{ extrasStore.vm.extras.retailSummary.qty }} · €{{ extrasStore.vm.extras.retailSummary.revenue }}</span>
+                </div>
+                <div class="cur-kv">
+                  <span class="cur-kv-label">笔数 / 件均</span>
+                  <span class="cur-kv-val cur-kv-val--mono">{{ extrasStore.vm.extras.retailSummary.nTransactions }}笔 · {{ extrasStore.vm.extras.retailSummary.avgTicketQty ?? '—' }}</span>
+                </div>
+                <div class="cur-kv">
+                  <span class="cur-kv-label">最近零售</span>
+                  <span class="cur-kv-val cur-kv-val--mono">{{ extrasStore.vm.extras.retailSummary.lastAt ?? '—' }}</span>
+                </div>
+              </template>
+              <div v-else class="ext-muted">暂无零售记录 (MB700 / ID=0)</div>
+            </div>
+
+            <!-- 3. CN 客户 TOP -->
+            <div class="ext-section">
+              <div class="ext-section-label">CN 中国客户 TOP</div>
+              <table class="ext-mini-tbl">
+                <thead><tr><th>ID</th><th>名字</th><th class="r">件</th><th class="r">上次</th></tr></thead>
+                <tbody>
+                  <template v-if="extrasStore.vm.extras.topCustomersCn.length">
+                    <tr v-for="(c, i) in extrasStore.vm.extras.topCustomersCn" :key="i">
+                      <td>{{ c.customerId ?? '' }}</td>
+                      <td>{{ c.customerName ?? '—' }}</td>
+                      <td class="r">{{ c.qty }}</td>
+                      <td class="r">{{ c.lastAt ?? '' }}</td>
+                    </tr>
+                  </template>
+                  <tr v-else><td colspan="4" class="ext-muted">—</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- 4. 老外客户 TOP -->
+            <div class="ext-section">
+              <div class="ext-section-label">老外客户 TOP</div>
+              <table class="ext-mini-tbl">
+                <thead><tr><th>ID</th><th>名字</th><th class="r">件</th><th class="r">上次</th></tr></thead>
+                <tbody>
+                  <template v-if="extrasStore.vm.extras.topCustomersForeign.length">
+                    <tr v-for="(c, i) in extrasStore.vm.extras.topCustomersForeign" :key="i">
+                      <td>{{ c.customerId ?? '' }}</td>
+                      <td>{{ c.customerName ?? '—' }}</td>
+                      <td class="r">{{ c.qty }}</td>
+                      <td class="r">{{ c.lastAt ?? '' }}</td>
+                    </tr>
+                  </template>
+                  <tr v-else><td colspan="4" class="ext-muted">—</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- 5. 月度热力图 -->
+            <div class="ext-section">
+              <div class="ext-section-label">🌡 月度热力图</div>
+              <table class="heat-mini">
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th v-for="m in 12" :key="m">{{ m }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="yr in extrasStore.vm.heatmap.years.slice().reverse()" :key="yr">
+                    <td class="hy">{{ String(yr).slice(2) }}</td>
+                    <td
+                      v-for="(qty, mi) in (extrasStore.vm.heatmap.matrix[yr] || new Array(12).fill(0))"
+                      :key="mi"
+                      :class="isPeak(qty, extrasStore.vm.heatmap.maxQty) ? 'hc hc--peak' : 'hc'"
+                      :style="(qty > 0 && !isPeak(qty, extrasStore.vm.heatmap.maxQty))
+                        ? { background: `color-mix(in srgb, var(--success) ${(heatIntensity(qty, extrasStore.vm.heatmap.maxQty) * 100).toFixed(0)}%, transparent)`, color: 'var(--ink-0)' }
+                        : {}"
+                      :title="`${yr}-${String(mi + 1).padStart(2, '0')}: ${qty} 件`"
+                    >{{ qty > 0 ? qty : '—' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- 6. 持仓 / 预测 / 数据范围 -->
+            <div class="ext-section">
+              <div class="ext-section-label">🔮 持仓 / 预测</div>
+              <div v-if="extrasStore.vm.holding.avgDays != null" class="cur-kv">
+                <span class="cur-kv-label">平均持仓</span>
+                <span class="cur-kv-val cur-kv-val--mono">{{ extrasStore.vm.holding.avgDays }}天 <span class="ext-muted">({{ extrasStore.vm.holding.nPairs }}件)</span></span>
+              </div>
+              <div v-if="extrasStore.vm.holding.oldestHeldDays != null" class="cur-kv">
+                <span class="cur-kv-label">当前压最久</span>
+                <span class="cur-kv-val cur-kv-val--mono">{{ extrasStore.vm.holding.oldestHeldDays }}天</span>
+              </div>
+              <div class="cur-kv">
+                <span class="cur-kv-label">预测</span>
+                <span class="cur-kv-val cur-kv-val--mono" v-if="extrasStore.vm.forecast === null">
+                  <span class="ext-muted">序列太短未训出</span>
+                </span>
+                <span class="cur-kv-val cur-kv-val--mono" v-else>
+                  下季度预测 {{ extrasStore.vm.forecast.quarterMu }} 件
+                  <span class="ext-muted">(p98 {{ extrasStore.vm.forecast.quarterP98 }})</span>
+                  <span v-if="extrasStore.vm.forecast.isStale" class="ext-warn ext-badge">⚠ 预测过期</span>
+                  <span v-if="extrasStore.vm.forecast.stockoutWeeksExcluded > 0" class="ext-muted"> 缺货周剔除 {{ extrasStore.vm.forecast.stockoutWeeksExcluded }}</span>
+                </span>
+              </div>
+              <div class="cur-kv">
+                <span class="cur-kv-label">数据范围</span>
+                <span class="cur-kv-val cur-kv-val--muted">
+                  {{ extrasStore.vm.extras.firstEventAt ?? '—' }} ~ {{ extrasStore.vm.extras.lastEventAt ?? '—' }}
+                  <span v-if="extrasStore.vm.extras.isHistoryTruncated" class="ext-warn">⚠ 不全</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Restock Snapshot Panel (only when restock !== null) -->
+          <div v-if="extrasStore.vm.restock !== null" class="history__panel history__panel--restock">
+            <div class="history__sec-hd">补货快照</div>
+            <div class="rst-grid">
+
+              <!-- 💰 财务 -->
+              <div class="rst-sec">
+                <h4>💰 财务</h4>
+                <div class="rst-row">批发 <b>{{ eur(extrasStore.vm.restock.masterSalePriceEur ?? extrasStore.vm.restock.saleNetAvg) }}</b> <span class="rst-muted">(主档)</span></div>
+                <!-- 零售价行 -->
+                <div class="rst-row" v-if="extrasStore.vm.restock.retailPriceObserved != null && extrasStore.vm.restock.retailPriceEstimate != null">
+                  零售价 <b>{{ eur(extrasStore.vm.restock.retailPriceObserved) }}</b>
+                  <span class="rst-muted">(实际 {{ extrasStore.vm.restock.retailQty26w }} 笔)</span>
+                  · 估算 {{ eur(extrasStore.vm.restock.retailPriceEstimate) }} (×2)
+                </div>
+                <div class="rst-row" v-else-if="extrasStore.vm.restock.retailPriceObserved != null">
+                  零售价 <b>{{ eur(extrasStore.vm.restock.retailPriceObserved) }}</b> <span class="rst-muted">(实际)</span>
+                </div>
+                <div class="rst-row" v-else-if="extrasStore.vm.restock.retailPriceEstimate != null">
+                  零售价 <b>{{ eur(extrasStore.vm.restock.retailPriceEstimate) }}</b> <span class="rst-muted">(批发×2 估算)</span>
+                </div>
+                <div class="rst-row" v-else>零售价 —</div>
+                <div class="rst-row">进价 <b>{{ eur(extrasStore.vm.restock.lastPurchaseUnitPrice ?? extrasStore.vm.restock.masterStockPriceEur) }}</b></div>
+                <div class="rst-row">毛利 <b>{{ extrasStore.vm.restock.marginPct != null ? extrasStore.vm.restock.marginPct + '%' : '—' }}</b></div>
+              </div>
+
+              <!-- 📦 库存 -->
+              <div class="rst-sec">
+                <h4>📦 库存</h4>
+                <div class="rst-row">库存 <b>{{ extrasStore.vm.restock.qtyTotal != null ? extrasStore.vm.restock.qtyTotal + '件' : '—' }}</b></div>
+                <div class="rst-row">可销额 <b>{{ eur(extrasStore.vm.restock.inventorySaleValueEur) }}</b></div>
+                <div class="rst-row">成本 <b>{{ eur(extrasStore.vm.restock.inventoryCostValueEur) }}</b></div>
+                <div class="rst-row">可撑 <b>{{ extrasStore.vm.restock.weeksOfCover != null ? extrasStore.vm.restock.weeksOfCover.toFixed(1) + '周' : '—' }}</b></div>
+              </div>
+
+              <!-- 💵 累计盈亏 -->
+              <div class="rst-sec">
+                <h4>💵 累计盈亏
+                  <template v-if="extrasStore.vm.restock.realizedProfitEur == null">
+                    <span class="rs-profit-badge rs-profit-badge--unknown">缺成本</span>
+                  </template>
+                  <template v-else-if="extrasStore.vm.restock.realizedProfitEur > 0">
+                    <span class="rs-profit-badge rs-profit-badge--good">💚 已回本</span>
+                  </template>
+                  <template v-else-if="extrasStore.vm.restock.realizedProfitEur + (extrasStore.vm.restock.inventoryCostValueEur ?? 0) > 0">
+                    <span class="rs-profit-badge rs-profit-badge--mid">🟡 压货中</span>
+                  </template>
+                  <template v-else>
+                    <span class="rs-profit-badge rs-profit-badge--bad">🔴 账面亏损</span>
+                  </template>
+                </h4>
+                <div class="rst-row">投入 <b>{{ eur(extrasStore.vm.restock.lifetimeInvestedEur) }}</b> <span class="rst-muted">({{ fmtNum(extrasStore.vm.restock.lifetimePurchaseQty) }}件)</span></div>
+                <div class="rst-row">销售 <b>{{ fmtEurInt(extrasStore.vm.restock.lifetimeSaleRevenueEur) }}</b> <span class="rst-muted">({{ fmtNum(extrasStore.vm.restock.lifetimeSaleQty) }}件)</span></div>
+                <!-- profit line -->
+                <div class="rst-row" v-if="extrasStore.vm.restock.realizedProfitEur == null">
+                  <span class="rst-muted">无 cost 数据</span>
+                </div>
+                <div class="rst-row" v-else-if="extrasStore.vm.restock.realizedProfitEur > 0">
+                  实现利润 <b>+{{ fmtEurInt(extrasStore.vm.restock.realizedProfitEur) }}</b>
+                </div>
+                <div class="rst-row" v-else-if="extrasStore.vm.restock.realizedProfitEur + (extrasStore.vm.restock.inventoryCostValueEur ?? 0) > 0">
+                  实现利润 <b>{{ fmtEurInt(extrasStore.vm.restock.realizedProfitEur) }}</b> · 库存能补 <b>{{ fmtEurInt(extrasStore.vm.restock.inventoryCostValueEur) }}</b> 回本
+                </div>
+                <div class="rst-row" v-else>
+                  实现利润 <b>{{ fmtEurInt(extrasStore.vm.restock.realizedProfitEur) }}</b>
+                  + 库存 <b>{{ fmtEurInt(extrasStore.vm.restock.inventoryCostValueEur) }}</b>
+                  仍亏 <b>{{ fmtEurInt(-(extrasStore.vm.restock.realizedProfitEur! + (extrasStore.vm.restock.inventoryCostValueEur ?? 0))) }}</b>
+                </div>
+                <!-- cashflow -->
+                <div class="rst-row" v-if="extrasStore.vm.restock.netCashflowEur != null">
+                  净现金流 <b>{{ (extrasStore.vm.restock.netCashflowEur >= 0 ? '+' : '') + fmtEurInt(extrasStore.vm.restock.netCashflowEur) }}</b>
+                  <span v-if="extrasStore.vm.restock.inventoryImbalancePct != null && extrasStore.vm.restock.inventoryImbalancePct > 30"
+                    class="rs-trunc-warn"
+                    :title="`进销库存差 ${extrasStore.vm.restock.inventoryImbalancePct}% > 30%, FIFO 可能高估`">
+                    ⚠️ 不平 {{ extrasStore.vm.restock.inventoryImbalancePct }}%
+                  </span>
+                </div>
+              </div>
+
+              <!-- 📊 销售26周 -->
+              <div class="rst-sec">
+                <h4>📊 销售 26 周</h4>
+                <div class="rst-row">周销 <b>{{ fmtNum2(extrasStore.vm.restock.weeklyVelocity) }} 件/周</b></div>
+                <div class="rst-row">周额 <b>€{{ fmtNum2(extrasStore.vm.restock.weeklyRevenue) }}/周</b></div>
+                <div class="rst-row">活跃 <b>{{ fmtNum(extrasStore.vm.restock.nActiveWeeks26w) }} 周</b></div>
+                <div class="rst-row">距进货 <b>{{ extrasStore.vm.restock.lastPurchaseDaysAgo != null ? extrasStore.vm.restock.lastPurchaseDaysAgo + '天' : '—' }}</b></div>
+              </div>
+
+              <!-- 🎯 紧迫 -->
+              <div class="rst-sec">
+                <h4>🎯 紧迫 {{ extrasStore.vm.restock.urgencyScore ?? '—' }}</h4>
+                <div class="rst-row">销额 <b>{{ extrasStore.vm.restock.urgencyBreakdown?.velocity ?? '—' }}</b>/30</div>
+                <div class="rst-row">库存 <b>{{ extrasStore.vm.restock.urgencyBreakdown?.cover ?? '—' }}</b>/30<span
+                    v-if="extrasStore.vm.restock.urgencyBreakdown?.demandValidity != null && extrasStore.vm.restock.urgencyBreakdown.demandValidity < 1.0"
+                    class="rs-dv-tag"
+                    title="长尾活跃度折扣">×{{ extrasStore.vm.restock.urgencyBreakdown.demandValidity }}</span></div>
+                <div class="rst-row">距进货 <b>{{ extrasStore.vm.restock.urgencyBreakdown?.recency ?? '—' }}</b>/10<span
+                    v-if="extrasStore.vm.restock.urgencyBreakdown?.demandValidity != null && extrasStore.vm.restock.urgencyBreakdown.demandValidity < 1.0"
+                    class="rs-dv-tag"
+                    title="长尾活跃度折扣">×{{ extrasStore.vm.restock.urgencyBreakdown.demandValidity }}</span></div>
+                <div class="rst-row">毛利 <b>{{ extrasStore.vm.restock.urgencyBreakdown?.margin ?? '—' }}</b>/30</div>
+              </div>
+
+            </div>
+          </div>
+
         </template>
       </section>
 
@@ -257,4 +543,52 @@ async function copyBarcode(bc: string) {
 .history__cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--sp-3); margin-bottom: var(--sp-3); }
 .history__card { border: 1px solid var(--line-soft); border-radius: var(--r-sm); padding: var(--sp-3); font-size: var(--fs-sm); }
 .history__card-hd { color: var(--ink-2); margin-bottom: var(--sp-1); }
+
+/* 2b extras + restock panels */
+.history__extras-section { margin-bottom: var(--sp-6); }
+.history__panel { border: 1px solid var(--line-soft); border-radius: var(--r-sm); padding: var(--sp-4); margin-bottom: var(--sp-4); }
+
+/* ext-section (replicate old CSS classes in scoped context) */
+.ext-section { margin-bottom: var(--sp-3); }
+.ext-section-label { font-size: var(--fs-sm); color: var(--ink-2); font-weight: 600; margin-bottom: var(--sp-1); }
+.ext-muted { color: var(--ink-3); font-size: var(--fs-sm); }
+.ext-warn { color: var(--warn); font-size: var(--fs-sm); }
+.ext-badge { display: inline-block; padding: 1px 6px; border: 1px solid var(--warn); border-radius: var(--r-sm); margin-left: var(--sp-1); }
+
+/* cur-kv rows */
+.cur-kv { display: flex; gap: var(--sp-3); font-size: var(--fs-sm); margin-bottom: 2px; }
+.cur-kv-label { color: var(--ink-2); min-width: 80px; }
+.cur-kv-val { font-family: var(--mono); }
+.cur-kv-val--muted { color: var(--ink-2); }
+
+/* ext-mini-tbl */
+.ext-mini-tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.ext-mini-tbl th, .ext-mini-tbl td { padding: 2px var(--sp-2); border-bottom: 1px solid var(--line-soft); text-align: left; }
+.ext-mini-tbl .r { text-align: right; }
+.ext-mini-tbl .id { font-family: var(--mono); }
+
+/* heat-mini */
+.heat-mini { border-collapse: collapse; font-size: var(--fs-xs); }
+.heat-mini th, .heat-mini td { padding: 2px 4px; text-align: center; border: 1px solid var(--line-soft); }
+.hc { color: var(--ink-3); }
+.hc--peak { background: var(--accent); color: var(--ink-0); font-weight: 700; }
+.hy { color: var(--ink-2); font-family: var(--mono); }
+
+/* rst-grid (restock snapshot) */
+.rst-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--sp-3); }
+.rst-sec { font-size: var(--fs-sm); }
+.rst-sec h4 { font-size: var(--fs-sm); color: var(--ink-1); margin: 0 0 var(--sp-2); display: flex; align-items: center; gap: var(--sp-1); flex-wrap: wrap; }
+.rst-row { margin-bottom: 2px; color: var(--ink-1); }
+.rst-muted { color: var(--ink-3); }
+.rs-trunc-warn { color: var(--warn); font-size: var(--fs-xs); }
+
+/* profit badges */
+.rs-profit-badge { font-size: var(--fs-xs); padding: 1px 5px; border-radius: var(--r-sm); }
+.rs-profit-badge--unknown { background: var(--ink-3); color: var(--ink-0); }
+.rs-profit-badge--good { background: var(--accent-subtle); color: var(--accent); }
+.rs-profit-badge--mid { background: var(--warn-subtle); color: var(--warn); }
+.rs-profit-badge--bad { color: var(--error); border: 1px solid var(--error); }
+
+/* demand_validity discount tag (×dv) */
+.rs-dv-tag { font-size: var(--fs-xs); color: var(--ink-2); margin-left: 3px; }
 </style>

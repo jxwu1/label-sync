@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class BriefingCards(BaseModel):
@@ -226,6 +226,148 @@ class SkuAnalyticsData(BaseModel):
     customer_split: SkuCustomerSplit
 
 
+class PriceStats(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mean: float | None
+    std: float | None
+    min: float | None
+    max: float | None
+    n: int
+
+
+class TopCustomer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    customer_id: str | None
+    customer_type: str
+    customer_name: str | None
+    qty: int
+    last_at: str | None
+
+
+class RetailSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    qty: int
+    revenue: float
+    n_transactions: int
+    last_at: str | None
+    avg_ticket_qty: float | None
+
+
+class SkuExtras(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    return_qty: int
+    total_sale_qty_gross: int
+    return_rate_pct: float | None
+    price_stats: PriceStats
+    top_customers_cn: list[TopCustomer]
+    top_customers_foreign: list[TopCustomer]
+    retail_summary: RetailSummary
+    first_event_at: str | None
+    last_event_at: str | None
+    is_history_truncated: bool
+
+
+class HoldingData(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    avg_days: float | None
+    n_pairs: int
+    oldest_held_days: int | None
+
+
+class HeatmapData(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    years: list[str]
+    matrix: dict[str, list[int]]
+    max_qty: int
+
+    @field_validator("matrix")
+    @classmethod
+    def _matrix_12_months(cls, v: dict[str, list[int]]) -> dict[str, list[int]]:
+        # HC-B4: 每年严格 12 项, 契约硬守护; 不满足 → ValidationError → 端点 500
+        for year, months in v.items():
+            if len(months) != 12:
+                raise ValueError(f"heatmap matrix[{year}] 必须 12 项, 实际 {len(months)}")
+        return v
+
+
+class ForecastBrief(BaseModel):
+    """HC-B5: forecast_output 新消费端, 必带过期 + 缺货剔除信号。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    quarter_mu: float
+    quarter_p98: float
+    computed_at: str | None
+    is_stale: bool
+    stockout_weeks_excluded: int
+
+
+class UrgencyBreakdown(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    cover: float
+    recency: float
+    velocity: float
+    margin: float
+    demand_validity: float | None
+
+
+class RestockSnapshot(BaseModel):
+    """HC-B6: 旧 renderRestockSnapshot 消费字段的显式投影 (非整行透传)。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # 财务
+    master_sale_price_eur: float | None
+    sale_net_avg: float | None
+    retail_price_observed: float | None
+    retail_price_estimate: float | None
+    retail_qty_26w: int
+    last_purchase_unit_price: float | None
+    master_stock_price_eur: float | None
+    margin_pct: float | None
+    # 库存
+    qty_total: int | None
+    inventory_sale_value_eur: float | None
+    inventory_cost_value_eur: float | None
+    weeks_of_cover: float | None
+    # 累计盈亏
+    lifetime_invested_eur: float | None
+    lifetime_purchase_qty: int
+    lifetime_sale_revenue_eur: float
+    lifetime_sale_qty: int
+    realized_profit_eur: float | None
+    net_cashflow_eur: float | None
+    inventory_imbalance_pct: float | None
+    # 销售 26 周
+    weekly_velocity: float
+    weekly_revenue: float
+    n_active_weeks_26w: int
+    last_purchase_days_ago: int | None
+    # 紧迫分
+    urgency_score: float | None
+    urgency_breakdown: UrgencyBreakdown | None
+
+
+class SkuExtrasResponse(BaseModel):
+    """GET /api/history/<barcode>/analytics/extras 200 响应（Phase 2b canonical 契约）。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ok: bool
+    extras: SkuExtras
+    holding: HoldingData
+    heatmap: HeatmapData
+    forecast: ForecastBrief | None
+    restock: RestockSnapshot | None
+
+
 # gen_ts_types.py 的导出清单：新增模型加进来即自动进 types.gen.ts
 API_MODELS: list[type[BaseModel]] = [
     BriefingData,
@@ -233,4 +375,5 @@ API_MODELS: list[type[BaseModel]] = [
     ForecastEvalData,
     HistorySearchData,
     SkuAnalyticsData,
+    SkuExtrasResponse,
 ]
