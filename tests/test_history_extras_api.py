@@ -29,6 +29,18 @@ def _get(app, bc):
     )
 
 
+def _get_no_propagate(app, bc):
+    """TESTING=True は例外を再 raise するので, 500 を検証するテストでは
+    PROPAGATE_EXCEPTIONS=False にしたクライアントを使う（test_briefing_routes.py 同様）。
+    """
+    client = app.test_client()
+    client.application.config["PROPAGATE_EXCEPTIONS"] = False
+    return client.get(
+        f"/api/history/{bc}/analytics/extras",
+        headers={"X-Upload-Token": "test-token-123"},
+    )
+
+
 def _exec(sql, params):
     from app import db
 
@@ -167,3 +179,185 @@ def test_restock_qty_total_none_passes_schema():
 
     snapshot = RestockSnapshot.model_validate(projected)
     assert snapshot.qty_total is None  # schema 接受 None
+
+
+# ---------------------------------------------------------------------------
+# Phase 2b 深度测试：分支/边界/原子失败/validator/fetch 次数
+# ---------------------------------------------------------------------------
+
+
+def test_forecast_none_when_no_output(real_app):
+    """无 forecast_output 行 → body["forecast"] is None。"""
+    _seed_stockpile(real_app, "FN1", "MFN1")
+    with real_app.app_context():
+        _seed_event("FN1", "sale", 3, "2026-05-01", unit_price=10.0)
+
+    r = _get(real_app, "FN1")
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body["forecast"] is None
+
+
+def test_forecast_is_stale_flag(real_app):
+    """forecast_output.computed_at > 14 天前 → is_stale is True（RL-9）。"""
+    _seed_stockpile(real_app, "FS1", "MFS1")
+    with real_app.app_context():
+        _seed_event("FS1", "sale", 5, "2026-05-01", unit_price=10.0)
+        # 插入 computed_at 远超 14 天的预测行（用字符串形式写入，与 server_default 同格式）
+        from app import db
+
+        with db.get_engine().begin() as conn:
+            from sqlalchemy import insert
+
+            from app.models import ForecastOutput
+
+            conn.execute(
+                insert(ForecastOutput).values(
+                    product_barcode="FS1",
+                    model_used="EmpiricalQuantile",
+                    sku_type="retail_dominant",
+                    n_weeks_history=52,
+                    nonzero_weeks=30,
+                    zero_weeks_last8=0,
+                    stockout_zero_weeks_last8=0,
+                    mu=2.0,
+                    sigma=1.0,
+                    p50=2.0,
+                    p98=6.0,
+                    computed_at="2026-01-01 00:00:00",  # > 14 days ago
+                )
+            )
+
+    r = _get(real_app, "FS1")
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body["forecast"] is not None
+    assert body["forecast"]["is_stale"] is True
+
+
+def test_forecast_fresh_flag(real_app):
+    """forecast_output.computed_at within 14 days → is_stale is False。"""
+    _seed_stockpile(real_app, "FF1", "MFF1")
+    with real_app.app_context():
+        _seed_event("FF1", "sale", 5, "2026-05-01", unit_price=10.0)
+        from app import db
+
+        with db.get_engine().begin() as conn:
+            from sqlalchemy import insert
+
+            from app.models import ForecastOutput
+
+            conn.execute(
+                insert(ForecastOutput).values(
+                    product_barcode="FF1",
+                    model_used="EmpiricalQuantile",
+                    sku_type="retail_dominant",
+                    n_weeks_history=52,
+                    nonzero_weeks=30,
+                    zero_weeks_last8=0,
+                    stockout_zero_weeks_last8=0,
+                    mu=2.0,
+                    sigma=1.0,
+                    p50=2.0,
+                    p98=6.0,
+                    computed_at="2026-06-17 10:00:00",  # 1 day ago (today = 2026-06-18)
+                )
+            )
+
+    r = _get(real_app, "FF1")
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body["forecast"] is not None
+    assert body["forecast"]["is_stale"] is False
+
+
+def test_heatmap_12_months_each_year(real_app):
+    """heatmap 矩阵中每个 year key 的列表长度必须是 12。"""
+    _seed_stockpile(real_app, "HM1", "MHM1")
+    with real_app.app_context():
+        _seed_event("HM1", "sale", 3, "2026-05-01", unit_price=10.0)
+
+    r = _get(real_app, "HM1")
+    assert r.status_code == 200
+    body = r.get_json()
+    heatmap = body["heatmap"]
+    assert "matrix" in heatmap
+    for year, months in heatmap["matrix"].items():
+        assert len(months) == 12, f"year {year} has {len(months)} months, expected 12"
+
+
+def test_heatmap_validator_rejects_non_12(real_app, monkeypatch):
+    """compute_monthly_heatmap 返回 11-month matrix → SkuExtrasResponse 校验失败 → 500。
+
+    patch 目标：app.services.analytics.compute_monthly_heatmap（route 通过
+    `from app.services import analytics as analytics_service` 读该属性）。
+    """
+    import app.services.analytics as _analytics_mod
+
+    monkeypatch.setattr(
+        _analytics_mod,
+        "compute_monthly_heatmap",
+        lambda *a, **kw: {"years": ["2026"], "matrix": {"2026": [0] * 11}, "max_qty": 0},
+    )
+
+    _seed_stockpile(real_app, "HV1", "MHV1")
+    with real_app.app_context():
+        _seed_event("HV1", "sale", 3, "2026-05-01", unit_price=10.0)
+
+    r = _get_no_propagate(real_app, "HV1")
+    assert r.status_code == 500, (
+        f"expected 500 from validator rejection of 11-month matrix, got {r.status_code}"
+    )
+
+
+def test_fetch_event_rows_called_once(real_app, monkeypatch):
+    """fetch_event_rows 在每个请求中恰好被调用一次（HC-B2 单次取行复用）。"""
+    import app.services.analytics as _analytics_mod
+
+    original_fetch = _analytics_mod.fetch_event_rows
+    call_count = {"n": 0}
+
+    def counting_fetch(bc, **kw):
+        call_count["n"] += 1
+        return original_fetch(bc, **kw)
+
+    monkeypatch.setattr(_analytics_mod, "fetch_event_rows", counting_fetch)
+
+    _seed_stockpile(real_app, "FC1", "MFC1")
+    with real_app.app_context():
+        _seed_event("FC1", "sale", 3, "2026-05-01", unit_price=10.0)
+
+    r = _get(real_app, "FC1")
+    assert r.status_code == 200
+    assert call_count["n"] == 1, (
+        f"fetch_event_rows was called {call_count['n']} times, expected exactly 1"
+    )
+
+
+@pytest.mark.parametrize(
+    "fn_name",
+    [
+        "fetch_event_rows",
+        "compute_sku_extras",
+        "compute_avg_holding_days",
+        "compute_monthly_heatmap",
+        "compute_forecast_snapshot",
+        "compute_restock_snapshot",
+    ],
+)
+def test_atomic_failure_any_function_raises_500(real_app, monkeypatch, fn_name):
+    """任意 analytics_service 函数抛 RuntimeError → 端点返回 500。"""
+    import app.services.analytics as _analytics_mod
+
+    monkeypatch.setattr(
+        _analytics_mod,
+        fn_name,
+        lambda *a, **kw: (_ for _ in ()).throw(RuntimeError(f"injected failure in {fn_name}")),
+    )
+
+    _seed_stockpile(real_app, f"AF_{fn_name[:4]}", "MAF1")
+    with real_app.app_context():
+        _seed_event(f"AF_{fn_name[:4]}", "sale", 2, "2026-05-01", unit_price=10.0)
+
+    r = _get_no_propagate(real_app, f"AF_{fn_name[:4]}")
+    assert r.status_code == 500, f"expected 500 when {fn_name} raises, got {r.status_code}"
