@@ -368,6 +368,34 @@ class SkuExtrasResponse(BaseModel):
     restock: RestockSnapshot | None
 
 
+class TimelineWeek(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    week_start: str
+    sale_qty: int
+    purchase_unit_price: float | None
+    raw_unit_price_local: float | None
+    currency_local: str
+
+
+class MonthlySale(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    month_start: str
+    sale_qty: int
+    retail_qty: int
+
+
+class SkuTimelineResponse(BaseModel):
+    """GET /api/history/<barcode>/timeline 200 响应（Phase 3 canonical 契约）。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ok: bool
+    timeline: list[TimelineWeek]
+    monthly_sales: list[MonthlySale]
+
+
 # gen_ts_types.py 的导出清单：新增模型加进来即自动进 types.gen.ts
 API_MODELS: list[type[BaseModel]] = [
     BriefingData,
@@ -376,4 +404,5 @@ API_MODELS: list[type[BaseModel]] = [
     HistorySearchData,
     SkuAnalyticsData,
     SkuExtrasResponse,
+    SkuTimelineResponse,
 ]

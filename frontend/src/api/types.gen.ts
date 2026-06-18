@@ -266,3 +266,23 @@ export interface SkuExtrasResponse {
   forecast: ForecastBrief | null;
   restock: RestockSnapshot | null;
 }
+
+export interface MonthlySale {
+  month_start: string;
+  sale_qty: number;
+  retail_qty: number;
+}
+
+export interface TimelineWeek {
+  week_start: string;
+  sale_qty: number;
+  purchase_unit_price: number | null;
+  raw_unit_price_local: number | null;
+  currency_local: string;
+}
+
+export interface SkuTimelineResponse {
+  ok: boolean;
+  timeline: TimelineWeek[];
+  monthly_sales: MonthlySale[];
+}
