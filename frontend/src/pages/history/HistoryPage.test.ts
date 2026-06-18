@@ -8,6 +8,7 @@ const state = {
   loading: false,
   error: null as string | null,
   load: vi.fn(),
+  reset: vi.fn(),
 };
 vi.mock("../../stores/history", () => ({ useHistoryStore: () => state }));
 
@@ -29,14 +30,31 @@ const extrasState = {
 };
 vi.mock("../../stores/skuExtras", () => ({ useSkuExtrasStore: () => extrasState }));
 
+const timelineState = {
+  vm: null as { weeks: unknown[]; monthlySales: unknown[] } | null,
+  loading: false,
+  error: null as string | null,
+  load: vi.fn(),
+  reset: vi.fn(),
+};
+vi.mock("../../stores/skuTimeline", () => ({ useSkuTimelineStore: () => timelineState }));
+
+// Stub TimelineChart so we don't re-test its internals
+vi.mock("./TimelineChart.vue", () => ({
+  default: { name: "TimelineChart", template: '<div class="stub-timeline-chart" />', props: ["weeks", "monthlySales"] },
+}));
+
 import HistoryPage from "./HistoryPage.vue";
 
 function reset() {
-  state.result = null; state.loading = false; state.error = null; state.load = vi.fn();
+  state.result = null; state.loading = false; state.error = null;
+  state.load = vi.fn(); state.reset = vi.fn();
   analyticsState.vm = null; analyticsState.loading = false; analyticsState.error = null;
   analyticsState.load = vi.fn(); analyticsState.reset = vi.fn();
   extrasState.vm = null; extrasState.loading = false; extrasState.error = null;
   extrasState.load = vi.fn(); extrasState.reset = vi.fn();
+  timelineState.vm = null; timelineState.loading = false; timelineState.error = null;
+  timelineState.load = vi.fn(); timelineState.reset = vi.fn();
 }
 
 describe("HistoryPage", () => {
@@ -439,4 +457,141 @@ it("2b: demandValidity === null → 不渲染 ×dv 标签", () => {
   extrasState.vm = aExtrasVm(restock);
   const w = mount(HistoryPage);
   expect(w.findAll("span.rs-dv-tag").length).toBe(0);
+});
+
+// ── Phase 3: TimelineChart 接线 ──────────────────────────────────────────────
+
+function aTimelineVm() {
+  return {
+    weeks: [{ weekStart: "2026-01-05", saleQty: 3, purchaseUnitPrice: 7.5, rawUnitPriceLocal: null, currencyLocal: "EUR" }],
+    monthlySales: [{ monthStart: "2026-01-01", saleQty: 10, retailQty: 2 }],
+  };
+}
+
+it("P3: hit → timelineStore.load(bc) 调用，走势图块渲染", async () => {
+  reset();
+  state.load = vi.fn(async () => {
+    state.result = {
+      kind: "hit",
+      current: {
+        barcode: "B1", model: "M1", isTrulyDiscontinued: false, manualGrade: null,
+        productNameZh: null, productNameLocal: null,
+        storeLocations: [], warehouseLocations: [], unknownLocations: [],
+        salePrice: null, source: null, updatedAt: null,
+      },
+      events: [],
+    };
+    return true;
+  });
+  timelineState.vm = aTimelineVm();
+  const w = mount(HistoryPage);
+  await w.find("input.history__input").setValue("B1");
+  await w.find("input.history__input").trigger("keydown.enter");
+  await Promise.resolve(); await Promise.resolve();
+  expect(timelineState.load).toHaveBeenCalledWith("B1");
+  // chart block present
+  expect(w.find(".history__timeline-chart").exists()).toBe(true);
+  // stub component mounted
+  expect(w.find(".stub-timeline-chart").exists()).toBe(true);
+});
+
+it("P3: 顺序 — 概况 dl 在走势图块之前，走势图块在销售分析之前", async () => {
+  reset();
+  state.result = {
+    kind: "hit",
+    current: {
+      barcode: "B1", model: "M1", isTrulyDiscontinued: false, manualGrade: null,
+      productNameZh: null, productNameLocal: null,
+      storeLocations: [], warehouseLocations: [], unknownLocations: [],
+      salePrice: null, source: null, updatedAt: null,
+    },
+    events: [],
+  };
+  timelineState.vm = aTimelineVm();
+  analyticsState.vm = aVm();
+  const w = mount(HistoryPage);
+  const html = w.html();
+  const overviewPos = html.indexOf("history__overview");
+  const chartPos = html.indexOf("history__timeline-chart");
+  const analyticsPos = html.indexOf("history__analytics");
+  expect(overviewPos).toBeGreaterThan(-1);
+  expect(chartPos).toBeGreaterThan(-1);
+  expect(analyticsPos).toBeGreaterThan(-1);
+  expect(overviewPos).toBeLessThan(chartPos);
+  expect(chartPos).toBeLessThan(analyticsPos);
+});
+
+it("P3: HC-P3-3 走势图失败 → 只显走势图错误条；P1 hero/概况 + 2a SLA + 2b extras 仍在", () => {
+  reset();
+  state.result = {
+    kind: "hit",
+    current: {
+      barcode: "B1", model: "M1", isTrulyDiscontinued: false, manualGrade: null,
+      productNameZh: "品名X", productNameLocal: null,
+      storeLocations: [], warehouseLocations: [], unknownLocations: [],
+      salePrice: null, source: null, updatedAt: null,
+    },
+    events: [],
+  };
+  timelineState.error = "走势图 API 500";
+  analyticsState.vm = aVm();
+  extrasState.vm = aExtrasVm();
+  const w = mount(HistoryPage);
+  // chart error shown inside chart block
+  expect(w.find(".history__timeline-chart").text()).toContain("走势图 API 500");
+  // P1 still present
+  expect(w.text()).toContain("M1");
+  expect(w.text()).toContain("品名X");
+  // 2a SLA still present
+  expect(w.text()).toContain("销售分析");
+  // 2b extras still present
+  expect(w.text()).toContain("退货率");
+});
+
+it("P3: 走势图 401（error null, vm null）→ 不显走势图错误条", () => {
+  reset();
+  state.result = {
+    kind: "hit",
+    current: {
+      barcode: "B1", model: "M1", isTrulyDiscontinued: false, manualGrade: null,
+      productNameZh: null, productNameLocal: null,
+      storeLocations: [], warehouseLocations: [], unknownLocations: [],
+      salePrice: null, source: null, updatedAt: null,
+    },
+    events: [],
+  };
+  // error stays null (store swallowed 401), vm null
+  const w = mount(HistoryPage);
+  expect(w.find(".history__timeline-chart-error").exists()).toBe(false);
+});
+
+it("P3: non-hit (notfound) → timelineStore.reset 调用，走势图块不渲染", async () => {
+  reset();
+  state.load = vi.fn(async () => {
+    state.result = { kind: "notfound" };
+    return true;
+  });
+  const w = mount(HistoryPage);
+  await w.find("input.history__input").setValue("NOPE");
+  await w.find("input.history__input").trigger("keydown.enter");
+  await Promise.resolve(); await Promise.resolve();
+  expect(timelineState.reset).toHaveBeenCalled();
+  expect(w.find(".history__timeline-chart").exists()).toBe(false);
+});
+
+it("P3: HC-B7 门控 — store.load 返回 false → timelineStore.load 不调用", async () => {
+  reset();
+  state.load = vi.fn(async () => false);
+  const w = mount(HistoryPage);
+  await w.find("input.history__input").setValue("B1");
+  await w.find("input.history__input").trigger("keydown.enter");
+  await Promise.resolve(); await Promise.resolve();
+  expect(timelineState.load).not.toHaveBeenCalled();
+});
+
+it("P3: doReset → timelineStore.reset 调用", async () => {
+  reset();
+  const w = mount(HistoryPage);
+  await w.find("button.history__btn--ghost").trigger("click");
+  expect(timelineState.reset).toHaveBeenCalled();
 });

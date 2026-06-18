@@ -4,10 +4,13 @@ import PageHeader from "../../components/PageHeader.vue";
 import { useHistoryStore } from "../../stores/history";
 import { useSkuAnalyticsStore } from "../../stores/skuAnalytics";
 import { useSkuExtrasStore } from "../../stores/skuExtras";
+import { useSkuTimelineStore } from "../../stores/skuTimeline";
+import TimelineChart from "./TimelineChart.vue";
 
 const store = useHistoryStore();
 const analyticsStore = useSkuAnalyticsStore();
 const extrasStore = useSkuExtrasStore();
+const timelineStore = useSkuTimelineStore();
 const q = ref("");
 
 const RECENT_KEY = "history.recentQueries";
@@ -36,9 +39,11 @@ async function runSearch(query: string) {
     const bc = store.result.current.barcode;
     analyticsStore.load(bc);
     extrasStore.load(bc);
+    timelineStore.load(bc);
   } else {
     analyticsStore.reset();
     extrasStore.reset();
+    timelineStore.reset();
   }
 }
 
@@ -81,6 +86,7 @@ function doReset() {
   store.reset();
   analyticsStore.reset();
   extrasStore.reset();
+  timelineStore.reset();
 }
 async function copyBarcode(bc: string) {
   // 内网 HTTP 非 secure context：navigator.clipboard 可能不可用 → execCommand 兜底
@@ -170,6 +176,17 @@ function isPeak(q: number, maxQty: number): boolean {
         <dt>来源</dt><dd>{{ cn(SOURCE_CN, store.result.current.source) || "—" }}</dd>
         <dt>最后更新</dt><dd>{{ store.result.current.updatedAt ?? "—" }}</dd>
       </dl>
+
+      <!-- Phase 3: 走势图（概况后，SLA 前） -->
+      <div class="history__timeline-chart">
+        <p v-if="timelineStore.loading" class="history__msg">走势图加载中…</p>
+        <p v-else-if="timelineStore.error" class="history__error history__timeline-chart-error">走势图加载失败：{{ timelineStore.error }}</p>
+        <TimelineChart
+          v-else-if="timelineStore.vm"
+          :weeks="timelineStore.vm.weeks"
+          :monthly-sales="timelineStore.vm.monthlySales"
+        />
+      </div>
 
       <!-- 2a: SLA + PUR + 客户拆分 -->
       <section class="history__analytics">
