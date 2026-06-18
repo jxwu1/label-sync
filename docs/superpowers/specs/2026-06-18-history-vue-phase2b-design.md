@@ -48,7 +48,7 @@
 
 **HC-B5（forecast 消费红线，replenishment-redlines.md:156）：** 本端点经 `compute_forecast_snapshot` 是 `forecast_output` 的新消费端，**必须**处理 `computed_at` 过期（RL-9）与 `stockout_weeks_excluded`（RL-3）。`ForecastBrief` 含 `is_stale`（端点用 `forecast_eval.forecast_is_stale(computed_at, today)` 派生，14 天阈值）+ `stockout_weeks_excluded`；UI forecast 段显「⚠ 预测过期」徽标（is_stale=true）+ 缺货周剔除数提示（stockout_weeks_excluded>0）。**这补上了旧 history.js 缺的红线合规**（旧页只显 quarter_mu/p98，早于红线）。
 
-**HC-B6（restock 显式投影，不整行透传）：** `compute_restock_snapshot` 返回 `list_sku_summary` 整行（50+ 字段）。端点**显式构造**只含旧 `renderRestockSnapshot` 消费字段的子 dict，再过 `extra="forbid"` 的 `RestockSnapshot` schema。**禁止**把整行喂 schema（会被 forbid 拒）。投影 key 集合由后端测试精确断言。
+**HC-B6（restock 显式投影，不整行透传）：** `compute_restock_snapshot` 返回 `list_sku_summary` 整行（50+ 字段）。端点**显式构造**只含旧 `renderRestockSnapshot` 消费字段的子 dict，再过 `extra="forbid"` 的 `RestockSnapshot` schema。**禁止**把整行喂 schema（会被 forbid 拒）。投影 key 集合由后端测试精确断言。**嵌套同理**：`urgency_breakdown` 真实有 10 键（velocity/cover/recency/margin/velocity_pctile/margin_pctile/margin_missing/margin_source/margin_price_source/demand_validity，见 `_attach_urgency_scores`），`UrgencyBreakdown` schema 只收 5 键（cover/recency/velocity/margin/demand_validity，extra=forbid）→ 必须**显式嵌套投影**这 5 键，不能把整个 breakdown dict 透传（否则非空 breakdown→5 个 extra_forbidden→整 2b 500）。回归测试须喂满 10 键 breakdown 验证 200 + 投影后恰 5 键。
 
 **HC-B7（并发 stale 防护，覆盖 P1 + 2a + 2b 三 store + runSearch 门控）：** 三个 store（`useHistoryStore` P1 / `useSkuAnalyticsStore` 2a / `useSkuExtrasStore` 2b）都加**单调 request-id**，seq 定义在各 store 的 `defineStore` setup 闭包内（**非模块级**，保证测试隔离 + 每 store 实例独占计数）：
 - `load` 开头 `const my = ++seq`；await 返回后**所有写入分支**（成功写 result/vm、失败写 error、finally 落 loading）都先判 `if (my !== seq) return`，stale 响应一律丢弃。
@@ -202,7 +202,7 @@ class RestockSnapshot(BaseModel):
     master_stock_price_eur: float | None
     margin_pct: float | None
     # 库存
-    qty_total: int
+    qty_total: int | None   # _lookup_qty 无库存快照匹配时为 None（前端渲染「—」，勿兜 0）
     inventory_sale_value_eur: float | None
     inventory_cost_value_eur: float | None
     weeks_of_cover: float | None
