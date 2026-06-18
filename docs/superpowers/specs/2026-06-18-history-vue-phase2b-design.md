@@ -1,6 +1,6 @@
 # 货号历史页迁移 Vue —— Phase 2b（深度 extras + 月度热力图 + 补货决策快照）设计
 
-**状态：** 设计待批（2026-06-18）。审查 REQUEST_CHANGES 三项 + 并发防护已处置写入本 spec，待用户审阅后落 plan。
+**状态：** 设计待批（2026-06-18）。两轮审查 REQUEST_CHANGES 全部处置写入（第一轮 #1-6：forecast 红线/失败边界/块数/并发/热力图/restock 投影；第二轮 #7-10：P1 store 竞态根因 + reset 作废 pending + heatmap validator + fetch_event_rows 原子失败）。待用户审阅后落 plan。
 
 ## 目标
 
@@ -42,7 +42,7 @@
 **HC-B3（失败边界 = Phase 2b 原子，与 P1/2a 隔离）：** 端点串行调 5 个 compute 函数，任一抛错 → 整个请求 500 → 整个 2b（Extras + 补货）一起进错误态。这是**原子失败**，不在路由里逐项吞异常返回半成功。隔离粒度 = 「2b 整体 ↔ P1/2a」：2b 用**独立 store** `useSkuExtrasStore`（独立 loading/error），其失败**不影响** P1 的 hero/概况/events（`useHistoryStore`）和 2a 的 SLA/PUR/客户（`useSkuAnalyticsStore`）。401 沿用全局语义：`apiGet` 命中 401 → `location.assign('/login')` + 抛 `UnauthenticatedError`，store **吞掉**不写块内 error（与 P1/2a/briefing 一致）。
 
 **HC-B4（热力图 HTML 表，三补充）：** 月度热力图用 HTML `<table>` + 单元格背景 intensity，不引 SVG。
-- **每年严格 12 个值**：`heatmap.matrix[year]` 必须长度 12；normalize 对缺失/越界按 0 补齐到 12（`compute_monthly_heatmap` 已保证 `[0]*12`，但 normalize 仍显式守 12 防御 schema 漂移）。
+- **每年严格 12 个值**：后端 `HeatmapData` 加 pydantic `field_validator`（或 model_validator）强制 `matrix` 每个 year 的 list 长度 == 12，不满足直接 422/校验失败（`compute_monthly_heatmap` 已保证 `[0]*12`，validator 是契约硬守护）；前端 normalize 补齐到 12 仅作纵深防御。
 - **max_qty == 0 时 intensity 恒为 0**：防除零（`q / max_qty`）。全零年份所有格显 `—`。
 - **单元格保留数值文本**：`q > 0` 显数字，`q == 0` 显 `—`；颜色只是辅助，不靠颜色单独表达数值（可访问性）。
 
@@ -50,7 +50,12 @@
 
 **HC-B6（restock 显式投影，不整行透传）：** `compute_restock_snapshot` 返回 `list_sku_summary` 整行（50+ 字段）。端点**显式构造**只含旧 `renderRestockSnapshot` 消费字段的子 dict，再过 `extra="forbid"` 的 `RestockSnapshot` schema。**禁止**把整行喂 schema（会被 forbid 拒）。投影 key 集合由后端测试精确断言。
 
-**HC-B7（并发 stale 防护）：** `useSkuExtrasStore` 与 `useSkuAnalyticsStore`（2a 回填）都加**单调 request-id**：`load` 开头 `const my = ++seq`，await 返回后 `if (my !== seq) return` 才写 vm/error，stale 响应（含失败分支）一律丢弃。解决 A→B 快切后慢 extras 把 A 的财务/补货数据混入 B 命中态。2a spec 当初把「fast A/B request-id」明记为「Phase 2b/backlog」，此即兑现点。
+**HC-B7（并发 stale 防护，覆盖 P1 + 2a + 2b 三 store + runSearch 门控）：** 三个 store（`useHistoryStore` P1 / `useSkuAnalyticsStore` 2a / `useSkuExtrasStore` 2b）都加**单调 request-id**，seq 定义在各 store 的 `defineStore` setup 闭包内（**非模块级**，保证测试隔离 + 每 store 实例独占计数）：
+- `load` 开头 `const my = ++seq`；await 返回后**所有写入分支**（成功写 result/vm、失败写 error、finally 落 loading）都先判 `if (my !== seq) return`，stale 响应一律丢弃。
+- **`reset()` 也递增 `++seq`**（BLOCKER：否则 reset 后 pending 请求 resolve 时 `my === seq` 仍成立 → 旧请求回写已重置的 store）。
+- **P1 `load` 返回「本次是否最新」布尔**（`return my === seq`），供 runSearch 门控：**只有最新搜索才触发下游 analytics/extras 加载**。stale 搜索（被更晚搜索超越）的 runSearch 提前 return，绝不触碰下游。
+
+竞态根因（红队可稳定复现）：A→B 快切，B 的 P1 先返回→展示 B + 加载下游 B；A 的 P1 后返回，**无守卫时覆盖回 A** 且 A 的 runSearch 接着发下游 A → 最终全 A。修法 = P1 seq 守卫（stale A 不覆盖 result）+ runSearch 用 P1 load 返回值门控（stale A 的 runSearch 不发下游）+ 三 store reset 递增 seq。2a spec 当初把「fast A/B request-id」记为「Phase 2b/backlog」，此即兑现点。
 
 ---
 
@@ -159,6 +164,14 @@ class HeatmapData(BaseModel):
     matrix: dict[str, list[int]]      # {year: [12 个月 int]}
     max_qty: int
 
+    @field_validator("matrix")        # HC-B4: 每年严格 12 项, 契约硬守护
+    @classmethod
+    def _matrix_12_months(cls, v: dict[str, list[int]]) -> dict[str, list[int]]:
+        for year, months in v.items():
+            if len(months) != 12:
+                raise ValueError(f"heatmap matrix[{year}] 必须 12 项, 实际 {len(months)}")
+        return v
+
 class ForecastBrief(BaseModel):
     """HC-B5: forecast_output 新消费端, 必带过期 + 缺货剔除信号。"""
     model_config = ConfigDict(extra="forbid")
@@ -236,36 +249,78 @@ class SkuExtrasResponse(BaseModel):
 入 `SkuExtrasResponse` → 出 `ExtrasPageVM`，snake→camel，null/缺字段兜底。**热力图守 HC-B4**：每年 `matrix[y]` 强制补齐到 12 项（`Array.from({length:12}, (_,i) => row[i] ?? 0)`）；`maxQty` 兜 0。forecast/restock 为 null 时透传 null（UI 各自判空）。
 
 ### store（`frontend/src/stores/skuExtras.ts`，HC-B3 独立失败 + HC-B7 stale 防护 + 状态卫生）
+`seq` 定义在 `defineStore` setup 闭包内（**非模块级**，测试隔离）：
 ```typescript
-let seq = 0;                                  // HC-B7 单调 request-id（模块级）
-async function load(barcode: string) {
-  const my = ++seq;
-  loading.value = true;
-  error.value = null;
-  vm.value = null;                            // 开查询即清旧 VM
-  try {
-    const raw = await apiGet<SkuExtrasResponse>(
-      `/api/history/${encodeURIComponent(barcode)}/analytics/extras`);
-    if (my !== seq) return;                   // stale 成功：更晚的 load 已发起，丢弃
-    vm.value = normalizeExtras(raw);
-  } catch (e) {
-    if (my !== seq) return;                   // stale 失败：不得覆盖更晚请求
-    if (e instanceof UnauthenticatedError) return;   // 401 走全局跳转，不写块内 error
-    error.value = e instanceof Error ? e.message : String(e);
-  } finally {
-    if (my === seq) loading.value = false;    // 只有最新请求收尾才落 loading
+export const useSkuExtrasStore = defineStore("skuExtras", () => {
+  const vm = ref<ExtrasPageVM | null>(null);
+  const loading = ref(false);
+  const error = ref<string | null>(null);
+  let seq = 0;                                  // HC-B7 单调 request-id（闭包级）
+
+  async function load(barcode: string) {
+    const my = ++seq;
+    loading.value = true;
+    error.value = null;
+    vm.value = null;                            // 开查询即清旧 VM
+    try {
+      const raw = await apiGet<SkuExtrasResponse>(
+        `/api/history/${encodeURIComponent(barcode)}/analytics/extras`);
+      if (my !== seq) return;                   // stale 成功：更晚的 load/reset 已发起，丢弃
+      vm.value = normalizeExtras(raw);
+    } catch (e) {
+      if (my !== seq) return;                   // stale 失败：不得覆盖更晚请求
+      if (e instanceof UnauthenticatedError) return;   // 401 走全局跳转，不写块内 error
+      error.value = e instanceof Error ? e.message : String(e);
+    } finally {
+      if (my === seq) loading.value = false;    // 只有最新请求收尾才落 loading
+    }
   }
-}
-function reset() { vm.value = null; error.value = null; loading.value = false; /* seq 不回退 */ }
+  function reset() {
+    seq++;                                      // HC-B7 BLOCKER: 作废 pending 请求, reset 后旧响应不回写
+    vm.value = null; error.value = null; loading.value = false;
+  }
+  return { vm, loading, error, load, reset };
+});
 ```
 - 与 `useHistoryStore`、`useSkuAnalyticsStore` 完全独立。
 
 ### 2a store 回填（`frontend/src/stores/skuAnalytics.ts`，HC-B7）
-给 `useSkuAnalyticsStore.load` 加同款单调 `seq` 守卫（`const my = ++seq` + 三处 `if (my !== seq) return`）。**仅加并发守卫，不改其它行为**；补 store 测试「旧 A 慢响应不覆盖新 B」。
+给 `useSkuAnalyticsStore` 加同款闭包级 `seq`：`load` 开头 `const my = ++seq` + 所有写入分支 `if (my !== seq) return`；`reset()` `seq++`。**仅加并发守卫，不改其它行为**；补 store 测试「旧 A 慢响应不覆盖新 B」+「pending → reset → resolve 不回写」。
+
+### P1 store 回填（`frontend/src/stores/history.ts`，HC-B7 BLOCKER 根因修复）
+`useHistoryStore.load` 当前无 seq 守卫（history.ts:13-26），是红队竞态根因。改：
+```typescript
+let seq = 0;                                  // 闭包内
+async function load(q: string): Promise<boolean> {   // 返回「本次是否最新」供 runSearch 门控
+  const my = ++seq;
+  loading.value = true;
+  error.value = null;
+  result.value = null;
+  try {
+    const raw = await apiGet<HistorySearchData>(`/api/history?q=${encodeURIComponent(q)}`);
+    if (my !== seq) return false;             // stale：被更晚搜索超越，不写 result
+    result.value = normalizeHistory(raw);
+  } catch (e) {
+    if (my !== seq) return false;
+    if (e instanceof UnauthenticatedError) return false;
+    error.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    if (my === seq) loading.value = false;
+  }
+  return my === seq;                          // true = 本次是最新搜索
+}
+function reset() {
+  seq++;                                      // 作废 pending
+  result.value = null; error.value = null; loading.value = false;
+}
+```
+**仅加并发守卫 + load 返回值，不改 P1 既有的 result 清理/RECENT/七状态语义**；补测试「pending → reset → resolve 不回写」+「A 慢于 B 返回时 result 仍是 B」。
 
 ### 组件（`frontend/src/pages/history/HistoryPage.vue` 扩展）
-- 触发点（写死，沿用 2a 单触发点）：`runSearch` 命中分支里，与 `analyticsStore.load` 并列 `extrasStore.load(barcode)`；非命中/失败分支 `extrasStore.reset()`：
+- 触发点（写死，沿用 2a 单触发点，**HC-B7 门控**）：`runSearch` 用 P1 `store.load` 的返回值门控——stale 搜索（被更晚搜索超越）提前 return，**绝不触碰下游**；只有最新搜索才命中分支触发 analytics/extras：
   ```typescript
+  const fresh = await store.load(query);
+  if (!fresh) return;   // HC-B7: 本次搜索已被更晚搜索超越，不写下游（防 stale A 覆盖 B）
   if (!store.error && store.result?.kind === "hit") {
     pushRecent(query);
     analyticsStore.load(store.result.current.barcode);
@@ -275,6 +330,7 @@ function reset() { vm.value = null; error.value = null; loading.value = false; /
     extrasStore.reset();
   }
   ```
+  （doSearch / pickFuzzy / pickRecent 都经 runSearch，故只此一个门控点。）
 - `doReset()` 里并列 `extrasStore.reset()`。
 - 渲染位置：2a 分析块之后、历史时间线之前，加**两个面板**（共享 2b 边界）：
   - `extrasStore.loading` → 「深度分析加载中…」；`extrasStore.error` → 2b 错误条（**不影响** P1 + 2a，HC-B3）。
@@ -300,13 +356,15 @@ Phase 2b 不动 router / nav-items（P1 已把 history 翻 routeName）。纯在
 - restock 分支：不在补货汇总（停用/无主档）→ `restock === None`
 - heatmap：每年恰 12 项；`max_qty == 0` 全零年份；含负数月（退货净负）不崩
 - `fetch_event_rows` **每请求恰好调用一次**（HC-B2：mock/spy 断言调用次数 == 1，extras/holding/heatmap 复用同一 rows）
-- **五个 compute 函数分别 mock 抛异常 → 端点返回 500**（HC-B3 原子失败边界验证，逐个）
+- **六个数据函数分别 mock 抛异常 → 端点返回 500**（HC-B3 原子失败边界，逐个：`fetch_event_rows` + `compute_sku_extras` + `compute_avg_holding_days` + `compute_monthly_heatmap` + `compute_forecast_snapshot` + `compute_restock_snapshot`）
+- **heatmap matrix 某年非 12 项 → pydantic 校验失败**（HC-B4 validator：构造 mock compute_monthly_heatmap 返回 11/13 项，断言端点 500 / 校验抛错）
 - seed 走 SQLAlchemy（参照 `tests/test_history_analytics_api.py` + `tests/test_forecast_eval_dashboard.py` 的 forecast_output seed helper，含 NOT NULL 列 mu/sigma/p50/p98/n_weeks_history 等）
 
 ### 前端（vitest）
 - `extras-normalize.test.ts`：camelCase 映射 + 空值兜底（price_stats/forecast/restock 为 null 分支）；**热力图每年补齐 12 项**（喂 <12 / >12 / 缺年 → 输出恒 12）；`maxQty` 兜 0
-- `skuExtras.test.ts`（store）：load 填 vm / load 失败填 error / unauth 吞（error 保持 null）/ 调对端点 `/api/history/<bc>/analytics/extras` / 旧 vm 存在时新 load 失败 → vm===null；**HC-B7 stale：先发 A（pending）再发 B，A 后 resolve 不写 vm（B 赢）**
-- `skuAnalytics.test.ts`（2a 回填）：补 stale 守卫回归「A 慢响应不覆盖 B」
+- `skuExtras.test.ts`（store）：load 填 vm / load 失败填 error / unauth 吞（error 保持 null）/ 调对端点 `/api/history/<bc>/analytics/extras` / 旧 vm 存在时新 load 失败 → vm===null；**HC-B7 stale：先发 A（pending）再发 B，A 后 resolve 不写 vm（B 赢）**；**HC-B7 reset：load A pending → reset() → A resolve 不回写 vm（vm 保持 null）**
+- `skuAnalytics.test.ts`（2a 回填）：补 stale 守卫回归「A 慢响应不覆盖 B」+「load pending → reset → resolve 不回写」
+- `history.test.ts`（P1 回填，HC-B7 根因）：**「A 慢于 B 返回时 result 仍是 B」**（先发 A pending、再发 B、B 先 resolve、A 后 resolve → result===B 不被 A 覆盖）；**load 返回值：最新搜索返回 true、被超越搜索返回 false**；**「load pending → reset → resolve 不回写 result」**
 - `HistoryPage.test.ts` 扩展：
   - hit 态触发 `extrasStore.load(barcode)` 且渲染 Extras 面板 + 补货面板（mock store 返回数据）
   - **extras 普通失败时**：2b 错误条显示，但 hero/概况/历史时间线（P1）+ SLA/PUR/客户（2a）**仍正常渲染**（HC-B3 回归）
@@ -314,6 +372,7 @@ Phase 2b 不动 router / nav-items（P1 已把 history 翻 routeName）。纯在
   - forecast=null → 「未训出」；isStale → 过期徽标；restock=null → 补货面板不显示
   - 热力图渲染 4 行 × 12 格，maxQty=0 全 `—`
   - 非命中态（notfound/fuzzy）→ `extrasStore.reset()` 被调（两面板不显示）
+  - **HC-B7 门控**：stale 搜索（`store.load` 返回 false）的 runSearch 不调 `analyticsStore.load`/`extrasStore.load`（mock load 返回 false，断言下游 load 未被调用）
 
 ### 守护（延续 HC-2 / HC-A5）
 - `no-analytics.test.ts`（P1 已有）：coder **先实读该测试断言的禁用串**确认——若禁 `/analytics/sku` 与 `/timeline` 子串，则新端点 `/api/history/<bc>/analytics/extras` 不含 `/analytics/sku`（含 `/analytics/` 但不含 `sku`/`timeline`）→ 安全；2a 端点 `/<bc>/analytics` 已证同样安全。若断言意外更宽（禁纯 `/analytics`）→ STOP 报告，与用户确认豁免方式，不擅自改守护。
@@ -340,3 +399,12 @@ Phase 2b 不动 router / nav-items（P1 已把 history 翻 routeName）。纯在
 | 4 | 条件确认 | 并发 A→B 快切，慢 extras 混入 A 财务/补货数据 | HC-B7：extras + 2a analytics 两 store 加单调 request-id stale 守卫；测试覆盖 A 后到不覆盖 B |
 | 5 | 确认+补充 | 热力图 HTML 表 | HC-B4：每年严格 12 值 + max_qty==0 intensity 0 防除零 + 单元格保留数值文本 |
 | 6 | 确认+要求 | restock 投影 + strict，须列精确字段 | HC-B6：显式投影 helper + RestockSnapshot 逐字段枚举（含类型/nullable）+ 测试精确断言 key 集合 |
+
+### 第二轮审查（REQUEST_CHANGES → 已处置，2026-06-18）
+
+| # | 类型 | 发现 | 处置 |
+|---|---|---|---|
+| 7 | BLOCKER | HC-B7 只护 2a/2b，未护 P1 `useHistoryStore`；A→B 时 B 先返回、A 后返回 → P1 覆盖回 A 且 A 的 runSearch 再发下游 A → 最终全 A（红队可稳定复现） | HC-B7 扩到三 store：P1 加 seq 守卫 + `load` 返回「是否最新」布尔；runSearch 用该返回值门控，stale 搜索不发下游 |
+| 8 | BLOCKER | `reset()` 不递增 seq → reset 后 pending 请求 resolve 仍回写 | 三 store `reset()` 全 `seq++`；补「pending → reset → resolve 不回写」测试 |
+| 9 | 建议 | 后端 `HeatmapData.matrix` 未限长度，与「每年严格 12」声明脱节 | HC-B4：加 pydantic `field_validator` 强制每年 12 项；前端补齐仅纵深防御 |
+| 10 | 建议 | 原子失败测试漏 `fetch_event_rows` 抛错 | 改「六个数据函数逐个 mock 抛错 → 500」（含 fetch_event_rows） |
