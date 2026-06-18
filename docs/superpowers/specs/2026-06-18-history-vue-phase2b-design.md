@@ -1,6 +1,6 @@
 # 货号历史页迁移 Vue —— Phase 2b（深度 extras + 月度热力图 + 补货决策快照）设计
 
-**状态：** 设计待批（2026-06-18）。两轮审查 REQUEST_CHANGES 全部处置写入（第一轮 #1-6：forecast 红线/失败边界/块数/并发/热力图/restock 投影；第二轮 #7-10：P1 store 竞态根因 + reset 作废 pending + heatmap validator + fetch_event_rows 原子失败）。待用户审阅后落 plan。
+**状态：** 已审批 + 已实施（2026-06-18）。三轮审查 REQUEST_CHANGES 全部处置（第一轮 #1-6：forecast 红线/失败边界/块数/并发/热力图/restock 投影；第二轮 #7-10：P1 store 竞态根因 + reset 作废 pending + heatmap validator + fetch_event_rows 原子失败；第三轮红队 critical：urgency_breakdown 嵌套 10 键透传→500，已修嵌套显式投影 5 键 + ×dv 折扣标复刻）→ 终审 APPROVE。实现于分支 `feat/history-vue-phase2b`（subagent-driven 9 task），全套验证绿，待 push/PR + CI + 本地验收 + squash merge。
 
 ## 目标
 
