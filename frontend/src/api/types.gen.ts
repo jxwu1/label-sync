@@ -164,3 +164,105 @@ export interface SkuAnalyticsData {
   purchase: SkuPurchaseMetrics;
   customer_split: SkuCustomerSplit;
 }
+
+export interface ForecastBrief {
+  quarter_mu: number;
+  quarter_p98: number;
+  computed_at: string | null;
+  is_stale: boolean;
+  stockout_weeks_excluded: number;
+}
+
+export interface HeatmapData {
+  years: string[];
+  matrix: Record<string, unknown>;
+  max_qty: number;
+}
+
+export interface HoldingData {
+  avg_days: number | null;
+  n_pairs: number;
+  oldest_held_days: number | null;
+}
+
+export interface PriceStats {
+  mean: number | null;
+  std: number | null;
+  min: number | null;
+  max: number | null;
+  n: number;
+}
+
+export interface RestockSnapshot {
+  master_sale_price_eur: number | null;
+  sale_net_avg: number | null;
+  retail_price_observed: number | null;
+  retail_price_estimate: number | null;
+  retail_qty_26w: number;
+  last_purchase_unit_price: number | null;
+  master_stock_price_eur: number | null;
+  margin_pct: number | null;
+  qty_total: number;
+  inventory_sale_value_eur: number | null;
+  inventory_cost_value_eur: number | null;
+  weeks_of_cover: number | null;
+  lifetime_invested_eur: number | null;
+  lifetime_purchase_qty: number;
+  lifetime_sale_revenue_eur: number;
+  lifetime_sale_qty: number;
+  realized_profit_eur: number | null;
+  net_cashflow_eur: number | null;
+  inventory_imbalance_pct: number | null;
+  weekly_velocity: number;
+  weekly_revenue: number;
+  n_active_weeks_26w: number;
+  last_purchase_days_ago: number | null;
+  urgency_score: number | null;
+  urgency_breakdown: UrgencyBreakdown | null;
+}
+
+export interface RetailSummary {
+  qty: number;
+  revenue: number;
+  n_transactions: number;
+  last_at: string | null;
+  avg_ticket_qty: number | null;
+}
+
+export interface SkuExtras {
+  return_qty: number;
+  total_sale_qty_gross: number;
+  return_rate_pct: number | null;
+  price_stats: PriceStats;
+  top_customers_cn: TopCustomer[];
+  top_customers_foreign: TopCustomer[];
+  retail_summary: RetailSummary;
+  first_event_at: string | null;
+  last_event_at: string | null;
+  is_history_truncated: boolean;
+}
+
+export interface TopCustomer {
+  customer_id: string | null;
+  customer_type: string;
+  customer_name: string | null;
+  qty: number;
+  last_at: string | null;
+}
+
+export interface UrgencyBreakdown {
+  cover: number;
+  recency: number;
+  velocity: number;
+  margin: number;
+  demand_validity: number | null;
+}
+
+export interface SkuExtrasResponse {
+  ok: boolean;
+  extras: SkuExtras;
+  holding: HoldingData;
+  heatmap: HeatmapData;
+  forecast: ForecastBrief | null;
+  restock: RestockSnapshot | null;
+}
