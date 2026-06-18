@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 import pytest
 from sqlalchemy import insert, text
 
@@ -201,6 +203,7 @@ def test_forecast_none_when_no_output(real_app):
 def test_forecast_is_stale_flag(real_app):
     """forecast_output.computed_at > 14 天前 → is_stale is True（RL-9）。"""
     _seed_stockpile(real_app, "FS1", "MFS1")
+    stale_date = (date.today() - timedelta(days=30)).isoformat() + " 00:00:00"
     with real_app.app_context():
         _seed_event("FS1", "sale", 5, "2026-05-01", unit_price=10.0)
         # 插入 computed_at 远超 14 天的预测行（用字符串形式写入，与 server_default 同格式）
@@ -224,7 +227,7 @@ def test_forecast_is_stale_flag(real_app):
                     sigma=1.0,
                     p50=2.0,
                     p98=6.0,
-                    computed_at="2026-01-01 00:00:00",  # > 14 days ago
+                    computed_at=stale_date,  # 30 days ago — clearly > 14-day threshold
                 )
             )
 
@@ -238,6 +241,7 @@ def test_forecast_is_stale_flag(real_app):
 def test_forecast_fresh_flag(real_app):
     """forecast_output.computed_at within 14 days → is_stale is False。"""
     _seed_stockpile(real_app, "FF1", "MFF1")
+    fresh_date = (date.today() - timedelta(days=1)).isoformat() + " 10:00:00"
     with real_app.app_context():
         _seed_event("FF1", "sale", 5, "2026-05-01", unit_price=10.0)
         from app import db
@@ -260,7 +264,7 @@ def test_forecast_fresh_flag(real_app):
                     sigma=1.0,
                     p50=2.0,
                     p98=6.0,
-                    computed_at="2026-06-17 10:00:00",  # 1 day ago (today = 2026-06-18)
+                    computed_at=fresh_date,  # 1 day ago — clearly <= 14-day threshold
                 )
             )
 
