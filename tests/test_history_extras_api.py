@@ -151,6 +151,104 @@ def test_restock_projection_key_set(real_app):
     assert "urgency_breakdown" in restock
 
 
+def test_urgency_breakdown_full_10key_dict_does_not_leak_extra_fields():
+    """urgency_breakdown 含 10 个键（restock_calc._attach_urgency_scores 真实输出）时，
+    _project_restock → SkuExtrasResponse.model_validate 不应抛 ValidationError（即端点不应 500）。
+
+    Bug 复现前置：UrgencyBreakdown extra="forbid"，而旧 _project_restock 直接透传 dict，
+    导致 velocity_pctile / margin_pctile / margin_missing / margin_source / margin_price_source
+    5 个额外键触发 extra_forbidden → 端点 500。
+
+    投影层测试（等价于端到端 schema 验证）：
+      1. 构造包含真实 10 键 urgency_breakdown 的 restock 行（镜像 _attach_urgency_scores 输出）
+      2. 调用 _project_restock
+      3. 用 SkuExtrasResponse.model_validate 做 schema 校验
+      4. 断言无异常 + urgency_breakdown 恰好只剩 5 个合法键
+    """
+    from app.routes.history import _RESTOCK_PROJECTION_KEYS, _project_restock
+    from app.schemas_api import SkuExtrasResponse
+
+    # 镜像 restock_calc._attach_urgency_scores 真实输出的 10 键 urgency_breakdown
+    full_10key_breakdown = {
+        "velocity": 0.75,
+        "cover": 0.6,
+        "recency": 0.4,
+        "margin": 0.5,
+        "velocity_pctile": 0.812,
+        "margin_pctile": 0.634,
+        "margin_missing": False,
+        "margin_source": "last_purchase",
+        "margin_price_source": "master",
+        "demand_validity": 1.0,
+    }
+
+    # 构造包含合法 non-Optional 字段的完整行
+    full_row = {k: None for k in _RESTOCK_PROJECTION_KEYS}
+    full_row.update(
+        {
+            "retail_qty_26w": 5,
+            "lifetime_purchase_qty": 20,
+            "lifetime_sale_revenue_eur": 500.0,
+            "lifetime_sale_qty": 40,
+            "weekly_velocity": 1.5,
+            "weekly_revenue": 15.0,
+            "n_active_weeks_26w": 20,
+            "urgency_score": 72.3,
+            "urgency_breakdown": full_10key_breakdown,
+        }
+    )
+
+    projected = _project_restock(full_row)
+
+    # Bug 复现：修复前此处会抛 ValidationError（extra_forbidden）
+    # 此测试在 fix 前必须失败，fix 后通过
+    bd = projected["urgency_breakdown"]
+    assert bd is not None, "urgency_breakdown must be non-None after projection"
+
+    # 断言投影后只剩 5 个合法键
+    expected_keys = {"cover", "recency", "velocity", "margin", "demand_validity"}
+    assert set(bd.keys()) == expected_keys, (
+        f"urgency_breakdown 投影后应含恰好 {expected_keys}，实际: {set(bd.keys())}"
+    )
+
+    # 完整 schema 校验（SkuExtrasResponse 层面）不抛 ValidationError
+    minimal_extras = {
+        "return_qty": 0,
+        "total_sale_qty_gross": 10,
+        "return_rate_pct": None,
+        "price_stats": {"mean": None, "std": None, "min": None, "max": None, "n": 0},
+        "top_customers_cn": [],
+        "top_customers_foreign": [],
+        "retail_summary": {
+            "qty": 0,
+            "revenue": 0.0,
+            "n_transactions": 0,
+            "last_at": None,
+            "avg_ticket_qty": None,
+        },
+        "first_event_at": None,
+        "last_event_at": None,
+        "is_history_truncated": False,
+    }
+    minimal_holding = {"avg_days": None, "n_pairs": 0, "oldest_held_days": None}
+    minimal_heatmap = {"years": [], "matrix": {}, "max_qty": 0}
+
+    # model_validate 抛异常 → 测试失败（即端点会 500）
+    validated = SkuExtrasResponse.model_validate(
+        {
+            "ok": True,
+            "extras": minimal_extras,
+            "holding": minimal_holding,
+            "heatmap": minimal_heatmap,
+            "forecast": None,
+            "restock": projected,
+        }
+    )
+    bd_validated = validated.restock.urgency_breakdown
+    assert bd_validated is not None
+    assert set(bd_validated.model_dump().keys()) == expected_keys
+
+
 def test_restock_qty_total_none_passes_schema():
     """qty_total=None 从 _project_restock 透传，通过 RestockSnapshot 校验（不应被 0 替换）。
 

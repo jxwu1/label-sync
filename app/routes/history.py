@@ -34,6 +34,9 @@ def search():
 
 
 # Phase 2b: restock 显式投影字段集（HC-B6, 逐字段对齐 summary.py 行）
+# HC-B6: urgency_breakdown 嵌套显式投影字段集（对齐 UrgencyBreakdown schema，extra="forbid"）
+_URGENCY_BREAKDOWN_KEYS = ("cover", "recency", "velocity", "margin", "demand_validity")
+
 _RESTOCK_PROJECTION_KEYS = (
     "master_sale_price_eur",
     "sale_net_avg",
@@ -64,8 +67,16 @@ _RESTOCK_PROJECTION_KEYS = (
 
 
 def _project_restock(row: dict) -> dict:
-    """HC-B6: 从 list_sku_summary 整行投影出 RestockSnapshot 字段子集。"""
-    return {k: row.get(k) for k in _RESTOCK_PROJECTION_KEYS}
+    """HC-B6: 从 list_sku_summary 整行投影出 RestockSnapshot 字段子集。
+
+    urgency_breakdown 嵌套字段也做显式投影，过滤 _attach_urgency_scores 写入的多余计算中间键。
+    """
+    out = {k: row.get(k) for k in _RESTOCK_PROJECTION_KEYS}
+    bd = out.get("urgency_breakdown")
+    out["urgency_breakdown"] = (
+        {k: bd.get(k) for k in _URGENCY_BREAKDOWN_KEYS} if bd is not None else None
+    )
+    return out
 
 
 @api_bp.get("/<barcode>/analytics/extras")
