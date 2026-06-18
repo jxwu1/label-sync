@@ -4,10 +4,18 @@
 #   docker compose -f docker-compose.dev.yml up -d
 #   $env:DATABASE_URL = "postgresql+psycopg://dev:devpass@localhost:5433/label_sync"
 #   python -m alembic upgrade head
-#   python tools/sqlite_to_pg.py --source ./stockpile.db
+#   python tools/pull_prod_db.py   # 灌线上真实数据
 #
-# 数据卷 ./.dev/pg-data 已 gitignored。
+# 数据落 docker 命名卷 label-sync-dev_pgdata（与 cwd 解耦）：不管从主仓库还是
+# 任何 git worktree 起，恒为同一个卷——不再因 cwd 相对 bind ./.dev/pg-data 把
+# 数据焊进某个 worktree 目录，worktree 删了就「空库」（2026-06-18 事故根因）。
+# 顶层 name 固定 compose 项目名 → 命名卷名/容器名不随启动目录变。
 # 端口 5433 避开本机若已有 PG（默认 5432）。
+#
+# 注意：从旧的 ./.dev/pg-data bind 迁本卷需一次性操作——命名卷初始为空，
+# 切过来后跑一次 `python tools/pull_prod_db.py` 灌满即可（之后永久持久）。
+
+name: label-sync-dev
 
 services:
   dev-pg:
@@ -20,5 +28,8 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      - ./.dev/pg-data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
+
+volumes:
+  pgdata:
