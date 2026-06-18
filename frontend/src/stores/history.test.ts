@@ -12,6 +12,36 @@ vi.mock("../api/client", () => ({
 import { apiGet, UnauthenticatedError } from "../api/client";
 import { useHistoryStore } from "./history";
 
+// Helper: build a minimal "hit" HistorySearchData with a distinguishable barcode
+function hitPayload(barcode: string) {
+  return {
+    ok: true,
+    found: true,
+    current: {
+      barcode,
+      model: `M-${barcode}`,
+      location: "A01",
+      is_active: true,
+      source: null,
+      created_at: null,
+      updated_at: null,
+      product_name_zh: null,
+      product_name_local: null,
+      erp_category_raw: null,
+      erp_category_code: null,
+      manual_grade: null,
+      stock_price: null,
+      sale_price: null,
+      is_truly_discontinued: false,
+      store_locations: [],
+      warehouse_locations: [],
+      unknown_locations: [],
+    },
+    events: [],
+    fuzzy_matches: [],
+  };
+}
+
 describe("history store", () => {
   beforeEach(() => setActivePinia(createPinia()));
 
@@ -59,5 +89,56 @@ describe("history store", () => {
     s.reset();
     expect(s.result).toBeNull();
     expect(s.error).toBeNull();
+  });
+
+  // HC-B7 concurrency guard tests
+  it("HC-B7: A resolves after B, result stays B", async () => {
+    let resolveA: (v: unknown) => void = () => {};
+    vi.mocked(apiGet).mockImplementationOnce(
+      () => new Promise((r) => { resolveA = r; }),
+    );
+    vi.mocked(apiGet).mockResolvedValueOnce(hitPayload("B-barcode"));
+
+    const s = useHistoryStore();
+    const pA = s.load("A");
+    const pB = s.load("B");
+    await pB;
+    resolveA(hitPayload("A-barcode"));
+    await pA;
+
+    expect(s.result?.kind).toBe("hit");
+    expect((s.result as { kind: "hit"; current: { barcode: string } } | null)?.current?.barcode).toBe("B-barcode");
+  });
+
+  it("load returns true for latest, false for superseded", async () => {
+    let resolveA: (v: unknown) => void = () => {};
+    vi.mocked(apiGet).mockImplementationOnce(
+      () => new Promise((r) => { resolveA = r; }),
+    );
+    vi.mocked(apiGet).mockResolvedValueOnce(hitPayload("B-barcode"));
+
+    const s = useHistoryStore();
+    const pA = s.load("A");
+    const freshB = await s.load("B");
+    resolveA(hitPayload("A-barcode"));
+    const freshA = await pA;
+
+    expect(freshB).toBe(true);
+    expect(freshA).toBe(false);
+  });
+
+  it("HC-B7 reset cancels pending (resolve after reset does not write result)", async () => {
+    let resolveA: (v: unknown) => void = () => {};
+    vi.mocked(apiGet).mockImplementationOnce(
+      () => new Promise((r) => { resolveA = r; }),
+    );
+
+    const s = useHistoryStore();
+    const pA = s.load("A");
+    s.reset();
+    resolveA(hitPayload("A-barcode"));
+    await pA;
+
+    expect(s.result).toBeNull();
   });
 });
