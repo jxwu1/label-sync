@@ -79,6 +79,20 @@ def _project_restock(row: dict) -> dict:
     return out
 
 
+@api_bp.get("/<barcode>/timeline")
+def timeline(barcode: str):
+    from app.schemas_api import SkuTimelineResponse
+    from app.services import analytics as analytics_service
+
+    bc = barcode.strip()
+    payload = {
+        "ok": True,
+        "timeline": analytics_service.compute_weekly_timeline(bc),
+        "monthly_sales": analytics_service.compute_monthly_sales(bc),
+    }
+    return jsonify(SkuTimelineResponse.model_validate(payload).model_dump())
+
+
 @api_bp.get("/<barcode>/analytics/extras")
 def analytics_extras(barcode: str):
     from app.schemas_api import SkuExtrasResponse
