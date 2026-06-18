@@ -63,4 +63,38 @@ describe("skuAnalytics store", () => {
     expect(s.vm).toBeNull();
     expect(s.error).toBeNull();
   });
+
+  const makePayload = (totalQty: number) => ({
+    ok: true,
+    sales: { total_qty: totalQty, total_revenue: 62.5, unique_customers: 2, lifespan_days: 30, trend_slope_pct_per_week: 1.2 },
+    purchase: { stock_balance: 5, avg_margin_pct: 40.0, purchase_freq_365d: 1, last_purchase_days_ago: 47 },
+    customer_split: {
+      cn: { qty: 3, unique_customers: 1, max_single_qty: 3, last_at: "2026-05-08", avg_freq_per_month: 0.5 },
+      fo: { qty: 2, unique_customers: 1, max_single_qty: 2, last_at: null, avg_freq_per_month: 0.0 },
+    },
+  });
+
+  it("HC-B7 stale: A resolves after B, B wins", async () => {
+    let resolveA: (v: unknown) => void = () => {};
+    vi.mocked(apiGet).mockImplementationOnce(() => new Promise((r) => { resolveA = r; }));
+    vi.mocked(apiGet).mockResolvedValueOnce(makePayload(42));
+    const s = useSkuAnalyticsStore();
+    const pA = s.load("A");
+    const pB = s.load("B");
+    await pB;
+    resolveA(makePayload(99));
+    await pA;
+    expect(s.vm?.sales.totalQty).toBe(42); // B wins, not A's 99
+  });
+
+  it("HC-B7 reset cancels pending", async () => {
+    let resolveA: (v: unknown) => void = () => {};
+    vi.mocked(apiGet).mockImplementationOnce(() => new Promise((r) => { resolveA = r; }));
+    const s = useSkuAnalyticsStore();
+    const pA = s.load("A");
+    s.reset();
+    resolveA(makePayload(99));
+    await pA;
+    expect(s.vm).toBeNull();
+  });
 });
