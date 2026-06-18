@@ -1,6 +1,6 @@
 # 货号历史页迁移 Vue —— Phase 3（SVG 销售/进价时间线）设计
 
-**状态：** 设计待批（2026-06-18）。三轮审查 REQUEST_CHANGES 已处置（#1-8 守卫/hasData/负净高度/step/同价/tooltip；#9-12 退货可命中标记+X 日期域+措辞+窄容器；#13-16 锁定三角规格/进价点周中点/data-kind 选择器/标签 anchor）。待用户审阅后落 plan。
+**状态：** 已审批 + 待实施（2026-06-18，终审 APPROVE）。三轮审查 REQUEST_CHANGES 已处置（#1-8 守卫/hasData/负净高度/step/同价/tooltip；#9-12 退货可命中标记+X 日期域+措辞+窄容器；#13-16 锁定三角规格/进价点周中点/data-kind 选择器/标签 anchor）。待用户审阅后落 plan。
 
 ## 目标
 
@@ -49,7 +49,7 @@ hasData = (任一月 sale_qty + retail_qty != 0) || (任一周 purchase_unit_pri
 `hasData === false` 才显「无数据」占位；否则正常渲染（只有采购无销售 → 仍画折线；只有销售无采购 → 仅画柱）。
 
 **HC-P3-7（负净销量不产生负高度 + 可命中退货标记——修旧 bug + 修 tooltip 不可达）：** 月度 `sale_qty` 含退货可为负，净 = `sale_qty + retail_qty` 可为负。柱高 **`max(0, 净)`**，**绝不**把负值喂 `<rect height>`（旧版 `renderTmlSvg` 负高度是 bug）。Y 轴销量刻度 maxQ 用 `max(1, 各月 max(0,净))`，避免除零。
-- **负净月（净 < 0）**：柱高 0 → 没有可悬停区域，故画一个**可命中的 warn 色小三角**：定位在**该月区间中心、baseline 上方**，**固定实际宽高**（如底 8px、高 6px，token warn 色），带稳定选择器 `data-kind="net-return"`，内部 `<title>` =「{month} 月：净退货 {|净|} 件」。解决红队场景（单负净月无采购 → hasData=true 但零高柱无 tooltip）。测试经 `data-kind="net-return"` 选中，不依赖 SVG 标签形状。
+- **负净月（净 < 0）**：柱高 0 → 没有可悬停区域，故画一个**可命中的 warn 色小三角**：定位在**该月区间中心、baseline 上方**，**固定实际宽高**（如底 8 × 高 6 viewBox units，非 CSS px；token warn 色），带稳定选择器 `data-kind="net-return"`，内部 `<title>` =「{month} 月：净退货 {|净|} 件」。解决红队场景（单负净月无采购 → hasData=true 但零高柱无 tooltip）。测试经 `data-kind="net-return"` 选中，不依赖 SVG 标签形状。
 - 正净月：柱 `<rect>` 自带 `<title>`。零净月（净==0）：不画柱也不画标记。
 
 **HC-P3-8（折线/坐标/tooltip 契约）：**
