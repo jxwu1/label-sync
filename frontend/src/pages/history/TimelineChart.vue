@@ -157,13 +157,18 @@ const dots = computed<Dot[]>(() => {
   return out;
 });
 
-// 左轴销量 ticks
-const salesTicks = computed(() =>
-  [0, 0.25, 0.5, 0.75, 1].map((f) => ({
-    y: baselineY - f * innerH * 0.85,
-    label: String(Math.round(maxQ.value * f)),
-  })),
-);
+// 左轴销量 ticks（4 ticks，高→低，整数去重，低 maxQ 时不出现重复标签）
+const salesTicks = computed(() => {
+  const seen = new Set<number>();
+  const out: { y: number; label: string }[] = [];
+  for (const f of [1, 0.75, 0.5, 0.25]) {
+    const val = Math.round(maxQ.value * f);
+    if (seen.has(val)) continue;
+    seen.add(val);
+    out.push({ y: baselineY - f * innerH * 0.85, label: String(val) });
+  }
+  return out;
+});
 // 右轴进价 ticks（同价单 tick）
 const priceTicks = computed(() => {
   const { hasPrice, sameValue, maxP } = priceInfo.value;

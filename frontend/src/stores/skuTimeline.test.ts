@@ -47,6 +47,16 @@ describe("useSkuTimelineStore", () => {
     await pA;
     expect(s.vm?.monthlySales.length).toBe(1);
   });
+  it("old vm cleared when new load fails", async () => {
+    apiGet.mockResolvedValueOnce(ok);
+    const s = useSkuTimelineStore();
+    await s.load("A");
+    expect(s.vm).not.toBeNull();
+    apiGet.mockRejectedValueOnce(new Error("x"));
+    await s.load("B");
+    expect(s.vm).toBeNull();
+  });
+
   it("HC-B7 reset cancels pending", async () => {
     let resolveA: (v: unknown) => void = () => {};
     apiGet.mockImplementationOnce(() => new Promise((r) => { resolveA = r; }));

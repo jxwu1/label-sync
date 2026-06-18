@@ -468,6 +468,23 @@ function aTimelineVm() {
   };
 }
 
+it("P3: 走势图块含持久区块标题「销售 / 进价走势」", () => {
+  reset();
+  state.result = {
+    kind: "hit",
+    current: {
+      barcode: "B1", model: "M1", isTrulyDiscontinued: false, manualGrade: null,
+      productNameZh: null, productNameLocal: null,
+      storeLocations: [], warehouseLocations: [], unknownLocations: [],
+      salePrice: null, source: null, updatedAt: null,
+    },
+    events: [],
+  };
+  timelineState.vm = aTimelineVm();
+  const w = mount(HistoryPage);
+  expect(w.find(".history__timeline-chart").text()).toContain("销售 / 进价走势");
+});
+
 it("P3: hit → timelineStore.load(bc) 调用，走势图块渲染", async () => {
   reset();
   state.load = vi.fn(async () => {

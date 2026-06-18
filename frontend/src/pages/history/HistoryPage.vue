@@ -179,6 +179,7 @@ function isPeak(q: number, maxQty: number): boolean {
 
       <!-- Phase 3: 走势图（概况后，SLA 前） -->
       <div class="history__timeline-chart">
+        <div class="history__sec-hd">销售 / 进价走势</div>
         <p v-if="timelineStore.loading" class="history__msg">走势图加载中…</p>
         <p v-else-if="timelineStore.error" class="history__error history__timeline-chart-error">走势图加载失败：{{ timelineStore.error }}</p>
         <TimelineChart

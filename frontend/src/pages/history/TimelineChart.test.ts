@@ -55,10 +55,13 @@ describe("TimelineChart", () => {
     const marker = w.find('[data-kind="net-return"]');
     expect(marker.exists()).toBe(true);
     expect(marker.find("title").text()).toContain("净退货");
-    // 三角几何断言：底 8 × 高 6 viewBox units，坐标跨度必须 > 4
+    // 三角几何断言：底 8 × 高 6 viewBox units，x 跨度恰好 8，y 跨度恰好 6
     const d = marker.attributes("d")!;
-    const nums = [...d.matchAll(/[\d.]+/g)].map((m) => Number(m[0]));
-    expect(Math.max(...nums) - Math.min(...nums)).toBeGreaterThan(4);
+    const pts = [...d.matchAll(/([\d.]+),([\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
+    const xs = pts.map((p) => p[0]);
+    const ys = pts.map((p) => p[1]);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(8, 5);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(6, 5);
   });
 
   it("红队：单负净月无采购 → hasData=true 且退货标记可命中", () => {
@@ -139,6 +142,17 @@ describe("TimelineChart", () => {
       expect(x).toBeGreaterThanOrEqual(0);
       expect(x).toBeLessThanOrEqual(1000);
     }
+  });
+
+  it("销量轴 maxQ 极小时左轴标签不重复", () => {
+    // maxQ=1 → Math.round(1*f) for f∈[1,0.75,0.5,0.25] = [1,1,1,0] — dedup keeps [1,0]
+    const w = mount(TimelineChart, { props: {
+      weeks: [wk({ weekStart: "2024-01-01" })],
+      monthlySales: [mo("2024-01-01", 1, 0)],
+    }});
+    const labels = w.findAll("text.tml-yl").map((el) => el.text());
+    const unique = new Set(labels);
+    expect(unique.size).toBe(labels.length); // no duplicate label strings
   });
 
   it("CN tooltip 含 ¥ 与 €", () => {
