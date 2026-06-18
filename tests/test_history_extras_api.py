@@ -57,28 +57,26 @@ def _seed_event(barcode, event_type, qty, at, unit_price=None):
     )
 
 
-def _seed_forecast(app, barcode):
-    """seed ForecastOutput 行（NOT NULL 列全填）。"""
-    from app.repositories import stockpile_db
+def _seed_forecast(barcode):
+    """seed ForecastOutput 行（NOT NULL 列全填）。必须在 app_context 内调用。"""
+    from app import db
 
-    with app.app_context():
-        with stockpile_db._session() as s:
-            s.execute(
-                insert(ForecastOutput).values(
-                    product_barcode=barcode,
-                    model_used="EmpiricalQuantile",
-                    sku_type="retail_dominant",
-                    n_weeks_history=52,
-                    nonzero_weeks=30,
-                    zero_weeks_last8=0,
-                    stockout_zero_weeks_last8=0,
-                    mu=2.0,
-                    sigma=1.0,
-                    p50=2.0,
-                    p98=6.0,
-                )
+    with db.get_engine().begin() as conn:
+        conn.execute(
+            insert(ForecastOutput).values(
+                product_barcode=barcode,
+                model_used="EmpiricalQuantile",
+                sku_type="retail_dominant",
+                n_weeks_history=52,
+                nonzero_weeks=30,
+                zero_weeks_last8=0,
+                stockout_zero_weeks_last8=0,
+                mu=2.0,
+                sigma=1.0,
+                p50=2.0,
+                p98=6.0,
             )
-            s.commit()
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -110,25 +108,33 @@ def test_extras_hit_response_key_set(real_app):
 
 
 def test_restock_projection_key_set(real_app):
-    """若 restock 不为 None，验证投影字段集：不含原始大行 key，含 urgency_breakdown。"""
+    """restock 不为 None 时，验证投影字段集：不含原始大行 key，含 urgency_breakdown。
+
+    seed 条件：active stockpile (is_truly_discontinued=False) + sale + purchase 事件，
+    确保 list_sku_summary 返回该 barcode，compute_restock_snapshot 必非 None。
+    """
+    from app.services.analytics import clear_list_sku_summary_cache
+
     _seed_stockpile(real_app, "B3", "M3")
     with real_app.app_context():
         _seed_event("B3", "sale", 5, "2026-05-01", unit_price=10.0)
         _seed_event("B3", "purchase", 10, "2026-04-01", unit_price=6.0)
-        _seed_forecast(real_app, "B3")
+        _seed_forecast("B3")
+        # 清缓存，确保 list_sku_summary 使用当前 seed 数据而非前一测试的缓存
+        clear_list_sku_summary_cache()
 
     r = _get(real_app, "B3")
     assert r.status_code == 200
     body = r.get_json()
     restock = body["restock"]
-    if restock is not None:
-        # HC-B6: 原始大行 key 不得透传
-        raw_only_keys = {"supplier_id", "cn_qty", "fo_qty", "weekly_qty_12w", "barcode", "model"}
-        assert raw_only_keys.isdisjoint(restock.keys()), (
-            f"投影字段集包含了不该有的原始 key: {raw_only_keys & restock.keys()}"
-        )
-        # urgency_breakdown 必须在投影字段集内
-        assert "urgency_breakdown" in restock
+    assert restock is not None, "seeded active SKU must be computable in restock summary"
+    # HC-B6: 原始大行 key 不得透传
+    leaked = {"supplier_id", "cn_qty", "fo_qty", "weekly_qty_12w", "barcode", "model"}
+    assert leaked.isdisjoint(restock.keys()), (
+        f"投影字段集包含了不该有的原始 key: {leaked & restock.keys()}"
+    )
+    # urgency_breakdown 必须在投影字段集内
+    assert "urgency_breakdown" in restock
 
 
 def test_restock_qty_total_none_passes_schema():
