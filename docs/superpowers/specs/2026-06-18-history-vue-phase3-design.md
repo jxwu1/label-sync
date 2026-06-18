@@ -1,6 +1,6 @@
 # 货号历史页迁移 Vue —— Phase 3（SVG 销售/进价时间线）设计
 
-**状态：** 已审批 + 待实施（2026-06-18，终审 APPROVE）。三轮审查 REQUEST_CHANGES 已处置（#1-8 守卫/hasData/负净高度/step/同价/tooltip；#9-12 退货可命中标记+X 日期域+措辞+窄容器；#13-16 锁定三角规格/进价点周中点/data-kind 选择器/标签 anchor）。待用户审阅后落 plan。
+**状态：** 已实施（2026-06-18，分支 `feat/history-vue-phase3`，9 task subagent-driven 完成；实施后审查补 3 项：区块标题/三角 x·y 分轴断言/旧vm清空回归测试 + 销量轴整数去重）。三轮审查 REQUEST_CHANGES 已处置（#1-8 守卫/hasData/负净高度/step/同价/tooltip；#9-12 退货可命中标记+X 日期域+措辞+窄容器；#13-16 锁定三角规格/进价点周中点/data-kind 选择器/标签 anchor）。待用户审阅后落 plan。
 
 ## 目标
 
@@ -55,7 +55,7 @@ hasData = (任一月 sale_qty + retail_qty != 0) || (任一周 purchase_unit_pri
 **HC-P3-8（折线/坐标/tooltip 契约）：**
 - **真阶梯折线**：水平保持 + 采购周垂直跳变的 step path（`H`→`V` 或显式 `L` 拐点构造直角），**不得**像旧版用普通 `L` 在两点间画斜线。前向填充（null 沿用上次进价）+ 反向外推（最早进价前段用首值）后，相邻不同价之间走「先水平到跳变点、再垂直到新价」。
 - **同价特殊分支**：全程仅一个进价（`maxP == minP`）→ 折线固定图中段（避免贴地/贴顶），右轴只显 1 个对应价格 tick（**非** 0→max 比例）。
-- **双 Y 轴**：左=销量（0→maxQ，4 tick），右=进价（0→maxP，多 tick；同价分支例外见上）。SVG 内 `<text>` 画轴（正常 viewBox + 默认 preserveAspectRatio，**不**用 HTML overlay）。
+- **双 Y 轴**：左=销量（0→maxQ，**≤4 档分位刻度、整数去重**——baseline 即 0；maxQ 小时重复整数标签去掉，避免 0,0,1,1,1），右=进价（0→maxP，多 tick；同价分支例外见上）。SVG 内 `<text>` 画轴（正常 viewBox + 默认 preserveAspectRatio，**不**用 HTML overlay）。
 - **tooltip 用 SVG 原生 `<title>`**（无 JS，可访问）。柱：`{month_start} 月：{净} 件`（负净加「净退货」）；进价 dot：`{week_start}：€{landed}`，CN 货（`currency_local==='RMB'` 且 `raw != null`）追加 `← ¥{raw}（落地含汇率+可用海运分摊）`——**只展示 ¥raw→€landed，不硬编码 /7.8 或公式数字**（payload 无 rate 字段）。
 - **dot 仅打真实进货周**（`raw_unit_price_local != null` 的周），非前向填充周不打点。
 
