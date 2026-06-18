@@ -56,13 +56,12 @@ const CHANGE_TYPE_CN: Record<string, string> = {
 };
 const cn = (m: Record<string, string>, k: string | null) => (k ? m[k] ?? k : "");
 const fmtPct = (v: number | null) => (v == null ? "—" : `${v}%`);
-const eur = (v: number | null) => (v == null ? "—" : `€${v.toFixed(2)}`);
+const eur = (v: number | null | undefined) => (v == null ? "—" : `€${Number(v).toFixed(2)}`);
 const dayN = (v: number | null) => (v == null ? "—" : `${v} 天`);
 
 // 2b local format helpers
 const fmtNum = (v: number | null | undefined) => (v == null ? "—" : String(Math.round(v)));
 const fmtNum2 = (v: number | null | undefined, d = 2) => (v == null ? "—" : Number(v).toFixed(d));
-const fmtEur = (v: number | null | undefined) => (v == null ? "—" : `€${Number(v).toFixed(2)}`);
 const fmtEurInt = (v: number | null | undefined) => (v == null ? "—" : `€${Math.round(Number(v))}`);
 
 function doSearch() {
@@ -324,7 +323,7 @@ function isPeak(q: number, maxQty: number): boolean {
                       :key="mi"
                       :class="isPeak(qty, extrasStore.vm.heatmap.maxQty) ? 'hc hc--peak' : 'hc'"
                       :style="(qty > 0 && !isPeak(qty, extrasStore.vm.heatmap.maxQty))
-                        ? { background: `rgba(46,160,67,${heatIntensity(qty, extrasStore.vm.heatmap.maxQty).toFixed(2)})`, color: 'var(--ink-0)' }
+                        ? { background: `color-mix(in srgb, var(--success) ${(heatIntensity(qty, extrasStore.vm.heatmap.maxQty) * 100).toFixed(0)}%, transparent)`, color: 'var(--ink-0)' }
                         : {}"
                       :title="`${yr}-${String(mi + 1).padStart(2, '0')}: ${qty} 件`"
                     >{{ qty > 0 ? qty : '—' }}</td>
@@ -374,21 +373,21 @@ function isPeak(q: number, maxQty: number): boolean {
               <!-- 💰 财务 -->
               <div class="rst-sec">
                 <h4>💰 财务</h4>
-                <div class="rst-row">批发 <b>{{ fmtEur(extrasStore.vm.restock.masterSalePriceEur ?? extrasStore.vm.restock.saleNetAvg) }}</b> <span class="rst-muted">(主档)</span></div>
+                <div class="rst-row">批发 <b>{{ eur(extrasStore.vm.restock.masterSalePriceEur ?? extrasStore.vm.restock.saleNetAvg) }}</b> <span class="rst-muted">(主档)</span></div>
                 <!-- 零售价行 -->
                 <div class="rst-row" v-if="extrasStore.vm.restock.retailPriceObserved != null && extrasStore.vm.restock.retailPriceEstimate != null">
-                  零售价 <b>{{ fmtEur(extrasStore.vm.restock.retailPriceObserved) }}</b>
+                  零售价 <b>{{ eur(extrasStore.vm.restock.retailPriceObserved) }}</b>
                   <span class="rst-muted">(实际 {{ extrasStore.vm.restock.retailQty26w }} 笔)</span>
-                  · 估算 {{ fmtEur(extrasStore.vm.restock.retailPriceEstimate) }} (×2)
+                  · 估算 {{ eur(extrasStore.vm.restock.retailPriceEstimate) }} (×2)
                 </div>
                 <div class="rst-row" v-else-if="extrasStore.vm.restock.retailPriceObserved != null">
-                  零售价 <b>{{ fmtEur(extrasStore.vm.restock.retailPriceObserved) }}</b> <span class="rst-muted">(实际)</span>
+                  零售价 <b>{{ eur(extrasStore.vm.restock.retailPriceObserved) }}</b> <span class="rst-muted">(实际)</span>
                 </div>
                 <div class="rst-row" v-else-if="extrasStore.vm.restock.retailPriceEstimate != null">
-                  零售价 <b>{{ fmtEur(extrasStore.vm.restock.retailPriceEstimate) }}</b> <span class="rst-muted">(批发×2 估算)</span>
+                  零售价 <b>{{ eur(extrasStore.vm.restock.retailPriceEstimate) }}</b> <span class="rst-muted">(批发×2 估算)</span>
                 </div>
                 <div class="rst-row" v-else>零售价 —</div>
-                <div class="rst-row">进价 <b>{{ fmtEur(extrasStore.vm.restock.lastPurchaseUnitPrice ?? extrasStore.vm.restock.masterStockPriceEur) }}</b></div>
+                <div class="rst-row">进价 <b>{{ eur(extrasStore.vm.restock.lastPurchaseUnitPrice ?? extrasStore.vm.restock.masterStockPriceEur) }}</b></div>
                 <div class="rst-row">毛利 <b>{{ extrasStore.vm.restock.marginPct != null ? extrasStore.vm.restock.marginPct + '%' : '—' }}</b></div>
               </div>
 
@@ -396,8 +395,8 @@ function isPeak(q: number, maxQty: number): boolean {
               <div class="rst-sec">
                 <h4>📦 库存</h4>
                 <div class="rst-row">库存 <b>{{ extrasStore.vm.restock.qtyTotal != null ? extrasStore.vm.restock.qtyTotal + '件' : '—' }}</b></div>
-                <div class="rst-row">可销额 <b>{{ fmtEur(extrasStore.vm.restock.inventorySaleValueEur) }}</b></div>
-                <div class="rst-row">成本 <b>{{ fmtEur(extrasStore.vm.restock.inventoryCostValueEur) }}</b></div>
+                <div class="rst-row">可销额 <b>{{ eur(extrasStore.vm.restock.inventorySaleValueEur) }}</b></div>
+                <div class="rst-row">成本 <b>{{ eur(extrasStore.vm.restock.inventoryCostValueEur) }}</b></div>
                 <div class="rst-row">可撑 <b>{{ extrasStore.vm.restock.weeksOfCover != null ? extrasStore.vm.restock.weeksOfCover.toFixed(1) + '周' : '—' }}</b></div>
               </div>
 
@@ -417,7 +416,7 @@ function isPeak(q: number, maxQty: number): boolean {
                     <span class="rs-profit-badge rs-profit-badge--bad">🔴 账面亏损</span>
                   </template>
                 </h4>
-                <div class="rst-row">投入 <b>{{ fmtEur(extrasStore.vm.restock.lifetimeInvestedEur) }}</b> <span class="rst-muted">({{ fmtNum(extrasStore.vm.restock.lifetimePurchaseQty) }}件)</span></div>
+                <div class="rst-row">投入 <b>{{ eur(extrasStore.vm.restock.lifetimeInvestedEur) }}</b> <span class="rst-muted">({{ fmtNum(extrasStore.vm.restock.lifetimePurchaseQty) }}件)</span></div>
                 <div class="rst-row">销售 <b>{{ fmtEurInt(extrasStore.vm.restock.lifetimeSaleRevenueEur) }}</b> <span class="rst-muted">({{ fmtNum(extrasStore.vm.restock.lifetimeSaleQty) }}件)</span></div>
                 <!-- profit line -->
                 <div class="rst-row" v-if="extrasStore.vm.restock.realizedProfitEur == null">
@@ -566,7 +565,7 @@ function isPeak(q: number, maxQty: number): boolean {
 .heat-mini { border-collapse: collapse; font-size: var(--fs-xs); }
 .heat-mini th, .heat-mini td { padding: 2px 4px; text-align: center; border: 1px solid var(--line-soft); }
 .hc { color: var(--ink-3); }
-.hc--peak { background: var(--accent) !important; color: var(--ink-0) !important; font-weight: 700; }
+.hc--peak { background: var(--accent); color: var(--ink-0); font-weight: 700; }
 .hy { color: var(--ink-2); font-family: var(--mono); }
 
 /* rst-grid (restock snapshot) */

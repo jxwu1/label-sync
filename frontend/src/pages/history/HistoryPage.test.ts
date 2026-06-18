@@ -122,7 +122,7 @@ describe("HistoryPage", () => {
     reset();
     localStorage.setItem("history.recentQueries", JSON.stringify(["OLD1"]));
     // 模拟：load 失败时 store 把 result 清成 null、error 置位（修复后行为）
-    state.load = vi.fn(async () => { state.result = null; state.error = "boom"; });
+    state.load = vi.fn(async () => { state.result = null; state.error = "boom"; return true; });
     const w = mount(HistoryPage);
     await w.find("input.history__input").setValue("FAILQ");
     await w.find("input.history__input").trigger("keydown.enter");
