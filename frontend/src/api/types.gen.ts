@@ -202,7 +202,7 @@ export interface RestockSnapshot {
   last_purchase_unit_price: number | null;
   master_stock_price_eur: number | null;
   margin_pct: number | null;
-  qty_total: number;
+  qty_total: number | null;
   inventory_sale_value_eur: number | null;
   inventory_cost_value_eur: number | null;
   weeks_of_cover: number | null;

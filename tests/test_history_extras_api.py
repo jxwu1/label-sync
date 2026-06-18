@@ -129,3 +129,35 @@ def test_restock_projection_key_set(real_app):
         )
         # urgency_breakdown 必须在投影字段集内
         assert "urgency_breakdown" in restock
+
+
+def test_restock_qty_total_none_passes_schema():
+    """qty_total=None 从 _project_restock 透传，通过 RestockSnapshot 校验（不应被 0 替换）。
+
+    用投影层测试而非端到端 seed，因为 "有事件但无库存快照" 在测试 DB 中构造不可靠
+    （compute_restock_snapshot 聚合逻辑在 restock_calc.py 内部可能补零）。
+    直接测 _project_restock + schema 校验层的正确行为更精准。
+    """
+    from app.routes.history import _RESTOCK_PROJECTION_KEYS, _project_restock
+    from app.schemas_api import RestockSnapshot
+
+    # 构造一个最小合法行：qty_total=None，其他非 Optional 字段给合法默认值
+    full_row = {k: None for k in _RESTOCK_PROJECTION_KEYS}
+    full_row.update(
+        {
+            "retail_qty_26w": 3,
+            "lifetime_purchase_qty": 10,
+            "lifetime_sale_revenue_eur": 100.0,
+            "lifetime_sale_qty": 8,
+            "weekly_velocity": 0.5,
+            "weekly_revenue": 5.0,
+            "n_active_weeks_26w": 20,
+            # qty_total 保持 None
+        }
+    )
+
+    projected = _project_restock(full_row)
+    assert projected["qty_total"] is None  # None 透传，不得被替换成 0
+
+    snapshot = RestockSnapshot.model_validate(projected)
+    assert snapshot.qty_total is None  # schema 接受 None

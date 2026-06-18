@@ -333,7 +333,7 @@ class RestockSnapshot(BaseModel):
     master_stock_price_eur: float | None
     margin_pct: float | None
     # 库存
-    qty_total: int
+    qty_total: int | None
     inventory_sale_value_eur: float | None
     inventory_cost_value_eur: float | None
     weeks_of_cover: float | None

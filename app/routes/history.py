@@ -63,36 +63,9 @@ _RESTOCK_PROJECTION_KEYS = (
 )
 
 
-# RestockSnapshot 中声明为 int/float (非 Optional) 的字段，None 时补零（计划期无快照时的守护）
-_RESTOCK_INT_DEFAULTS: dict[str, int] = {
-    "retail_qty_26w": 0,
-    "qty_total": 0,
-    "lifetime_purchase_qty": 0,
-    "lifetime_sale_qty": 0,
-    "n_active_weeks_26w": 0,
-}
-_RESTOCK_FLOAT_DEFAULTS: dict[str, float] = {
-    "lifetime_sale_revenue_eur": 0.0,
-    "weekly_velocity": 0.0,
-    "weekly_revenue": 0.0,
-}
-
-
 def _project_restock(row: dict) -> dict:
-    """HC-B6: 从 list_sku_summary 整行投影出 RestockSnapshot 字段子集。
-
-    non-nullable 字段若为 None（无快照时常见），用 0 守护，对齐 pydantic schema。
-    """
-    out: dict = {}
-    for k in _RESTOCK_PROJECTION_KEYS:
-        v = row.get(k)
-        if v is None:
-            if k in _RESTOCK_INT_DEFAULTS:
-                v = _RESTOCK_INT_DEFAULTS[k]
-            elif k in _RESTOCK_FLOAT_DEFAULTS:
-                v = _RESTOCK_FLOAT_DEFAULTS[k]
-        out[k] = v
-    return out
+    """HC-B6: 从 list_sku_summary 整行投影出 RestockSnapshot 字段子集。"""
+    return {k: row.get(k) for k in _RESTOCK_PROJECTION_KEYS}
 
 
 @api_bp.get("/<barcode>/analytics/extras")
