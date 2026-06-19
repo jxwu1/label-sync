@@ -165,7 +165,8 @@ $apiProc = Start-Supervised 'python' @('-u', 'server.py') $root $null   # 只用
 [void]$supervised.Add(@{ name = 'api'; proc = $apiProc; port = 5000; url = 'http://127.0.0.1:5000'; ready = $false
     outTask = $apiProc.StandardOutput.ReadLineAsync(); errTask = $apiProc.StandardError.ReadLineAsync(); outEof = $false; errEof = $false })
 if ($Frontend) {
-    $webProc = Start-Supervised 'npm.cmd' @('run', 'dev', '--', '--host', '127.0.0.1', '--strictPort', '--clearScreen', 'false') (Join-Path $root 'frontend') @{ FORCE_COLOR = '1' }
+    # 经 cmd.exe /c npm：.NET 直跑 npm.cmd 会让 npm %~dp0 解析错乱(去 frontend\node_modules\npm 找 npm 自身→MODULE_NOT_FOUND)
+    $webProc = Start-Supervised 'cmd.exe' @('/c', 'npm', 'run', 'dev', '--', '--host', '127.0.0.1', '--strictPort', '--clearScreen', 'false') (Join-Path $root 'frontend') @{ FORCE_COLOR = '1' }
     [void]$supervised.Add(@{ name = 'web'; proc = $webProc; port = 5173; url = 'http://localhost:5173/ui/'; ready = $false
         outTask = $webProc.StandardOutput.ReadLineAsync(); errTask = $webProc.StandardError.ReadLineAsync(); outEof = $false; errEof = $false })
 }

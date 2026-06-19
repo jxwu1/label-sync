@@ -103,8 +103,11 @@ $apiProc = Start-Supervised 'python' @('-u', 'server.py') $root $null   # 只用
         outEof = $false; errEof = $false
     })
 if ($Frontend) {
-    $webProc = Start-Supervised 'npm.cmd' `
-        @('run', 'dev', '--', '--host', '127.0.0.1', '--strictPort', '--clearScreen', 'false') `
+    # 经 cmd.exe /c npm 拉起：.NET Process 直跑 npm.cmd 会让 npm 的 %~dp0 解析错乱
+    # （去 frontend\node_modules\npm\ 找 npm 自身 → MODULE_NOT_FOUND）。cmd /c 从 PATH 正确解析 npm。
+    # cmd.exe 是被监督进程，node/vite 是其子进程，taskkill /T 杀整树。
+    $webProc = Start-Supervised 'cmd.exe' `
+        @('/c', 'npm', 'run', 'dev', '--', '--host', '127.0.0.1', '--strictPort', '--clearScreen', 'false') `
         (Join-Path $root 'frontend') @{ FORCE_COLOR = '1' }
     [void]$supervised.Add(@{
             name = 'web'; proc = $webProc; port = 5173; url = 'http://localhost:5173/ui/'; ready = $false
