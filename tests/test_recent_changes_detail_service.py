@@ -120,6 +120,33 @@ def test_get_batch_detail_cap_and_total():
     assert d["total_count"] == 600
 
 
+def test_get_batch_detail_collapse_deterministic_on_tied_timestamp():
+    """同 (barcode, field) 两条变更 created_at 完全相同 → 折叠须按 id 次级排序确定。
+
+    seed 顺序（= 自增 id 顺序 = 语义正确的时间序）：
+        row1: old=A new=B   (先发生)
+        row2: old=B new=C   (后发生)
+    两行 created_at 相同。正确折叠：from_value=first.old=A → to_value=last.new=C。
+
+    sqlite 的 rowid 隐式有序可能让本测在未修复时也碰巧通过；但 PostgreSQL
+    (生产后端) 对同值排序键不保证返回行序，仅 created_at 排序时 group[0]/group[-1]
+    可能取反 → 显示 from→to 颠倒。显式追加 StockpileChange.id 次级排序键消除该
+    非确定性，本测作为回归守护。
+    """
+    import app.services.recent_changes as rc
+
+    bid = _seed_snapshot("2026-04-29 14:00:00")
+    tied_at = "2026-04-29 13:00:00"
+    _seed_change("BTIE", "stockpile_location", "A", "B", created_at=tied_at)
+    _seed_change("BTIE", "stockpile_location", "B", "C", created_at=tied_at)
+
+    d = rc.get_batch_detail(bid, mode="collapsed")
+    rows = [c for c in d["changes"] if c["barcode"] == "BTIE"]
+    assert len(rows) == 1
+    assert rows[0]["from_value"] == "A"
+    assert rows[0]["to_value"] == "C"
+
+
 def _seed_import_batch_mixed_fields() -> int:
     """import 批次 + 混合 field/change_type changes，返回 batch_id。
 

@@ -269,7 +269,7 @@ def _fetch_window_rows(session, start: str, end: str):
             StockpileChange.created_at,
         )
         .where(and_(StockpileChange.created_at > start, StockpileChange.created_at <= end))
-        .order_by(StockpileChange.created_at)
+        .order_by(StockpileChange.created_at, StockpileChange.id)
     ).all()
 
 
