@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed, watch } from "vue";
 import PageHeader from "../../components/PageHeader.vue";
 import { useHistoryStore } from "../../stores/history";
 import { useSkuAnalyticsStore } from "../../stores/skuAnalytics";
@@ -14,6 +14,19 @@ const analyticsStore = useSkuAnalyticsStore();
 const extrasStore = useSkuExtrasStore();
 const timelineStore = useSkuTimelineStore();
 const q = ref("");
+
+// Phase 4b.5: 左栏 概况/深度 + 右栏折叠卡 UI 状态
+const leftTab = ref<"overview" | "deep">("overview");
+const DEFAULT_CARD_OPEN = { sla: true, pur: true, rst: false, tml: false, his: false } as const;
+type CardKey = keyof typeof DEFAULT_CARD_OPEN;
+const cardOpen = ref<Record<CardKey, boolean>>({ ...DEFAULT_CARD_OPEN });
+function toggleCard(k: CardKey) { cardOpen.value[k] = !cardOpen.value[k]; }
+
+const hitBarcode = computed(() =>
+  store.result?.kind === "hit" ? store.result.current.barcode : null);
+watch(hitBarcode, (bc) => {
+  if (bc) { leftTab.value = "overview"; cardOpen.value = { ...DEFAULT_CARD_OPEN }; }
+});
 
 const activeTab = ref<"search" | "batch">("search");
 const batchVisited = ref(false);
@@ -177,361 +190,413 @@ function isPeak(q: number, maxQty: number): boolean {
     </template>
 
     <template v-else-if="store.result.kind === 'hit'">
-      <div class="history__hero">
-        <span class="history__model">{{ store.result.current.model || "—" }}</span>
-        <span class="history__barcode">{{ store.result.current.barcode }}</span>
-        <span class="history__pill" :class="store.result.current.isTrulyDiscontinued ? 'is-off' : 'is-on'">
-          {{ store.result.current.isTrulyDiscontinued ? "已停售" : "在售" }}
-        </span>
-        <span v-if="store.result.current.manualGrade !== null" class="history__grade">{{ store.result.current.manualGrade }}</span>
-        <button class="history__btn history__btn--ghost" type="button" @click="copyBarcode(store.result.current.barcode)">⎘ 复制</button>
-      </div>
-
-      <dl class="history__overview">
-        <template v-if="store.result.current.productNameZh"><dt>品名</dt><dd>{{ store.result.current.productNameZh }}</dd></template>
-        <template v-if="store.result.current.productNameLocal"><dt>本地品名</dt><dd>{{ store.result.current.productNameLocal }}</dd></template>
-        <dt>店面位置</dt><dd>{{ store.result.current.storeLocations.join(", ") || "—" }}</dd>
-        <dt>仓库位置</dt><dd>{{ store.result.current.warehouseLocations.join(", ") || "—" }}</dd>
-        <template v-if="store.result.current.unknownLocations.length"><dt>其他位置</dt><dd>{{ store.result.current.unknownLocations.join(", ") }}</dd></template>
-        <template v-if="store.result.current.salePrice !== null"><dt>售价</dt><dd>€{{ store.result.current.salePrice.toFixed(2) }}</dd></template>
-        <dt>来源</dt><dd>{{ cn(SOURCE_CN, store.result.current.source) || "—" }}</dd>
-        <dt>最后更新</dt><dd>{{ store.result.current.updatedAt ?? "—" }}</dd>
-      </dl>
-
-      <!-- Phase 3: 走势图（概况后，SLA 前） -->
-      <div class="history__timeline-chart">
-        <div class="history__sec-hd">销售 / 进价走势</div>
-        <p v-if="timelineStore.loading" class="history__msg">走势图加载中…</p>
-        <p v-else-if="timelineStore.error" class="history__error history__timeline-chart-error">走势图加载失败：{{ timelineStore.error }}</p>
-        <TimelineChart
-          v-else-if="timelineStore.vm"
-          :weeks="timelineStore.vm.weeks"
-          :monthly-sales="timelineStore.vm.monthlySales"
-        />
-      </div>
-
-      <!-- 2a: SLA + PUR + 客户拆分 -->
-      <section class="history__analytics">
-        <p v-if="analyticsStore.loading" class="history__msg">分析加载中…</p>
-        <p v-else-if="analyticsStore.error" class="history__error">分析加载失败：{{ analyticsStore.error }}</p>
-        <template v-else-if="analyticsStore.vm">
-          <div class="history__sec-hd">销售分析</div>
-          <div class="history__metrics">
-            <div class="history__kv"><span>总销量</span><b>{{ analyticsStore.vm.sales.totalQty }}</b></div>
-            <div class="history__kv"><span>总营收</span><b>{{ eur(analyticsStore.vm.sales.totalRevenue) }}</b></div>
-            <div class="history__kv"><span>独立客户</span><b>{{ analyticsStore.vm.sales.uniqueCustomers }}</b></div>
-            <div class="history__kv"><span>寿命</span><b>{{ analyticsStore.vm.sales.lifespanDays }} 天</b></div>
-            <div class="history__kv"><span>12 周趋势</span><b>{{ fmtPct(analyticsStore.vm.sales.trendSlopePctPerWeek) }}/周</b></div>
+      <div class="history__cols">
+        <aside class="history__left">
+          <div class="history__hero">
+            <span class="history__model">{{ store.result.current.model || "—" }}</span>
+            <span class="history__barcode">{{ store.result.current.barcode }}</span>
+            <span class="history__pill" :class="store.result.current.isTrulyDiscontinued ? 'is-off' : 'is-on'">
+              {{ store.result.current.isTrulyDiscontinued ? "已停售" : "在售" }}
+            </span>
+            <span v-if="store.result.current.manualGrade !== null" class="history__grade">{{ store.result.current.manualGrade }}</span>
+            <button class="history__btn history__btn--ghost" type="button" @click="copyBarcode(store.result.current.barcode)">⎘ 复制</button>
           </div>
 
-          <div class="history__cards">
-            <div class="history__card">
-              <div class="history__card-hd">CN 中国</div>
-              <div>销量 <b>{{ analyticsStore.vm.cn.qty }}</b> · 客户 <b>{{ analyticsStore.vm.cn.uniqueCustomers }}</b></div>
-              <div>单笔最大 <b>{{ analyticsStore.vm.cn.maxSingleQty }}</b> · 月频 <b>{{ analyticsStore.vm.cn.avgFreqPerMonth }}</b></div>
-              <div>上次 <b>{{ analyticsStore.vm.cn.lastAt ?? "—" }}</b></div>
-            </div>
-            <div class="history__card">
-              <div class="history__card-hd">老外</div>
-              <div>销量 <b>{{ analyticsStore.vm.fo.qty }}</b> · 客户 <b>{{ analyticsStore.vm.fo.uniqueCustomers }}</b></div>
-              <div>单笔最大 <b>{{ analyticsStore.vm.fo.maxSingleQty }}</b> · 月频 <b>{{ analyticsStore.vm.fo.avgFreqPerMonth }}</b></div>
-              <div>上次 <b>{{ analyticsStore.vm.fo.lastAt ?? "—" }}</b></div>
-            </div>
+          <div class="history__lefttabs">
+            <button type="button" class="history__lefttab" :class="{ 'is-active': leftTab === 'overview' }"
+              :aria-pressed="leftTab === 'overview'" @click="leftTab = 'overview'">概况</button>
+            <button type="button" class="history__lefttab" :class="{ 'is-active': leftTab === 'deep' }"
+              :aria-pressed="leftTab === 'deep'" @click="leftTab = 'deep'">深度</button>
           </div>
 
-          <div class="history__sec-hd">采购面</div>
-          <div class="history__metrics">
-            <div class="history__kv"><span>库存推算</span><b>{{ analyticsStore.vm.purchase.stockBalance }}</b></div>
-            <div class="history__kv"><span>毛利率</span><b>{{ fmtPct(analyticsStore.vm.purchase.avgMarginPct) }}</b></div>
-            <div class="history__kv"><span>365 天采购</span><b>{{ analyticsStore.vm.purchase.purchaseFreq365d }}</b></div>
-            <div class="history__kv"><span>上次采购</span><b>{{ dayN(analyticsStore.vm.purchase.lastPurchaseDaysAgo) }}</b></div>
-          </div>
-        </template>
-      </section>
+          <!-- 概况 -->
+          <dl class="history__overview" v-show="leftTab === 'overview'">
+            <template v-if="store.result.current.productNameZh"><dt>品名</dt><dd>{{ store.result.current.productNameZh }}</dd></template>
+            <template v-if="store.result.current.productNameLocal"><dt>本地品名</dt><dd>{{ store.result.current.productNameLocal }}</dd></template>
+            <dt>店面位置</dt><dd>{{ store.result.current.storeLocations.join(", ") || "—" }}</dd>
+            <dt>仓库位置</dt><dd>{{ store.result.current.warehouseLocations.join(", ") || "—" }}</dd>
+            <template v-if="store.result.current.unknownLocations.length"><dt>其他位置</dt><dd>{{ store.result.current.unknownLocations.join(", ") }}</dd></template>
+            <template v-if="store.result.current.salePrice !== null"><dt>售价</dt><dd>€{{ store.result.current.salePrice.toFixed(2) }}</dd></template>
+            <dt>来源</dt><dd>{{ cn(SOURCE_CN, store.result.current.source) || "—" }}</dd>
+            <dt>最后更新</dt><dd>{{ store.result.current.updatedAt ?? "—" }}</dd>
+          </dl>
 
-      <!-- 2b: extras 深度分析 + 补货快照 -->
-      <section class="history__extras-section">
-        <p v-if="extrasStore.loading" class="history__msg">深度分析加载中…</p>
-        <p v-else-if="extrasStore.error" class="history__error history__error--2b">深度分析加载失败：{{ extrasStore.error }}</p>
-        <template v-else-if="extrasStore.vm">
-
-          <!-- Extras Panel -->
-          <div class="history__panel history__panel--extras">
-            <div class="history__sec-hd">深度分析</div>
-
-            <!-- 1. 退货率 + 价格波动 -->
-            <div class="ext-section">
-              <div class="ext-section-label">退货率 + 价格波动</div>
-              <div class="cur-kv">
-                <span class="cur-kv-label">退货率</span>
-                <span class="cur-kv-val cur-kv-val--mono">
-                  {{ extrasStore.vm.extras.returnRatePct != null ? extrasStore.vm.extras.returnRatePct + '%' : '—' }}
-                  <span class="ext-muted">({{ extrasStore.vm.extras.returnQty }}/{{ extrasStore.vm.extras.totalSaleQtyGross + extrasStore.vm.extras.returnQty }})</span>
-                </span>
-              </div>
-              <div class="cur-kv">
-                <span class="cur-kv-label">批发售价均</span>
-                <span class="cur-kv-val cur-kv-val--mono">
-                  {{ extrasStore.vm.extras.priceStats.mean != null ? '€' + extrasStore.vm.extras.priceStats.mean : '—' }}
-                  ±{{ extrasStore.vm.extras.priceStats.std ?? '—' }}
-                </span>
-              </div>
-              <div class="cur-kv">
-                <span class="cur-kv-label">售价区间</span>
-                <span class="cur-kv-val cur-kv-val--mono">
-                  {{ extrasStore.vm.extras.priceStats.min != null ? '€' + extrasStore.vm.extras.priceStats.min : '—' }}
-                  ~
-                  {{ extrasStore.vm.extras.priceStats.max != null ? '€' + extrasStore.vm.extras.priceStats.max : '—' }}
-                </span>
-              </div>
-            </div>
-
-            <!-- 2. 零售汇总 -->
-            <div class="ext-section">
-              <div class="ext-section-label">零售汇总 (MB700 + ID=0)</div>
-              <template v-if="extrasStore.vm.extras.retailSummary.nTransactions > 0">
+          <!-- 深度: extras guard chain -->
+          <div v-show="leftTab === 'deep'" class="history__deep">
+            <p v-if="extrasStore.loading" class="history__msg">深度分析加载中…</p>
+            <p v-else-if="extrasStore.error" class="history__error history__error--2b">深度分析加载失败：{{ extrasStore.error }}</p>
+            <p v-else-if="!extrasStore.vm" class="history__msg">暂无深度数据</p>
+            <div v-else class="history__panel history__panel--extras">
+              <!-- 1. 退货率 + 价格波动 -->
+              <div class="ext-section">
+                <div class="ext-section-label">退货率 + 价格波动</div>
                 <div class="cur-kv">
-                  <span class="cur-kv-label">件数 / 营收</span>
-                  <span class="cur-kv-val cur-kv-val--mono">{{ extrasStore.vm.extras.retailSummary.qty }} · €{{ extrasStore.vm.extras.retailSummary.revenue }}</span>
+                  <span class="cur-kv-label">退货率</span>
+                  <span class="cur-kv-val cur-kv-val--mono">
+                    {{ extrasStore.vm.extras.returnRatePct != null ? extrasStore.vm.extras.returnRatePct + '%' : '—' }}
+                    <span class="ext-muted">({{ extrasStore.vm.extras.returnQty }}/{{ extrasStore.vm.extras.totalSaleQtyGross + extrasStore.vm.extras.returnQty }})</span>
+                  </span>
                 </div>
                 <div class="cur-kv">
-                  <span class="cur-kv-label">笔数 / 件均</span>
-                  <span class="cur-kv-val cur-kv-val--mono">{{ extrasStore.vm.extras.retailSummary.nTransactions }}笔 · {{ extrasStore.vm.extras.retailSummary.avgTicketQty ?? '—' }}</span>
+                  <span class="cur-kv-label">批发售价均</span>
+                  <span class="cur-kv-val cur-kv-val--mono">
+                    {{ extrasStore.vm.extras.priceStats.mean != null ? '€' + extrasStore.vm.extras.priceStats.mean : '—' }}
+                    ±{{ extrasStore.vm.extras.priceStats.std ?? '—' }}
+                  </span>
                 </div>
                 <div class="cur-kv">
-                  <span class="cur-kv-label">最近零售</span>
-                  <span class="cur-kv-val cur-kv-val--mono">{{ extrasStore.vm.extras.retailSummary.lastAt ?? '—' }}</span>
-                </div>
-              </template>
-              <div v-else class="ext-muted">暂无零售记录 (MB700 / ID=0)</div>
-            </div>
-
-            <!-- 3. CN 客户 TOP -->
-            <div class="ext-section">
-              <div class="ext-section-label">CN 中国客户 TOP</div>
-              <table class="ext-mini-tbl">
-                <thead><tr><th>ID</th><th>名字</th><th class="r">件</th><th class="r">上次</th></tr></thead>
-                <tbody>
-                  <template v-if="extrasStore.vm.extras.topCustomersCn.length">
-                    <tr v-for="(c, i) in extrasStore.vm.extras.topCustomersCn" :key="i">
-                      <td>{{ c.customerId ?? '' }}</td>
-                      <td>{{ c.customerName ?? '—' }}</td>
-                      <td class="r">{{ c.qty }}</td>
-                      <td class="r">{{ c.lastAt ?? '' }}</td>
-                    </tr>
-                  </template>
-                  <tr v-else><td colspan="4" class="ext-muted">—</td></tr>
-                </tbody>
-              </table>
-            </div>
-
-            <!-- 4. 老外客户 TOP -->
-            <div class="ext-section">
-              <div class="ext-section-label">老外客户 TOP</div>
-              <table class="ext-mini-tbl">
-                <thead><tr><th>ID</th><th>名字</th><th class="r">件</th><th class="r">上次</th></tr></thead>
-                <tbody>
-                  <template v-if="extrasStore.vm.extras.topCustomersForeign.length">
-                    <tr v-for="(c, i) in extrasStore.vm.extras.topCustomersForeign" :key="i">
-                      <td>{{ c.customerId ?? '' }}</td>
-                      <td>{{ c.customerName ?? '—' }}</td>
-                      <td class="r">{{ c.qty }}</td>
-                      <td class="r">{{ c.lastAt ?? '' }}</td>
-                    </tr>
-                  </template>
-                  <tr v-else><td colspan="4" class="ext-muted">—</td></tr>
-                </tbody>
-              </table>
-            </div>
-
-            <!-- 5. 月度热力图 -->
-            <div class="ext-section">
-              <div class="ext-section-label">🌡 月度热力图</div>
-              <table class="heat-mini">
-                <thead>
-                  <tr>
-                    <th></th>
-                    <th v-for="m in 12" :key="m">{{ m }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="yr in extrasStore.vm.heatmap.years.slice().reverse()" :key="yr">
-                    <td class="hy">{{ String(yr).slice(2) }}</td>
-                    <td
-                      v-for="(qty, mi) in (extrasStore.vm.heatmap.matrix[yr] || new Array(12).fill(0))"
-                      :key="mi"
-                      :class="isPeak(qty, extrasStore.vm.heatmap.maxQty) ? 'hc hc--peak' : 'hc'"
-                      :style="(qty > 0 && !isPeak(qty, extrasStore.vm.heatmap.maxQty))
-                        ? { background: `color-mix(in srgb, var(--success) ${(heatIntensity(qty, extrasStore.vm.heatmap.maxQty) * 100).toFixed(0)}%, transparent)`, color: 'var(--ink-0)' }
-                        : {}"
-                      :title="`${yr}-${String(mi + 1).padStart(2, '0')}: ${qty} 件`"
-                    >{{ qty > 0 ? qty : '—' }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <!-- 6. 持仓 / 预测 / 数据范围 -->
-            <div class="ext-section">
-              <div class="ext-section-label">🔮 持仓 / 预测</div>
-              <div v-if="extrasStore.vm.holding.avgDays != null" class="cur-kv">
-                <span class="cur-kv-label">平均持仓</span>
-                <span class="cur-kv-val cur-kv-val--mono">{{ extrasStore.vm.holding.avgDays }}天 <span class="ext-muted">({{ extrasStore.vm.holding.nPairs }}件)</span></span>
-              </div>
-              <div v-if="extrasStore.vm.holding.oldestHeldDays != null" class="cur-kv">
-                <span class="cur-kv-label">当前压最久</span>
-                <span class="cur-kv-val cur-kv-val--mono">{{ extrasStore.vm.holding.oldestHeldDays }}天</span>
-              </div>
-              <div class="cur-kv">
-                <span class="cur-kv-label">预测</span>
-                <span class="cur-kv-val cur-kv-val--mono" v-if="extrasStore.vm.forecast === null">
-                  <span class="ext-muted">序列太短未训出</span>
-                </span>
-                <span class="cur-kv-val cur-kv-val--mono" v-else>
-                  下季度预测 {{ extrasStore.vm.forecast.quarterMu }} 件
-                  <span class="ext-muted">(p98 {{ extrasStore.vm.forecast.quarterP98 }})</span>
-                  <span v-if="extrasStore.vm.forecast.isStale" class="ext-warn ext-badge">⚠ 预测过期</span>
-                  <span v-if="extrasStore.vm.forecast.stockoutWeeksExcluded > 0" class="ext-muted"> 缺货周剔除 {{ extrasStore.vm.forecast.stockoutWeeksExcluded }}</span>
-                </span>
-              </div>
-              <div class="cur-kv">
-                <span class="cur-kv-label">数据范围</span>
-                <span class="cur-kv-val cur-kv-val--muted">
-                  {{ extrasStore.vm.extras.firstEventAt ?? '—' }} ~ {{ extrasStore.vm.extras.lastEventAt ?? '—' }}
-                  <span v-if="extrasStore.vm.extras.isHistoryTruncated" class="ext-warn">⚠ 不全</span>
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Restock Snapshot Panel (only when restock !== null) -->
-          <div v-if="extrasStore.vm.restock !== null" class="history__panel history__panel--restock">
-            <div class="history__sec-hd">补货快照</div>
-            <div class="rst-grid">
-
-              <!-- 💰 财务 -->
-              <div class="rst-sec">
-                <h4>💰 财务</h4>
-                <div class="rst-row">批发 <b>{{ eur(extrasStore.vm.restock.masterSalePriceEur ?? extrasStore.vm.restock.saleNetAvg) }}</b> <span class="rst-muted">(主档)</span></div>
-                <!-- 零售价行 -->
-                <div class="rst-row" v-if="extrasStore.vm.restock.retailPriceObserved != null && extrasStore.vm.restock.retailPriceEstimate != null">
-                  零售价 <b>{{ eur(extrasStore.vm.restock.retailPriceObserved) }}</b>
-                  <span class="rst-muted">(实际 {{ extrasStore.vm.restock.retailQty26w }} 笔)</span>
-                  · 估算 {{ eur(extrasStore.vm.restock.retailPriceEstimate) }} (×2)
-                </div>
-                <div class="rst-row" v-else-if="extrasStore.vm.restock.retailPriceObserved != null">
-                  零售价 <b>{{ eur(extrasStore.vm.restock.retailPriceObserved) }}</b> <span class="rst-muted">(实际)</span>
-                </div>
-                <div class="rst-row" v-else-if="extrasStore.vm.restock.retailPriceEstimate != null">
-                  零售价 <b>{{ eur(extrasStore.vm.restock.retailPriceEstimate) }}</b> <span class="rst-muted">(批发×2 估算)</span>
-                </div>
-                <div class="rst-row" v-else>零售价 —</div>
-                <div class="rst-row">进价 <b>{{ eur(extrasStore.vm.restock.lastPurchaseUnitPrice ?? extrasStore.vm.restock.masterStockPriceEur) }}</b></div>
-                <div class="rst-row">毛利 <b>{{ extrasStore.vm.restock.marginPct != null ? extrasStore.vm.restock.marginPct + '%' : '—' }}</b></div>
-              </div>
-
-              <!-- 📦 库存 -->
-              <div class="rst-sec">
-                <h4>📦 库存</h4>
-                <div class="rst-row">库存 <b>{{ extrasStore.vm.restock.qtyTotal != null ? extrasStore.vm.restock.qtyTotal + '件' : '—' }}</b></div>
-                <div class="rst-row">可销额 <b>{{ eur(extrasStore.vm.restock.inventorySaleValueEur) }}</b></div>
-                <div class="rst-row">成本 <b>{{ eur(extrasStore.vm.restock.inventoryCostValueEur) }}</b></div>
-                <div class="rst-row">可撑 <b>{{ extrasStore.vm.restock.weeksOfCover != null ? extrasStore.vm.restock.weeksOfCover.toFixed(1) + '周' : '—' }}</b></div>
-              </div>
-
-              <!-- 💵 累计盈亏 -->
-              <div class="rst-sec">
-                <h4>💵 累计盈亏
-                  <template v-if="extrasStore.vm.restock.realizedProfitEur == null">
-                    <span class="rs-profit-badge rs-profit-badge--unknown">缺成本</span>
-                  </template>
-                  <template v-else-if="extrasStore.vm.restock.realizedProfitEur > 0">
-                    <span class="rs-profit-badge rs-profit-badge--good">💚 已回本</span>
-                  </template>
-                  <template v-else-if="extrasStore.vm.restock.realizedProfitEur + (extrasStore.vm.restock.inventoryCostValueEur ?? 0) > 0">
-                    <span class="rs-profit-badge rs-profit-badge--mid">🟡 压货中</span>
-                  </template>
-                  <template v-else>
-                    <span class="rs-profit-badge rs-profit-badge--bad">🔴 账面亏损</span>
-                  </template>
-                </h4>
-                <div class="rst-row">投入 <b>{{ eur(extrasStore.vm.restock.lifetimeInvestedEur) }}</b> <span class="rst-muted">({{ fmtNum(extrasStore.vm.restock.lifetimePurchaseQty) }}件)</span></div>
-                <div class="rst-row">销售 <b>{{ fmtEurInt(extrasStore.vm.restock.lifetimeSaleRevenueEur) }}</b> <span class="rst-muted">({{ fmtNum(extrasStore.vm.restock.lifetimeSaleQty) }}件)</span></div>
-                <!-- profit line -->
-                <div class="rst-row" v-if="extrasStore.vm.restock.realizedProfitEur == null">
-                  <span class="rst-muted">无 cost 数据</span>
-                </div>
-                <div class="rst-row" v-else-if="extrasStore.vm.restock.realizedProfitEur > 0">
-                  实现利润 <b>+{{ fmtEurInt(extrasStore.vm.restock.realizedProfitEur) }}</b>
-                </div>
-                <div class="rst-row" v-else-if="extrasStore.vm.restock.realizedProfitEur + (extrasStore.vm.restock.inventoryCostValueEur ?? 0) > 0">
-                  实现利润 <b>{{ fmtEurInt(extrasStore.vm.restock.realizedProfitEur) }}</b> · 库存能补 <b>{{ fmtEurInt(extrasStore.vm.restock.inventoryCostValueEur) }}</b> 回本
-                </div>
-                <div class="rst-row" v-else>
-                  实现利润 <b>{{ fmtEurInt(extrasStore.vm.restock.realizedProfitEur) }}</b>
-                  + 库存 <b>{{ fmtEurInt(extrasStore.vm.restock.inventoryCostValueEur) }}</b>
-                  仍亏 <b>{{ fmtEurInt(-(extrasStore.vm.restock.realizedProfitEur! + (extrasStore.vm.restock.inventoryCostValueEur ?? 0))) }}</b>
-                </div>
-                <!-- cashflow -->
-                <div class="rst-row" v-if="extrasStore.vm.restock.netCashflowEur != null">
-                  净现金流 <b>{{ (extrasStore.vm.restock.netCashflowEur >= 0 ? '+' : '') + fmtEurInt(extrasStore.vm.restock.netCashflowEur) }}</b>
-                  <span v-if="extrasStore.vm.restock.inventoryImbalancePct != null && extrasStore.vm.restock.inventoryImbalancePct > 30"
-                    class="rs-trunc-warn"
-                    :title="`进销库存差 ${extrasStore.vm.restock.inventoryImbalancePct}% > 30%, FIFO 可能高估`">
-                    ⚠️ 不平 {{ extrasStore.vm.restock.inventoryImbalancePct }}%
+                  <span class="cur-kv-label">售价区间</span>
+                  <span class="cur-kv-val cur-kv-val--mono">
+                    {{ extrasStore.vm.extras.priceStats.min != null ? '€' + extrasStore.vm.extras.priceStats.min : '—' }}
+                    ~
+                    {{ extrasStore.vm.extras.priceStats.max != null ? '€' + extrasStore.vm.extras.priceStats.max : '—' }}
                   </span>
                 </div>
               </div>
 
-              <!-- 📊 销售26周 -->
-              <div class="rst-sec">
-                <h4>📊 销售 26 周</h4>
-                <div class="rst-row">周销 <b>{{ fmtNum2(extrasStore.vm.restock.weeklyVelocity) }} 件/周</b></div>
-                <div class="rst-row">周额 <b>€{{ fmtNum2(extrasStore.vm.restock.weeklyRevenue) }}/周</b></div>
-                <div class="rst-row">活跃 <b>{{ fmtNum(extrasStore.vm.restock.nActiveWeeks26w) }} 周</b></div>
-                <div class="rst-row">距进货 <b>{{ extrasStore.vm.restock.lastPurchaseDaysAgo != null ? extrasStore.vm.restock.lastPurchaseDaysAgo + '天' : '—' }}</b></div>
+              <!-- 2. 零售汇总 -->
+              <div class="ext-section">
+                <div class="ext-section-label">零售汇总 (MB700 + ID=0)</div>
+                <template v-if="extrasStore.vm.extras.retailSummary.nTransactions > 0">
+                  <div class="cur-kv">
+                    <span class="cur-kv-label">件数 / 营收</span>
+                    <span class="cur-kv-val cur-kv-val--mono">{{ extrasStore.vm.extras.retailSummary.qty }} · €{{ extrasStore.vm.extras.retailSummary.revenue }}</span>
+                  </div>
+                  <div class="cur-kv">
+                    <span class="cur-kv-label">笔数 / 件均</span>
+                    <span class="cur-kv-val cur-kv-val--mono">{{ extrasStore.vm.extras.retailSummary.nTransactions }}笔 · {{ extrasStore.vm.extras.retailSummary.avgTicketQty ?? '—' }}</span>
+                  </div>
+                  <div class="cur-kv">
+                    <span class="cur-kv-label">最近零售</span>
+                    <span class="cur-kv-val cur-kv-val--mono">{{ extrasStore.vm.extras.retailSummary.lastAt ?? '—' }}</span>
+                  </div>
+                </template>
+                <div v-else class="ext-muted">暂无零售记录 (MB700 / ID=0)</div>
               </div>
 
-              <!-- 🎯 紧迫 -->
-              <div class="rst-sec">
-                <h4>🎯 紧迫 {{ extrasStore.vm.restock.urgencyScore ?? '—' }}</h4>
-                <div class="rst-row">销额 <b>{{ extrasStore.vm.restock.urgencyBreakdown?.velocity ?? '—' }}</b>/30</div>
-                <div class="rst-row">库存 <b>{{ extrasStore.vm.restock.urgencyBreakdown?.cover ?? '—' }}</b>/30<span
-                    v-if="extrasStore.vm.restock.urgencyBreakdown?.demandValidity != null && extrasStore.vm.restock.urgencyBreakdown.demandValidity < 1.0"
-                    class="rs-dv-tag"
-                    title="长尾活跃度折扣">×{{ extrasStore.vm.restock.urgencyBreakdown.demandValidity }}</span></div>
-                <div class="rst-row">距进货 <b>{{ extrasStore.vm.restock.urgencyBreakdown?.recency ?? '—' }}</b>/10<span
-                    v-if="extrasStore.vm.restock.urgencyBreakdown?.demandValidity != null && extrasStore.vm.restock.urgencyBreakdown.demandValidity < 1.0"
-                    class="rs-dv-tag"
-                    title="长尾活跃度折扣">×{{ extrasStore.vm.restock.urgencyBreakdown.demandValidity }}</span></div>
-                <div class="rst-row">毛利 <b>{{ extrasStore.vm.restock.urgencyBreakdown?.margin ?? '—' }}</b>/30</div>
+              <!-- 3. CN 客户 TOP -->
+              <div class="ext-section">
+                <div class="ext-section-label">CN 中国客户 TOP</div>
+                <table class="ext-mini-tbl">
+                  <thead><tr><th>ID</th><th>名字</th><th class="r">件</th><th class="r">上次</th></tr></thead>
+                  <tbody>
+                    <template v-if="extrasStore.vm.extras.topCustomersCn.length">
+                      <tr v-for="(c, i) in extrasStore.vm.extras.topCustomersCn" :key="i">
+                        <td>{{ c.customerId ?? '' }}</td>
+                        <td>{{ c.customerName ?? '—' }}</td>
+                        <td class="r">{{ c.qty }}</td>
+                        <td class="r">{{ c.lastAt ?? '' }}</td>
+                      </tr>
+                    </template>
+                    <tr v-else><td colspan="4" class="ext-muted">—</td></tr>
+                  </tbody>
+                </table>
               </div>
 
+              <!-- 4. 老外客户 TOP -->
+              <div class="ext-section">
+                <div class="ext-section-label">老外客户 TOP</div>
+                <table class="ext-mini-tbl">
+                  <thead><tr><th>ID</th><th>名字</th><th class="r">件</th><th class="r">上次</th></tr></thead>
+                  <tbody>
+                    <template v-if="extrasStore.vm.extras.topCustomersForeign.length">
+                      <tr v-for="(c, i) in extrasStore.vm.extras.topCustomersForeign" :key="i">
+                        <td>{{ c.customerId ?? '' }}</td>
+                        <td>{{ c.customerName ?? '—' }}</td>
+                        <td class="r">{{ c.qty }}</td>
+                        <td class="r">{{ c.lastAt ?? '' }}</td>
+                      </tr>
+                    </template>
+                    <tr v-else><td colspan="4" class="ext-muted">—</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- 5. 月度热力图 -->
+              <div class="ext-section">
+                <div class="ext-section-label">🌡 月度热力图</div>
+                <table class="heat-mini">
+                  <thead>
+                    <tr>
+                      <th></th>
+                      <th v-for="m in 12" :key="m">{{ m }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="yr in extrasStore.vm.heatmap.years.slice().reverse()" :key="yr">
+                      <td class="hy">{{ String(yr).slice(2) }}</td>
+                      <td
+                        v-for="(qty, mi) in (extrasStore.vm.heatmap.matrix[yr] || new Array(12).fill(0))"
+                        :key="mi"
+                        :class="isPeak(qty, extrasStore.vm.heatmap.maxQty) ? 'hc hc--peak' : 'hc'"
+                        :style="(qty > 0 && !isPeak(qty, extrasStore.vm.heatmap.maxQty))
+                          ? { background: `color-mix(in srgb, var(--success) ${(heatIntensity(qty, extrasStore.vm.heatmap.maxQty) * 100).toFixed(0)}%, transparent)`, color: 'var(--ink-0)' }
+                          : {}"
+                        :title="`${yr}-${String(mi + 1).padStart(2, '0')}: ${qty} 件`"
+                      >{{ qty > 0 ? qty : '—' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- 6. 持仓 / 预测 / 数据范围 -->
+              <div class="ext-section">
+                <div class="ext-section-label">🔮 持仓 / 预测</div>
+                <div v-if="extrasStore.vm.holding.avgDays != null" class="cur-kv">
+                  <span class="cur-kv-label">平均持仓</span>
+                  <span class="cur-kv-val cur-kv-val--mono">{{ extrasStore.vm.holding.avgDays }}天 <span class="ext-muted">({{ extrasStore.vm.holding.nPairs }}件)</span></span>
+                </div>
+                <div v-if="extrasStore.vm.holding.oldestHeldDays != null" class="cur-kv">
+                  <span class="cur-kv-label">当前压最久</span>
+                  <span class="cur-kv-val cur-kv-val--mono">{{ extrasStore.vm.holding.oldestHeldDays }}天</span>
+                </div>
+                <div class="cur-kv">
+                  <span class="cur-kv-label">预测</span>
+                  <span class="cur-kv-val cur-kv-val--mono" v-if="extrasStore.vm.forecast === null">
+                    <span class="ext-muted">序列太短未训出</span>
+                  </span>
+                  <span class="cur-kv-val cur-kv-val--mono" v-else>
+                    下季度预测 {{ extrasStore.vm.forecast.quarterMu }} 件
+                    <span class="ext-muted">(p98 {{ extrasStore.vm.forecast.quarterP98 }})</span>
+                    <span v-if="extrasStore.vm.forecast.isStale" class="ext-warn ext-badge">⚠ 预测过期</span>
+                    <span v-if="extrasStore.vm.forecast.stockoutWeeksExcluded > 0" class="ext-muted"> 缺货周剔除 {{ extrasStore.vm.forecast.stockoutWeeksExcluded }}</span>
+                  </span>
+                </div>
+                <div class="cur-kv">
+                  <span class="cur-kv-label">数据范围</span>
+                  <span class="cur-kv-val cur-kv-val--muted">
+                    {{ extrasStore.vm.extras.firstEventAt ?? '—' }} ~ {{ extrasStore.vm.extras.lastEventAt ?? '—' }}
+                    <span v-if="extrasStore.vm.extras.isHistoryTruncated" class="ext-warn">⚠ 不全</span>
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
+        </aside>
 
-        </template>
-      </section>
+        <div class="history__right">
+          <!-- SLA -->
+          <section class="history__foldcard">
+            <button type="button" class="history__foldcard-hd" id="sbcard-sla" aria-controls="sbpanel-sla"
+              :aria-expanded="cardOpen.sla" @click="toggleCard('sla')">
+              <span class="history__foldcard-badge">SLA</span> 销售分析
+              <span class="history__foldcard-chevron">{{ cardOpen.sla ? '▼' : '▶' }}</span>
+            </button>
+            <div id="sbpanel-sla" role="region" aria-labelledby="sbcard-sla" v-show="cardOpen.sla" class="history__foldcard-bd">
+              <p v-if="analyticsStore.loading" class="history__msg">分析加载中…</p>
+              <p v-else-if="analyticsStore.error" class="history__error">分析加载失败：{{ analyticsStore.error }}</p>
+              <template v-else-if="analyticsStore.vm">
+                <div class="history__metrics">
+                  <div class="history__kv"><span>总销量</span><b>{{ analyticsStore.vm.sales.totalQty }}</b></div>
+                  <div class="history__kv"><span>总营收</span><b>{{ eur(analyticsStore.vm.sales.totalRevenue) }}</b></div>
+                  <div class="history__kv"><span>独立客户</span><b>{{ analyticsStore.vm.sales.uniqueCustomers }}</b></div>
+                  <div class="history__kv"><span>寿命</span><b>{{ analyticsStore.vm.sales.lifespanDays }} 天</b></div>
+                  <div class="history__kv"><span>12 周趋势</span><b>{{ fmtPct(analyticsStore.vm.sales.trendSlopePctPerWeek) }}/周</b></div>
+                </div>
 
-      <div class="history__timeline">
-        <div class="history__timeline-hd">历史时间线</div>
-        <p v-if="!store.result.events.length" class="history__msg">暂无历史变更</p>
-        <div v-else>
-          <div class="history__count">共 {{ store.result.events.length }} 次操作</div>
-          <div v-for="(ev, i) in store.result.events" :key="i" class="history__evt">
-            <div class="history__evt-head">
-              <span class="history__evt-type">{{ cn(CHANGE_TYPE_CN, ev.changeType) }}</span>
-              <span class="history__evt-src">{{ cn(SOURCE_CN, ev.source) }}</span>
-              <span class="history__evt-time">{{ ev.at }}</span>
+                <div class="history__cards">
+                  <div class="history__card">
+                    <div class="history__card-hd">CN 中国</div>
+                    <div>销量 <b>{{ analyticsStore.vm.cn.qty }}</b> · 客户 <b>{{ analyticsStore.vm.cn.uniqueCustomers }}</b></div>
+                    <div>单笔最大 <b>{{ analyticsStore.vm.cn.maxSingleQty }}</b> · 月频 <b>{{ analyticsStore.vm.cn.avgFreqPerMonth }}</b></div>
+                    <div>上次 <b>{{ analyticsStore.vm.cn.lastAt ?? "—" }}</b></div>
+                  </div>
+                  <div class="history__card">
+                    <div class="history__card-hd">老外</div>
+                    <div>销量 <b>{{ analyticsStore.vm.fo.qty }}</b> · 客户 <b>{{ analyticsStore.vm.fo.uniqueCustomers }}</b></div>
+                    <div>单笔最大 <b>{{ analyticsStore.vm.fo.maxSingleQty }}</b> · 月频 <b>{{ analyticsStore.vm.fo.avgFreqPerMonth }}</b></div>
+                    <div>上次 <b>{{ analyticsStore.vm.fo.lastAt ?? "—" }}</b></div>
+                  </div>
+                </div>
+              </template>
             </div>
-            <div v-if="ev.summary" class="history__evt-detail">{{ ev.summary }}</div>
-            <div v-else-if="ev.changes.length" class="history__evt-detail">
-              <div v-for="(ch, j) in ev.changes" :key="j">
-                <span class="history__evt-field">{{ cn(FIELD_CN, ch.field) }}</span>
-                <code>{{ ch.old || "空" }}</code> → <code>{{ ch.new || "空" }}</code>
+          </section>
+
+          <!-- PUR -->
+          <section class="history__foldcard">
+            <button type="button" class="history__foldcard-hd" id="sbcard-pur" aria-controls="sbpanel-pur"
+              :aria-expanded="cardOpen.pur" @click="toggleCard('pur')">
+              <span class="history__foldcard-badge">PUR</span> 采购面
+              <span class="history__foldcard-chevron">{{ cardOpen.pur ? '▼' : '▶' }}</span>
+            </button>
+            <div id="sbpanel-pur" role="region" aria-labelledby="sbcard-pur" v-show="cardOpen.pur" class="history__foldcard-bd">
+              <p v-if="analyticsStore.loading" class="history__msg">分析加载中…</p>
+              <p v-else-if="analyticsStore.error" class="history__error">分析加载失败：{{ analyticsStore.error }}</p>
+              <template v-else-if="analyticsStore.vm">
+                <div class="history__metrics">
+                  <div class="history__kv"><span>库存推算</span><b>{{ analyticsStore.vm.purchase.stockBalance }}</b></div>
+                  <div class="history__kv"><span>毛利率</span><b>{{ fmtPct(analyticsStore.vm.purchase.avgMarginPct) }}</b></div>
+                  <div class="history__kv"><span>365 天采购</span><b>{{ analyticsStore.vm.purchase.purchaseFreq365d }}</b></div>
+                  <div class="history__kv"><span>上次采购</span><b>{{ dayN(analyticsStore.vm.purchase.lastPurchaseDaysAgo) }}</b></div>
+                </div>
+              </template>
+            </div>
+          </section>
+
+          <!-- RST -->
+          <section class="history__foldcard">
+            <button type="button" class="history__foldcard-hd" id="sbcard-rst" aria-controls="sbpanel-rst"
+              :aria-expanded="cardOpen.rst" @click="toggleCard('rst')">
+              <span class="history__foldcard-badge">RST</span> 补货决策快照
+              <span class="history__foldcard-chevron">{{ cardOpen.rst ? '▼' : '▶' }}</span>
+            </button>
+            <div id="sbpanel-rst" role="region" aria-labelledby="sbcard-rst" v-show="cardOpen.rst" class="history__foldcard-bd">
+              <p v-if="extrasStore.loading" class="history__msg">补货快照加载中…</p>
+              <p v-else-if="extrasStore.error" class="history__error">补货快照加载失败：{{ extrasStore.error }}</p>
+              <p v-else-if="!extrasStore.vm" class="history__msg">暂无补货快照</p>
+              <p v-else-if="extrasStore.vm.restock === null" class="history__msg">暂无补货快照</p>
+              <div v-else class="history__panel history__panel--restock">
+                <div class="rst-grid">
+
+                  <!-- 💰 财务 -->
+                  <div class="rst-sec">
+                    <h4>💰 财务</h4>
+                    <div class="rst-row">批发 <b>{{ eur(extrasStore.vm.restock.masterSalePriceEur ?? extrasStore.vm.restock.saleNetAvg) }}</b> <span class="rst-muted">(主档)</span></div>
+                    <!-- 零售价行 -->
+                    <div class="rst-row" v-if="extrasStore.vm.restock.retailPriceObserved != null && extrasStore.vm.restock.retailPriceEstimate != null">
+                      零售价 <b>{{ eur(extrasStore.vm.restock.retailPriceObserved) }}</b>
+                      <span class="rst-muted">(实际 {{ extrasStore.vm.restock.retailQty26w }} 笔)</span>
+                      · 估算 {{ eur(extrasStore.vm.restock.retailPriceEstimate) }} (×2)
+                    </div>
+                    <div class="rst-row" v-else-if="extrasStore.vm.restock.retailPriceObserved != null">
+                      零售价 <b>{{ eur(extrasStore.vm.restock.retailPriceObserved) }}</b> <span class="rst-muted">(实际)</span>
+                    </div>
+                    <div class="rst-row" v-else-if="extrasStore.vm.restock.retailPriceEstimate != null">
+                      零售价 <b>{{ eur(extrasStore.vm.restock.retailPriceEstimate) }}</b> <span class="rst-muted">(批发×2 估算)</span>
+                    </div>
+                    <div class="rst-row" v-else>零售价 —</div>
+                    <div class="rst-row">进价 <b>{{ eur(extrasStore.vm.restock.lastPurchaseUnitPrice ?? extrasStore.vm.restock.masterStockPriceEur) }}</b></div>
+                    <div class="rst-row">毛利 <b>{{ extrasStore.vm.restock.marginPct != null ? extrasStore.vm.restock.marginPct + '%' : '—' }}</b></div>
+                  </div>
+
+                  <!-- 📦 库存 -->
+                  <div class="rst-sec">
+                    <h4>📦 库存</h4>
+                    <div class="rst-row">库存 <b>{{ extrasStore.vm.restock.qtyTotal != null ? extrasStore.vm.restock.qtyTotal + '件' : '—' }}</b></div>
+                    <div class="rst-row">可销额 <b>{{ eur(extrasStore.vm.restock.inventorySaleValueEur) }}</b></div>
+                    <div class="rst-row">成本 <b>{{ eur(extrasStore.vm.restock.inventoryCostValueEur) }}</b></div>
+                    <div class="rst-row">可撑 <b>{{ extrasStore.vm.restock.weeksOfCover != null ? extrasStore.vm.restock.weeksOfCover.toFixed(1) + '周' : '—' }}</b></div>
+                  </div>
+
+                  <!-- 💵 累计盈亏 -->
+                  <div class="rst-sec">
+                    <h4>💵 累计盈亏
+                      <template v-if="extrasStore.vm.restock.realizedProfitEur == null">
+                        <span class="rs-profit-badge rs-profit-badge--unknown">缺成本</span>
+                      </template>
+                      <template v-else-if="extrasStore.vm.restock.realizedProfitEur > 0">
+                        <span class="rs-profit-badge rs-profit-badge--good">💚 已回本</span>
+                      </template>
+                      <template v-else-if="extrasStore.vm.restock.realizedProfitEur + (extrasStore.vm.restock.inventoryCostValueEur ?? 0) > 0">
+                        <span class="rs-profit-badge rs-profit-badge--mid">🟡 压货中</span>
+                      </template>
+                      <template v-else>
+                        <span class="rs-profit-badge rs-profit-badge--bad">🔴 账面亏损</span>
+                      </template>
+                    </h4>
+                    <div class="rst-row">投入 <b>{{ eur(extrasStore.vm.restock.lifetimeInvestedEur) }}</b> <span class="rst-muted">({{ fmtNum(extrasStore.vm.restock.lifetimePurchaseQty) }}件)</span></div>
+                    <div class="rst-row">销售 <b>{{ fmtEurInt(extrasStore.vm.restock.lifetimeSaleRevenueEur) }}</b> <span class="rst-muted">({{ fmtNum(extrasStore.vm.restock.lifetimeSaleQty) }}件)</span></div>
+                    <!-- profit line -->
+                    <div class="rst-row" v-if="extrasStore.vm.restock.realizedProfitEur == null">
+                      <span class="rst-muted">无 cost 数据</span>
+                    </div>
+                    <div class="rst-row" v-else-if="extrasStore.vm.restock.realizedProfitEur > 0">
+                      实现利润 <b>+{{ fmtEurInt(extrasStore.vm.restock.realizedProfitEur) }}</b>
+                    </div>
+                    <div class="rst-row" v-else-if="extrasStore.vm.restock.realizedProfitEur + (extrasStore.vm.restock.inventoryCostValueEur ?? 0) > 0">
+                      实现利润 <b>{{ fmtEurInt(extrasStore.vm.restock.realizedProfitEur) }}</b> · 库存能补 <b>{{ fmtEurInt(extrasStore.vm.restock.inventoryCostValueEur) }}</b> 回本
+                    </div>
+                    <div class="rst-row" v-else>
+                      实现利润 <b>{{ fmtEurInt(extrasStore.vm.restock.realizedProfitEur) }}</b>
+                      + 库存 <b>{{ fmtEurInt(extrasStore.vm.restock.inventoryCostValueEur) }}</b>
+                      仍亏 <b>{{ fmtEurInt(-(extrasStore.vm.restock.realizedProfitEur! + (extrasStore.vm.restock.inventoryCostValueEur ?? 0))) }}</b>
+                    </div>
+                    <!-- cashflow -->
+                    <div class="rst-row" v-if="extrasStore.vm.restock.netCashflowEur != null">
+                      净现金流 <b>{{ (extrasStore.vm.restock.netCashflowEur >= 0 ? '+' : '') + fmtEurInt(extrasStore.vm.restock.netCashflowEur) }}</b>
+                      <span v-if="extrasStore.vm.restock.inventoryImbalancePct != null && extrasStore.vm.restock.inventoryImbalancePct > 30"
+                        class="rs-trunc-warn"
+                        :title="`进销库存差 ${extrasStore.vm.restock.inventoryImbalancePct}% > 30%, FIFO 可能高估`">
+                        ⚠️ 不平 {{ extrasStore.vm.restock.inventoryImbalancePct }}%
+                      </span>
+                    </div>
+                  </div>
+
+                  <!-- 📊 销售26周 -->
+                  <div class="rst-sec">
+                    <h4>📊 销售 26 周</h4>
+                    <div class="rst-row">周销 <b>{{ fmtNum2(extrasStore.vm.restock.weeklyVelocity) }} 件/周</b></div>
+                    <div class="rst-row">周额 <b>€{{ fmtNum2(extrasStore.vm.restock.weeklyRevenue) }}/周</b></div>
+                    <div class="rst-row">活跃 <b>{{ fmtNum(extrasStore.vm.restock.nActiveWeeks26w) }} 周</b></div>
+                    <div class="rst-row">距进货 <b>{{ extrasStore.vm.restock.lastPurchaseDaysAgo != null ? extrasStore.vm.restock.lastPurchaseDaysAgo + '天' : '—' }}</b></div>
+                  </div>
+
+                  <!-- 🎯 紧迫 -->
+                  <div class="rst-sec">
+                    <h4>🎯 紧迫 {{ extrasStore.vm.restock.urgencyScore ?? '—' }}</h4>
+                    <div class="rst-row">销额 <b>{{ extrasStore.vm.restock.urgencyBreakdown?.velocity ?? '—' }}</b>/30</div>
+                    <div class="rst-row">库存 <b>{{ extrasStore.vm.restock.urgencyBreakdown?.cover ?? '—' }}</b>/30<span
+                        v-if="extrasStore.vm.restock.urgencyBreakdown?.demandValidity != null && extrasStore.vm.restock.urgencyBreakdown.demandValidity < 1.0"
+                        class="rs-dv-tag"
+                        title="长尾活跃度折扣">×{{ extrasStore.vm.restock.urgencyBreakdown.demandValidity }}</span></div>
+                    <div class="rst-row">距进货 <b>{{ extrasStore.vm.restock.urgencyBreakdown?.recency ?? '—' }}</b>/10<span
+                        v-if="extrasStore.vm.restock.urgencyBreakdown?.demandValidity != null && extrasStore.vm.restock.urgencyBreakdown.demandValidity < 1.0"
+                        class="rs-dv-tag"
+                        title="长尾活跃度折扣">×{{ extrasStore.vm.restock.urgencyBreakdown.demandValidity }}</span></div>
+                    <div class="rst-row">毛利 <b>{{ extrasStore.vm.restock.urgencyBreakdown?.margin ?? '—' }}</b>/30</div>
+                  </div>
+
+                </div>
               </div>
             </div>
-          </div>
+          </section>
+
+          <!-- TML -->
+          <section class="history__foldcard">
+            <button type="button" class="history__foldcard-hd" id="sbcard-tml" aria-controls="sbpanel-tml"
+              :aria-expanded="cardOpen.tml" @click="toggleCard('tml')">
+              <span class="history__foldcard-badge">TML</span> 销售/进价时间线
+              <span class="history__foldcard-chevron">{{ cardOpen.tml ? '▼' : '▶' }}</span>
+            </button>
+            <div id="sbpanel-tml" role="region" aria-labelledby="sbcard-tml" v-show="cardOpen.tml" class="history__foldcard-bd">
+              <p v-if="timelineStore.loading" class="history__msg">走势图加载中…</p>
+              <p v-else-if="timelineStore.error" class="history__error history__timeline-chart-error">走势图加载失败：{{ timelineStore.error }}</p>
+              <TimelineChart
+                v-else-if="timelineStore.vm"
+                :weeks="timelineStore.vm.weeks"
+                :monthly-sales="timelineStore.vm.monthlySales"
+              />
+            </div>
+          </section>
+
+          <!-- HIS -->
+          <section class="history__foldcard">
+            <button type="button" class="history__foldcard-hd" id="sbcard-his" aria-controls="sbpanel-his"
+              :aria-expanded="cardOpen.his" @click="toggleCard('his')">
+              <span class="history__foldcard-badge">HIS</span> 历史时间线
+              <span class="history__foldcard-chevron">{{ cardOpen.his ? '▼' : '▶' }}</span>
+            </button>
+            <div id="sbpanel-his" role="region" aria-labelledby="sbcard-his" v-show="cardOpen.his" class="history__foldcard-bd">
+              <p v-if="!store.result.events.length" class="history__msg">暂无历史变更</p>
+              <div v-else>
+                <div class="history__count">共 {{ store.result.events.length }} 次操作</div>
+                <div v-for="(ev, i) in store.result.events" :key="i" class="history__evt">
+                  <div class="history__evt-head">
+                    <span class="history__evt-type">{{ cn(CHANGE_TYPE_CN, ev.changeType) }}</span>
+                    <span class="history__evt-src">{{ cn(SOURCE_CN, ev.source) }}</span>
+                    <span class="history__evt-time">{{ ev.at }}</span>
+                  </div>
+                  <div v-if="ev.summary" class="history__evt-detail">{{ ev.summary }}</div>
+                  <div v-else-if="ev.changes.length" class="history__evt-detail">
+                    <div v-for="(ch, j) in ev.changes" :key="j">
+                      <span class="history__evt-field">{{ cn(FIELD_CN, ch.field) }}</span>
+                      <code>{{ ch.old || "空" }}</code> → <code>{{ ch.new || "空" }}</code>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
     </template>
@@ -549,7 +614,7 @@ function isPeak(q: number, maxQty: number): boolean {
 </template>
 
 <style scoped>
-.history { padding: var(--sp-6); max-width: 1100px; margin: 0 auto; }
+.history { padding: var(--sp-6); max-width: 1400px; margin: 0 auto; container-type: inline-size; }
 .history__legacy-link { display: inline-block; margin-bottom: var(--sp-4); font-size: var(--fs-sm); color: var(--accent); }
 .history__tabs { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-4); border-bottom: 1px solid var(--line-soft); }
 .history__tab { padding: var(--sp-2) var(--sp-4); border: none; border-bottom: 2px solid transparent; background: transparent; color: var(--ink-2); cursor: pointer; font-size: var(--fs-sm); }
@@ -646,4 +711,22 @@ function isPeak(q: number, maxQty: number): boolean {
 
 /* demand_validity discount tag (×dv) */
 .rs-dv-tag { font-size: var(--fs-xs); color: var(--ink-2); margin-left: 3px; }
+
+/* Phase 4b.5: two-column reflow */
+.history__cols { display: flex; gap: var(--sp-5); align-items: flex-start; }
+.history__left { flex: 0 0 340px; min-width: 0; }
+.history__right { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: var(--sp-4); }
+.history__lefttabs { display: flex; gap: var(--sp-2); margin: var(--sp-3) 0; }
+.history__lefttab { padding: 4px 12px; background: transparent; border: 1px solid var(--line-soft); border-radius: var(--r-sm); color: var(--ink-2); cursor: pointer; font-size: var(--fs-sm); }
+.history__lefttab.is-active { color: var(--ink-0); border-color: var(--accent); }
+.history__deep table, .history__deep .heat-table { display: block; max-width: 100%; overflow-x: auto; }
+.history__foldcard { border: 1px solid var(--line-soft); border-radius: var(--r-md); overflow: hidden; }
+.history__foldcard-hd { display: flex; align-items: center; gap: var(--sp-2); width: 100%; padding: var(--sp-3) var(--sp-4); background: transparent; border: none; color: var(--ink-0); cursor: pointer; text-align: left; font-size: var(--fs-sm); }
+.history__foldcard-badge { font-size: 11px; padding: 1px 6px; border: 1px solid var(--line-soft); border-radius: var(--r-sm); color: var(--ink-2); }
+.history__foldcard-chevron { margin-left: auto; color: var(--ink-3); }
+.history__foldcard-bd { padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--line-soft); }
+@container (max-width: 900px) {
+  .history__cols { flex-direction: column; }
+  .history__left { flex-basis: auto; width: 100%; }
+}
 </style>
