@@ -1,6 +1,6 @@
 # 货号历史页 Phase 4b.5（信息架构重排：左固定 概况/深度 + 右弹性折叠卡）设计
 
-**状态：** 设计待批（2026-06-19）。三轮设计审查处置：第一轮（container query 不用视口媒体查询 / 放宽 max-width / 左栏固定宽度非 position:fixed / 完整 ARIA / 换 SKU 重置 / 共享 store 错误态 / nullable restock 空态 / 折叠断言用 isVisible）；第二轮 APPROVE + 三建议（flex 子项 min-width:0 / tabs 改普通按钮+aria-pressed 避 roving tabindex / §1 注明只改生产代码）；第三轮（max-width 1400 确定值非约数 / 断点统一 >900 两栏·≤900 堆叠 / RST 含 vm===null 安全分支防 401 崩溃 + 不崩测试 / Hero「数量」更正为 manualGrade 手工等级）。
+**状态：** 已批准（2026-06-19，设计终审 APPROVE）。三轮设计审查处置：第一轮（container query 不用视口媒体查询 / 放宽 max-width / 左栏固定宽度非 position:fixed / 完整 ARIA / 换 SKU 重置 / 共享 store 错误态 / nullable restock 空态 / 折叠断言用 isVisible）；第二轮 APPROVE + 三建议（flex 子项 min-width:0 / tabs 改普通按钮+aria-pressed 避 roving tabindex / §1 注明只改生产代码）；第三轮（max-width 1400 确定值非约数 / 断点统一 >900 两栏·≤900 堆叠 / RST 含 vm===null 安全分支防 401 崩溃 + 不崩测试 / Hero「数量」更正为 manualGrade 手工等级）。
 
 ## 背景与目标
 
