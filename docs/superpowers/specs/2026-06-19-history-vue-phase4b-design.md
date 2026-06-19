@@ -3,6 +3,7 @@
 **状态：** 设计待批（2026-06-19）。已吸收两轮审查。
 第一轮：CSV 元数据 nullable（BLOCKER）、ZIP 改 additive 增强而非 1:1（MEDIUM）、下载 URL 强制编码（HIGH）、子-tab `scanVisited` 持久挂载、多行独立展开、employees 口径从返回批次派生（MEDIUM）。
 第二轮：`API_MODELS` 追加 `ScanBatchList` + 断言 TS 类型生成（BLOCKER 类型静默缺失）、ZIP 下载端到端路由测试（BLOCKER）、重试统一走 `ensureLoaded`、CSV「不可读」收窄为 OSError 并标注 UnicodeDecodeError 潜在风险、折叠头 `<button aria-expanded>`、`onMounted→ensureLoaded` 测试。
+第三轮：APPROVE；按建议把 `API_MODELS` 收敛为只加顶层 `ScanBatchList`（嵌套走 `$defs`）。
 
 ## 目标
 
@@ -90,7 +91,7 @@ class ScanBatchList(BaseModel):
 
 ### 生成器注册（BLOCKER）
 
-**必须把 `ScanBatch` / `ScanXlsxFile` / `ScanBatchList` 追加进 `app/schemas_api.py` 的 `API_MODELS` 清单**（`schemas_api.py:445`）。`tools/gen_ts_types.py:63` 仅遍历 `API_MODELS` 生成 TS 类型；遗漏则 `types.gen.ts` 不产出新类型，而 `gen_ts_types.py --check` 仍可能保持绿色（无引用即无漂移）→ 类型静默缺失。
+**必须把顶层响应 `ScanBatchList` 追加进 `app/schemas_api.py` 的 `API_MODELS` 清单**（`schemas_api.py:445`）。`tools/gen_ts_types.py:63` 仅遍历 `API_MODELS`，遗漏则 `types.gen.ts` 不产出新类型，而 `gen_ts_types.py --check` 仍可能保持绿色（无引用即无漂移）→ 类型静默缺失。嵌套的 `ScanBatch` / `ScanXlsxFile` 经 `$defs` 自动生成（`gen_ts_types.py:66`），无需单独加入 `API_MODELS`。
 
 改后跑 `python tools/gen_ts_types.py` 同步 TS 类型（CI `--check` 守护漂移）。**测试断言 `types.gen.ts` 含 `ScanBatchList` / `ScanBatch` 类型**（见测试计划）。
 
@@ -229,7 +230,7 @@ function showScan() { batchSubTab.value = "scan"; scanVisited.value = true; }
 7. **未登录 → JSON 401**。
 8. **service 异常冒泡 → 500**（monkeypatch `list_batches` 抛异常）。
 9. **ZIP 下载端到端**（补进 `test_scan_history_routes.py`，覆盖本期新增的用户入口）：含 CSV+XLSX 的批次 `GET /scan_history/batches/{id}/download/zip` → **200 + `Content-Disposition: attachment`**，且**归档成员正确**（CSV + 各 XLSX 名齐全）；不存在批次 → **404**。
-10. **TS 类型生成断言**：`ScanBatch` / `ScanXlsxFile` / `ScanBatchList` 已在 `API_MODELS` 且 `python tools/gen_ts_types.py` 后 `frontend/src/api/types.gen.ts` 含 `ScanBatchList` / `ScanBatch` 类型（防类型静默缺失）。
+10. **TS 类型生成断言**：`ScanBatchList` 已在 `API_MODELS`，且 `python tools/gen_ts_types.py` 后 `frontend/src/api/types.gen.ts` 含 `ScanBatchList` / `ScanBatch`（嵌套经 `$defs` 自动生成）类型（防类型静默缺失）。
 11. 既有 `test_scan_history_routes.py` 原有用例继续全绿（证明旧端点行为未动）。
 
 ### 前端
