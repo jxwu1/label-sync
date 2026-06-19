@@ -441,6 +441,29 @@ class RecentChangesDetail(BaseModel):
     total_count: int
 
 
+class ScanXlsxFile(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str
+    size_bytes: int
+
+
+class ScanBatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    batch_id: str
+    employee: str
+    scanned_at: str
+    csv_filename: str | None
+    csv_rows: int | None
+    csv_size_bytes: int | None
+    xlsx_files: list[ScanXlsxFile]
+
+
+class ScanBatchList(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ok: bool
+    batches: list[ScanBatch]
+
+
 # gen_ts_types.py 的导出清单：新增模型加进来即自动进 types.gen.ts
 API_MODELS: list[type[BaseModel]] = [
     BriefingData,
@@ -452,4 +475,5 @@ API_MODELS: list[type[BaseModel]] = [
     SkuTimelineResponse,
     RecentChangesBatchList,
     RecentChangesDetail,
+    ScanBatchList,
 ]

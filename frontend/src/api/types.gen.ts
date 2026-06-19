@@ -326,3 +326,23 @@ export interface RecentChangesDetail {
   changes: ChangeRow[];
   total_count: number;
 }
+
+export interface ScanBatch {
+  batch_id: string;
+  employee: string;
+  scanned_at: string;
+  csv_filename: string | null;
+  csv_rows: number | null;
+  csv_size_bytes: number | null;
+  xlsx_files: ScanXlsxFile[];
+}
+
+export interface ScanXlsxFile {
+  name: string;
+  size_bytes: number;
+}
+
+export interface ScanBatchList {
+  ok: boolean;
+  batches: ScanBatch[];
+}
