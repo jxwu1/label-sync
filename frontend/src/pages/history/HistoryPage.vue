@@ -7,6 +7,7 @@ import { useSkuExtrasStore } from "../../stores/skuExtras";
 import { useSkuTimelineStore } from "../../stores/skuTimeline";
 import TimelineChart from "./TimelineChart.vue";
 import RecentChangesPanel from "./RecentChangesPanel.vue";
+import ScanBatchPanel from "./ScanBatchPanel.vue";
 
 const store = useHistoryStore();
 const analyticsStore = useSkuAnalyticsStore();
@@ -16,6 +17,9 @@ const q = ref("");
 
 const activeTab = ref<"search" | "batch">("search");
 const batchVisited = ref(false);
+const batchSubTab = ref<"recent" | "scan">("recent");
+const scanVisited = ref(false);
+function showScan() { batchSubTab.value = "scan"; scanVisited.value = true; }
 function showSearch() { activeTab.value = "search"; }
 function showBatch() { activeTab.value = "batch"; batchVisited.value = true; }
 function onDrill(barcode: string) {
@@ -534,7 +538,12 @@ function isPeak(q: number, maxQty: number): boolean {
     </div>
 
     <div v-if="batchVisited" v-show="activeTab === 'batch'">
-      <RecentChangesPanel @drill="onDrill" />
+      <div class="history__sub-tabs">
+        <button type="button" class="history__sub-tab" :class="{ 'is-active': batchSubTab === 'recent' }" @click="batchSubTab = 'recent'">最近改动</button>
+        <button type="button" class="history__sub-tab" :class="{ 'is-active': batchSubTab === 'scan' }" @click="showScan">扫描批次</button>
+      </div>
+      <RecentChangesPanel v-show="batchSubTab === 'recent'" @drill="onDrill" />
+      <ScanBatchPanel v-if="scanVisited" v-show="batchSubTab === 'scan'" />
     </div>
   </main>
 </template>
@@ -545,6 +554,9 @@ function isPeak(q: number, maxQty: number): boolean {
 .history__tabs { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-4); border-bottom: 1px solid var(--line-soft); }
 .history__tab { padding: var(--sp-2) var(--sp-4); border: none; border-bottom: 2px solid transparent; background: transparent; color: var(--ink-2); cursor: pointer; font-size: var(--fs-sm); }
 .history__tab.is-active { color: var(--accent); border-bottom-color: var(--accent); }
+.history__sub-tabs { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.history__sub-tab { padding: 4px 12px; background: transparent; border: 1px solid var(--line-soft); border-radius: var(--r-sm); color: var(--ink-2); cursor: pointer; }
+.history__sub-tab.is-active { color: var(--ink-0); border-color: var(--accent); }
 .history__search { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-4); }
 .history__input { flex: 1; padding: var(--sp-2) var(--sp-3); border: 1px solid var(--line-soft); border-radius: var(--r-sm); background: transparent; color: var(--ink-0); }
 .history__btn { padding: var(--sp-2) var(--sp-4); border: 1px solid var(--line-soft); border-radius: var(--r-sm); cursor: pointer; color: var(--ink-0); }
