@@ -159,13 +159,41 @@ describe("ScanBatchPanel", () => {
     expect(html).toContain("行数未知");
   });
 
-  // Fix D: ZIP link hidden when no files
-  it("Fix D — 无任何文件的批次不显示「下载全部 ZIP」链接", async () => {
+  // Fix D (reversed per spec): every batch has a ZIP link, including file-less batches
+  it("每个批次都有 ZIP 下载链接（含无文件批次）", async () => {
     const w = await mountLoaded();
-    // batch index 1 has csv_filename: null, xlsx_files: []
+    // batch index 1 has csv_filename: null, xlsx_files: [] — still must have ZIP link
     await w.findAll("button.sb-row-head")[1].trigger("click");
     const zipLinks = w.findAll("a").filter((a) => a.attributes("href")?.includes("/download/zip"));
-    expect(zipLinks.length).toBe(0);
+    expect(zipLinks.length).toBeGreaterThanOrEqual(1);
+    const enc = encodeURIComponent("ZH#A 价/标20260421100000");
+    expect(zipLinks.some((a) => a.attributes("href") === `/scan_history/batches/${enc}/download/zip`)).toBe(true);
+  });
+
+  // Fix 1: header summary consistency — csvFilename present + csvRows null → "行数未知", NOT "无 CSV"
+  it("行头摘要：csvFilename 存在但 csvRows 为 null 时显示「行数未知」而非「无 CSV」", async () => {
+    const payload = {
+      ok: true,
+      batches: [
+        {
+          batch_id: "UNKNOWNROWS20260420",
+          employee: "TEST",
+          scanned_at: "2026-04-20 10:00:00",
+          csv_filename: "x.csv",
+          csv_rows: null,
+          csv_size_bytes: null,
+          xlsx_files: [],
+        },
+      ],
+    };
+    vi.mocked(apiGet).mockResolvedValue(payload as never);
+    const w = mount(ScanBatchPanel);
+    await new Promise((r) => setTimeout(r, 0));
+    await w.vm.$nextTick();
+    // The row header is always rendered (no need to expand)
+    const head = w.find("button.sb-row-head");
+    expect(head.text()).not.toContain("无 CSV");
+    expect(head.text()).toContain("行数未知");
   });
 
   // Fix E: no empty-state flash during initial load

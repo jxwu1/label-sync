@@ -24,7 +24,7 @@ function fmtBytes(n: number | null): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 function summary(b: ScanBatchVM): string {
-  const csv = b.csvRows !== null ? `${b.csvRows} 行` : "无 CSV";
+  const csv = b.csvFilename ? (b.csvRows != null ? `${b.csvRows} 行` : "行数未知") : "无 CSV";
   const xlsx = b.xlsxFiles.length ? `${b.xlsxFiles.length} 个 xlsx` : "";
   return [csv, xlsx].filter(Boolean).join(" · ");
 }
@@ -78,7 +78,7 @@ function onEmployeeChange(e: Event) {
               <a class="sb-dl" :href="fileUrl(b, f.name)">下载</a>
             </div>
 
-            <div v-if="b.csvFilename || b.xlsxFiles.length" class="sb-file sb-file--zip">
+            <div class="sb-file sb-file--zip">
               🗜 <a class="sb-dl" :href="zipUrl(b)">下载全部 ZIP</a>
             </div>
           </div>
