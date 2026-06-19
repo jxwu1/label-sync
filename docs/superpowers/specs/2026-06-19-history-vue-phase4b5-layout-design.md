@@ -1,6 +1,6 @@
 # 货号历史页 Phase 4b.5（信息架构重排：左固定 概况/深度 + 右弹性折叠卡）设计
 
-**状态：** 已批准（2026-06-19，设计终审 APPROVE）。两轮设计审查处置：第一轮（container query 不用视口媒体查询 / 放宽 max-width / 左栏固定宽度非 position:fixed / 完整 ARIA / 换 SKU 重置 / 共享 store 错误态 / nullable restock 空态 / 折叠断言用 isVisible）；第二轮 APPROVE + 三建议（flex 子项 min-width:0 / tabs 改普通按钮+aria-pressed 避 roving tabindex / §1 注明只改生产代码）。
+**状态：** 设计待批（2026-06-19）。三轮设计审查处置：第一轮（container query 不用视口媒体查询 / 放宽 max-width / 左栏固定宽度非 position:fixed / 完整 ARIA / 换 SKU 重置 / 共享 store 错误态 / nullable restock 空态 / 折叠断言用 isVisible）；第二轮 APPROVE + 三建议（flex 子项 min-width:0 / tabs 改普通按钮+aria-pressed 避 roving tabindex / §1 注明只改生产代码）；第三轮（max-width 1400 确定值非约数 / 断点统一 >900 两栏·≤900 堆叠 / RST 含 vm===null 安全分支防 401 崩溃 + 不崩测试 / Hero「数量」更正为 manualGrade 手工等级）。
 
 ## 背景与目标
 
@@ -21,22 +21,22 @@
 货号查询 tab **命中态**（`result.kind === "hit"`）改为两栏：
 
 ```
-.history（内容区，container-type: inline-size, max-width ~1400px, margin auto）
+.history（内容区，container-type: inline-size, max-width 1400px（确定值，非约数）, margin auto）
 └─ .history__cols（命中态才渲染；flex）
    ├─ .history__left   flex: 0 0 340px; min-width: 0;   （Hero + 概况/深度）
    └─ .history__right  flex: 1 1 0;   min-width: 0;       （5 张折叠卡，纵向 flex）
 ```
 
-- **容器查询而非视口媒体查询**：`container-type: inline-size` 设在 `.history`（内容区，其 inline-size ≈ 扣除 App Shell 侧栏后的真实主内容宽度）；`@container (max-width: 900px)` 时 `.history__cols` 改 `flex-direction: column`、`.history__left` 改 `flex-basis: auto`，左栏置顶、右卡堆其下。**不用** `@media (max-width:…)`（视口宽含侧栏，1200px 窗口扣侧栏剩 ~980px 却仍判两栏 → 挤）。
+- **容器查询而非视口媒体查询**：`container-type: inline-size` 设在 `.history`（内容区，其 inline-size ≈ 扣除 App Shell 侧栏后的真实主内容宽度）；**断点统一：内容宽 `> 900px` 两栏、`≤ 900px` 堆叠**，CSS 写 `@container (max-width: 900px)` 时 `.history__cols` 改 `flex-direction: column`、`.history__left` 改 `flex-basis: auto`，左栏置顶、右卡堆其下（注意 `max-width: 900px` 含 900，故 900 归堆叠侧）。**不用** `@media (max-width:…)`（视口宽含侧栏，1200px 窗口扣侧栏剩 ~980px 却仍判两栏 → 挤）。
 - **「左栏固定」= 固定宽度** `flex: 0 0 340px`，**非** `position: fixed`。比旧版 320px 略宽，给 深度 的热力图/客户表喘息。
 - 两栏 flex 子项均 `min-width: 0`，防长本地品名 / SVG / 表格撑破右栏（flex 子项默认 `min-width:auto` 会溢出）。
-- `.history` 的 `max-width` 从 **1100px 放宽到 ~1400px**（`HistoryPage.vue:552`），逼近旧页空间利用率。
+- `.history` 的 `max-width` 从 **1100px 固定改为 1400px**（确定值，`HistoryPage.vue:552`），逼近旧页空间利用率。
 - **非命中态**（notfound / fuzzy / 初始 / 加载 / 错误）维持现状单列，**不进两栏**。
 - 批次记录 tab、搜索框、RECENT chips、PageHeader、「查看完整分析（旧版）→」深链全保留不动（4c 才删深链）。
 
 ## 左栏：Hero + 概况/深度（§3）
 
-- **Hero**（复用现有）：货号 / 条码 / 在售-停售 pill / 数量 / 复制按钮。
+- **Hero**（复用现有）：货号 / 条码 / 在售-停售 pill / manualGrade 手工等级徽标（`manualGrade !== null` 才显示，`HistoryPage.vue:186`）/ 复制按钮。
 - **概况/深度 切换**：两个**普通按钮** `<button type="button" :aria-pressed="leftTab === 'overview'">概况</button>` / `…'deep'…>深度</button>`（不用 `role=tablist` 以免引入 roving tabindex + 方向键导航；2 态 toggle 用 `aria-pressed` 可达性等价）。状态 `const leftTab = ref<"overview" | "deep">("overview")`。**切换独立于右栏**（只换左栏内容，右卡不受影响——对齐旧版）。
 - **概况**（默认）：复用现有 overview `<dl>`（品名 / 本地品名 / 店面位置 / 仓库位置 / 售价 / 来源 / 最后更新）。
 - **深度**：复用现有 `skuExtras` 区块（退货率+价格波动 / 零售汇总 / CN·老外客户 TOP 表 / 月度热力图 / 持仓+预测），含其 `extrasStore.loading` / `extrasStore.error` 加载/错误态。深度栏的 **TOP 表 + 月度热力图加 `overflow-x: auto`** 横向溢出保护（340px 容不下时局部横滚，不撑破布局）。
@@ -63,7 +63,13 @@ function toggleCard(k: keyof typeof DEFAULT_CARD_OPEN) { cardOpen.value[k] = !ca
 - **卡头** = `<button type="button" :id="'sbcard-<k>'" :aria-expanded="cardOpen.<k>" :aria-controls="'sbpanel-<k>'" @click="toggleCard('<k>')">`（含徽标 + 标题 + chevron）。**卡身** = `<div :id="'sbpanel-<k>'" role="region" :aria-labelledby="'sbcard-<k>'" v-show="cardOpen.<k>">`。
 - 多卡可同时展开；折叠用 `v-show`（内容保留在 DOM）。**TML 用 `v-show` 安全**：`TimelineChart` 是固定 viewBox SVG，不依赖挂载时测宽。
 - **SLA / PUR 拆成两张独立卡，但共享 `analyticsStore`**：两张卡身各自渲染 `analyticsStore.loading`（「加载中…」）/ `analyticsStore.error`（错误条），任一态两卡都显示（同源 store）。
-- **RST 卡渲染 `extrasStore.loading` / `extrasStore.error`；`extrasStore.vm.restock === null` 时卡身显示「暂无补货快照」**（不留空卡）。
+- **RST 卡身状态链（顺序短路，含 `vm === null` 安全分支，防 401 后崩溃）**：
+  1. `extrasStore.loading` → 「加载中…」
+  2. `extrasStore.error` → 错误条
+  3. `extrasStore.vm === null` → 中性占位（不访问 `vm.restock`，不崩）。**原因**：401 走 `apiGet` 早返回后 `loading=false / error=null / vm=null` 三者并存，任何 `vm.restock` 直接解引用会抛错。
+  4. `extrasStore.vm.restock === null` → 「暂无补货快照」
+  5. 否则渲染 restock 内容
+- **同理：左栏 深度 panel 所有 `extrasStore.vm.*` 访问也必须先过 `vm === null` 守卫**（loading/error/vm-null 分支在前），再读 `vm.extras`/`vm.heatmap` 等。
 
 ## 换 SKU 重置（§3+§4 红队：状态泄漏）
 
@@ -96,10 +102,11 @@ watch(hitBarcode, (bc) => {
 - **换 barcode 重置**：先命中 A 切到 深度 + 展开 RST，再命中新 barcode B → `leftTab==='overview'` 且 RST 折叠回默认。
 - **RST 空态**：`restock === null` → RST 卡存在且卡身显示「暂无补货快照」（**更新**现有「restock null → 补货快照面板不存在」断言为新空态）。
 - SLA/PUR 在 `analyticsStore.error` 时两卡各显错误条；RST 在 `extrasStore.error` 时显错误。
+- **RST `vm === null` 不崩**：命中态 + `extrasStore.vm === null`（模拟 401 后 loading=false/error=null/vm=null）→ `mount(HistoryPage)` 不抛异常，RST 卡显示中性占位而非「暂无补货快照」也非空值崩溃。同理左栏 深度 panel vm=null 不崩。
 
 **浏览器人工验收（组件单测不验真实 flex/container 布局）：**
-- 宽内容宽度（≥900px container）：两栏，左 340 + 右弹性，对照旧页布局。
-- 窄内容宽度（<900px container，含 App Shell 侧栏挤压场景）：堆叠，左栏置顶。
+- 宽内容宽度（container `> 900px`）：两栏，左 340 + 右弹性，对照旧页布局。
+- 窄内容宽度（container `≤ 900px`，含 App Shell 侧栏挤压场景，如 1200px 视口扣侧栏）：堆叠，左栏置顶。
 - 两档均**断言无水平滚动条**（min-width:0 + overflow-x 保护生效）。
 - 本地 `/ui/history` 与旧 `/?page=history` 并排对照，用户最终拍板视觉够格再进 4c。
 
