@@ -1,15 +1,16 @@
-import { mount } from "@vue/test-utils";
+import { mount, flushPromises } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
+import { reactive, nextTick } from "vue";
 import type { HistoryResult } from "./types";
 import type { ExtrasPageVM } from "./extras-types";
 
-const state = {
+const state = reactive({
   result: null as HistoryResult | null,
   loading: false,
   error: null as string | null,
   load: vi.fn(),
   reset: vi.fn(),
-};
+});
 vi.mock("../../stores/history", () => ({ useHistoryStore: () => state }));
 
 const analyticsState = {
@@ -141,7 +142,7 @@ describe("HistoryPage", () => {
     expect(w.text()).toContain("更新");
   });
 
-  it("hit 但事件空 → 空态", () => {
+  it("hit 但事件空 → 空态", async () => {
     reset();
     state.result = {
       kind: "hit",
@@ -153,7 +154,12 @@ describe("HistoryPage", () => {
       },
       events: [],
     };
-    expect(mount(HistoryPage).text()).toContain("暂无历史变更");
+    const w = mount(HistoryPage);
+    // HIS card defaults collapsed — open it first so the assertion is against a visible panel
+    await w.find("#sbcard-his").trigger("click");
+    await nextTick();
+    expect(w.find("#sbpanel-his").text()).toContain("暂无历史变更");
+    expect(w.find("#sbpanel-his").attributes("style") ?? "").not.toContain("display: none");
   });
 
   it("RECENT：初始从 localStorage 读出 chips 渲染", () => {
@@ -360,7 +366,8 @@ it("2b: hit → extrasStore.load(barcode) 被调用，两面板渲染", async ()
   expect(w.text()).toContain("月度热力图");
   expect(w.text()).toContain("💰 财务");
   expect(w.text()).toContain("📦 库存");
-  expect(w.text()).toContain("补货快照");
+  // RST card header always shows "补货决策快照"; the body shows restock data when vm.restock is set
+  expect(w.text()).toContain("补货决策快照");
 });
 
 it("2b: extras 失败 → 2b 错误条，但 P1 hero / 2a / 时间线仍在（HC-B3）", () => {
@@ -393,12 +400,13 @@ it("2b: forecast.isStale → '预测过期' badge", () => {
   expect(w.text()).toContain("预测过期");
 });
 
-it("2b: restock null → 不渲染补货快照面板", () => {
+it("2b: restock null → RST 卡显暂无补货快照，无财务内容", () => {
   reset(); hitState(); extrasState.vm = aExtrasVm(null);
   const w = mount(HistoryPage);
-  expect(w.text()).toContain("退货率");          // extras panel present
-  expect(w.text()).not.toContain("补货快照");     // restock panel absent
-  expect(w.text()).not.toContain("💰 财务");
+  expect(w.text()).toContain("退货率");          // extras (left deep panel) present
+  // RST card always exists; body shows "暂无补货快照" when vm.restock is null
+  expect(w.find("#sbpanel-rst").text()).toContain("暂无补货快照");
+  expect(w.text()).not.toContain("💰 财务");      // no financial data
 });
 
 it("2b: 热力图每行渲染 12 个单元格", () => {
@@ -498,7 +506,7 @@ function aTimelineVm() {
   };
 }
 
-it("P3: 走势图块含持久区块标题「销售 / 进价走势」", () => {
+it("P3: TML 折叠卡含区块标题「销售/进价时间线」；打开后 TimelineChart 渲染", async () => {
   reset();
   state.result = {
     kind: "hit",
@@ -512,10 +520,15 @@ it("P3: 走势图块含持久区块标题「销售 / 进价走势」", () => {
   };
   timelineState.vm = aTimelineVm();
   const w = mount(HistoryPage);
-  expect(w.find(".history__timeline-chart").text()).toContain("销售 / 进价走势");
+  // TML card header always visible
+  expect(w.find("#sbcard-tml").text()).toContain("销售/进价时间线");
+  // Open TML card to render chart
+  await w.find("#sbcard-tml").trigger("click");
+  expect(w.find("#sbpanel-tml").isVisible()).toBe(true);
+  expect(w.find(".stub-timeline-chart").exists()).toBe(true);
 });
 
-it("P3: hit → timelineStore.load(bc) 调用，走势图块渲染", async () => {
+it("P3: hit → timelineStore.load(bc) 调用，TML 卡存在；打开后 stub 渲染", async () => {
   reset();
   state.load = vi.fn(async () => {
     state.result = {
@@ -536,13 +549,14 @@ it("P3: hit → timelineStore.load(bc) 调用，走势图块渲染", async () =>
   await w.find("input.history__input").trigger("keydown.enter");
   await Promise.resolve(); await Promise.resolve();
   expect(timelineState.load).toHaveBeenCalledWith("B1");
-  // chart block present
-  expect(w.find(".history__timeline-chart").exists()).toBe(true);
-  // stub component mounted
+  // TML card always exists in right column
+  expect(w.find("#sbcard-tml").exists()).toBe(true);
+  // Open TML to confirm chart stub mounts
+  await w.find("#sbcard-tml").trigger("click");
   expect(w.find(".stub-timeline-chart").exists()).toBe(true);
 });
 
-it("P3: 顺序 — 概况 dl 在走势图块之前，走势图块在销售分析之前", async () => {
+it("P3: 顺序 — 右栏卡片徽章顺序为 SLA→PUR→RST→TML→HIS", () => {
   reset();
   state.result = {
     kind: "hit",
@@ -557,18 +571,11 @@ it("P3: 顺序 — 概况 dl 在走势图块之前，走势图块在销售分析
   timelineState.vm = aTimelineVm();
   analyticsState.vm = aVm();
   const w = mount(HistoryPage);
-  const html = w.html();
-  const overviewPos = html.indexOf("history__overview");
-  const chartPos = html.indexOf("history__timeline-chart");
-  const analyticsPos = html.indexOf("history__analytics");
-  expect(overviewPos).toBeGreaterThan(-1);
-  expect(chartPos).toBeGreaterThan(-1);
-  expect(analyticsPos).toBeGreaterThan(-1);
-  expect(overviewPos).toBeLessThan(chartPos);
-  expect(chartPos).toBeLessThan(analyticsPos);
+  const badges = w.findAll(".history__foldcard-badge").map((b) => b.text());
+  expect(badges).toEqual(["SLA", "PUR", "RST", "TML", "HIS"]);
 });
 
-it("P3: HC-P3-3 走势图失败 → 只显走势图错误条；P1 hero/概况 + 2a SLA + 2b extras 仍在", () => {
+it("P3: HC-P3-3 走势图失败 → TML 卡打开后显错误条；P1 hero/概况 + SLA + extras 仍在", async () => {
   reset();
   state.result = {
     kind: "hit",
@@ -584,14 +591,15 @@ it("P3: HC-P3-3 走势图失败 → 只显走势图错误条；P1 hero/概况 + 
   analyticsState.vm = aVm();
   extrasState.vm = aExtrasVm();
   const w = mount(HistoryPage);
-  // chart error shown inside chart block
-  expect(w.find(".history__timeline-chart").text()).toContain("走势图 API 500");
+  // Open TML card to see the error
+  await w.find("#sbcard-tml").trigger("click");
+  expect(w.find("#sbpanel-tml").text()).toContain("走势图 API 500");
   // P1 still present
   expect(w.text()).toContain("M1");
   expect(w.text()).toContain("品名X");
-  // 2a SLA still present
+  // 2a SLA still present (card is open by default)
   expect(w.text()).toContain("销售分析");
-  // 2b extras still present
+  // 2b extras still present (in left deep panel)
   expect(w.text()).toContain("退货率");
 });
 
@@ -761,4 +769,116 @@ it("4b: 切回最近改动子-tab → ScanBatchPanel 保持挂载（scanVisited 
   expect(w.find("div.stub-scan-batch").isVisible()).toBe(false);
   // RecentChangesPanel 重新可见
   expect(w.find("div.stub-recent-changes").isVisible()).toBe(true);
+});
+
+// ── Phase 4b.5: 两栏布局 / 折叠卡 / 左tab切换 / watch重置 ────────────────────────
+
+it("4b.5: 命中态渲染两栏；右栏卡片顺序 SLA→PUR→RST→TML→HIS", () => {
+  reset(); hitState();
+  const w = mount(HistoryPage);
+  expect(w.find(".history__cols").exists()).toBe(true);
+  expect(w.findAll(".history__foldcard-badge").map((b) => b.text())).toEqual(["SLA", "PUR", "RST", "TML", "HIS"]);
+});
+
+it("4b.5: 概况/深度 切换换左栏内容且不影响右卡", async () => {
+  reset(); hitState(); extrasState.vm = aExtrasVm();
+  const w = mount(HistoryPage);
+  const deepBtn = w.findAll(".history__lefttab").find((b) => b.text() === "深度")!;
+  // initial state: overview visible (no display:none), deep hidden
+  expect(w.find(".history__overview").attributes("style") ?? "").not.toContain("display: none");
+  expect(w.find(".history__deep").attributes("style") ?? "").toContain("display: none");
+  await deepBtn.trigger("click");
+  expect(deepBtn.attributes("aria-pressed")).toBe("true");
+  // after click: overview hidden, deep visible, right cards unaffected
+  expect(w.find(".history__overview").attributes("style") ?? "").toContain("display: none");
+  expect(w.find(".history__deep").attributes("style") ?? "").not.toContain("display: none");
+  expect(w.find("#sbpanel-sla").attributes("style") ?? "").not.toContain("display: none"); // 右卡不受左tab影响
+});
+
+it("4b.5: 默认折叠态 SLA/PUR 开、RST/TML/HIS 关", () => {
+  reset(); hitState();
+  const w = mount(HistoryPage);
+  expect(w.find("#sbpanel-sla").isVisible()).toBe(true);
+  expect(w.find("#sbpanel-pur").isVisible()).toBe(true);
+  expect(w.find("#sbpanel-rst").isVisible()).toBe(false);
+  expect(w.find("#sbpanel-tml").isVisible()).toBe(false);
+  expect(w.find("#sbpanel-his").isVisible()).toBe(false);
+});
+
+it("4b.5: 折叠 toggle 翻转 aria-expanded 与卡身可见性", async () => {
+  reset(); hitState();
+  const w = mount(HistoryPage);
+  const hd = w.find("#sbcard-rst");
+  expect(hd.attributes("aria-expanded")).toBe("false");
+  expect(w.find("#sbpanel-rst").attributes("style") ?? "").toContain("display: none");
+  await hd.trigger("click");
+  expect(hd.attributes("aria-expanded")).toBe("true");
+  expect(w.find("#sbpanel-rst").attributes("style") ?? "").not.toContain("display: none");
+});
+
+it("4b.5: 换新 barcode → leftTab 回 overview、折叠态回默认（watch 驱动）", async () => {
+  reset(); hitState(); extrasState.vm = aExtrasVm();
+  const w = mount(HistoryPage);
+  // 切到深度 + 展开 RST（模拟用户在 SKU A 上的交互）
+  await w.findAll(".history__lefttab").find((b) => b.text() === "深度")!.trigger("click");
+  await w.find("#sbcard-rst").trigger("click");
+  expect(w.find(".history__deep").isVisible()).toBe(true);
+  expect(w.find("#sbpanel-rst").isVisible()).toBe(true);
+  // 命中新 barcode（SKU B）→ 改 reactive 的 result.current.barcode，触发 watch
+  state.result = {
+    ...(state.result as Extract<HistoryResult, { kind: "hit" }>),
+    current: {
+      ...(state.result as Extract<HistoryResult, { kind: "hit" }>).current,
+      barcode: "NEWBC999",
+    },
+  };
+  await nextTick(); // flush reactive mutation into computed(hitBarcode)
+  await nextTick(); // flush watch(hitBarcode) callback
+  await nextTick(); // flush DOM update after watch mutates leftTab + cardOpen
+  // watch 应已把 leftTab 重置 overview、cardOpen 重置默认
+  expect(w.find(".history__overview").isVisible()).toBe(true);  // 回概况
+  expect(w.find("#sbpanel-rst").attributes("style") ?? "").toContain("display: none"); // RST 回折叠
+});
+
+it("4b.5: extras vm=null（401后）→ 不崩、RST 不误报暂无补货快照（中性占位）", async () => {
+  reset(); hitState();
+  // extrasState.vm stays null (loading=false, error=null — 401 swallowed)
+  // Crash-safety check: mounting must not throw
+  expect(() => mount(HistoryPage)).not.toThrow();
+  const w = mount(HistoryPage);
+  // RST card defaults collapsed — open it first so the panel body is asserted
+  await w.find("#sbcard-rst").trigger("click");
+  await nextTick();
+  // vm===null (401 transient) must NOT falsely claim "no restock data"
+  expect(w.find("#sbpanel-rst").text()).not.toContain("暂无补货快照");
+  expect(w.find("#sbpanel-rst").attributes("style") ?? "").not.toContain("display: none");
+});
+
+it("4b.5: analytics error → SLA 与 PUR 两卡各显错误条", () => {
+  reset(); hitState(); analyticsState.error = "boom"; analyticsState.vm = null;
+  const w = mount(HistoryPage);
+  expect(w.find("#sbpanel-sla").text()).toContain("boom");
+  expect(w.find("#sbpanel-pur").text()).toContain("boom");
+});
+
+it("4b.5: 左栏在右栏之前（DOM 顺序）", () => {
+  reset(); hitState();
+  const w = mount(HistoryPage);
+  const left = w.find(".history__left").element;
+  const right = w.find(".history__right").element;
+  expect(left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+it("4b.5: 非命中态不渲染两栏 .history__cols", () => {
+  reset(); // result=null (initial/non-hit state) — no hit, no .history__cols
+  const w = mount(HistoryPage);
+  expect(w.find(".history__cols").exists()).toBe(false);
+});
+
+it("4b.5: extrasStore.error → RST 卡内显示错误", async () => {
+  reset(); hitState();
+  extrasState.error = "ext boom"; extrasState.vm = null;
+  const w = mount(HistoryPage);
+  await w.find("#sbcard-rst").trigger("click");
+  expect(w.find("#sbpanel-rst").text()).toContain("ext boom");
 });
