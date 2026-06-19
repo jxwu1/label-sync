@@ -54,8 +54,27 @@ vi.mock("./RecentChangesPanel.vue", () => ({
   },
 }));
 
+// Stub ScanBatchPanel so sub-tab tests don't depend on its store/network.
+vi.mock("./ScanBatchPanel.vue", () => ({
+  default: {
+    name: "ScanBatchPanel",
+    template: '<div class="stub-scan-batch" />',
+  },
+}));
+
+// Stub scanBatches store so ScanBatchPanel stub (and any leakage) doesn't hit real store.
+vi.mock("../../stores/scanBatches", () => ({
+  useScanBatchesStore: () => ({
+    batches: [],
+    loading: false,
+    error: null,
+    ensureLoaded: vi.fn(),
+  }),
+}));
+
 import HistoryPage from "./HistoryPage.vue";
 import RecentChangesPanel from "./RecentChangesPanel.vue";
+import ScanBatchPanel from "./ScanBatchPanel.vue";
 
 function reset() {
   state.result = null; state.loading = false; state.error = null;
@@ -696,4 +715,50 @@ it("4a: 批次 tab 失败隔离 — 搜索 tab 仍可独立工作", async () => 
   await w.find("input.history__input").setValue("XYZ");
   await w.find("input.history__input").trigger("keydown.enter");
   expect(state.load).toHaveBeenCalledWith("XYZ");
+});
+
+// ── Phase 4b: 批次记录子-tab 接线 ─────────────────────────────────────────────
+
+it("4b: 批次 tab 下默认子-tab 为最近改动，ScanBatchPanel 未挂载", async () => {
+  reset();
+  const w = mount(HistoryPage);
+  const batchTab = w.findAll("button.history__tab").find((b) => b.text().includes("批次记录"))!;
+  await batchTab.trigger("click");
+  // 子-tab 按钮存在
+  expect(w.text()).toContain("最近改动");
+  expect(w.text()).toContain("扫描批次");
+  // ScanBatchPanel 尚未挂载（scanVisited=false）
+  expect(w.findComponent(ScanBatchPanel).exists()).toBe(false);
+});
+
+it("4b: 点击扫描批次子-tab → ScanBatchPanel 挂载且可见", async () => {
+  reset();
+  const w = mount(HistoryPage);
+  const batchTab = w.findAll("button.history__tab").find((b) => b.text().includes("批次记录"))!;
+  await batchTab.trigger("click");
+  const scanSubTab = w.findAll("button.history__sub-tab").find((b) => b.text().includes("扫描批次"))!;
+  await scanSubTab.trigger("click");
+  // ScanBatchPanel 现在已挂载
+  expect(w.findComponent(ScanBatchPanel).exists()).toBe(true);
+  expect(w.find("div.stub-scan-batch").isVisible()).toBe(true);
+  // RecentChangesPanel 仍挂载但不可见
+  expect(w.findComponent(RecentChangesPanel).exists()).toBe(true);
+  expect(w.find("div.stub-recent-changes").isVisible()).toBe(false);
+});
+
+it("4b: 切回最近改动子-tab → ScanBatchPanel 保持挂载（scanVisited 黏住）但不可见", async () => {
+  reset();
+  const w = mount(HistoryPage);
+  const batchTab = w.findAll("button.history__tab").find((b) => b.text().includes("批次记录"))!;
+  await batchTab.trigger("click");
+  const scanSubTab = w.findAll("button.history__sub-tab").find((b) => b.text().includes("扫描批次"))!;
+  await scanSubTab.trigger("click");
+  expect(w.findComponent(ScanBatchPanel).exists()).toBe(true);
+  const recentSubTab = w.findAll("button.history__sub-tab").find((b) => b.text().includes("最近改动"))!;
+  await recentSubTab.trigger("click");
+  // ScanBatchPanel 仍挂载（不销毁）
+  expect(w.findComponent(ScanBatchPanel).exists()).toBe(true);
+  expect(w.find("div.stub-scan-batch").isVisible()).toBe(false);
+  // RecentChangesPanel 重新可见
+  expect(w.find("div.stub-recent-changes").isVisible()).toBe(true);
 });

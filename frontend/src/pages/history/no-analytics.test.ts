@@ -12,7 +12,7 @@ const storesDir = join(here, "..", "..", "stores");
 // 裸 /timeline 已移除（会误伤新 timeline 瘦端点 + ./timeline-types import）。
 const FORBIDDEN = ["/analytics/sku"];
 
-const HISTORY_STORES = ["history.ts", "skuAnalytics.ts", "skuExtras.ts", "skuTimeline.ts", "recentChanges.ts"];
+const HISTORY_STORES = ["history.ts", "skuAnalytics.ts", "skuExtras.ts", "skuTimeline.ts", "recentChanges.ts", "scanBatches.ts"];
 
 function sources(): { name: string; text: string }[] {
   const pageFiles = readdirSync(here)
