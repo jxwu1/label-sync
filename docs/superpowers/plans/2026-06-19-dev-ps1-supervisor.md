@@ -232,7 +232,9 @@ finally {
 exit $desiredExitCode
 ```
 
-> **Ctrl+C → `$desiredExitCode=130`**：PowerShell 在 Ctrl+C 时会执行 `finally`（清理跑到），`finally` **只清理、不改写 `$desiredExitCode`**。为显式保证 130：在脚本顶部 `$desiredExitCode=0` 之外，注册 `[Console]::CancelKeyPress`（或在 try 循环检测取消）→ 设 `$script:desiredExitCode = 130` + 触发跳出循环 → finally 清理 → 末尾 `exit $desiredExitCode`。**实现要点（实施者对照真实 pwsh 验证）**：若 Ctrl+C 打断后控制权不回到末尾 `exit`，则在 CancelKeyPress 处理里设码后让循环 break。以验收项②（Ctrl+C 后退出码=130 且无残留）为准迭代。
+> **Ctrl+C → `$desiredExitCode=130`（实测定稿）**：用**纯 C# `Console.CancelKeyPress` 处理器**（`Add-Type`），处理器内 `e.Cancel=$true`（阻止默认终止）+ 置 `volatile bool Requested=true`；主循环**置顶**轮询 `[DevSupervisor.CtrlC]::Requested` → 设 130 + break → finally 清理 → `exit 130`。
+> **为何不用 `TreatControlCAsInput`+`KeyAvailable` 读键**：实测在 Windows Terminal 下 `KeyAvailable` 不可靠（可能抛异常被吞），Ctrl+C 检测不到导致脚本死循环关不掉。
+> **为何不直接用 scriptblock 注册 CancelKeyPress**：scriptblock 在事件线程跑会「no Runspace」崩（同 OutputDataReceived 坑）→ 必须 C# 处理器（纯 .NET，不需 PS runspace）。
 
 - [ ] **Step 2: 语法解析检查**
 

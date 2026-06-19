@@ -120,25 +120,33 @@ if ($Frontend) {
 $desiredExitCode = 0
 $footerPrinted = $false
 
-# Ctrl+C 走「读键」而非信号：避免 CancelKeyPress 事件回调的 no-Runspace 崩溃，确定性捕获
-$ctrlCTrapped = $false
-try { [Console]::TreatControlCAsInput = $true; $ctrlCTrapped = $true } catch { }
+# Ctrl+C：用纯 C# Console.CancelKeyPress 处理器（不经 PS runspace，避开 scriptblock no-runspace 坑）。
+# e.Cancel=$true 阻止默认终止 → 主循环轮询 volatile 标志 → 优雅 break + finally 清理 + exit 130。
+if (-not ([System.Management.Automation.PSTypeName]'DevSupervisor.CtrlC').Type) {
+    Add-Type @'
+namespace DevSupervisor {
+    public static class CtrlC {
+        public static volatile bool Requested = false;
+        public static void Install() {
+            System.Console.CancelKeyPress += delegate (object s, System.ConsoleCancelEventArgs e) {
+                e.Cancel = true;
+                Requested = true;
+            };
+        }
+    }
+}
+'@
+}
+[DevSupervisor.CtrlC]::Requested = $false
+[DevSupervisor.CtrlC]::Install()
 
 try {
     while ($true) {
-        # Ctrl+C 检测（输入重定向时 KeyAvailable 会抛，吞掉即可）
-        if ($ctrlCTrapped) {
-            try {
-                while ([Console]::KeyAvailable) {
-                    $k = [Console]::ReadKey($true)
-                    if (($k.Modifiers -band [ConsoleModifiers]::Control) -and $k.Key -eq 'C') {
-                        $desiredExitCode = 130
-                        Write-Host "`n[dev] Ctrl+C - stopping…" -ForegroundColor DarkGray
-                        break
-                    }
-                }
-            } catch { }
-            if ($desiredExitCode -eq 130) { break }
+        # Ctrl+C 检测（C# 处理器置的 volatile 标志；置顶检查，优先于子进程退出处理）
+        if ([DevSupervisor.CtrlC]::Requested) {
+            $desiredExitCode = 130
+            Write-Host "`n[dev] Ctrl+C - stopping…" -ForegroundColor DarkGray
+            break
         }
 
         $anyAlive = $false
@@ -184,7 +192,6 @@ try {
     }
 }
 finally {
-    if ($ctrlCTrapped) { try { [Console]::TreatControlCAsInput = $false } catch { } }
     # 幂等清理两棵树（含 reloader/HMR 派生的子进程）；finally 不改写 $desiredExitCode
     foreach ($s in $supervised) {
         if ($s.proc -and -not $s.proc.HasExited) { Stop-Tree $s.proc.Id }
