@@ -79,6 +79,70 @@ def _project_restock(row: dict) -> dict:
     return out
 
 
+_RC_VALID_MODES = ("collapsed", "raw")
+
+
+@api_bp.get("/recent-changes/batches")
+def recent_changes_batches():
+    from app.schemas_api import RecentChangesBatchList
+    from app.services import recent_changes as rc
+
+    payload = {"ok": True, "batches": rc.list_recent_imports()}
+    return jsonify(RecentChangesBatchList.model_validate(payload).model_dump())
+
+
+def _project_change_row(r: dict, mode: str) -> dict:
+    """service 内部 key（raw: old/new/created_at, collapsed: from/to/latest_at）
+    → ChangeRow schema（from_value/to_value/at），过滤内部 key 泄漏。
+    """
+    if mode == "raw":
+        return {
+            "barcode": r["barcode"],
+            "model": r["model"],
+            "field": r["field"],
+            "from_value": r["old_value"],
+            "to_value": r["new_value"],
+            "change_type": r["change_type"],
+            "at": r["created_at"],
+        }
+    return {
+        "barcode": r["barcode"],
+        "model": r["model"],
+        "field": r["field"],
+        "from_value": r["from_value"],
+        "to_value": r["to_value"],
+        "change_type": r["change_type"],
+        "at": r["latest_at"],
+    }
+
+
+@api_bp.get("/recent-changes/<batch_id>/changes")
+def recent_changes_detail(batch_id: str):
+    from app.schemas_api import RecentChangesDetail
+    from app.services import recent_changes as rc
+
+    try:
+        bid = int(batch_id)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "bad_batch_id"}), 400
+    mode = request.args.get("mode", "collapsed")
+    if mode not in _RC_VALID_MODES:
+        return jsonify({"ok": False, "error": "bad_mode"}), 400
+    field = request.args.get("field") or None
+    change_type = request.args.get("change_type") or None
+
+    detail = rc.get_batch_detail(bid, mode=mode, filter_field=field, filter_change_type=change_type)
+    if detail is None:
+        return jsonify({"ok": False, "error": "batch_not_found"}), 404
+    payload = {
+        "ok": True,
+        "summary": detail["summary"],
+        "changes": [_project_change_row(r, mode) for r in detail["changes"]],
+        "total_count": detail["total_count"],
+    }
+    return jsonify(RecentChangesDetail.model_validate(payload).model_dump())
+
+
 @api_bp.get("/<barcode>/timeline")
 def timeline(barcode: str):
     from app.schemas_api import SkuTimelineResponse
