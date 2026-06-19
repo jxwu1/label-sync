@@ -1,6 +1,6 @@
 # dev.ps1 零依赖本地进程监督器 设计
 
-**状态：** 已批准（2026-06-19，终审 APPROVE，条件＝写入 4 项终审修订）。审查处置：①pg_isready 替代 TCP 就绪探测；②ReadLineAsync EOF/drain 契约 + 就绪探测并入监督循环 + npm.cmd；③Vite 显式绑定 --host 127.0.0.1 + Ctrl+C 130 脚本显式设；④语法检查用 Parser API 不 dot-source。
+**状态：** 已批准（2026-06-19，终审 APPROVE）。审查处置：①pg_isready 替代 TCP 就绪探测；②ReadLineAsync EOF/drain 契约 + 就绪探测并入监督循环 + npm.cmd；③Vite 显式绑定 --host 127.0.0.1 + Ctrl+C 130 脚本显式设；④语法检查用 Parser API 不 dot-source；⑤端口复查只查本脚本**监督过**的端口（:5000 恒查 / :5173 仅 -Frontend，避免误伤独立 Vite）+ 统一 `$desiredExitCode` 单源 + api 只用 `python -u`（删 PYTHONUNBUFFERED 歧义）。
 
 ## 目标
 
@@ -33,7 +33,7 @@
 
 每个被监督进程用 `System.Diagnostics.Process`：`UseShellExecute=$false`、`RedirectStandardOutput=$true`、`RedirectStandardError=$true`、`CreateNoWindow=$true`，工作目录 / 环境按需设。
 
-- **api**：`python -u server.py`（`-u` 或 `PYTHONUNBUFFERED=1` 防管道缓冲），工作目录＝仓库根。
+- **api**：`python -u server.py`（`-u` 防管道缓冲；**只用 `-u`，不再叠加 `PYTHONUNBUFFERED`**，消除实现歧义），工作目录＝仓库根。
 - **web**（仅 `-Frontend`）：可执行 = **`npm.cmd`**（Windows，非 `npm`），参数 `run dev -- --host 127.0.0.1 --strictPort --clearScreen false`，工作目录＝`frontend/`，环境加 `FORCE_COLOR=1`。
   - `--host 127.0.0.1`：让 TCP 探测、打印 URL、实际监听地址三者一致。
   - `--strictPort`：避免端口检查后竞态自动跳 5174。
@@ -59,9 +59,11 @@
   [dev] Ctrl+C stops api + web
   ```
   超时未监听（如 ~30s）→ 报错 + 清理 + 退出。
-- **Ctrl+C**：`try { 监督循环 } finally { 清理 }`；退出码 **由脚本显式设为 130**（`exit 130`，不依赖 PowerShell 默认）。
-- **任一意外退出**：先**保存该子进程 `ExitCode` 到变量**（避免被随后 `taskkill` 的 `$LASTEXITCODE` 覆盖）→ drain 该进程管道 → 打印 `[api|web] exited (code <N>)` → 清理另一棵树 → 脚本以保存的码退出。
-- **清理函数（幂等）**：对每个存活进程 `taskkill /T /F /PID <pid>`；**进程已退 / 「找不到进程」不当新错误**（吞掉）。清理后**复查 :5000/:5173**，仍监听则告警 `[dev] ⚠ 端口 :<port> 仍被占用，可能有孤儿进程`。
+- **统一退出码 `$desiredExitCode`**：单一真源，三处赋值——Ctrl+C = **130**；子进程意外退出 = **其 `ExitCode`**；启动/就绪失败 = **对应非零码**（docker/alembic 的 `$LASTEXITCODE`、就绪超时 = 1）。`finally` **只负责清理，绝不改写 `$desiredExitCode`**；脚本末尾 `exit $desiredExitCode`。
+- **Ctrl+C**：`try { 监督循环 } finally { 清理 }`；进入中断路径时设 `$desiredExitCode = 130`（显式，不依赖 PowerShell 默认）。
+- **任一意外退出**：先把该子进程 `ExitCode` 赋给 `$desiredExitCode`（**在任何 `taskkill` 之前**，避免被 `$LASTEXITCODE` 覆盖）→ drain 该进程管道 → 打印 `[api|web] exited (code <N>)` → 清理另一棵树。
+- **清理函数（幂等）**：对每个存活进程 `taskkill /T /F /PID <pid>`；**进程已退 / 「找不到进程」不当新错误**（吞掉）。**清理后端口复查只查本脚本监督过的端口**（遍历 `$supervised` 取各 entry 的 `port`）：**:5000 恒查；:5173 仅 `-Frontend` 时查**（被监督过才查）。仍监听则告警 `[dev] ⚠ 端口 :<port> 仍被占用，可能有孤儿进程`。
+  > **为何按监督端口而非固定 :5000/:5173**：仅后端模式下用户可能**独立**跑着自己的 Vite（:5173）；若无条件复查 :5173，停 API 后会把那个**正常**进程误报成孤儿。只查 `$supervised` 里的端口即可避免。
   > HIGH 兜底：监督根进程先退时 `taskkill /T` 可能找不到已孤立的后代；**硬保证需 Windows Job Object，本期不做**，以 taskkill /T + 端口复查兜底。
 - **仅后端**（无 `-Frontend`）：只监督 api 一个进程，同现状（前台 + Ctrl+C 停 + 退出码传播）。
 
@@ -87,6 +89,7 @@ if ($errors) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
 7. **Vite HMR 后**清理干净。
 8. **连续起停 3 次**，无 :5000/:5173 残留。
 9. Parser 语法检查通过。
+10. **独立 Vite 占 :5173 + 仅后端模式不误伤**：另起一个独立 Vite（或任意进程）监听 :5173 → `./dev.ps1`（**无** `-Frontend`）起停 → 全程**不杀**该 :5173 进程、清理后**不**对 :5173 告警（只复查 :5000）；该独立进程仍存活。
 
 ## 不做（YAGNI）
 
