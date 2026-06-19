@@ -10,6 +10,8 @@
 
 **设计 spec：** `docs/superpowers/specs/2026-06-19-dev-ps1-supervisor-design.md`（终审 APPROVE）。
 
+> **as-built 注**：实施中经多轮真实终端验收修订（cmd /c npm、docker 警告续行、pg_isready 走 docker exec、Ctrl+C 改 C# CancelKeyPress、drain-all、就绪超时、启动纳入 try、CtrlC Uninstall）。**以已提交的 `dev.ps1` 与同步后的 spec 为准**；下方各 Task 代码块是初版草稿，细节以 as-built 为权威。
+
 > **测试现实**：进程编排/Ctrl+C 无法 Pester 单测（本期不引 Pester）。每个任务后跑 **Parser 语法解析检查**（不执行脚本）；最终任务跑 **9 项手动集成验收**并迭代到全过。实现 PowerShell 进程监督需对照真实 `pwsh` 执行迭代（Ctrl+C/finally 语义、ReadLineAsync 边界、taskkill 时序），计划给出可工作的草稿 + 验收闭环。
 
 ---

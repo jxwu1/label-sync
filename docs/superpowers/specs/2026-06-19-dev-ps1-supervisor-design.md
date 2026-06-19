@@ -34,7 +34,7 @@
 每个被监督进程用 `System.Diagnostics.Process`：`UseShellExecute=$false`、`RedirectStandardOutput=$true`、`RedirectStandardError=$true`、`CreateNoWindow=$true`，工作目录 / 环境按需设。
 
 - **api**：`python -u server.py`（`-u` 防管道缓冲；**只用 `-u`，不再叠加 `PYTHONUNBUFFERED`**，消除实现歧义），工作目录＝仓库根。
-- **web**（仅 `-Frontend`）：可执行 = **`npm.cmd`**（Windows，非 `npm`），参数 `run dev -- --host 127.0.0.1 --strictPort --clearScreen false`，工作目录＝`frontend/`，环境加 `FORCE_COLOR=1`。
+- **web**（仅 `-Frontend`）：可执行 = **`cmd.exe`**，参数 `/c npm run dev -- --host 127.0.0.1 --strictPort --clearScreen false`，工作目录＝`frontend/`，环境加 `FORCE_COLOR=1`。（**实测修订**：原定 `npm.cmd` 经 .NET Process 直跑会让 npm 的 `%~dp0` 解析错乱 → 去 `frontend\node_modules\npm\` 找 npm 自身 → MODULE_NOT_FOUND；改 `cmd.exe /c npm` 由 cmd 从 PATH 正确解析。cmd.exe 为被监督进程，node/vite 是其子，taskkill /T 杀整树。）
   - `--host 127.0.0.1`：让 TCP 探测、打印 URL、实际监听地址三者一致。
   - `--strictPort`：避免端口检查后竞态自动跳 5174。
   - `--clearScreen false`：Vite 8.0.16 支持；**`--color` 不支持，不加**。
@@ -44,6 +44,7 @@
 - ❌ **不**注册 PowerShell scriptblock 到 `OutputDataReceived`/`ErrorDataReceived`——输出到达即「There is no Runspace available to run scripts in this thread」崩溃。
 - ✅ **主 runspace 单循环轮询 `StandardOutput.ReadLineAsync()` / `StandardError.ReadLineAsync()`**（或 Add-Type C# 回调；本期用 ReadLineAsync）。每条完成的行加前缀打印，再对该流续发 ReadLineAsync。
 - **EOF 契约**：`ReadLineAsync()` 完成结果为 `$null` 表示该流 EOF → **停止对该流续发读取**（防空转 busy-spin）。
+- **每轮排空（实测修订）**：每条流每轮**循环读完当前所有已就绪行**（`while IsCompleted`，非单行），且**本轮有输出就不 sleep、立刻再循环**，仅空闲时 `Start-Sleep 25ms`。否则单行节流会把两进程日志逐行轮流挤出（挤牙膏感）+ 缓冲日志拖慢。
 - **drain 契约**：子进程 `HasExited` 后，**先把 stdout+stderr 排空至 EOF 再报告退出**，保证末尾日志不丢。
 - **就绪探测并入同一监督循环**：进程一启动**立即开始读管道**；TCP 就绪探测（§3）作为循环内的周期检查，**不得先阻塞等端口再读**——否则重定向管道塞满会阻塞子进程。
 - **顺序保证**：只保证**各流（stdout / stderr）内部逐行顺序**；stdout↔stderr 交叉顺序 best-effort。
@@ -58,9 +59,11 @@
   [web] VITE ready · http://localhost:5173/ui/
   [dev] Ctrl+C stops api + web
   ```
-  超时未监听（如 ~30s）→ 报错 + 清理 + 退出。
+  超时未监听（**~30s，Stopwatch 计**）：进程**活着但始终不监听端口** → 设 `$desiredExitCode=1` + 清理 + 退出，避免永久挂起。（进程若已退出则走上面的退出判定，不算就绪超时。）
 - **统一退出码 `$desiredExitCode`**：单一真源，三处赋值——Ctrl+C = **130**；子进程意外退出 = **其 `ExitCode`**；启动/就绪失败 = **对应非零码**（docker/alembic 的 `$LASTEXITCODE`、就绪超时 = 1）。`finally` **只负责清理，绝不改写 `$desiredExitCode`**；脚本末尾 `exit $desiredExitCode`。
-- **Ctrl+C**：`try { 监督循环 } finally { 清理 }`；进入中断路径时设 `$desiredExitCode = 130`（显式，不依赖 PowerShell 默认）。
+- **Ctrl+C**：纯 C# `Console.CancelKeyPress` 处理器（`Add-Type`，不经 PS runspace）置 volatile 标志；主循环置顶轮询→设 `$desiredExitCode = 130`→break。Install **幂等** + 保存 delegate + `finally` 调 **`Uninstall()`** 卸载（防同会话多次运行累积处理器）。（实测：`TreatControlCAsInput`+`KeyAvailable` 读键在 Windows Terminal 下检测不到 Ctrl+C 致关不掉，已弃用。）
+- **启动纳入 try（实测修订）**：进程启动（`Start-Supervised` + `Add` 进 `$supervised`）放在 `try` 内、`$supervised` 在 `try` 外声明——web 启动/ReadLineAsync 任一步抛错时，已起的 api 仍被 `finally` 清理，不残留 :5000。
+- **退出判定（实测修订）**：不凭「所有进程已退」early-break（会丢退出码 + 尾日志）。必须 drain 到 `outEof && errEof` 后，凭 `HasExited && outEof && errEof` 捕获该进程真实 `ExitCode` 再 break。
 - **任一意外退出**：先把该子进程 `ExitCode` 赋给 `$desiredExitCode`（**在任何 `taskkill` 之前**，避免被 `$LASTEXITCODE` 覆盖）→ drain 该进程管道 → 打印 `[api|web] exited (code <N>)` → 清理另一棵树。
 - **清理函数（幂等）**：对每个存活进程 `taskkill /T /F /PID <pid>`；**进程已退 / 「找不到进程」不当新错误**（吞掉）。**清理后端口复查只查本脚本监督过的端口**（遍历 `$supervised` 取各 entry 的 `port`）：**:5000 恒查；:5173 仅 `-Frontend` 时查**（被监督过才查）。仍监听则告警 `[dev] ⚠ 端口 :<port> 仍被占用，可能有孤儿进程`。
   > **为何按监督端口而非固定 :5000/:5173**：仅后端模式下用户可能**独立**跑着自己的 Vite（:5173）；若无条件复查 :5173，停 API 后会把那个**正常**进程误报成孤儿。只查 `$supervised` 里的端口即可避免。
