@@ -91,6 +91,16 @@ def recent_changes_batches():
     return jsonify(RecentChangesBatchList.model_validate(payload).model_dump())
 
 
+@api_bp.get("/scan-batches")
+def scan_batches():
+    from app.schemas_api import ScanBatchList
+    from app.services import scan_history as scan_history_service
+
+    # service 系统级异常不在此吞 → 冒泡 Flask 通用 500（对齐其它 strict 端点）。
+    payload = {"ok": True, "batches": scan_history_service.list_batches()}
+    return jsonify(ScanBatchList.model_validate(payload).model_dump())
+
+
 def _project_change_row(r: dict, mode: str) -> dict:
     """service 内部 key（raw: old/new/created_at, collapsed: from/to/latest_at）
     → ChangeRow schema（from_value/to_value/at），过滤内部 key 泄漏。
