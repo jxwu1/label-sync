@@ -654,7 +654,6 @@ function isPeak(q: number, maxQty: number): boolean {
 .history__recent-label { font-size: var(--fs-xs); color: var(--ink-3); }
 .history__recent-chip { font-size: var(--fs-sm); padding: 2px 8px; border: 1px solid var(--line-soft); border-radius: var(--r-sm); background: transparent; color: var(--ink-1); cursor: pointer; }
 .history__recent-chip:hover { background: var(--accent-subtle); }
-.history__analytics { margin-bottom: var(--sp-6); }
 .history__sec-hd { font-size: var(--fs-sm); color: var(--ink-2); margin: var(--sp-4) 0 var(--sp-2); }
 .history__metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--sp-3); margin-bottom: var(--sp-3); }
 .history__kv { display: flex; flex-direction: column; gap: 2px; }
@@ -665,7 +664,6 @@ function isPeak(q: number, maxQty: number): boolean {
 .history__card-hd { color: var(--ink-2); margin-bottom: var(--sp-1); }
 
 /* 2b extras + restock panels */
-.history__extras-section { margin-bottom: var(--sp-6); }
 .history__panel { border: 1px solid var(--line-soft); border-radius: var(--r-sm); padding: var(--sp-4); margin-bottom: var(--sp-4); }
 
 /* ext-section (replicate old CSS classes in scoped context) */
@@ -719,14 +717,15 @@ function isPeak(q: number, maxQty: number): boolean {
 .history__lefttabs { display: flex; gap: var(--sp-2); margin: var(--sp-3) 0; }
 .history__lefttab { padding: 4px 12px; background: transparent; border: 1px solid var(--line-soft); border-radius: var(--r-sm); color: var(--ink-2); cursor: pointer; font-size: var(--fs-sm); }
 .history__lefttab.is-active { color: var(--ink-0); border-color: var(--accent); }
-.history__deep table, .history__deep .heat-table { display: block; max-width: 100%; overflow-x: auto; }
+.history__deep table, .history__deep .heat-mini { display: block; max-width: 100%; overflow-x: auto; }
 .history__foldcard { border: 1px solid var(--line-soft); border-radius: var(--r-md); overflow: hidden; }
 .history__foldcard-hd { display: flex; align-items: center; gap: var(--sp-2); width: 100%; padding: var(--sp-3) var(--sp-4); background: transparent; border: none; color: var(--ink-0); cursor: pointer; text-align: left; font-size: var(--fs-sm); }
-.history__foldcard-badge { font-size: 11px; padding: 1px 6px; border: 1px solid var(--line-soft); border-radius: var(--r-sm); color: var(--ink-2); }
+.history__foldcard-badge { font-size: var(--fs-xs); padding: 1px 6px; border: 1px solid var(--line-soft); border-radius: var(--r-sm); color: var(--ink-2); }
 .history__foldcard-chevron { margin-left: auto; color: var(--ink-3); }
 .history__foldcard-bd { padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--line-soft); }
 @container (max-width: 900px) {
   .history__cols { flex-direction: column; }
   .history__left { flex-basis: auto; width: 100%; }
+  .history__right { width: 100%; }
 }
 </style>
