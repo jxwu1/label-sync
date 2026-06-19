@@ -118,3 +118,44 @@ def test_get_batch_detail_cap_and_total():
     d = rc.get_batch_detail(bid, mode="raw")
     assert len(d["changes"]) == 500
     assert d["total_count"] == 600
+
+
+def _seed_import_batch_mixed_fields() -> int:
+    """import 批次 + 混合 field/change_type changes，返回 batch_id。
+
+    窗口内含：
+      - 2 条 stockpile_location update（非 roundtrip）
+      - 2 条 product_model update（非 roundtrip）
+    → _summarize 给 location_changes=2 且 model_changes=2（两个非空桶）。
+    """
+    bid = _seed_snapshot("2026-04-29 14:00:00")
+    _seed_change("L1", "stockpile_location", "A1", "A2", created_at="2026-04-29 13:00:00")
+    _seed_change("L2", "stockpile_location", "B1", "B2", created_at="2026-04-29 13:00:10")
+    _seed_change("M1", "product_model", "P1", "P2", created_at="2026-04-29 13:00:20")
+    _seed_change("M2", "product_model", "Q1", "Q2", created_at="2026-04-29 13:00:30")
+    return bid
+
+
+def test_get_batch_detail_summary_ignores_filter():
+    """summary 永远基于全窗口，与 filter_field 无关（最微妙的正确性不变量）。"""
+    import app.services.recent_changes as rc
+
+    bid = _seed_import_batch_mixed_fields()
+
+    unfiltered = rc.get_batch_detail(bid, mode="collapsed")
+    filtered = rc.get_batch_detail(bid, mode="collapsed", filter_field="stockpile_location")
+
+    # summary 全量计算：两个桶都非空，且 model_changes 在“仅按 filtered 行算”时会变 0
+    assert unfiltered["summary"]["location_changes"] == 2
+    assert unfiltered["summary"]["model_changes"] == 2
+
+    # 不变量：filtered 的 summary 与 unfiltered 完全一致（不随 filter 收窄）
+    assert filtered["summary"] == unfiltered["summary"]
+    # 判别桶：若 summary 误按 filtered 行算，model_changes 会是 0 → 此断言守护它
+    assert filtered["summary"]["model_changes"] == 2
+
+    # filter 确实收窄了 changes 列表（证明过滤生效，summary 独立性才有意义）
+    assert filtered["total_count"] < unfiltered["total_count"]
+    assert filtered["total_count"] == 2
+    assert unfiltered["total_count"] == 4
+    assert all(c["field"] == "stockpile_location" for c in filtered["changes"])
