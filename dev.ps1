@@ -50,16 +50,20 @@ function Start-Supervised([string]$File, [string[]]$ArgList, [string]$WorkDir, [
 }
 
 # ---- 1. 起本地 PostgreSQL 17 ----
+# 非零不立即退出：dev-pg 是持久容器，已存在时 `up -d` 会因名字冲突返回非零，但 PG 其实在跑。
+# 真正的就绪权威闸是下面的 pg_isready——它没过才算 PG 不可用。
 docker compose -f docker-compose.dev.yml up -d
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "[dev] x docker compose up 失败 (exit $LASTEXITCODE)" -ForegroundColor Red
-    exit $LASTEXITCODE
+    Write-Host "[dev] ! docker compose up 非零 (exit $LASTEXITCODE)——容器可能已存在/冲突；以 pg_isready 为准继续" -ForegroundColor Yellow
 }
 
-# ---- 2. 等 PG 真正可接受查询（pg_isready 重试最多 30s；非零是预期重试，不退出） ----
+# ---- 2. 等 PG 真正可接受查询（pg_isready 重试最多 30s；权威就绪闸；非零是预期重试，不退出） ----
+# 用 `docker exec <container_name>` 而非 `docker compose exec <service>`：容器名固定
+# (compose container_name: label-sync-dev-pg)，对 compose project 追踪冲突免疫；
+# `docker compose exec` 在容器名冲突/孤儿态下会报 "service not running"。
 $pgReady = $false
 for ($i = 0; $i -lt 30; $i++) {
-    docker compose -f docker-compose.dev.yml exec -T dev-pg pg_isready -U dev -d label_sync 2>$null | Out-Null
+    docker exec label-sync-dev-pg pg_isready -U dev -d label_sync 2>$null | Out-Null
     if ($LASTEXITCODE -eq 0) { $pgReady = $true; break }
     Start-Sleep -Seconds 1
 }
