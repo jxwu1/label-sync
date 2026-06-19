@@ -44,7 +44,18 @@ vi.mock("./TimelineChart.vue", () => ({
   default: { name: "TimelineChart", template: '<div class="stub-timeline-chart" />', props: ["weeks", "monthlySales"] },
 }));
 
+// Stub RecentChangesPanel so batch-tab tests don't depend on panel internals / its store.
+// Emits drill on a button click so we can exercise HistoryPage.onDrill.
+vi.mock("./RecentChangesPanel.vue", () => ({
+  default: {
+    name: "RecentChangesPanel",
+    template: '<div class="stub-recent-changes"><button class="stub-drill" @click="$emit(\'drill\', \'DRILLBC\')">drill</button></div>',
+    emits: ["drill"],
+  },
+}));
+
 import HistoryPage from "./HistoryPage.vue";
+import RecentChangesPanel from "./RecentChangesPanel.vue";
 
 function reset() {
   state.result = null; state.loading = false; state.error = null;
@@ -611,4 +622,78 @@ it("P3: doReset → timelineStore.reset 调用", async () => {
   const w = mount(HistoryPage);
   await w.find("button.history__btn--ghost").trigger("click");
   expect(timelineState.reset).toHaveBeenCalled();
+});
+
+// ── Phase 4a: tab 壳 + 最近改动接线 + 守卫 ──────────────────────────────────────
+
+it("4a: 初始两个 tab，默认 search active，搜索 UI 可见", () => {
+  reset();
+  const w = mount(HistoryPage);
+  const tabs = w.findAll("button.history__tab");
+  expect(tabs.length).toBe(2);
+  expect(w.text()).toContain("货号查询");
+  expect(w.text()).toContain("批次记录");
+  // 默认 search tab 内容可见
+  expect(w.find("input.history__input").isVisible()).toBe(true);
+});
+
+it("4a: 批次 tab 懒挂载 — 激活前 RecentChangesPanel 不存在", () => {
+  reset();
+  const w = mount(HistoryPage);
+  expect(w.findComponent(RecentChangesPanel).exists()).toBe(false);
+});
+
+it("4a: 点击批次记录 → panel 挂载且可见，搜索 UI 隐藏", async () => {
+  reset();
+  const w = mount(HistoryPage);
+  const batchTab = w.findAll("button.history__tab").find((b) => b.text().includes("批次记录"))!;
+  await batchTab.trigger("click");
+  expect(w.findComponent(RecentChangesPanel).exists()).toBe(true);
+  expect(w.find("div.stub-recent-changes").isVisible()).toBe(true);
+  // 搜索 UI 元素仍存在但不可见 (v-show=false)
+  expect(w.find("input.history__input").isVisible()).toBe(false);
+});
+
+it("4a: 切回货号查询 → 搜索 UI 复现可见，panel 保持挂载（batchVisited 黏住）", async () => {
+  reset();
+  const w = mount(HistoryPage);
+  const batchTab = w.findAll("button.history__tab").find((b) => b.text().includes("批次记录"))!;
+  const searchTab = w.findAll("button.history__tab").find((b) => b.text().includes("货号查询"))!;
+  await batchTab.trigger("click");
+  expect(w.findComponent(RecentChangesPanel).exists()).toBe(true);
+  await searchTab.trigger("click");
+  expect(w.find("input.history__input").isVisible()).toBe(true);
+  // panel 仍挂载（懒挂载后不卸载）
+  expect(w.findComponent(RecentChangesPanel).exists()).toBe(true);
+  expect(w.find("div.stub-recent-changes").isVisible()).toBe(false);
+});
+
+it("4a: drill — panel emit drill → 切回 search tab + q=barcode + runSearch(load) 调用", async () => {
+  reset();
+  const w = mount(HistoryPage);
+  const batchTab = w.findAll("button.history__tab").find((b) => b.text().includes("批次记录"))!;
+  await batchTab.trigger("click");
+  // emit drill from stub
+  await w.find("button.stub-drill").trigger("click");
+  await Promise.resolve(); await Promise.resolve();
+  // 切回 search：搜索 UI 可见
+  expect(w.find("input.history__input").isVisible()).toBe(true);
+  // q 被写入
+  expect((w.find("input.history__input").element as HTMLInputElement).value).toBe("DRILLBC");
+  // runSearch 执行 → store.load(barcode)
+  expect(state.load).toHaveBeenCalledWith("DRILLBC");
+});
+
+it("4a: 批次 tab 失败隔离 — 搜索 tab 仍可独立工作", async () => {
+  reset();
+  const w = mount(HistoryPage);
+  // 先访问批次 tab（懒挂载）
+  const batchTab = w.findAll("button.history__tab").find((b) => b.text().includes("批次记录"))!;
+  await batchTab.trigger("click");
+  const searchTab = w.findAll("button.history__tab").find((b) => b.text().includes("货号查询"))!;
+  await searchTab.trigger("click");
+  // 搜索仍能触发 load
+  await w.find("input.history__input").setValue("XYZ");
+  await w.find("input.history__input").trigger("keydown.enter");
+  expect(state.load).toHaveBeenCalledWith("XYZ");
 });
