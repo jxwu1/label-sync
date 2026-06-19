@@ -79,7 +79,19 @@ describe("ScanBatchPanel", () => {
   });
 
   it("特殊字符 batchId（#、空格、/）正确编码", async () => {
-    const w = await mountLoaded();
+    // Use a custom payload: batch 1 has special chars in batchId + a csv file so ZIP link renders
+    const payload = {
+      ok: true,
+      batches: [
+        ...batchList().batches.slice(0, 1),
+        { batch_id: "ZH#A 价/标20260421100000", employee: "ABDUL", scanned_at: "2026-04-21 10:00:00",
+          csv_filename: "b.csv", csv_rows: 1, csv_size_bytes: 50, xlsx_files: [] },
+      ],
+    };
+    vi.mocked(apiGet).mockResolvedValue(payload as never);
+    const w = mount(ScanBatchPanel);
+    await new Promise((r) => setTimeout(r, 0));
+    await w.vm.$nextTick();
     await w.findAll("button.sb-row-head")[1].trigger("click");
     const zip = w.findAll("a.sb-dl").find((a) => a.attributes("href")?.includes("/download/zip"));
     expect(zip?.attributes("href")).toBe(
@@ -119,5 +131,69 @@ describe("ScanBatchPanel", () => {
     await new Promise((r) => setTimeout(r, 0));
     await w.vm.$nextTick();
     expect(w.findAll("button.sb-row-head").length).toBe(2);
+  });
+
+  // Fix C: csv_rows null-safe rendering
+  it("Fix C — csv_rows 为 null 时显示「行数未知」而非「null 行」", async () => {
+    const payload = {
+      ok: true,
+      batches: [
+        {
+          batch_id: "NULLROWS20260420",
+          employee: "TEST",
+          scanned_at: "2026-04-20 10:00:00",
+          csv_filename: "x.csv",
+          csv_rows: null,
+          csv_size_bytes: null,
+          xlsx_files: [],
+        },
+      ],
+    };
+    vi.mocked(apiGet).mockResolvedValue(payload as never);
+    const w = mount(ScanBatchPanel);
+    await new Promise((r) => setTimeout(r, 0));
+    await w.vm.$nextTick();
+    await w.findAll("button.sb-row-head")[0].trigger("click");
+    const html = w.html();
+    expect(html).not.toContain("null 行");
+    expect(html).toContain("行数未知");
+  });
+
+  // Fix D: ZIP link hidden when no files
+  it("Fix D — 无任何文件的批次不显示「下载全部 ZIP」链接", async () => {
+    const w = await mountLoaded();
+    // batch index 1 has csv_filename: null, xlsx_files: []
+    await w.findAll("button.sb-row-head")[1].trigger("click");
+    const zipLinks = w.findAll("a").filter((a) => a.attributes("href")?.includes("/download/zip"));
+    expect(zipLinks.length).toBe(0);
+  });
+
+  // Fix E: no empty-state flash during initial load
+  it("Fix E — 初始加载中不显示「暂无批次」（无空态闪烁）", async () => {
+    vi.mocked(apiGet).mockImplementation(() => new Promise(() => {}) as never);
+    const w = mount(ScanBatchPanel);
+    await w.vm.$nextTick();
+    expect(w.html()).toContain("加载中");
+    expect(w.html()).not.toContain("暂无批次");
+  });
+
+  // Fix #5: onEmployeeChange "" path → store.employeeFilter becomes null
+  it("Fix #5 — select 改回「全部员工」后 employeeFilter 置为 null", async () => {
+    const w = await mountLoaded();
+    const { useScanBatchesStore } = await import("../../stores/scanBatches");
+    const store = useScanBatchesStore();
+
+    const select = w.find("select.sb-employee");
+    // First pick a real employee
+    await select.setValue("ALI");
+    await select.trigger("change");
+    await w.vm.$nextTick();
+    expect(store.employeeFilter).toBe("ALI");
+
+    // Then reset to "" (全部员工)
+    await select.setValue("");
+    await select.trigger("change");
+    await w.vm.$nextTick();
+    expect(store.employeeFilter).toBeNull();
   });
 });

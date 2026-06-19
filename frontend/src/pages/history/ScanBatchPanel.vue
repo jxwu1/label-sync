@@ -41,16 +41,17 @@ function onEmployeeChange(e: Event) {
       <button type="button" class="sb-retry" @click="store.ensureLoaded()">重试</button>
     </div>
 
+    <div v-else-if="store.loading || !store.loaded" class="sb-loading">加载中…</div>
+
     <template v-else>
       <div class="sb-toolbar">
-        <select class="sb-employee" :value="store.employeeFilter ?? ''" @change="onEmployeeChange">
+        <select class="sb-employee" aria-label="筛选员工" :value="store.employeeFilter ?? ''" @change="onEmployeeChange">
           <option value="">全部员工</option>
           <option v-for="e in store.employees" :key="e" :value="e">{{ e }}</option>
         </select>
       </div>
 
-      <div v-if="store.loading" class="sb-loading">加载中…</div>
-      <div v-else-if="store.filteredBatches.length === 0" class="sb-empty">暂无批次</div>
+      <div v-if="store.filteredBatches.length === 0" class="sb-empty">暂无批次</div>
 
       <div v-else class="sb-list">
         <div v-for="b in store.filteredBatches" :key="b.batchId" class="sb-row">
@@ -67,7 +68,7 @@ function onEmployeeChange(e: Event) {
 
           <div v-if="store.expanded.has(b.batchId)" class="sb-detail">
             <div v-if="b.csvFilename" class="sb-file">
-              📄 {{ b.csvFilename }} · {{ b.csvRows }} 行 · {{ fmtBytes(b.csvSizeBytes) }}
+              📄 {{ b.csvFilename }} · {{ b.csvRows != null ? b.csvRows + ' 行' : '行数未知' }} · {{ fmtBytes(b.csvSizeBytes) }}
               <a class="sb-dl" :href="csvUrl(b)">下载</a>
             </div>
             <div v-else class="sb-file sb-file--muted">📄 CSV 缺失</div>
@@ -77,7 +78,7 @@ function onEmployeeChange(e: Event) {
               <a class="sb-dl" :href="fileUrl(b, f.name)">下载</a>
             </div>
 
-            <div class="sb-file sb-file--zip">
+            <div v-if="b.csvFilename || b.xlsxFiles.length" class="sb-file sb-file--zip">
               🗜 <a class="sb-dl" :href="zipUrl(b)">下载全部 ZIP</a>
             </div>
           </div>
@@ -91,7 +92,7 @@ function onEmployeeChange(e: Event) {
 .sb { display: flex; flex-direction: column; gap: var(--sp-3); }
 .sb-error { padding: var(--sp-3); color: var(--error); }
 .sb-retry { margin-left: var(--sp-2); padding: 2px 10px; border: 1px solid var(--line-soft); border-radius: var(--r-sm); background: transparent; color: var(--ink-0); cursor: pointer; }
-.sb-employee { padding: 4px 8px; border: 1px solid var(--line-soft); border-radius: var(--r-sm); background: var(--surface-1); color: var(--ink-0); }
+.sb-employee { padding: 4px 8px; border: 1px solid var(--line-soft); border-radius: var(--r-sm); background: transparent; color: var(--ink-0); }
 .sb-loading { padding: var(--sp-4); color: var(--ink-3); }
 .sb-empty { padding: var(--sp-4); color: var(--ink-3); }
 .sb-row { border-bottom: 1px solid var(--line-soft); }
