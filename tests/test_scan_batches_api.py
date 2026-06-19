@@ -24,11 +24,13 @@ def real_app(monkeypatch):
 _AUTH = {"X-Upload-Token": "test-token-123"}
 
 
-def _make_batch(base, folder_name, *, csv_rows=0, xlsx=None, write_csv=True):
+def _make_batch(
+    base, folder_name, *, csv_rows=0, xlsx=None, write_csv=True, csv_name="产品信息导入模板.csv"
+):
     batch = base / folder_name
     batch.mkdir()
     if write_csv:
-        csv = batch / "1产品信息导入模板.csv"
+        csv = batch / csv_name
         lines = ["型号,唯一码"]
         lines.extend(f"M{i},B{i}" for i in range(csv_rows))
         csv.write_text("\n".join(lines), encoding="utf-8-sig")
@@ -72,6 +74,18 @@ def test_exact_key_sets(real_app, tmp_path, monkeypatch):
         "xlsx_files",
     }
     assert set(b["xlsx_files"][0].keys()) == {"name", "size_bytes"}
+    # 值断言：确认主文件名路径实际被检测到
+    assert b["csv_filename"] == "产品信息导入模板.csv"
+    assert b["csv_rows"] == 1
+    assert b["csv_size_bytes"] > 0
+
+
+def test_legacy_csv_filename_detected(real_app, tmp_path, monkeypatch):
+    monkeypatch.setattr(scan_history_service, "OUTPUT_DIR", tmp_path)
+    _make_batch(tmp_path, "ALI价格标20260420100000", csv_rows=2, csv_name="1产品信息导入模板.csv")
+    b = _get(real_app).get_json()["batches"][0]
+    assert b["csv_filename"] == "1产品信息导入模板.csv"
+    assert b["csv_rows"] == 2
 
 
 def test_missing_csv_nulls_pass_schema(real_app, tmp_path, monkeypatch):
