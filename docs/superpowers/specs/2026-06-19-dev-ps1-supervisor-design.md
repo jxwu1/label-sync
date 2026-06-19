@@ -17,17 +17,17 @@
 
 执行顺序不变，但加正确性：
 
-1. `docker compose -f docker-compose.dev.yml up -d` → **查 `$LASTEXITCODE`，非零立即报错退出**（启动命令，非探测）。
-2. **PG 就绪探测**（`pg_isready` 重试，最多 30s）：
+1. `docker compose -f docker-compose.dev.yml up -d` → **非零打警告但不退出**（**实测修订**：`dev-pg` 是持久容器，已存在时 `up -d` 因名字冲突返回非零，但 PG 实际在跑；硬退会让脚本每次都假失败。**`pg_isready` 才是权威就绪闸**——它没过才算 PG 不可用）。
+2. **PG 就绪探测**（`pg_isready` 重试，最多 30s，权威闸）：
    ```powershell
-   docker compose -f docker-compose.dev.yml exec -T dev-pg pg_isready -U dev -d label_sync
+   docker exec label-sync-dev-pg pg_isready -U dev -d label_sync
    ```
-   循环重试；**此处非零是预期重试状态**（不触发立即退出）；30s 仍未 ready → 报错退出。ready 后打 `[dev] PostgreSQL ready · :5433`。
+   **实测修订**：用 `docker exec <container_name>`（容器名 `label-sync-dev-pg` 在 compose 里 pinned）而非 `docker compose exec <service>`——后者在容器名冲突/孤儿态（容器属另一 compose project，见 [[project_local_pg_derived_cols_empty]]）下报 "service dev-pg is not running" 恒失败。循环重试；**此处非零是预期重试状态**（不触发退出）；30s 仍未 ready → 报错退出。ready 后打 `[dev] PostgreSQL ready · :5433`。
    > 用 `pg_isready` 而非 TCP :5433 探测：Docker 端口代理可能先于数据库接受查询就绪，TCP 可连接 ≠ PG 能接受查询 → 紧接的 alembic 会连接失败。
 3. 设 `$env:DATABASE_URL` / `$env:LABEL_SYNC_DEBUG`（不变）。
 4. `python -m alembic upgrade head` → **查 `$LASTEXITCODE`，非零报错退出**；成功才打 `[dev] Alembic upgrade complete`。
 
-> **「原生命令非零立即退出」仅限非探测命令**（docker up、alembic）。`pg_isready` 等探测命令的非零是正常重试信号，不得当失败。`$PSNativeCommandUseErrorActionPreference=$false` 时 `$ErrorActionPreference='Stop'` 不一定拦原生命令非零，故必须显式查 `$LASTEXITCODE`。
+> **退出码处理（实测后定稿）**：`alembic` 非零→立即退出（无就绪代理）；`docker compose up` 非零→**仅警告**（容器已存在冲突常态，PG 仍可用，由 pg_isready 裁决）；`pg_isready` 非零→重试（30s 超时才退）。`$PSNativeCommandUseErrorActionPreference=$false` 时 `$ErrorActionPreference='Stop'` 不一定拦原生命令非零，故均显式查 `$LASTEXITCODE`。`pg_isready` 作权威就绪闸，已堵住「docker 失败却打 ready 成功」的红队隐患（pg_isready 没过绝不打 ready）。
 
 ## §2 进程监督：修订后的 A（System.Diagnostics.Process + 主循环 ReadLineAsync）
 
