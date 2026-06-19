@@ -254,6 +254,112 @@ def get_batch_changes(
     return result
 
 
+_RC_MAX_ROWS = 500  # 服务端 cap（HC-4A-8）
+
+
+def _fetch_window_rows(session, start: str, end: str):
+    """窗口内全量 stockpile_changes 行（无 filter，单次 SELECT）。"""
+    return session.execute(
+        select(
+            StockpileChange.product_barcode,
+            StockpileChange.field_name,
+            StockpileChange.old_value,
+            StockpileChange.new_value,
+            StockpileChange.change_type,
+            StockpileChange.created_at,
+        )
+        .where(and_(StockpileChange.created_at > start, StockpileChange.created_at <= end))
+        .order_by(StockpileChange.created_at, StockpileChange.id)
+    ).all()
+
+
+def _shape_changes(session, rows, mode):
+    """collapsed 折叠 / raw 原样 + model join。"""
+    barcodes = list({r.product_barcode for r in rows})
+    models: dict[str, str] = {}
+    for i in range(0, len(barcodes), 900):
+        chunk = barcodes[i : i + 900]
+        for bc, m in session.execute(
+            select(Stockpile.product_barcode, Stockpile.product_model).where(
+                Stockpile.product_barcode.in_(chunk)
+            )
+        ).all():
+            models[bc] = m
+
+    if mode == "raw":
+        return [
+            {
+                "barcode": r.product_barcode,
+                "model": models.get(r.product_barcode, ""),
+                "field": r.field_name,
+                "old_value": r.old_value,
+                "new_value": r.new_value,
+                "change_type": r.change_type,
+                "created_at": r.created_at,
+            }
+            for r in reversed(rows)
+        ]
+
+    grouped: dict[tuple[str, str], list] = {}
+    for r in rows:
+        grouped.setdefault((r.product_barcode, r.field_name), []).append(r)
+    result = []
+    for (barcode, field), group in grouped.items():
+        first_old, last_new, last_type = (
+            group[0].old_value,
+            group[-1].new_value,
+            group[-1].change_type,
+        )
+        if first_old == last_new and last_type == "update":
+            continue
+        result.append(
+            {
+                "barcode": barcode,
+                "model": models.get(barcode, ""),
+                "field": field,
+                "from_value": first_old,
+                "to_value": last_new,
+                "change_type": last_type,
+                "latest_at": group[-1].created_at,
+            }
+        )
+    result.sort(key=lambda r: r["latest_at"], reverse=True)
+    return result
+
+
+def get_batch_detail(batch_id, mode="collapsed", filter_field=None, filter_change_type=None):
+    """单事务：校验存在 → 算窗口 → 窗口行只读一次 → summary + filter + shape + cap。
+
+    返回 {summary, changes(原始 mode 形状, 截断 _RC_MAX_ROWS), total_count}，
+    不存在/非 import 返 None。
+    """
+    with stockpile_db._session() as session:
+        if batch_id != _OPEN_BATCH_ID:
+            ok = session.execute(
+                select(StockpileSnapshot.id).where(
+                    and_(StockpileSnapshot.id == batch_id, StockpileSnapshot.trigger == "import")
+                )
+            ).scalar_one_or_none()
+            if ok is None:
+                return None
+        start, end = _batch_window(session, batch_id)
+        all_rows = _fetch_window_rows(session, start, end)  # 单次读
+        summary = _summarize(all_rows)  # 全量（filter 无关）
+        filtered = [
+            r
+            for r in all_rows
+            if (filter_field is None or r.field_name == filter_field)
+            and (filter_change_type is None or r.change_type == filter_change_type)
+        ]
+        changes_full = _shape_changes(session, filtered, mode)
+        total_count = len(changes_full)
+        return {
+            "summary": summary,
+            "changes": changes_full[:_RC_MAX_ROWS],
+            "total_count": total_count,
+        }
+
+
 def _summarize(rows: list) -> dict:
     """把原始 changes 行折叠为 5 个统计 + roundtrip。"""
     grouped: dict[tuple[str, str], list] = {}

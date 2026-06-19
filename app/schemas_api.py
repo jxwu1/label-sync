@@ -396,6 +396,51 @@ class SkuTimelineResponse(BaseModel):
     monthly_sales: list[MonthlySale]
 
 
+class RecentChangeBatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    batch_id: int
+    taken_at: str | None
+    total_local: int | None
+    change_count: int
+    affected_barcodes: int
+    is_open: bool
+
+
+class RecentChangesBatchList(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ok: bool
+    batches: list[RecentChangeBatch]
+
+
+class RecentChangeSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    location_changes: int
+    model_changes: int
+    inserts: int
+    deactivates: int
+    reactivates: int
+    roundtrip_count: int
+
+
+class ChangeRow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    barcode: str
+    model: str
+    field: str
+    from_value: str | None
+    to_value: str | None
+    change_type: str
+    at: str
+
+
+class RecentChangesDetail(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ok: bool
+    summary: RecentChangeSummary
+    changes: list[ChangeRow]
+    total_count: int
+
+
 # gen_ts_types.py 的导出清单：新增模型加进来即自动进 types.gen.ts
 API_MODELS: list[type[BaseModel]] = [
     BriefingData,
@@ -405,4 +450,6 @@ API_MODELS: list[type[BaseModel]] = [
     SkuAnalyticsData,
     SkuExtrasResponse,
     SkuTimelineResponse,
+    RecentChangesBatchList,
+    RecentChangesDetail,
 ]

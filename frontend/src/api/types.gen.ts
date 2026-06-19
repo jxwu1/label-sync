@@ -286,3 +286,43 @@ export interface SkuTimelineResponse {
   timeline: TimelineWeek[];
   monthly_sales: MonthlySale[];
 }
+
+export interface RecentChangeBatch {
+  batch_id: number;
+  taken_at: string | null;
+  total_local: number | null;
+  change_count: number;
+  affected_barcodes: number;
+  is_open: boolean;
+}
+
+export interface RecentChangesBatchList {
+  ok: boolean;
+  batches: RecentChangeBatch[];
+}
+
+export interface ChangeRow {
+  barcode: string;
+  model: string;
+  field: string;
+  from_value: string | null;
+  to_value: string | null;
+  change_type: string;
+  at: string;
+}
+
+export interface RecentChangeSummary {
+  location_changes: number;
+  model_changes: number;
+  inserts: number;
+  deactivates: number;
+  reactivates: number;
+  roundtrip_count: number;
+}
+
+export interface RecentChangesDetail {
+  ok: boolean;
+  summary: RecentChangeSummary;
+  changes: ChangeRow[];
+  total_count: number;
+}
