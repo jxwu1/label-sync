@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import PageHeader from "../../components/PageHeader.vue";
 import { useHistoryStore } from "../../stores/history";
@@ -225,7 +225,7 @@ function isPeak(q: number, maxQty: number): boolean {
           <div v-show="leftTab === 'deep'" class="history__deep">
             <p v-if="extrasStore.loading" class="history__msg">深度分析加载中…</p>
             <p v-else-if="extrasStore.error" class="history__error history__error--2b">深度分析加载失败：{{ extrasStore.error }}</p>
-            <p v-else-if="!extrasStore.vm" class="history__msg">暂无深度数据</p>
+            <p v-else-if="!extrasStore.vm" class="history__msg">—</p>
             <div v-else class="history__panel history__panel--extras">
               <!-- 1. 退货率 + 价格波动 -->
               <div class="ext-section">
@@ -443,7 +443,7 @@ function isPeak(q: number, maxQty: number): boolean {
             <div id="sbpanel-rst" role="region" aria-labelledby="sbcard-rst" v-show="cardOpen.rst" class="history__foldcard-bd">
               <p v-if="extrasStore.loading" class="history__msg">补货快照加载中…</p>
               <p v-else-if="extrasStore.error" class="history__error">补货快照加载失败：{{ extrasStore.error }}</p>
-              <p v-else-if="!extrasStore.vm" class="history__msg">暂无补货快照</p>
+              <p v-else-if="!extrasStore.vm" class="history__msg">—</p>
               <p v-else-if="extrasStore.vm.restock === null" class="history__msg">暂无补货快照</p>
               <div v-else class="history__panel history__panel--restock">
                 <div class="rst-grid">
