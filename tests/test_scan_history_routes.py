@@ -86,6 +86,30 @@ class ScanHistoryRoutesTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn("attachment", resp.headers.get("Content-Disposition", ""))
 
+    def test_download_zip_returns_archive_with_members(self):
+        import io
+        import zipfile
+
+        self._make_batch(
+            "ALI价格标20260420100000",
+            csv_rows=2,
+            xlsx_files=["ALI.xlsx", "B.xlsx"],
+        )
+
+        resp = self.client.get("/scan_history/batches/ALI价格标20260420100000/download/zip")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("attachment", resp.headers.get("Content-Disposition", ""))
+        with zipfile.ZipFile(io.BytesIO(resp.data)) as zf:
+            names = zf.namelist()
+        self.assertTrue(any("1产品信息导入模板.csv" in n for n in names))
+        self.assertTrue(any(n.endswith("ALI.xlsx") for n in names))
+        self.assertTrue(any(n.endswith("B.xlsx") for n in names))
+
+    def test_download_zip_returns_404_for_missing_batch(self):
+        resp = self.client.get("/scan_history/batches/NOPE价格标20260420100000/download/zip")
+        self.assertEqual(resp.status_code, 404)
+
     def test_download_xlsx_returns_404_for_path_traversal_filename(self):
         self._make_batch(
             "ALI价格标20260420100000",
