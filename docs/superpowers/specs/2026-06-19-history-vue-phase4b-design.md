@@ -1,6 +1,8 @@
 # 货号历史页迁移 Vue —— Phase 4b（批次记录 tab：扫描批次）设计
 
-**状态：** 设计待批（2026-06-19）。已吸收一轮审查：CSV 元数据 nullable（BLOCKER）、ZIP 改 additive 增强而非 1:1（MEDIUM）、下载 URL 强制编码（HIGH）、子-tab `scanVisited` 持久挂载、多行独立展开、employees 口径从返回批次派生（MEDIUM）。
+**状态：** 设计待批（2026-06-19）。已吸收两轮审查。
+第一轮：CSV 元数据 nullable（BLOCKER）、ZIP 改 additive 增强而非 1:1（MEDIUM）、下载 URL 强制编码（HIGH）、子-tab `scanVisited` 持久挂载、多行独立展开、employees 口径从返回批次派生（MEDIUM）。
+第二轮：`API_MODELS` 追加 `ScanBatchList` + 断言 TS 类型生成（BLOCKER 类型静默缺失）、ZIP 下载端到端路由测试（BLOCKER）、重试统一走 `ensureLoaded`、CSV「不可读」收窄为 OSError 并标注 UnicodeDecodeError 潜在风险、折叠头 `<button aria-expanded>`、`onMounted→ensureLoaded` 测试。
 
 ## 目标
 
@@ -17,7 +19,7 @@
 - 批次记录 tab 内加一级子-tab：**最近改动**（现 4a 内容）↔ **扫描批次**。默认「最近改动」。「扫描批次」子-tab 首次激活 lazy 加载。
 - 扫描批次子面板（`ScanBatchPanel.vue`），复刻旧 `index-scan-history.js`：
   - 员工筛选下拉（含首项「全部员工」）→ 客户端筛选。
-  - 可折叠批次行：行头 = 扫描时间 / 员工 / 摘要（`{N} 行 · {M} 个 xlsx` 或「无 CSV」）+ chevron；展开后 = CSV 行 + 各 XLSX 行 + 下载链接。**多行可同时独立展开**（逐行 toggle）。
+  - 可折叠批次行：行头用 `<button type="button" :aria-expanded>`（语义化、键盘可达，非裸 div onclick），内容 = 扫描时间 / 员工 / 摘要（`{N} 行 · {M} 个 xlsx` 或「无 CSV」）+ chevron；展开后 = CSV 行 + 各 XLSX 行 + 下载链接。**多行可同时独立展开**（逐行 toggle）。
   - CSV 缺失时显示「📄 CSV 缺失」灰字（无下载链接），与旧版一致。
 - 新建 1 个 strict `/api/history/scan-batches` 列表端点（pydantic `extra=forbid`）。
 - **下载链接复用既有端点**：`/scan_history/batches/{batch_id}/download/csv` 与 `/scan_history/batches/{batch_id}/files/{filename}`。
@@ -70,7 +72,7 @@ class ScanBatch(BaseModel):
     employee: str
     scanned_at: str
     csv_filename: str | None      # CSV 缺失时 None
-    csv_rows: int | None          # CSV 缺失或不可读时 None
+    csv_rows: int | None          # CSV 缺失或 OSError/文件 I/O 失败时 None
     csv_size_bytes: int | None    # 同上
     xlsx_files: list[ScanXlsxFile]
 
@@ -83,8 +85,14 @@ class ScanBatchList(BaseModel):
 > **关键修正（BLOCKER）：** `csv_filename / csv_rows / csv_size_bytes` 必须 nullable。`scan_history.py:71-83` 在 CSV 缺失或 `OSError` 时三字段均置 `None`；若 schema 设非 nullable，CSV 缺失批次会被 Pydantic 打成 500。
 >
 > schema **不含** `employees` 字段（见员工口径决策）。
+>
+> **已知潜在风险（非 4b 引入、本期不修）：** `_count_csv_rows` 用 `utf-8-sig` 打开、外层仅 `except OSError`（`scan_history.py:81,117`），非 UTF-8 的 CSV 抛 `UnicodeDecodeError` 会冒泡 → 列表端点 500。本期只做 pydantic 投影、不动 service，故仅标注；若实测命中再单开修复（service 加 GBK 回退或捕获 `UnicodeDecodeError`）。
 
-改后跑 `python tools/gen_ts_types.py` 同步 TS 类型（CI `--check` 守护漂移）。
+### 生成器注册（BLOCKER）
+
+**必须把 `ScanBatch` / `ScanXlsxFile` / `ScanBatchList` 追加进 `app/schemas_api.py` 的 `API_MODELS` 清单**（`schemas_api.py:445`）。`tools/gen_ts_types.py:63` 仅遍历 `API_MODELS` 生成 TS 类型；遗漏则 `types.gen.ts` 不产出新类型，而 `gen_ts_types.py --check` 仍可能保持绿色（无引用即无漂移）→ 类型静默缺失。
+
+改后跑 `python tools/gen_ts_types.py` 同步 TS 类型（CI `--check` 守护漂移）。**测试断言 `types.gen.ts` 含 `ScanBatchList` / `ScanBatch` 类型**（见测试计划）。
 
 ## 前端（镜像 4a 文件结构）
 
@@ -197,7 +205,7 @@ function showScan() { batchSubTab.value = "scan"; scanVisited.value = true; }
 
 ## 错误处理 / 边界
 
-- 列表加载失败（非 401）→ 面板内错误条 + 「重试」按钮（调 `loadBatches`）。
+- 列表加载失败（非 401）→ 面板内错误条 + 「重试」按钮。重试**调 `store.ensureLoaded()`**（与 4a `RecentChangesPanel.vue:146` 一致）：错误后 `loaded` 仍为 false 故会重发，且 `inflight` 守卫防快速双击发出重复文件系统扫描。不直接调 `loadBatches`（无双击防护）。
 - 401 → 早返回，不落 store error 块（交 app shell/auth 处理）。
 - 空批次（`output_dir` 无目录或无匹配文件夹）→ 「暂无批次」空态。
 - 员工筛选零匹配 → 「暂无批次」空态。
@@ -220,21 +228,25 @@ function showScan() { batchSubTab.value = "scan"; scanVisited.value = true; }
 6. `limit=100` 截断（造 >100 目录，断言只回 100）。
 7. **未登录 → JSON 401**。
 8. **service 异常冒泡 → 500**（monkeypatch `list_batches` 抛异常）。
-9. 既有 `test_scan_history_routes.py` 继续全绿（证明旧端点未动）。
+9. **ZIP 下载端到端**（补进 `test_scan_history_routes.py`，覆盖本期新增的用户入口）：含 CSV+XLSX 的批次 `GET /scan_history/batches/{id}/download/zip` → **200 + `Content-Disposition: attachment`**，且**归档成员正确**（CSV + 各 XLSX 名齐全）；不存在批次 → **404**。
+10. **TS 类型生成断言**：`ScanBatch` / `ScanXlsxFile` / `ScanBatchList` 已在 `API_MODELS` 且 `python tools/gen_ts_types.py` 后 `frontend/src/api/types.gen.ts` 含 `ScanBatchList` / `ScanBatch` 类型（防类型静默缺失）。
+11. 既有 `test_scan_history_routes.py` 原有用例继续全绿（证明旧端点行为未动）。
 
 ### 前端
 
 - `scan-batch-normalize.test.ts`：snake→camel，null 安全（三 csv_* 字段为 null 时 VM 正确）。
 - `scanBatches.test.ts`：
   - lazy `ensureLoaded` 只加载一次；`initGen` 守 inflight。
-  - `loadBatches` 可重试（错误后再调成功）。
+  - 可重试：错误后调 `ensureLoaded()` 重发成功；`inflight` 期间重复调 `ensureLoaded()` 不发第二次请求（防双击）。
   - 401 → 不落 `error`。
   - reset 作废 pending 请求；旧请求回来不回填（`batchesGen` 守卫）。
   - reset 同时清 `employeeFilter` + `expanded`。
   - `employees` 从批次派生、去重排序；`filteredBatches` 按筛选。
   - `toggleExpand` 支持多 batchId 同时在 `expanded` 集合。
 - `ScanBatchPanel` 组件测试：
+  - `onMounted` → 调 `store.ensureLoaded()`（锁住 lazy 加载入口）。
   - 渲染行头摘要；CSV 缺失显示「CSV 缺失」无下载链。
+  - 行头是 `<button type="button">` 且 `aria-expanded` 随展开态切换。
   - 多行可同时展开（点两行 → 两个 detail 都显示）。
   - 员工筛选无匹配 → 「暂无批次」空态。
   - **CSV/XLSX/ZIP 下载 URL 编码与链接准确**：含中文、空格、`#`、`%` 的 batchId/文件名 → 断言 href 为 `encodeURIComponent` 结果；`<a>` 无 `target="_blank"`。
