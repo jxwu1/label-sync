@@ -23,6 +23,8 @@ export const useScanBatchesStore = defineStore("scanBatches", () => {
     finally { if (my === initGen) inflight = false; }
   }
 
+  // 不变量：loadBatches 吞掉所有非 401 错误（不 rethrow）→ ensureLoaded 的 await 永不 reject，
+  // finally 必清 inflight，故 inflight 不会死锁。若日后给本函数加 throw，必须同步审查 ensureLoaded。
   async function loadBatches() {
     const my = ++batchesGen;
     loading.value = true; error.value = null;
