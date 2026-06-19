@@ -96,6 +96,18 @@ describe("ScanBatchPanel", () => {
     expect(w.html()).toContain("暂无批次");
   });
 
+  it("加载中显示「加载中」指示，加载完消失", async () => {
+    let resolve: (v: unknown) => void = () => {};
+    vi.mocked(apiGet).mockImplementation(() => new Promise((r) => { resolve = r; }) as never);
+    const w = mount(ScanBatchPanel);
+    await w.vm.$nextTick();
+    expect(w.html()).toContain("加载中");
+    resolve(batchList());
+    await new Promise((r) => setTimeout(r, 0));
+    await w.vm.$nextTick();
+    expect(w.html()).not.toContain("加载中");
+  });
+
   it("加载失败 → 错误条 + 重试按钮调 ensureLoaded", async () => {
     vi.mocked(apiGet).mockRejectedValueOnce(new Error("boom"));
     const w = mount(ScanBatchPanel);

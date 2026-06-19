@@ -49,7 +49,8 @@ function onEmployeeChange(e: Event) {
         </select>
       </div>
 
-      <div v-if="store.filteredBatches.length === 0" class="sb-empty">暂无批次</div>
+      <div v-if="store.loading" class="sb-loading">加载中…</div>
+      <div v-else-if="store.filteredBatches.length === 0" class="sb-empty">暂无批次</div>
 
       <div v-else class="sb-list">
         <div v-for="b in store.filteredBatches" :key="b.batchId" class="sb-row">
@@ -91,6 +92,7 @@ function onEmployeeChange(e: Event) {
 .sb-error { padding: var(--sp-3); color: var(--error); }
 .sb-retry { margin-left: var(--sp-2); padding: 2px 10px; border: 1px solid var(--line-soft); border-radius: var(--r-sm); background: transparent; color: var(--ink-0); cursor: pointer; }
 .sb-employee { padding: 4px 8px; border: 1px solid var(--line-soft); border-radius: var(--r-sm); background: var(--surface-1); color: var(--ink-0); }
+.sb-loading { padding: var(--sp-4); color: var(--ink-3); }
 .sb-empty { padding: var(--sp-4); color: var(--ink-3); }
 .sb-row { border-bottom: 1px solid var(--line-soft); }
 .sb-row-head { display: flex; gap: var(--sp-3); align-items: center; width: 100%; padding: var(--sp-2) 0; background: transparent; border: none; color: var(--ink-0); cursor: pointer; text-align: left; }
