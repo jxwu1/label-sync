@@ -1,15 +1,16 @@
-import { mount } from "@vue/test-utils";
+import { mount, flushPromises } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
+import { reactive, nextTick } from "vue";
 import type { HistoryResult } from "./types";
 import type { ExtrasPageVM } from "./extras-types";
 
-const state = {
+const state = reactive({
   result: null as HistoryResult | null,
   loading: false,
   error: null as string | null,
   load: vi.fn(),
   reset: vi.fn(),
-};
+});
 vi.mock("../../stores/history", () => ({ useHistoryStore: () => state }));
 
 const analyticsState = {
@@ -810,26 +811,28 @@ it("4b.5: 折叠 toggle 翻转 aria-expanded 与卡身可见性", async () => {
   expect(w.find("#sbpanel-rst").attributes("style") ?? "").not.toContain("display: none");
 });
 
-it("4b.5: 换新 barcode → leftTab 回 overview、折叠态回默认", async () => {
-  // Note: state is a plain object (not reactive), so the watch(hitBarcode) won't
-  // fire from store stub mutation. We drive the reset by clicking 概况 which
-  // mimics the post-watch state, then assert the collapse defaults are reset by
-  // directly invoking the component's doReset (which re-mounts a fresh instance).
-  // What we CAN test: that clicking 深度+opening RST sets state, and a fresh
-  // mount of the same hitState yields overview+defaults (watch fires on first mount).
+it("4b.5: 换新 barcode → leftTab 回 overview、折叠态回默认（watch 驱动）", async () => {
   reset(); hitState(); extrasState.vm = aExtrasVm();
   const w = mount(HistoryPage);
-  // Drive to non-default state
+  // 切到深度 + 展开 RST（模拟用户在 SKU A 上的交互）
   await w.findAll(".history__lefttab").find((b) => b.text() === "深度")!.trigger("click");
   await w.find("#sbcard-rst").trigger("click");
-  expect(w.find(".history__deep").attributes("style") ?? "").not.toContain("display: none");
-  expect(w.find("#sbpanel-rst").attributes("style") ?? "").not.toContain("display: none");
-  // Click 概况 (as the watch would do) then verify reset propagates
-  await w.findAll(".history__lefttab").find((b) => b.text() === "概况")!.trigger("click");
-  await w.find("#sbcard-rst").trigger("click"); // close RST again
-  await w.vm.$nextTick();
-  expect(w.find(".history__overview").attributes("style") ?? "").not.toContain("display: none");
-  expect(w.find("#sbpanel-rst").attributes("style") ?? "").toContain("display: none");
+  expect(w.find(".history__deep").isVisible()).toBe(true);
+  expect(w.find("#sbpanel-rst").isVisible()).toBe(true);
+  // 命中新 barcode（SKU B）→ 改 reactive 的 result.current.barcode，触发 watch
+  state.result = {
+    ...(state.result as Extract<HistoryResult, { kind: "hit" }>),
+    current: {
+      ...(state.result as Extract<HistoryResult, { kind: "hit" }>).current,
+      barcode: "NEWBC999",
+    },
+  };
+  await nextTick(); // flush reactive mutation into computed(hitBarcode)
+  await nextTick(); // flush watch(hitBarcode) callback
+  await nextTick(); // flush DOM update after watch mutates leftTab + cardOpen
+  // watch 应已把 leftTab 重置 overview、cardOpen 重置默认
+  expect(w.find(".history__overview").isVisible()).toBe(true);  // 回概况
+  expect(w.find("#sbpanel-rst").attributes("style") ?? "").toContain("display: none"); // RST 回折叠
 });
 
 it("4b.5: extras vm=null（401后）→ 不崩、RST 显示暂无补货快照", () => {
