@@ -357,3 +357,42 @@ export interface RestockSuppressedList {
   ok: boolean;
   items: Record<string, unknown>;
 }
+
+export interface RestockItem {
+  barcode: string;
+  model: string | null;
+  name_zh: string | null;
+  origin: string;
+  supplier_id: string | null;
+  is_truly_discontinued: boolean;
+  is_new_item: boolean;
+  qty_total: number | null;
+  weeks_of_cover: number | null;
+  weekly_velocity: number;
+  weekly_revenue: number;
+  margin_pct: number | null;
+  margin_source: string | null;
+  margin_price_source: string | null;
+  master_stock_price_eur: number | null;
+  master_sale_price_eur: number | null;
+  last_purchase_unit_price: number | null;
+  sale_net_avg: number | null;
+  weekly_qty_12w: number[];
+  trend_slope_pct_per_week: number | null;
+  realized_profit_eur: number | null;
+  inventory_cost_value_eur: number | null;
+  last_purchase_days_ago: number | null;
+  last_purchase_at: string | null;
+  restock_qty_p50: number | null;
+  restock_qty_p98: number | null;
+  restock_source: string | null;
+  last_purchase_qty: number | null;
+  urgency_score: number | null;
+  stockout_zero_weeks_last8: number;
+}
+
+export interface RestockItemList {
+  ok: boolean;
+  total: number;
+  items: RestockItem[];
+}

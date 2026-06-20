@@ -49,3 +49,112 @@ def test_api_restock_suppressed_shape(real_app):
     data = resp.get_json()
     assert data["ok"] is True
     assert isinstance(data["items"], dict)
+
+
+from app.schemas_api import RestockItem
+
+
+def _full_item():
+    return {
+        "barcode": "5201234567890",
+        "model": "ABC123",
+        "name_zh": "测试品",
+        "origin": "FOREIGN",
+        "supplier_id": "GR001",
+        "is_truly_discontinued": False,
+        "is_new_item": False,
+        "qty_total": 100,
+        "weeks_of_cover": 8.0,
+        "weekly_velocity": 12.5,
+        "weekly_revenue": 80.0,
+        "margin_pct": 35.0,
+        "margin_source": "purchase",
+        "margin_price_source": "master",
+        "master_stock_price_eur": 3.2,
+        "master_sale_price_eur": 6.0,
+        "last_purchase_unit_price": 3.0,
+        "sale_net_avg": 5.8,
+        "weekly_qty_12w": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+        "trend_slope_pct_per_week": 1.2,
+        "realized_profit_eur": 500.0,
+        "inventory_cost_value_eur": 320.0,
+        "last_purchase_days_ago": 20,
+        "last_purchase_at": "2026-05-30",
+        "restock_qty_p50": 50,
+        "restock_qty_p98": 90,
+        "restock_source": "p98_hist",
+        "last_purchase_qty": 60,
+        "urgency_score": 72,
+        "stockout_zero_weeks_last8": 0,
+    }
+
+
+def test_restock_item_full_ok():
+    m = RestockItem.model_validate(_full_item())
+    assert m.urgency_score == 72
+
+
+def test_restock_item_nullable_fields_accept_none():
+    it = _full_item()
+    for k in [
+        "model",
+        "name_zh",
+        "supplier_id",
+        "qty_total",
+        "weeks_of_cover",
+        "margin_pct",
+        "margin_source",
+        "margin_price_source",
+        "master_stock_price_eur",
+        "master_sale_price_eur",
+        "last_purchase_unit_price",
+        "sale_net_avg",
+        "trend_slope_pct_per_week",
+        "realized_profit_eur",
+        "inventory_cost_value_eur",
+        "last_purchase_days_ago",
+        "last_purchase_at",
+        "restock_qty_p50",
+        "restock_qty_p98",
+        "restock_source",
+        "last_purchase_qty",
+        "urgency_score",
+    ]:
+        d = _full_item()
+        d[k] = None
+        RestockItem.model_validate(d)  # must not raise
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "origin",
+        "weekly_velocity",
+        "weekly_revenue",
+        "weekly_qty_12w",
+        "stockout_zero_weeks_last8",
+        "is_truly_discontinued",
+        "is_new_item",
+        "barcode",
+    ],
+)
+def test_restock_item_nonnull_fields_reject_none(field):
+    d = _full_item()
+    d[field] = None
+    with pytest.raises(ValidationError):
+        RestockItem.model_validate(d)
+
+
+def test_restock_item_rejects_extra_key():
+    d = _full_item()
+    d["urgency_breakdown"] = {"velocity": 30}
+    with pytest.raises(ValidationError):
+        RestockItem.model_validate(d)
+
+
+@pytest.mark.parametrize("bad", ["HZ", "XX", "GR"])
+def test_restock_item_origin_enum_rejects_unknown_value(bad):
+    d = _full_item()
+    d["origin"] = bad
+    with pytest.raises(ValidationError):
+        RestockItem.model_validate(d)
