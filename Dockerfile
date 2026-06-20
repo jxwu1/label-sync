@@ -22,8 +22,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Tailwind CSS v4 standalone CLI
-ADD https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64 /usr/local/bin/tailwindcss
+# Tailwind CSS v4 standalone CLI（钉版本 + sha256 校验，防 latest 供应链漂移/不可复现构建）
+ADD --checksum=sha256:2526d063ba03b71f9a3ea7d5cee14f0aec147f117f222d5adc97b1d736d45999 \
+    https://github.com/tailwindlabs/tailwindcss/releases/download/v4.3.1/tailwindcss-linux-x64 \
+    /usr/local/bin/tailwindcss
 RUN chmod +x /usr/local/bin/tailwindcss
 
 # 拷代码 (.dockerignore 已剔除 .venv / .git / _scratch / *.db 等)
