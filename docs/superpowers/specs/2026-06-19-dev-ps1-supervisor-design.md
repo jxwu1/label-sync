@@ -44,8 +44,8 @@
 - ❌ **不**注册 PowerShell scriptblock 到 `OutputDataReceived`/`ErrorDataReceived`——输出到达即「There is no Runspace available to run scripts in this thread」崩溃。
 - ✅ **主 runspace 单循环轮询 `StandardOutput.ReadLineAsync()` / `StandardError.ReadLineAsync()`**（或 Add-Type C# 回调；本期用 ReadLineAsync）。每条完成的行加前缀打印，再对该流续发 ReadLineAsync。
 - **EOF 契约**：`ReadLineAsync()` 完成结果为 `$null` 表示该流 EOF → **停止对该流续发读取**（防空转 busy-spin）。
-- **每轮排空（实测修订）**：每条流每轮**循环读完当前所有已就绪行**（`while IsCompleted`，非单行），且**本轮有输出就不 sleep、立刻再循环**，仅空闲时 `Start-Sleep 25ms`。否则单行节流会把两进程日志逐行轮流挤出（挤牙膏感）+ 缓冲日志拖慢。
-- **drain 契约**：子进程 `HasExited` 后，**先把 stdout+stderr 排空至 EOF 再报告退出**，保证末尾日志不丢。
+- **每轮排空（实测修订）**：每条流每轮循环读当前已就绪行，**单次封顶 ~200 行即让出**（防某流高频输出霸占、饿死 Ctrl+C/另一流/另一进程；剩余下轮再读不丢）；**本轮有输出就不 sleep、立刻再循环**，仅空闲时 `Start-Sleep 25ms`。否则单行节流会把两进程日志逐行轮流挤出（挤牙膏感）+ 缓冲日志拖慢。
+- **退出后 drain 契约（实测修订）**：子进程 `HasExited` 即报告退出码，**不等 EOF**——随后**有限宽限 ~1.5s** 尽力抽干尾部日志（拿到 buffered tail）后即 break。**不可无限等 EOF**：根进程被杀但后代仍持 stdout/stderr 句柄时 EOF 永不到来 → 会永久挂起。详见 §3「退出判定」。
 - **就绪探测并入同一监督循环**：进程一启动**立即开始读管道**；TCP 就绪探测（§3）作为循环内的周期检查，**不得先阻塞等端口再读**——否则重定向管道塞满会阻塞子进程。
 - **顺序保证**：只保证**各流（stdout / stderr）内部逐行顺序**；stdout↔stderr 交叉顺序 best-effort。
 - **色彩承诺**：只承诺**日志内容完整 + 逐行实时 + 带前缀**；**不承诺 Flask 颜色完全保留**（管道非 TTY，FORCE_COLOR 尽力而为）。
@@ -66,7 +66,8 @@
 - **退出判定（两轮实测修订）**：
   - 不凭「所有进程已退」early-break（会丢退出码 + 尾日志）。
   - 也**不能**凭 `HasExited && outEof && errEof`——**根进程被杀但后代仍持 stdout/stderr 管道句柄时，EOF 永不到来**（就绪超时又排除已退进程）→ 永久挂起。
-  - 正解：**`HasExited` 即捕获真实 `ExitCode`**（taskkill 之前），随后**有限宽限（~1.5s，Stopwatch）抽干尾部日志**（拿到 buffered tail）后 break → finally `taskkill /T` 杀掉仍持管道的孤儿后代。宽限封顶，绝不无限等 EOF。
+  - 正解：**`HasExited` 即捕获真实 `ExitCode`**（taskkill 之前），随后**有限宽限（~1.5s，Stopwatch）抽干尾部日志**（拿到 buffered tail）后 break → finally `taskkill /T` **尝试**清理。宽限封顶，绝不无限等 EOF。
+  - ⚠️ 注意：被杀根进程的后代此时已脱离该根、成孤儿，`taskkill /T <根pid>` **够不到**它们（根已死）→ 该端口会残留，由清理后的端口复查**告警**（非硬清除）。硬保证需 Windows Job Object（本期不做，见 §3 兜底说明 + 实机验证：杀 web cmd.exe 根后 :5173 孤儿仅告警）。
 - **Drain-Stream 单次上限（实测修订）**：每次最多读 ~200 行即让出，防某流高频输出长期霸占、饿死 Ctrl+C/另一流/另一进程；剩余就绪行下一轮再读，不丢。
 - **登记早于初始化（实测修订）**：进程 `Add` 进 `$supervised` 用 `outTask=$null` 占位**先登记**，再赋 `ReadLineAsync()`——首次 `ReadLineAsync` 若抛错，进程已在清理表里，finally 必清不残留端口。Drain-Stream 对 null task 返回 false。
 - **任一意外退出**：先把该子进程 `ExitCode` 赋给 `$desiredExitCode`（**在任何 `taskkill` 之前**，避免被 `$LASTEXITCODE` 覆盖）→ drain 该进程管道 → 打印 `[api|web] exited (code <N>)` → 清理另一棵树。
