@@ -111,10 +111,12 @@ if ($Frontend) {
 
 # Ctrl+C：纯 C# Console.CancelKeyPress 处理器（不经 PS runspace，避开 scriptblock no-runspace 坑）。
 # Install 幂等（重复调不叠加）；保存 delegate，finally 调 Uninstall 卸载，防同会话多次运行累积处理器。
-if (-not ([System.Management.Automation.PSTypeName]'DevSupervisor.CtrlC').Type) {
+# 类名带版本后缀 CtrlCV2：Add-Type 无法在同一会话重定义已加载的类型——长开会话里跑过旧版后，
+# 旧类型会被冻结。改类的方法面（加/删方法）时必须 bump 后缀（CtrlCV3…），否则旧会话用旧类型会缺方法。
+if (-not ([System.Management.Automation.PSTypeName]'DevSupervisor.CtrlCV2').Type) {
     Add-Type @'
 namespace DevSupervisor {
-    public static class CtrlC {
+    public static class CtrlCV2 {
         public static volatile bool Requested = false;
         private static System.ConsoleCancelEventHandler _handler;
         public static void Install() {
@@ -137,8 +139,8 @@ $readyTimeoutSec = 30
 $supervised = [System.Collections.ArrayList]::new()   # 在 try 外声明，finally 才能清理已启动的进程
 
 try {
-    [DevSupervisor.CtrlC]::Requested = $false
-    [DevSupervisor.CtrlC]::Install()
+    [DevSupervisor.CtrlCV2]::Requested = $false
+    [DevSupervisor.CtrlCV2]::Install()
 
     # 进程启动纳入 try：web 启动/ReadLineAsync 任一步抛错，已起的 api 仍会进 finally 清理（不残留 :5000）
     $apiProc = Start-Supervised 'python' @('-u', 'server.py') $root $null   # 只用 -u，不叠加 PYTHONUNBUFFERED
@@ -164,7 +166,7 @@ try {
 
     while ($true) {
         # Ctrl+C 置顶检查，优先于子进程退出处理
-        if ([DevSupervisor.CtrlC]::Requested) {
+        if ([DevSupervisor.CtrlCV2]::Requested) {
             $desiredExitCode = 130
             Write-Host "`n[dev] Ctrl+C - stopping…" -ForegroundColor DarkGray
             break
@@ -214,7 +216,7 @@ try {
     }
 }
 finally {
-    [DevSupervisor.CtrlC]::Uninstall()
+    try { [DevSupervisor.CtrlCV2]::Uninstall() } catch { }  # 兜底：旧会话冻结的旧类型可能无此方法
     # 幂等清理两棵树（含 reloader/HMR 派生的子进程）；finally 不改写 $desiredExitCode
     foreach ($s in $supervised) {
         if ($s.proc -and -not $s.proc.HasExited) { Stop-Tree $s.proc.Id }
