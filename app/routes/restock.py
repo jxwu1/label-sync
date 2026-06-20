@@ -13,6 +13,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 from app.models import get_session
+from app.schemas_api import RestockSuppressedList
 from app.services import restock_decisions as svc
 from app.services.analytics import list_sku_summary
 
@@ -105,3 +106,14 @@ def get_suppressed():
     with get_session() as s:
         items = svc.list_suppressed(s)
     return jsonify({"ok": True, "items": items})
+
+
+api_bp = Blueprint("api_restock", __name__, url_prefix="/api/restock")
+
+
+@api_bp.get("/suppressed")
+def api_suppressed():
+    with get_session() as s:
+        items = svc.list_suppressed(s)
+    payload = {"ok": True, "items": items}
+    return jsonify(RestockSuppressedList.model_validate(payload).model_dump())

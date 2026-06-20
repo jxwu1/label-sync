@@ -464,6 +464,21 @@ class ScanBatchList(BaseModel):
     batches: list[ScanBatch]
 
 
+class RestockSuppressedEntry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    skipped_at: str
+    reason: str | None
+    days_left: int
+
+
+class RestockSuppressedList(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ok: bool
+    items: dict[str, RestockSuppressedEntry]
+
+
 # gen_ts_types.py 的导出清单：新增模型加进来即自动进 types.gen.ts
 API_MODELS: list[type[BaseModel]] = [
     BriefingData,
@@ -476,4 +491,5 @@ API_MODELS: list[type[BaseModel]] = [
     RecentChangesBatchList,
     RecentChangesDetail,
     ScanBatchList,
+    RestockSuppressedList,
 ]

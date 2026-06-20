@@ -346,3 +346,14 @@ export interface ScanBatchList {
   ok: boolean;
   batches: ScanBatch[];
 }
+
+export interface RestockSuppressedEntry {
+  skipped_at: string;
+  reason: string | null;
+  days_left: number;
+}
+
+export interface RestockSuppressedList {
+  ok: boolean;
+  items: Record<string, unknown>;
+}
