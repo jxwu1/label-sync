@@ -23,7 +23,6 @@ from app.routes.pages_tasks import bp as pages_tasks_bp
 from app.routes.pda import bp as pda_bp
 from app.routes.purchase import bp as purchase_bp
 from app.routes.query import bp as query_bp
-from app.routes.recent_changes import bp as recent_changes_bp
 from app.routes.restock import bp as restock_bp
 from app.routes.scan_history import bp as scan_history_bp
 from app.routes.stockpile import bp as stockpile_bp
@@ -37,7 +36,6 @@ def register_routes(app) -> None:
     app.register_blueprint(query_bp)
     app.register_blueprint(history_bp)
     app.register_blueprint(history_api_bp)
-    app.register_blueprint(recent_changes_bp)
     app.register_blueprint(data_quality_bp)
     app.register_blueprint(purchase_bp)
     app.register_blueprint(monthly_summary_bp)

@@ -6,6 +6,8 @@
 
 from pathlib import Path
 
+from server import create_app
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -39,4 +41,26 @@ def test_scan_history_blueprint_preserved():
     """反向保险：/scan_history 蓝图必须保留（新页 + 标签页共用二进制下载，绝不可删）。"""
     assert (ROOT / "app" / "routes" / "scan_history.py").exists(), (
         "/scan_history 蓝图必须保留——新 Vue 页与标签处理页都依赖二进制下载"
+    )
+
+
+def _rules():
+    app = create_app(seed_auth=False, prewarm=False)
+    return [r.rule for r in app.url_map.iter_rules()]
+
+
+def test_recent_changes_http_routes_unregistered():
+    rules = _rules()
+    assert not any(r.startswith("/recent_changes") for r in rules), (
+        "旧 /recent_changes/* HTTP 路由应已注销（4c）"
+    )
+
+
+def test_new_and_scan_routes_still_registered():
+    rules = _rules()
+    assert any(r.startswith("/api/history/recent-changes") for r in rules), (
+        "新 /api/history/recent-changes/* 必须仍在"
+    )
+    assert any(r.startswith("/scan_history") for r in rules), (
+        "/scan_history/* 必须仍在（新页 + 标签页下载）"
     )
