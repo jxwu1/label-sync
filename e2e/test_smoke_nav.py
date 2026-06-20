@@ -1,8 +1,9 @@
-"""5 个浏览器烟雾测试：抓"页面打不开 / 切 tab 报 console 错 / Alpine 初始化挂"
-这一类只有真浏览器才能发现的回归。
+"""旧 SPA（/，Alpine）浏览器烟雾：抓"页面打不开 / 切 tab 报 console 错 / Alpine 初始化挂"
+这一类只有真浏览器才能发现的回归。Vue /ui/* 页见 test_ui_smoke.py。
 
 运行：
-    pytest e2e/
+    pytest e2e/            # 全部
+    pytest e2e/ -m smoke   # 进 CI 的轻量子集
 
 非烟雾的细粒度 UI 行为（点 X 后 Y 出现这种）不在本套范围内——roadmap 阶段 2
 备忘已否过 Vitest store 单测；e2e 这一层只看冒烟。
@@ -19,6 +20,7 @@ def _wait_alpine_ready(page) -> None:
     page.wait_for_timeout(_ALPINE_SETTLE_MS)
 
 
+@pytest.mark.smoke
 def test_index_loads_no_console_error(live_server, page_with_console) -> None:
     page = page_with_console
     page.goto(live_server + "/")
@@ -27,33 +29,51 @@ def test_index_loads_no_console_error(live_server, page_with_console) -> None:
     assert page.console_errors == [], f"console errors: {page.console_errors}"
 
 
-# nav store id (snake_case) → page DOM id (camelCase)
-_NAV_PAGES = [
-    ("main", "pageMain"),
-    ("purchase", "pagePurchase"),
-    ("attendance", "pageAttendance"),
-    ("history", "pageHistory"),
-    ("data_quality", "pageDataQuality"),
-    ("inventory", "pageInventory"),
-    ("foreign_customers", "pageForeignCustomers"),
-    ("sales_analytics", "pageSalesAnalytics"),
-    ("transfer", "pageTransfer"),
-]
+# 旧 SPA 当前存活 nav 页 → 对应 DOM id（store.js pages 单源；history/sales_analytics/
+# transfer 已退役）。键=显式集合守护（误删存活页/误加退役页变红）；值=激活断言用，
+# 验证切到 nav_id 后**正是该页** active（而非"某个页"）。store.pages 合法增删时同步此处。
+_NAV_PAGES = {
+    "dashboard": "pageDashboard",
+    "main": "pageMain",
+    "dup": "pageDup",
+    "purchase": "pagePurchase",
+    "attendance": "pageAttendance",
+    "data_quality": "pageDataQuality",
+    "inventory": "pageInventory",
+    "foreign_customers": "pageForeignCustomers",
+    "restock": "pageRestock",
+    "pda_pending": "pagePdaPending",
+    "admin": "pageAdmin",
+}
 
 
-@pytest.mark.parametrize("nav_id,dom_id", _NAV_PAGES)
-def test_nav_switches_page_active(live_server, page_with_console, nav_id, dom_id) -> None:
+@pytest.mark.smoke
+def test_all_nav_pages_switch_no_console_error(live_server, page_with_console) -> None:
+    """遍历 Alpine store 存活 nav pages：逐个切换 → **对应** DOM 页 active + 无 console error。
+
+    动态取 store.pages 防退役页残留；显式 _NAV_PAGES 集合守护防存活页被误删仍绿；
+    按 nav_id→DOM id 映射断言激活的是该页本身。
+    """
     page = page_with_console
     page.goto(live_server + "/")
     _wait_alpine_ready(page)
 
-    # 通过 store 切页（避开点击坐标问题，更稳）
-    page.evaluate(f"Alpine.store('nav').switch('{nav_id}')")
+    nav_ids = page.evaluate("Alpine.store('nav').pages.map(p => p.id)")
+    assert nav_ids, "Alpine store 没有任何 nav pages"
+    assert set(nav_ids) == set(_NAV_PAGES), (
+        f"nav store.pages 与期望存活集合不符：多={set(nav_ids) - set(_NAV_PAGES)} "
+        f"少={set(_NAV_PAGES) - set(nav_ids)}"
+    )
 
-    # 对应 page 元素拿到 .active class
-    page.locator(f"#{dom_id}.active").wait_for(state="attached", timeout=2000)
-
-    assert page.console_errors == [], f"切到 {nav_id} 后出现 console errors: {page.console_errors}"
+    for nav_id in nav_ids:
+        dom_id = _NAV_PAGES[nav_id]
+        page.evaluate(f"Alpine.store('nav').switch('{nav_id}')")
+        page.wait_for_function(f"Alpine.store('nav').current === '{nav_id}'", timeout=2000)
+        # 断言激活的正是该 nav_id 对应的页（非"某个页"）
+        page.locator(f"#{dom_id}.active").wait_for(state="attached", timeout=2000)
+        assert page.console_errors == [], (
+            f"切到 {nav_id} 后出现 console errors: {page.console_errors}"
+        )
 
 
 def test_fab_drawer_opens(live_server, page_with_console) -> None:
@@ -72,20 +92,6 @@ def test_fab_drawer_opens(live_server, page_with_console) -> None:
     assert page.console_errors == [], f"console errors: {page.console_errors}"
 
 
-def test_history_search_renders(live_server, page_with_console) -> None:
-    page = page_with_console
-    page.goto(live_server + "/")
-    _wait_alpine_ready(page)
-
-    page.evaluate("Alpine.store('nav').switch('history')")
-    page.locator("#pageHistory.active").wait_for(state="attached", timeout=2000)
-
-    # 货号查询子 tab 默认就 active；其结构存在即可
-    page.locator('[data-history-tab-panel="search"]').wait_for(state="attached", timeout=2000)
-
-    assert page.console_errors == [], f"console errors: {page.console_errors}"
-
-
 def test_data_quality_page_renders(live_server, page_with_console) -> None:
     page = page_with_console
     page.goto(live_server + "/")
@@ -98,29 +104,6 @@ def test_data_quality_page_renders(live_server, page_with_console) -> None:
     # 沙箱里没数据，section 标题或骨架仍应渲染
     page.wait_for_timeout(_ALPINE_SETTLE_MS)
 
-    assert page.console_errors == [], f"console errors: {page.console_errors}"
-
-
-def test_sales_analytics_page_renders(live_server, page_with_console) -> None:
-    """PR 5.2 销售分析顶级 tab 切过去 + 筛选/排序控件挂上 + 不报错。"""
-    page = page_with_console
-    page.goto(live_server + "/")
-    _wait_alpine_ready(page)
-
-    page.evaluate("Alpine.store('nav').switch('sales_analytics')")
-    page.locator("#pageSalesAnalytics.active").wait_for(state="attached", timeout=2000)
-
-    # 4 组筛选 chip 都在
-    chip_groups = page.evaluate(
-        "Array.from(new Set([...document.querySelectorAll('.sa-chip')].map(b => b.dataset.filter)))"
-    )
-    assert set(chip_groups) == {"auto", "manual", "cust", "warn"}
-
-    # 列头排序（PR-FE-3 换掉旧 dropdown）+ 表格骨架在
-    assert page.locator(".sa-th-sort").count() >= 4
-    assert page.locator("#saTbody").count() == 1
-
-    page.wait_for_timeout(_ALPINE_SETTLE_MS)
     assert page.console_errors == [], f"console errors: {page.console_errors}"
 
 
@@ -159,18 +142,23 @@ def test_theme_toggle_persists(live_server, page_with_console) -> None:
 
 
 def test_sidebar_collapse(live_server, page_with_console) -> None:
-    """PR-FE-1：侧栏折叠 200↔56 + Alpine store 持久化。"""
+    """侧栏折叠：store.collapsed 切换 + localStorage 持久化 + 真实 DOM 效果（折叠后
+    `.sidebar-foot-label` 经 x-show 隐藏）。旧 SPA 侧栏无 `.is-collapsed` class（那是
+    `.pnl` 折叠面板专用），折叠观感由 x-show 标签隐藏体现。"""
     page = page_with_console
     page.goto(live_server + "/")
     _wait_alpine_ready(page)
 
     assert page.evaluate("Alpine.store('nav').collapsed") is False
+    assert page.locator(".sidebar-foot-label").is_visible()
+
     page.evaluate("Alpine.store('nav').toggleCollapse()")
     page.wait_for_timeout(_ALPINE_SETTLE_MS)
+
     assert page.evaluate("Alpine.store('nav').collapsed") is True
-    # CSS class 跟着变
-    assert page.locator(".app-sidebar.is-collapsed").count() == 1
     assert page.evaluate("localStorage.getItem('nav.collapsed')") == "1"
+    # 真实折叠效果：foot label 经 x-show="!collapsed" 隐藏
+    assert page.locator(".sidebar-foot-label").is_hidden()
     assert page.console_errors == [], f"console errors: {page.console_errors}"
 
 
@@ -181,7 +169,7 @@ def test_clock_running(live_server, page_with_console) -> None:
     _wait_alpine_ready(page)
     # 等 1.5s 看时钟应该被触发
     page.wait_for_timeout(1500)
-    clock_text = page.locator(".app-header__clock").inner_text().strip()
+    clock_text = page.locator(".header-clock").inner_text().strip()
     # HH:MM:SS 格式
     import re
 
@@ -198,38 +186,20 @@ def test_keyboard_shortcut_switches_nav(live_server, page_with_console) -> None:
     page.goto(live_server + "/")
     _wait_alpine_ready(page)
 
-    # 默认在 main
-    assert page.evaluate("Alpine.store('nav').current") == "main"
+    # 默认落地页 = dashboard
+    assert page.evaluate("Alpine.store('nav').current") == "dashboard"
 
     # Ctrl+3 → purchase
     page.keyboard.press("Control+3")
     page.wait_for_timeout(_ALPINE_SETTLE_MS)
     assert page.evaluate("Alpine.store('nav').current") == "purchase"
 
-    # Ctrl+9 → sales_analytics
-    page.keyboard.press("Control+9")
+    # Ctrl+8 → foreign_customers（原 Ctrl+9→sales_analytics 已随该页退役移除）
+    page.keyboard.press("Control+8")
     page.wait_for_timeout(_ALPINE_SETTLE_MS)
-    assert page.evaluate("Alpine.store('nav').current") == "sales_analytics"
+    assert page.evaluate("Alpine.store('nav').current") == "foreign_customers"
 
     assert page.console_errors == [], f"console errors: {page.console_errors}"
 
 
-def test_history_analytics_panels_present(live_server, page_with_console) -> None:
-    """PR 5.2a/d 货号详情新加的 analytics + timeline chart panel DOM 在。
-
-    沙箱无数据，不真发起搜索；只验证 panel 容器和 chart canvas 已注入。
-    """
-    page = page_with_console
-    page.goto(live_server + "/")
-    _wait_alpine_ready(page)
-
-    page.evaluate("Alpine.store('nav').switch('history')")
-    page.locator("#pageHistory.active").wait_for(state="attached", timeout=2000)
-
-    # 两个 panel 默认 hidden 但 DOM 已存在
-    assert page.locator("#historyAnalyticsPanel").count() == 1
-    assert page.locator("#historyTimelineChartPanel").count() == 1
-    assert page.locator("#historyTimelineChart").count() == 1
-
-    page.wait_for_timeout(_ALPINE_SETTLE_MS)
-    assert page.console_errors == [], f"console errors: {page.console_errors}"
+# 货号历史已迁 Vue /ui/history（旧 SPA #pageHistory 退役）；其浏览器烟雾见 test_ui_smoke.py。

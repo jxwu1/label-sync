@@ -32,3 +32,6 @@ addopts = "-p no:cacheprovider"
 norecursedirs = [".*", "__pycache__", "_*", "dualproc-*"]
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = [
+    "smoke: 轻量 E2E 浏览器烟雾子集（CI e2e-smoke job 跑 `pytest e2e/ -m smoke`；其余 e2e opt-in）",
+]

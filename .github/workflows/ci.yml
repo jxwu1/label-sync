@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+# 最小权限：所有 job 仅读（test/build/e2e 都不 push/publish）。即便 e2e-smoke 跑的
+# 第三方 tailwindcss 二进制有恶意也无法用 GITHUB_TOKEN 推库/发版（供应链降爆炸半径）。
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -98,3 +103,42 @@ jobs:
         run: |
           pip install pydantic
           python tools/gen_ts_types.py --check
+
+  e2e-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Python deps
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Build frontend dist（/ui smoke 前置；dist 被 gitignore）
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build Tailwind output.css（旧 SPA 资产；与 Dockerfile 一致，gitignore 不入库）
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/tailwindcss" https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64
+          chmod +x "$RUNNER_TEMP/tailwindcss"
+          "$RUNNER_TEMP/tailwindcss" -i static/css/input.css -o static/css/output.css --minify
+
+      - name: Install Playwright Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run E2E smoke subset（其余 e2e opt-in，不进 CI）
+        run: pytest e2e/ -m smoke -v
