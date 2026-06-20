@@ -1,5 +1,6 @@
 ﻿<script setup lang="ts">
 import { ref, computed, watch } from "vue";
+import { useRoute } from "vue-router";
 import PageHeader from "../../components/PageHeader.vue";
 import { useHistoryStore } from "../../stores/history";
 import { useSkuAnalyticsStore } from "../../stores/skuAnalytics";
@@ -74,6 +75,21 @@ async function runSearch(query: string) {
     timelineStore.reset();
   }
 }
+
+// Phase 4c: deep-link ?q= auto-search
+const route = useRoute();
+watch(
+  () => route.query.q,
+  (val) => {
+    const query = typeof val === "string" ? val.trim() : "";
+    if (query) {
+      activeTab.value = "search";
+      q.value = query;
+      runSearch(query);
+    }
+  },
+  { immediate: true },
+);
 
 const SOURCE_CN: Record<string, string> = {
   scan_import: "扫描导入", user_correction: "手动修正",

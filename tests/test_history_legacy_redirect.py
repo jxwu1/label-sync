@@ -64,3 +64,23 @@ def test_unauthenticated_history_redirects_to_login_preserving_next(real_app):
     resp2 = client.get("/?page=history")
     assert resp2.status_code == 302
     assert urlparse(resp2.headers["Location"]).path == "/ui/history"
+
+
+def test_page_history_redirect_preserves_q(real_app):
+    client = real_app.test_client()
+    _login(real_app, client)
+    resp = client.get("/?page=history&q=8299979002791")
+    assert resp.status_code == 302
+    loc = urlparse(resp.headers["Location"])
+    assert loc.path == "/ui/history"
+    assert parse_qs(loc.query).get("q") == ["8299979002791"]
+
+
+def test_page_history_redirect_urlencodes_q(real_app):
+    client = real_app.test_client()
+    _login(real_app, client)
+    resp = client.get("/?page=history&q=" + "a b/c")  # space + slash need encoding
+    assert resp.status_code == 302
+    loc = urlparse(resp.headers["Location"])
+    assert loc.path == "/ui/history"
+    assert parse_qs(loc.query).get("q") == ["a b/c"]  # decoded back

@@ -38,6 +38,11 @@ class _BarcodeDelete(BaseModel):
 def index():
     # Phase 4c：旧书签 /?page=history → Vue 页（其余 page=* 仍交客户端 SPA）
     if request.args.get("page") == "history":
+        q = request.args.get("q")
+        if q:
+            from urllib.parse import quote
+
+            return redirect(f"/ui/history?q={quote(q, safe='')}", code=302)
         return redirect("/ui/history", code=302)
     return render_template(
         "index.html",

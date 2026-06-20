@@ -73,6 +73,12 @@ vi.mock("../../stores/scanBatches", () => ({
   }),
 }));
 
+// vue-router mock: default query is empty; set routeQuery.q before mounting to simulate deep-link
+const routeQuery: Record<string, string | undefined> = {};
+vi.mock("vue-router", () => ({
+  useRoute: () => ({ query: routeQuery }),
+}));
+
 import HistoryPage from "./HistoryPage.vue";
 import RecentChangesPanel from "./RecentChangesPanel.vue";
 import ScanBatchPanel from "./ScanBatchPanel.vue";
@@ -86,6 +92,8 @@ function reset() {
   extrasState.load = vi.fn(); extrasState.reset = vi.fn();
   timelineState.vm = null; timelineState.loading = false; timelineState.error = null;
   timelineState.load = vi.fn(); timelineState.reset = vi.fn();
+  // reset deep-link route query so existing tests mount with empty route
+  delete routeQuery.q;
 }
 
 describe("HistoryPage", () => {
@@ -879,4 +887,21 @@ it("4b.5: extrasStore.error → RST 卡内显示错误", async () => {
   const w = mount(HistoryPage);
   await w.find("#sbcard-rst").trigger("click");
   expect(w.find("#sbpanel-rst").text()).toContain("ext boom");
+});
+
+// ── Phase 4c: deep-link ?q= auto-search ──────────────────────────────────────
+
+it("deep-link: route.query.q present on mount → store.load called with barcode", async () => {
+  reset();
+  routeQuery.q = "8299979002791";
+  mount(HistoryPage);
+  await Promise.resolve();
+  expect(state.load).toHaveBeenCalledWith("8299979002791");
+});
+
+it("deep-link: no route.query.q on mount → store.load NOT called", () => {
+  reset();
+  // routeQuery.q is undefined (cleared by reset)
+  mount(HistoryPage);
+  expect(state.load).not.toHaveBeenCalled();
 });
