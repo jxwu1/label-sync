@@ -895,7 +895,7 @@ it("deep-link: route.query.q present on mount → store.load called with barcode
   reset();
   routeQuery.q = "8299979002791";
   mount(HistoryPage);
-  await Promise.resolve();
+  await flushPromises();
   expect(state.load).toHaveBeenCalledWith("8299979002791");
 });
 

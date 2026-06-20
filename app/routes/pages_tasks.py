@@ -1,4 +1,5 @@
 import os
+from urllib.parse import quote
 
 from flask import Blueprint, jsonify, redirect, render_template, request, send_file
 from flask_login import current_user
@@ -40,8 +41,6 @@ def index():
     if request.args.get("page") == "history":
         q = request.args.get("q")
         if q:
-            from urllib.parse import quote
-
             return redirect(f"/ui/history?q={quote(q, safe='')}", code=302)
         return redirect("/ui/history", code=302)
     return render_template(
