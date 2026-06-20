@@ -29,28 +29,30 @@ def test_index_loads_no_console_error(live_server, page_with_console) -> None:
     assert page.console_errors == [], f"console errors: {page.console_errors}"
 
 
-# 旧 SPA 当前存活 nav 页（store.js pages 单源；history/sales_analytics/transfer 已退役）。
-# store.pages 合法增删页时同步此处——这是显式漂移闸（误删存活页会变红）。
-_EXPECTED_LIVE_PAGES = {
-    "dashboard",
-    "main",
-    "dup",
-    "purchase",
-    "attendance",
-    "data_quality",
-    "inventory",
-    "foreign_customers",
-    "restock",
-    "pda_pending",
-    "admin",
+# 旧 SPA 当前存活 nav 页 → 对应 DOM id（store.js pages 单源；history/sales_analytics/
+# transfer 已退役）。键=显式集合守护（误删存活页/误加退役页变红）；值=激活断言用，
+# 验证切到 nav_id 后**正是该页** active（而非"某个页"）。store.pages 合法增删时同步此处。
+_NAV_PAGES = {
+    "dashboard": "pageDashboard",
+    "main": "pageMain",
+    "dup": "pageDup",
+    "purchase": "pagePurchase",
+    "attendance": "pageAttendance",
+    "data_quality": "pageDataQuality",
+    "inventory": "pageInventory",
+    "foreign_customers": "pageForeignCustomers",
+    "restock": "pageRestock",
+    "pda_pending": "pagePdaPending",
+    "admin": "pageAdmin",
 }
 
 
 @pytest.mark.smoke
 def test_all_nav_pages_switch_no_console_error(live_server, page_with_console) -> None:
-    """遍历 Alpine store 实际存活的 nav pages：逐个切换 → 该页 active + 无 console error。
+    """遍历 Alpine store 存活 nav pages：逐个切换 → **对应** DOM 页 active + 无 console error。
 
-    用 store.pages 运行时取集合（而非硬编码），退役/新增页自动跟随，不再漂移。
+    动态取 store.pages 防退役页残留；显式 _NAV_PAGES 集合守护防存活页被误删仍绿；
+    按 nav_id→DOM id 映射断言激活的是该页本身。
     """
     page = page_with_console
     page.goto(live_server + "/")
@@ -58,18 +60,17 @@ def test_all_nav_pages_switch_no_console_error(live_server, page_with_console) -
 
     nav_ids = page.evaluate("Alpine.store('nav').pages.map(p => p.id)")
     assert nav_ids, "Alpine store 没有任何 nav pages"
-    # 显式存活集合守护：动态遍历能防"退役页残留"，但防不了"某存活入口被误删仍绿"。
-    # 钉死期望集合 → 误删存活页 / 误加退役页都会在此变红（store.pages 合法变更时同步此处）。
-    assert set(nav_ids) == _EXPECTED_LIVE_PAGES, (
-        f"nav store.pages 与期望存活集合不符：多={set(nav_ids) - _EXPECTED_LIVE_PAGES} "
-        f"少={_EXPECTED_LIVE_PAGES - set(nav_ids)}"
+    assert set(nav_ids) == set(_NAV_PAGES), (
+        f"nav store.pages 与期望存活集合不符：多={set(nav_ids) - set(_NAV_PAGES)} "
+        f"少={set(_NAV_PAGES) - set(nav_ids)}"
     )
 
     for nav_id in nav_ids:
+        dom_id = _NAV_PAGES[nav_id]
         page.evaluate(f"Alpine.store('nav').switch('{nav_id}')")
         page.wait_for_function(f"Alpine.store('nav').current === '{nav_id}'", timeout=2000)
-        # 切换后必有某个 .page.active（各页 DOM id 命名不一，不硬编码）
-        page.locator(".page.active").first.wait_for(state="attached", timeout=2000)
+        # 断言激活的正是该 nav_id 对应的页（非"某个页"）
+        page.locator(f"#{dom_id}.active").wait_for(state="attached", timeout=2000)
         assert page.console_errors == [], (
             f"切到 {nav_id} 后出现 console errors: {page.console_errors}"
         )
