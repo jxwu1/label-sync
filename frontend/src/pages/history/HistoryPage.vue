@@ -86,6 +86,8 @@ watch(
       activeTab.value = "search";
       q.value = query;
       runSearch(query);
+    } else {
+      doReset();
     }
   },
   { immediate: true },

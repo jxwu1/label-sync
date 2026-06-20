@@ -73,11 +73,11 @@ vi.mock("../../stores/scanBatches", () => ({
   }),
 }));
 
-// vue-router mock: default query is empty; set routeQuery.q before mounting to simulate deep-link
-const routeQuery: Record<string, string | undefined> = {};
-vi.mock("vue-router", () => ({
-  useRoute: () => ({ query: routeQuery }),
-}));
+// vue-router mock: reactive so post-mount query changes trigger the watcher
+let routeRef: { query: Record<string, unknown> };
+vi.mock("vue-router", () => ({ useRoute: () => routeRef }));
+// Initialize after vi.mock (hoisted above) — routeRef is set before any test mounts
+routeRef = reactive({ query: {} });
 
 import HistoryPage from "./HistoryPage.vue";
 import RecentChangesPanel from "./RecentChangesPanel.vue";
@@ -93,7 +93,7 @@ function reset() {
   timelineState.vm = null; timelineState.loading = false; timelineState.error = null;
   timelineState.load = vi.fn(); timelineState.reset = vi.fn();
   // reset deep-link route query so existing tests mount with empty route
-  delete routeQuery.q;
+  routeRef.query = {};
 }
 
 describe("HistoryPage", () => {
@@ -893,7 +893,7 @@ it("4b.5: extrasStore.error → RST 卡内显示错误", async () => {
 
 it("deep-link: route.query.q present on mount → store.load called with barcode", async () => {
   reset();
-  routeQuery.q = "8299979002791";
+  routeRef.query = { q: "8299979002791" };
   mount(HistoryPage);
   await flushPromises();
   expect(state.load).toHaveBeenCalledWith("8299979002791");
@@ -901,7 +901,33 @@ it("deep-link: route.query.q present on mount → store.load called with barcode
 
 it("deep-link: no route.query.q on mount → store.load NOT called", () => {
   reset();
-  // routeQuery.q is undefined (cleared by reset)
+  // routeRef.query is {} (cleared by reset)
   mount(HistoryPage);
   expect(state.load).not.toHaveBeenCalled();
+});
+
+it("deep-link: A→B runtime — changing q after mount triggers new search (deep)", async () => {
+  reset();
+  routeRef.query = { q: "AAA" };
+  mount(HistoryPage);
+  await flushPromises();
+  expect(state.load).toHaveBeenCalledWith("AAA");
+  // Now change q at runtime (simulates router navigation A→B)
+  routeRef.query = { q: "BBB" };
+  await flushPromises();
+  expect(state.load).toHaveBeenCalledWith("BBB");
+});
+
+it("deep-link: A→empty runtime — clearing q after mount calls reset (deep)", async () => {
+  reset();
+  routeRef.query = { q: "AAA" };
+  const w = mount(HistoryPage);
+  await flushPromises();
+  expect(state.load).toHaveBeenCalledWith("AAA");
+  // Now clear q at runtime (simulates sidebar nav clicking 货号历史 link)
+  routeRef.query = {};
+  await flushPromises();
+  // doReset() must have been called: store.reset() called and input cleared
+  expect(state.reset).toHaveBeenCalled();
+  expect((w.find("input.history__input").element as HTMLInputElement).value).toBe("");
 });
