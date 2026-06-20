@@ -158,3 +158,32 @@ def test_restock_item_origin_enum_rejects_unknown_value(bad):
     d["origin"] = bad
     with pytest.raises(ValidationError):
         RestockItem.model_validate(d)
+
+
+from app.routes.restock import _ITEM_KEYS, _project_item
+
+
+def test_project_item_key_set_equals_whitelist():
+    fat = {
+        **_full_item(),
+        "urgency_breakdown": {"velocity": 30},
+        "total_qty": 5,
+        "retail_qty_26w": 3,
+        "lifetime_invested_eur": 99.0,
+    }
+    out = _project_item(fat)
+    assert set(out.keys()) == set(_ITEM_KEYS)
+    assert "urgency_breakdown" not in out
+
+
+def test_api_restock_items_returns_projected_rows(real_app):
+    resp = real_app.test_client().get(
+        "/api/restock/items", headers={"X-Upload-Token": "test-token-123"}
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["ok"] is True
+    assert isinstance(data["items"], list)
+    assert data["total"] == len(data["items"])
+    for row in data["items"]:
+        assert set(row.keys()) == set(_ITEM_KEYS)

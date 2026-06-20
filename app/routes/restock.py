@@ -13,7 +13,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 from app.models import get_session
-from app.schemas_api import RestockSuppressedList
+from app.schemas_api import RestockItem, RestockItemList, RestockSuppressedList
 from app.services import restock_decisions as svc
 from app.services.analytics import list_sku_summary
 
@@ -117,3 +117,18 @@ def api_suppressed():
         items = svc.list_suppressed(s)
     payload = {"ok": True, "items": items}
     return jsonify(RestockSuppressedList.model_validate(payload).model_dump())
+
+
+_ITEM_KEYS = tuple(RestockItem.model_fields.keys())  # 白名单单源 = schema 字段
+
+
+def _project_item(row: dict) -> dict:
+    return {k: row.get(k) for k in _ITEM_KEYS}
+
+
+@api_bp.get("/items")
+def api_items():
+    rows = list_sku_summary()
+    items = [_project_item(r) for r in rows]
+    payload = {"ok": True, "total": len(items), "items": items}
+    return jsonify(RestockItemList.model_validate(payload).model_dump())
