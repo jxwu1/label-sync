@@ -1044,11 +1044,7 @@ function render() {
     for (const link of tbody.querySelectorAll(".rs-bc-link")) {
       link.addEventListener("click", (e) => {
         e.stopPropagation();
-        const bc = link.dataset.bc;
-        if (typeof window.historySearch === "function") {
-          window.Alpine?.store("nav")?.switch("history");
-          setTimeout(() => window.historySearch(bc), 50);
-        }
+        location.href = "/ui/history?q=" + encodeURIComponent(link.dataset.bc);
       });
     }
     // p98 数量输入: 改值只写 state, 不重绘(避免失焦); click 阻断冒泡防触发 row→drawer.

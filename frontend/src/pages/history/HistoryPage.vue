@@ -1,5 +1,6 @@
 ﻿<script setup lang="ts">
 import { ref, computed, watch } from "vue";
+import { useRoute } from "vue-router";
 import PageHeader from "../../components/PageHeader.vue";
 import { useHistoryStore } from "../../stores/history";
 import { useSkuAnalyticsStore } from "../../stores/skuAnalytics";
@@ -75,6 +76,23 @@ async function runSearch(query: string) {
   }
 }
 
+// Phase 4c: deep-link ?q= auto-search
+const route = useRoute();
+watch(
+  () => route.query.q,
+  (val) => {
+    const query = typeof val === "string" ? val.trim() : "";
+    if (query) {
+      activeTab.value = "search";
+      q.value = query;
+      runSearch(query);
+    } else {
+      doReset();
+    }
+  },
+  { immediate: true },
+);
+
 const SOURCE_CN: Record<string, string> = {
   scan_import: "扫描导入", user_correction: "手动修正",
   system_export: "系统导出", inventory_events: "进销存",
@@ -140,10 +158,7 @@ function isPeak(q: number, maxQty: number): boolean {
 
 <template>
   <main class="history">
-    <PageHeader title="货号历史" subtitle="核心查询 / 变更溯源（完整分析见旧版）" />
-
-    <!-- HC-1 安全阀：完整分析旧版深链 -->
-    <a class="history__legacy-link" href="/?page=history">查看完整分析（旧版）→</a>
+    <PageHeader title="货号历史" subtitle="核心查询 · 完整分析 · 批次记录" />
 
     <div class="history__tabs">
       <button type="button" class="history__tab" :class="{ 'is-active': activeTab === 'search' }" @click="showSearch">货号查询</button>
@@ -618,7 +633,6 @@ function isPeak(q: number, maxQty: number): boolean {
    container-type:inline-size 会击穿 align-items:stretch 致其塌成 min-content(48px)，
    显式 width 给容器查询一个确定的 inline-size。 */
 .history { width: 100%; padding: var(--sp-6); max-width: 1400px; margin: 0 auto; container-type: inline-size; }
-.history__legacy-link { display: inline-block; margin-bottom: var(--sp-4); font-size: var(--fs-sm); color: var(--accent); }
 .history__tabs { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-4); border-bottom: 1px solid var(--line-soft); }
 .history__tab { padding: var(--sp-2) var(--sp-4); border: none; border-bottom: 2px solid transparent; background: transparent; color: var(--ink-2); cursor: pointer; font-size: var(--fs-sm); }
 .history__tab.is-active { color: var(--accent); border-bottom-color: var(--accent); }

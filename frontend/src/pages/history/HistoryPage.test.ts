@@ -1,5 +1,7 @@
-import { mount, flushPromises } from "@vue/test-utils";
-import { describe, expect, it, vi } from "vitest";
+import { mount, flushPromises, enableAutoUnmount } from "@vue/test-utils";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+enableAutoUnmount(afterEach);
 import { reactive, nextTick } from "vue";
 import type { HistoryResult } from "./types";
 import type { ExtrasPageVM } from "./extras-types";
@@ -73,6 +75,12 @@ vi.mock("../../stores/scanBatches", () => ({
   }),
 }));
 
+// vue-router mock: reactive so post-mount query changes trigger the watcher
+let routeRef: { query: Record<string, unknown> };
+vi.mock("vue-router", () => ({ useRoute: () => routeRef }));
+// Initialize after vi.mock (hoisted above) — routeRef is set before any test mounts
+routeRef = reactive({ query: {} });
+
 import HistoryPage from "./HistoryPage.vue";
 import RecentChangesPanel from "./RecentChangesPanel.vue";
 import ScanBatchPanel from "./ScanBatchPanel.vue";
@@ -86,16 +94,16 @@ function reset() {
   extrasState.load = vi.fn(); extrasState.reset = vi.fn();
   timelineState.vm = null; timelineState.loading = false; timelineState.error = null;
   timelineState.load = vi.fn(); timelineState.reset = vi.fn();
+  // reset deep-link route query so existing tests mount with empty route
+  routeRef.query = {};
 }
 
 describe("HistoryPage", () => {
-  it("初始态：提示输入 + 「完整分析（旧版）」链接指向 /?page=history", () => {
+  it("初始态：提示输入 + 不再有「完整分析（旧版）」深链（4c 退役）", () => {
     reset();
     const w = mount(HistoryPage);
     expect(w.text()).toContain("输入条码");
-    const link = w.find("a.history__legacy-link");
-    expect(link.exists()).toBe(true);
-    expect(link.attributes("href")).toBe("/?page=history");
+    expect(w.find("a.history__legacy-link").exists()).toBe(false);
   });
 
   it("loading 态", () => {
@@ -881,4 +889,47 @@ it("4b.5: extrasStore.error → RST 卡内显示错误", async () => {
   const w = mount(HistoryPage);
   await w.find("#sbcard-rst").trigger("click");
   expect(w.find("#sbpanel-rst").text()).toContain("ext boom");
+});
+
+// ── Phase 4c: deep-link ?q= auto-search ──────────────────────────────────────
+
+it("deep-link: route.query.q present on mount → store.load called with barcode", async () => {
+  reset();
+  routeRef.query = { q: "8299979002791" };
+  mount(HistoryPage);
+  await flushPromises();
+  expect(state.load).toHaveBeenCalledWith("8299979002791");
+});
+
+it("deep-link: no route.query.q on mount → store.load NOT called", () => {
+  reset();
+  // routeRef.query is {} (cleared by reset)
+  mount(HistoryPage);
+  expect(state.load).not.toHaveBeenCalled();
+});
+
+it("deep-link: A→B runtime — changing q after mount triggers new search (deep)", async () => {
+  reset();
+  routeRef.query = { q: "AAA" };
+  mount(HistoryPage);
+  await flushPromises();
+  expect(state.load).toHaveBeenCalledWith("AAA");
+  // Now change q at runtime (simulates router navigation A→B)
+  routeRef.query = { q: "BBB" };
+  await flushPromises();
+  expect(state.load).toHaveBeenCalledWith("BBB");
+});
+
+it("deep-link: A→empty runtime — clearing q after mount calls reset (deep)", async () => {
+  reset();
+  routeRef.query = { q: "AAA" };
+  const w = mount(HistoryPage);
+  await flushPromises();
+  expect(state.load).toHaveBeenCalledWith("AAA");
+  // Now clear q at runtime (simulates sidebar nav clicking 货号历史 link)
+  routeRef.query = {};
+  await flushPromises();
+  // doReset() must have been called: store.reset() called and input cleared
+  expect(state.reset).toHaveBeenCalled();
+  expect((w.find("input.history__input").element as HTMLInputElement).value).toBe("");
 });

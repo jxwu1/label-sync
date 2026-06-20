@@ -143,11 +143,7 @@ function render() {
     tbody.innerHTML = visible.map(renderRow).join("");
     for (const tr of tbody.querySelectorAll(".sa-row")) {
       tr.addEventListener("click", () => {
-        if (typeof window.historySearch === "function") {
-          window.Alpine?.store("nav")?.switch("history");
-          // 等 nav 切完
-          setTimeout(() => window.historySearch(tr.dataset.bc), 50);
-        }
+        location.href = "/ui/history?q=" + encodeURIComponent(tr.dataset.bc);
       });
     }
   }
