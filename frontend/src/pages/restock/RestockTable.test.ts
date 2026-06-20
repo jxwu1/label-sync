@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import RestockTable from "./RestockTable.vue";
 
-function rows(n: number) {
+function rows(n: number): any[] {
   return Array.from({ length: n }, (_, i) => ({
     barcode: "b" + i, model: "M" + i, name_zh: "名" + i, origin: "FOREIGN",
     supplier_id: "GR1", urgency_score: 50, qty_total: 1, weeks_of_cover: 1,
