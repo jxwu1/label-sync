@@ -89,13 +89,11 @@ function reset() {
 }
 
 describe("HistoryPage", () => {
-  it("初始态：提示输入 + 「完整分析（旧版）」链接指向 /?page=history", () => {
+  it("初始态：提示输入 + 不再有「完整分析（旧版）」深链（4c 退役）", () => {
     reset();
     const w = mount(HistoryPage);
     expect(w.text()).toContain("输入条码");
-    const link = w.find("a.history__legacy-link");
-    expect(link.exists()).toBe(true);
-    expect(link.attributes("href")).toBe("/?page=history");
+    expect(w.find("a.history__legacy-link").exists()).toBe(false);
   });
 
   it("loading 态", () => {
