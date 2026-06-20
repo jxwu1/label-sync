@@ -194,7 +194,6 @@
 {% include 'partials/_page_dup.html' %}
       <div class="page" id="pagePurchase" x-data :class="$store.nav.current === 'purchase' ? 'active' : ''"></div>
       <div class="page" id="pageAttendance" x-data :class="$store.nav.current === 'attendance' ? 'active' : ''"></div>
-{% include 'partials/_page_history.html' %}
 {% include 'partials/_page_data_quality.html' %}
 {% include 'partials/_page_foreign_customers.html' %}
 {% include 'partials/_page_inventory.html' %}
@@ -214,11 +213,8 @@
 <script type="module" src="{{ url_for('static', filename='js/index.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/purchase.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/attendance.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/history.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/data-quality.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/dedupe.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/index-recent-changes.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/index-scan-history.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/inventory.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/foreign-customers.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/restock.js') }}"></script>

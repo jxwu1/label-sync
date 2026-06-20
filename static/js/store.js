@@ -161,7 +161,6 @@ document.addEventListener("alpine:init", () => {
       { id: "dup",               label: "标签查重",   icon: "dedupe",     code: "02", shortcut: "2" },
       { id: "purchase",          label: "采购导入",   icon: "purchase",   code: "03", shortcut: "3" },
       { id: "attendance",        label: "考勤台账",   icon: "attendance", code: "04", shortcut: "4" },
-      { id: "history",           label: "货号历史",   icon: "history",    code: "05", shortcut: "5" },
       { id: "data_quality",      label: "数据质量",   icon: "quality",    code: "06", shortcut: "6" },
       { id: "inventory",         label: "数据健康",   icon: "inout",      code: "07", shortcut: "7" },
       { id: "foreign_customers", label: "老外客人",   icon: "overseas",   code: "08", shortcut: "8" },
