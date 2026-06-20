@@ -46,7 +46,12 @@ def test_root_and_other_pages_not_redirected(real_app):
     assert client.get("/?page=main").status_code == 200
 
 
-def test_unauthenticated_history_bookmark_round_trips_to_vue(real_app):
+def test_unauthenticated_history_redirects_to_login_preserving_next(real_app):
+    """两段独立断言（非端到端表单回跳）：
+    (a) 未登录访问 /?page=history → 登录闸 302 到 /login，next 保留 page=history；
+    (b) 有会话后访问 /?page=history → 302 到 /ui/history。
+    注：真实表单登录后由 SPA 客户端读取 next 跳转，超出本测试范围（用 session 注入模拟已登录）。
+    """
     client = real_app.test_client()
     resp = client.get("/?page=history")  # 未登录
     assert resp.status_code == 302
@@ -54,6 +59,7 @@ def test_unauthenticated_history_bookmark_round_trips_to_vue(real_app):
     assert loc.path.endswith("/login")
     next_url = parse_qs(loc.query).get("next", [""])[0]
     assert "page=history" in next_url
+    # 登录后重放原 URL
     _login(real_app, client)
     resp2 = client.get("/?page=history")
     assert resp2.status_code == 302
