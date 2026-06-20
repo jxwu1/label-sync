@@ -63,7 +63,12 @@
 - **统一退出码 `$desiredExitCode`**：单一真源，三处赋值——Ctrl+C = **130**；子进程意外退出 = **其 `ExitCode`**；启动/就绪失败 = **对应非零码**（docker/alembic 的 `$LASTEXITCODE`、就绪超时 = 1）。`finally` **只负责清理，绝不改写 `$desiredExitCode`**；脚本末尾 `exit $desiredExitCode`。
 - **Ctrl+C**：纯 C# `Console.CancelKeyPress` 处理器（`Add-Type`，不经 PS runspace）置 volatile 标志；主循环置顶轮询→设 `$desiredExitCode = 130`→break。Install **幂等** + 保存 delegate + `finally` 调 **`Uninstall()`** 卸载（防同会话多次运行累积处理器）。（实测：`TreatControlCAsInput`+`KeyAvailable` 读键在 Windows Terminal 下检测不到 Ctrl+C 致关不掉，已弃用。）
 - **启动纳入 try（实测修订）**：进程启动（`Start-Supervised` + `Add` 进 `$supervised`）放在 `try` 内、`$supervised` 在 `try` 外声明——web 启动/ReadLineAsync 任一步抛错时，已起的 api 仍被 `finally` 清理，不残留 :5000。
-- **退出判定（实测修订）**：不凭「所有进程已退」early-break（会丢退出码 + 尾日志）。必须 drain 到 `outEof && errEof` 后，凭 `HasExited && outEof && errEof` 捕获该进程真实 `ExitCode` 再 break。
+- **退出判定（两轮实测修订）**：
+  - 不凭「所有进程已退」early-break（会丢退出码 + 尾日志）。
+  - 也**不能**凭 `HasExited && outEof && errEof`——**根进程被杀但后代仍持 stdout/stderr 管道句柄时，EOF 永不到来**（就绪超时又排除已退进程）→ 永久挂起。
+  - 正解：**`HasExited` 即捕获真实 `ExitCode`**（taskkill 之前），随后**有限宽限（~1.5s，Stopwatch）抽干尾部日志**（拿到 buffered tail）后 break → finally `taskkill /T` 杀掉仍持管道的孤儿后代。宽限封顶，绝不无限等 EOF。
+- **Drain-Stream 单次上限（实测修订）**：每次最多读 ~200 行即让出，防某流高频输出长期霸占、饿死 Ctrl+C/另一流/另一进程；剩余就绪行下一轮再读，不丢。
+- **登记早于初始化（实测修订）**：进程 `Add` 进 `$supervised` 用 `outTask=$null` 占位**先登记**，再赋 `ReadLineAsync()`——首次 `ReadLineAsync` 若抛错，进程已在清理表里，finally 必清不残留端口。Drain-Stream 对 null task 返回 false。
 - **任一意外退出**：先把该子进程 `ExitCode` 赋给 `$desiredExitCode`（**在任何 `taskkill` 之前**，避免被 `$LASTEXITCODE` 覆盖）→ drain 该进程管道 → 打印 `[api|web] exited (code <N>)` → 清理另一棵树。
 - **清理函数（幂等）**：对每个存活进程 `taskkill /T /F /PID <pid>`；**进程已退 / 「找不到进程」不当新错误**（吞掉）。**清理后端口复查只查本脚本监督过的端口**（遍历 `$supervised` 取各 entry 的 `port`）：**:5000 恒查；:5173 仅 `-Frontend` 时查**（被监督过才查）。仍监听则告警 `[dev] ⚠ 端口 :<port> 仍被占用，可能有孤儿进程`。
   > **为何按监督端口而非固定 :5000/:5173**：仅后端模式下用户可能**独立**跑着自己的 Vite（:5173）；若无条件复查 :5173，停 API 后会把那个**正常**进程误报成孤儿。只查 `$supervised` 里的端口即可避免。

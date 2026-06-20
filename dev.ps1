@@ -49,27 +49,31 @@ function Start-Supervised([string]$File, [string[]]$ArgList, [string]$WorkDir, [
     return $p
 }
 
-# 排空一条流当前已就绪的所有行（加前缀打印）；$null=EOF 置标志停续发。返回是否打了行。
-function Drain-Stream($entry, [string]$which) {
+# 排空一条流当前已就绪的行（加前缀打印）；$null=EOF 置标志停续发。返回是否打了行。
+# 单次最多 $MaxLines 行后让出（防某流高频输出长期霸占、饿死 Ctrl+C/另一流/另一进程）——
+# 仍有就绪行时下一轮主循环会再来读，不丢行。
+function Drain-Stream($entry, [string]$which, [int]$MaxLines = 200) {
     $did = $false
     $eofProp = "$($which)Eof"; $taskProp = "$($which)Task"
+    if ($null -eq $entry.$taskProp) { return $false }   # 读取任务尚未初始化（登记早于初始化的窗口）
     $reader = if ($which -eq 'out') { $entry.proc.StandardOutput } else { $entry.proc.StandardError }
-    while (-not $entry.$eofProp -and $entry.$taskProp.IsCompleted) {
+    $n = 0
+    while (-not $entry.$eofProp -and $entry.$taskProp.IsCompleted -and $n -lt $MaxLines) {
         $line = $entry.$taskProp.Result
         if ($null -eq $line) { $entry.$eofProp = $true }
-        else { Write-Host "[$($entry.name)] $line"; $entry.$taskProp = $reader.ReadLineAsync(); $did = $true }
+        else { Write-Host "[$($entry.name)] $line"; $entry.$taskProp = $reader.ReadLineAsync(); $did = $true; $n++ }
     }
     return $did
 }
 
 # ---- 1. 起本地 PostgreSQL 17 ----
-# 非零不立即退出：dev-pg 现为持久旧容器（项目标签/卷可能漂移，见 backlog: dev-pg 命名卷迁移），
+# 非零不立即退出：dev-pg 现为持久旧容器（项目标签/卷可能漂移，见 docs/engineering-backlog.md: dev-pg 孤儿容器迁移），
 # `up -d` 会因名字冲突返回非零，但同名 PG 多半在跑。pg_isready 兜底续行——它只证明「某个同名 PG 活着」，
 # 不证明目标 compose 配置已应用；根治请单独做旧容器迁移，勿把环境残留当常规启动路径。
 docker compose -f docker-compose.dev.yml up -d
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[dev] ! docker compose up 非零 (exit $LASTEXITCODE)——多半是 dev-pg 旧容器项目标签/卷漂移（孤儿容器）" -ForegroundColor Yellow
-    Write-Host "[dev]   暂以 pg_isready 兜底续行；根治：单独迁移容器（命名卷 + 固定 project name，见 backlog）" -ForegroundColor DarkYellow
+    Write-Host "[dev]   暂以 pg_isready 兜底续行；根治：单独迁移容器（命名卷 + 固定 project name，见 docs/engineering-backlog.md）" -ForegroundColor DarkYellow
 }
 
 # ---- 2. 等 PG 真正可接受查询（pg_isready 重试最多 30s；权威就绪闸；非零是预期重试，不退出） ----
@@ -142,24 +146,25 @@ try {
     [DevSupervisor.CtrlCV2]::Requested = $false
     [DevSupervisor.CtrlCV2]::Install()
 
+    # 先登记进程再初始化 ReadLineAsync（首次 ReadLineAsync 若抛错，进程已在 $supervised 里 → finally 必清，不残留端口）
     # 进程启动纳入 try：web 启动/ReadLineAsync 任一步抛错，已起的 api 仍会进 finally 清理（不残留 :5000）
     $apiProc = Start-Supervised 'python' @('-u', 'server.py') $root $null   # 只用 -u，不叠加 PYTHONUNBUFFERED
-    [void]$supervised.Add(@{
-            name = 'api'; proc = $apiProc; port = 5000; url = 'http://127.0.0.1:5000'; ready = $false
-            outTask = $apiProc.StandardOutput.ReadLineAsync(); errTask = $apiProc.StandardError.ReadLineAsync()
-            outEof = $false; errEof = $false
-        })
+    $apiEntry = @{ name = 'api'; proc = $apiProc; port = 5000; url = 'http://127.0.0.1:5000'; ready = $false
+        outTask = $null; errTask = $null; outEof = $false; errEof = $false }
+    [void]$supervised.Add($apiEntry)
+    $apiEntry.outTask = $apiProc.StandardOutput.ReadLineAsync()
+    $apiEntry.errTask = $apiProc.StandardError.ReadLineAsync()
     if ($Frontend) {
         # 经 cmd.exe /c npm 拉起：.NET 直跑 npm.cmd 会让 npm %~dp0 解析错乱
         # （去 frontend\node_modules\npm\ 找 npm 自身 → MODULE_NOT_FOUND）。cmd 为被监督进程，node/vite 子进程，taskkill /T 杀整树。
         $webProc = Start-Supervised 'cmd.exe' `
             @('/c', 'npm', 'run', 'dev', '--', '--host', '127.0.0.1', '--strictPort', '--clearScreen', 'false') `
             (Join-Path $root 'frontend') @{ FORCE_COLOR = '1' }
-        [void]$supervised.Add(@{
-                name = 'web'; proc = $webProc; port = 5173; url = 'http://localhost:5173/ui/'; ready = $false
-                outTask = $webProc.StandardOutput.ReadLineAsync(); errTask = $webProc.StandardError.ReadLineAsync()
-                outEof = $false; errEof = $false
-            })
+        $webEntry = @{ name = 'web'; proc = $webProc; port = 5173; url = 'http://localhost:5173/ui/'; ready = $false
+            outTask = $null; errTask = $null; outEof = $false; errEof = $false }
+        [void]$supervised.Add($webEntry)
+        $webEntry.outTask = $webProc.StandardOutput.ReadLineAsync()
+        $webEntry.errTask = $webProc.StandardError.ReadLineAsync()
     }
 
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
@@ -184,8 +189,9 @@ try {
                 if ($s.name -eq 'api') { Write-Host "[api] Serving $($s.url)" -ForegroundColor Cyan }
                 else { Write-Host "[web] VITE ready - $($s.url)" -ForegroundColor Cyan }
             }
-            # 退出且管道已 drain 到 EOF → 候选退出（不再凭「全死」early-break，保尾部日志 + 真实退出码）
-            if ($s.proc.HasExited -and $s.outEof -and $s.errEof -and -not $exited) { $exited = $s }
+            # 进程一退出立即认（不等 EOF）：根进程被杀但后代仍持管道句柄时 EOF 永不到来，
+            # 凭 outEof/errEof 会永久挂起（就绪超时又排除已退进程）。故 HasExited 即捕获。
+            if ($s.proc.HasExited -and -not $exited) { $exited = $s }
         }
 
         # 全部 ready 后打 footer（一次）
@@ -194,10 +200,21 @@ try {
             $footerPrinted = $true
         }
 
-        # 任一进程退出且已 drain → 先存退出码（在任何 taskkill 之前），跳出清理
+        # 任一进程退出 → 先存真实退出码（在任何 taskkill 之前），再有限宽限抽干尾部日志，跳出清理
         if ($exited) {
             $desiredExitCode = $exited.proc.ExitCode
             Write-Host "[$($exited.name)] exited (code $desiredExitCode)" -ForegroundColor Yellow
+            # 宽限 ~1.5s 抽尾部日志；后代可能仍持管道致 EOF 永不到来 → 封顶不无限等
+            $grace = [System.Diagnostics.Stopwatch]::StartNew()
+            while ($grace.Elapsed.TotalSeconds -lt 1.5) {
+                $g = $false
+                foreach ($s in $supervised) {
+                    if (Drain-Stream $s 'out') { $g = $true }
+                    if (Drain-Stream $s 'err') { $g = $true }
+                }
+                if (-not ($supervised | Where-Object { -not ($_.outEof -and $_.errEof) })) { break }  # 都 EOF 了，提前结束
+                if (-not $g) { Start-Sleep -Milliseconds 25 }
+            }
             break
         }
 
