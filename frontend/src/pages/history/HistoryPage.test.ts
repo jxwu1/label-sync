@@ -1,5 +1,7 @@
-import { mount, flushPromises } from "@vue/test-utils";
-import { describe, expect, it, vi } from "vitest";
+import { mount, flushPromises, enableAutoUnmount } from "@vue/test-utils";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+enableAutoUnmount(afterEach);
 import { reactive, nextTick } from "vue";
 import type { HistoryResult } from "./types";
 import type { ExtrasPageVM } from "./extras-types";
