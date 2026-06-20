@@ -57,7 +57,8 @@
 - [ ] Tokens.stories.ts 硬编码 token 列表与 tokens.css 无同步守护
 - [ ] briefing store load() 无 in-flight 去重（加刷新按钮/路由复用前要补）
 - [ ] gen_ts_types 多模型同名 interface 静默去重（API_MODELS 增长前加冲突报错）
-- [ ] dev.ps1 -Frontend 起的 Vite 窗口不随主进程退出（同 :5000 僵尸坑同类）
+- [x] dev.ps1 -Frontend 起的 Vite 窗口不随主进程退出 — ✅ 2026-06-20（PR #80）：dev.ps1 重写为零依赖进程监督器，Flask+Vite 同终端 + Ctrl+C `taskkill /T` 关两进程树
+- [ ] **dev-pg 孤儿容器迁移**（dev.ps1 已兜底容忍，根治另做）— `label-sync-dev-pg` 容器孤儿于已删 worktree 的 compose project → `docker compose up/exec` 名字冲突；dev.ps1 现以「up 非零仅警告 + pg_isready 走 `docker exec` 按容器名」兜底续行。根治＝命名卷 + 固定 project name 重建容器，使 compose 重新接管（参 `docs/postgres-migration-plan.md`）
 - [ ] CLAUDE.md/AGENTS.md 测试计数过期（写 1018，实际 1328+）
 
 - [ ] 折叠控件补 `aria-expanded` + 键盘支持（`_page_admin.html:60`、`_page_history.html:54` onclick 改 Alpine）

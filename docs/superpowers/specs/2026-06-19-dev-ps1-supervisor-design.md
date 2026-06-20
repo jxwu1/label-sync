@@ -44,8 +44,8 @@
 - ❌ **不**注册 PowerShell scriptblock 到 `OutputDataReceived`/`ErrorDataReceived`——输出到达即「There is no Runspace available to run scripts in this thread」崩溃。
 - ✅ **主 runspace 单循环轮询 `StandardOutput.ReadLineAsync()` / `StandardError.ReadLineAsync()`**（或 Add-Type C# 回调；本期用 ReadLineAsync）。每条完成的行加前缀打印，再对该流续发 ReadLineAsync。
 - **EOF 契约**：`ReadLineAsync()` 完成结果为 `$null` 表示该流 EOF → **停止对该流续发读取**（防空转 busy-spin）。
-- **每轮排空（实测修订）**：每条流每轮**循环读完当前所有已就绪行**（`while IsCompleted`，非单行），且**本轮有输出就不 sleep、立刻再循环**，仅空闲时 `Start-Sleep 25ms`。否则单行节流会把两进程日志逐行轮流挤出（挤牙膏感）+ 缓冲日志拖慢。
-- **drain 契约**：子进程 `HasExited` 后，**先把 stdout+stderr 排空至 EOF 再报告退出**，保证末尾日志不丢。
+- **每轮排空（实测修订）**：每条流每轮循环读当前已就绪行，**单次封顶 ~200 行即让出**（防某流高频输出霸占、饿死 Ctrl+C/另一流/另一进程；剩余下轮再读不丢）；**本轮有输出就不 sleep、立刻再循环**，仅空闲时 `Start-Sleep 25ms`。否则单行节流会把两进程日志逐行轮流挤出（挤牙膏感）+ 缓冲日志拖慢。
+- **退出后 drain 契约（实测修订）**：子进程 `HasExited` 即报告退出码，**不等 EOF**——随后**有限宽限 ~1.5s** 尽力抽干尾部日志（拿到 buffered tail）后即 break。**不可无限等 EOF**：根进程被杀但后代仍持 stdout/stderr 句柄时 EOF 永不到来 → 会永久挂起。详见 §3「退出判定」。
 - **就绪探测并入同一监督循环**：进程一启动**立即开始读管道**；TCP 就绪探测（§3）作为循环内的周期检查，**不得先阻塞等端口再读**——否则重定向管道塞满会阻塞子进程。
 - **顺序保证**：只保证**各流（stdout / stderr）内部逐行顺序**；stdout↔stderr 交叉顺序 best-effort。
 - **色彩承诺**：只承诺**日志内容完整 + 逐行实时 + 带前缀**；**不承诺 Flask 颜色完全保留**（管道非 TTY，FORCE_COLOR 尽力而为）。
@@ -63,7 +63,13 @@
 - **统一退出码 `$desiredExitCode`**：单一真源，三处赋值——Ctrl+C = **130**；子进程意外退出 = **其 `ExitCode`**；启动/就绪失败 = **对应非零码**（docker/alembic 的 `$LASTEXITCODE`、就绪超时 = 1）。`finally` **只负责清理，绝不改写 `$desiredExitCode`**；脚本末尾 `exit $desiredExitCode`。
 - **Ctrl+C**：纯 C# `Console.CancelKeyPress` 处理器（`Add-Type`，不经 PS runspace）置 volatile 标志；主循环置顶轮询→设 `$desiredExitCode = 130`→break。Install **幂等** + 保存 delegate + `finally` 调 **`Uninstall()`** 卸载（防同会话多次运行累积处理器）。（实测：`TreatControlCAsInput`+`KeyAvailable` 读键在 Windows Terminal 下检测不到 Ctrl+C 致关不掉，已弃用。）
 - **启动纳入 try（实测修订）**：进程启动（`Start-Supervised` + `Add` 进 `$supervised`）放在 `try` 内、`$supervised` 在 `try` 外声明——web 启动/ReadLineAsync 任一步抛错时，已起的 api 仍被 `finally` 清理，不残留 :5000。
-- **退出判定（实测修订）**：不凭「所有进程已退」early-break（会丢退出码 + 尾日志）。必须 drain 到 `outEof && errEof` 后，凭 `HasExited && outEof && errEof` 捕获该进程真实 `ExitCode` 再 break。
+- **退出判定（两轮实测修订）**：
+  - 不凭「所有进程已退」early-break（会丢退出码 + 尾日志）。
+  - 也**不能**凭 `HasExited && outEof && errEof`——**根进程被杀但后代仍持 stdout/stderr 管道句柄时，EOF 永不到来**（就绪超时又排除已退进程）→ 永久挂起。
+  - 正解：**`HasExited` 即捕获真实 `ExitCode`**（taskkill 之前），随后**有限宽限（~1.5s，Stopwatch）抽干尾部日志**（拿到 buffered tail）后 break → finally `taskkill /T` **尝试**清理。宽限封顶，绝不无限等 EOF。
+  - ⚠️ 注意：被杀根进程的后代此时已脱离该根、成孤儿，`taskkill /T <根pid>` **够不到**它们（根已死）→ 该端口会残留，由清理后的端口复查**告警**（非硬清除）。硬保证需 Windows Job Object（本期不做，见 §3 兜底说明 + 实机验证：杀 web cmd.exe 根后 :5173 孤儿仅告警）。
+- **Drain-Stream 单次上限（实测修订）**：每次最多读 ~200 行即让出，防某流高频输出长期霸占、饿死 Ctrl+C/另一流/另一进程；剩余就绪行下一轮再读，不丢。
+- **登记早于初始化（实测修订）**：进程 `Add` 进 `$supervised` 用 `outTask=$null` 占位**先登记**，再赋 `ReadLineAsync()`——首次 `ReadLineAsync` 若抛错，进程已在清理表里，finally 必清不残留端口。Drain-Stream 对 null task 返回 false。
 - **任一意外退出**：先把该子进程 `ExitCode` 赋给 `$desiredExitCode`（**在任何 `taskkill` 之前**，避免被 `$LASTEXITCODE` 覆盖）→ drain 该进程管道 → 打印 `[api|web] exited (code <N>)` → 清理另一棵树。
 - **清理函数（幂等）**：对每个存活进程 `taskkill /T /F /PID <pid>`；**进程已退 / 「找不到进程」不当新错误**（吞掉）。**清理后端口复查只查本脚本监督过的端口**（遍历 `$supervised` 取各 entry 的 `port`）：**:5000 恒查；:5173 仅 `-Frontend` 时查**（被监督过才查）。仍监听则告警 `[dev] ⚠ 端口 :<port> 仍被占用，可能有孤儿进程`。
   > **为何按监督端口而非固定 :5000/:5173**：仅后端模式下用户可能**独立**跑着自己的 Vite（:5173）；若无条件复查 :5173，停 API 后会把那个**正常**进程误报成孤儿。只查 `$supervised` 里的端口即可避免。
