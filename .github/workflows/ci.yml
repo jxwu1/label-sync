@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+# 最小权限：所有 job 仅读（test/build/e2e 都不 push/publish）。即便 e2e-smoke 跑的
+# 第三方 tailwindcss 二进制有恶意也无法用 GITHUB_TOKEN 推库/发版（供应链降爆炸半径）。
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest

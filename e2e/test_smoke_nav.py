@@ -29,6 +29,23 @@ def test_index_loads_no_console_error(live_server, page_with_console) -> None:
     assert page.console_errors == [], f"console errors: {page.console_errors}"
 
 
+# 旧 SPA 当前存活 nav 页（store.js pages 单源；history/sales_analytics/transfer 已退役）。
+# store.pages 合法增删页时同步此处——这是显式漂移闸（误删存活页会变红）。
+_EXPECTED_LIVE_PAGES = {
+    "dashboard",
+    "main",
+    "dup",
+    "purchase",
+    "attendance",
+    "data_quality",
+    "inventory",
+    "foreign_customers",
+    "restock",
+    "pda_pending",
+    "admin",
+}
+
+
 @pytest.mark.smoke
 def test_all_nav_pages_switch_no_console_error(live_server, page_with_console) -> None:
     """遍历 Alpine store 实际存活的 nav pages：逐个切换 → 该页 active + 无 console error。
@@ -41,9 +58,12 @@ def test_all_nav_pages_switch_no_console_error(live_server, page_with_console) -
 
     nav_ids = page.evaluate("Alpine.store('nav').pages.map(p => p.id)")
     assert nav_ids, "Alpine store 没有任何 nav pages"
-    # 退役页不应再出现在存活集合里（防回归）
-    for retired in ("history", "sales_analytics", "transfer"):
-        assert retired not in nav_ids, f"退役页 {retired} 不应在 nav store.pages 里"
+    # 显式存活集合守护：动态遍历能防"退役页残留"，但防不了"某存活入口被误删仍绿"。
+    # 钉死期望集合 → 误删存活页 / 误加退役页都会在此变红（store.pages 合法变更时同步此处）。
+    assert set(nav_ids) == _EXPECTED_LIVE_PAGES, (
+        f"nav store.pages 与期望存活集合不符：多={set(nav_ids) - _EXPECTED_LIVE_PAGES} "
+        f"少={_EXPECTED_LIVE_PAGES - set(nav_ids)}"
+    )
 
     for nav_id in nav_ids:
         page.evaluate(f"Alpine.store('nav').switch('{nav_id}')")

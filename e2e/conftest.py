@@ -88,17 +88,29 @@ def _free_port() -> int:
 def live_server(tmp_path_factory) -> str:
     """启动 Flask app 在 daemon 线程上，返回 base_url（http://127.0.0.1:<port>）。"""
     sandbox = tmp_path_factory.mktemp("e2e_sandbox")
-    _build_sandbox(sandbox)
 
-    # 认证 env 必须早于 create_app（init_auth 在内部 bake secret + seed admin）。
+    # DB 隔离（必须早于任何 app 导入）：**强制覆盖**任何继承的 DATABASE_URL——从 dev.ps1
+    # 环境跑时它会指向本地 PG，app/db.py `_effective_url` 认此 env，e2e 的 seed/写入会污染
+    # 真实库（员工/假日/PDA）。这里钉到沙箱内一次性 sqlite，绝不碰真实库。
+    os.environ["DATABASE_URL"] = "sqlite:///" + (sandbox / "e2e.db").as_posix()
+    # 认证 env 也必须早于 create_app（init_auth 在内部 bake secret + seed admin）。
     os.environ.setdefault("FLASK_SECRET_KEY", "e2e-test-secret-key")
     os.environ.setdefault("UPLOAD_TOKEN", "e2e-test-upload-token")
+
+    _build_sandbox(sandbox)
 
     # 沙箱就绪后再导入 server（其会触发 state / stockpile_db / route blueprint 加载）
     # 任何"在 conftest 顶层就 import server"的写法都会把生产路径 bake 进去
     if "server" in sys.modules:
         del sys.modules["server"]
     import server
+
+    # 清掉可能已用继承 URL 建好的 engine 缓存（_build_sandbox 链式 import 时可能已建），
+    # 确保引擎指向沙箱 sqlite，再建表 —— 显式 reset_engine + ensure_db。
+    from app import db as app_db
+
+    app_db.reset_engine()
+    app_db.ensure_db()
 
     port = _free_port()
     base_url = f"http://127.0.0.1:{port}"
