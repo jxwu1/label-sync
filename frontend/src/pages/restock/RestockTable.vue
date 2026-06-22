@@ -28,6 +28,14 @@ function sortInd(key: string): string {
   if (props.sort.key !== key) return "";
   return props.sort.dir === "asc" ? "↑" : "↓";
 }
+function ariaSort(key: string): "ascending" | "descending" | "none" {
+  if (props.sort.key !== key) return "none";
+  return props.sort.dir === "asc" ? "ascending" : "descending";
+}
+// 键盘可达：Enter/Space 触发排序（等价点击）
+function onHeaderKey(e: KeyboardEvent, key: string) {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); emit("sort-change", key); }
+}
 
 function sparkPts(it: RestockItem): string {
   return sparklinePoints(realBars(it.weekly_qty_12w));
@@ -43,27 +51,36 @@ function hasSpark(it: RestockItem): boolean {
       <thead>
         <tr>
           <th class="rs-th-sort" :class="{ 'rs-th-sort--active': sort.key === 'urgency_score' }"
-            data-sort="urgency_score" @click="emit('sort-change', 'urgency_score')">紧迫分 <span class="rs-sort-ind">{{ sortInd("urgency_score") }}</span></th>
+            data-sort="urgency_score" tabindex="0" :aria-sort="ariaSort('urgency_score')"
+            @click="emit('sort-change', 'urgency_score')" @keydown="onHeaderKey($event, 'urgency_score')">紧迫分 <span class="rs-sort-ind">{{ sortInd("urgency_score") }}</span></th>
           <th>货号 / 品名</th>
           <th>供应商</th>
           <th class="rs-num rs-th-sort" :class="{ 'rs-th-sort--active': sort.key === 'qty_total' }"
-            data-sort="qty_total" @click="emit('sort-change', 'qty_total')">库存 <span class="rs-sort-ind">{{ sortInd("qty_total") }}</span></th>
+            data-sort="qty_total" tabindex="0" :aria-sort="ariaSort('qty_total')"
+            @click="emit('sort-change', 'qty_total')" @keydown="onHeaderKey($event, 'qty_total')">库存 <span class="rs-sort-ind">{{ sortInd("qty_total") }}</span></th>
           <th class="rs-num rs-th-sort" :class="{ 'rs-th-sort--active': sort.key === 'weeks_of_cover' }"
-            data-sort="weeks_of_cover" @click="emit('sort-change', 'weeks_of_cover')">可撑 <span class="rs-sort-ind">{{ sortInd("weeks_of_cover") }}</span></th>
+            data-sort="weeks_of_cover" tabindex="0" :aria-sort="ariaSort('weeks_of_cover')"
+            @click="emit('sort-change', 'weeks_of_cover')" @keydown="onHeaderKey($event, 'weeks_of_cover')">可撑 <span class="rs-sort-ind">{{ sortInd("weeks_of_cover") }}</span></th>
           <th class="rs-num rs-th-sort" :class="{ 'rs-th-sort--active': sort.key === 'weekly_velocity' }"
-            data-sort="weekly_velocity" title="近 26 周件/周" @click="emit('sort-change', 'weekly_velocity')">周销速 <span class="rs-sort-ind">{{ sortInd("weekly_velocity") }}</span></th>
+            data-sort="weekly_velocity" tabindex="0" :aria-sort="ariaSort('weekly_velocity')" title="近 26 周件/周"
+            @click="emit('sort-change', 'weekly_velocity')" @keydown="onHeaderKey($event, 'weekly_velocity')">周销速 <span class="rs-sort-ind">{{ sortInd("weekly_velocity") }}</span></th>
           <th class="rs-num rs-th-sort" :class="{ 'rs-th-sort--active': sort.key === 'weekly_revenue' }"
-            data-sort="weekly_revenue" title="近 26 周折后净销售额 / 周" @click="emit('sort-change', 'weekly_revenue')">周销额 <span class="rs-sort-ind">{{ sortInd("weekly_revenue") }}</span></th>
+            data-sort="weekly_revenue" tabindex="0" :aria-sort="ariaSort('weekly_revenue')" title="近 26 周折后净销售额 / 周"
+            @click="emit('sort-change', 'weekly_revenue')" @keydown="onHeaderKey($event, 'weekly_revenue')">周销额 <span class="rs-sort-ind">{{ sortInd("weekly_revenue") }}</span></th>
           <th class="rs-num rs-th-sort" :class="{ 'rs-th-sort--active': sort.key === 'margin_pct' }"
-            data-sort="margin_pct" title="(售净均价 - 上次进价) / 售净均价" @click="emit('sort-change', 'margin_pct')">毛利率 <span class="rs-sort-ind">{{ sortInd("margin_pct") }}</span></th>
+            data-sort="margin_pct" tabindex="0" :aria-sort="ariaSort('margin_pct')" title="(售净均价 - 上次进价) / 售净均价"
+            @click="emit('sort-change', 'margin_pct')" @keydown="onHeaderKey($event, 'margin_pct')">毛利率 <span class="rs-sort-ind">{{ sortInd("margin_pct") }}</span></th>
           <th>12W 趋势</th>
           <th>盈亏</th>
           <th class="rs-num rs-th-sort" :class="{ 'rs-th-sort--active': sort.key === 'last_purchase_days_ago' }"
-            data-sort="last_purchase_days_ago" @click="emit('sort-change', 'last_purchase_days_ago')">距进货 <span class="rs-sort-ind">{{ sortInd("last_purchase_days_ago") }}</span></th>
+            data-sort="last_purchase_days_ago" tabindex="0" :aria-sort="ariaSort('last_purchase_days_ago')"
+            @click="emit('sort-change', 'last_purchase_days_ago')" @keydown="onHeaderKey($event, 'last_purchase_days_ago')">距进货 <span class="rs-sort-ind">{{ sortInd("last_purchase_days_ago") }}</span></th>
           <th class="rs-num rs-rec-g rs-rec-sep rs-th-sort" :class="{ 'rs-th-sort--active': sort.key === 'restock_qty_p50' }"
-            data-sort="restock_qty_p50" title="预测模型 p50 × 8周 - 库存" @click="emit('sort-change', 'restock_qty_p50')">P50 <span class="rs-sort-ind">{{ sortInd("restock_qty_p50") }}</span></th>
+            data-sort="restock_qty_p50" tabindex="0" :aria-sort="ariaSort('restock_qty_p50')" title="预测模型 p50 × 8周 - 库存"
+            @click="emit('sort-change', 'restock_qty_p50')" @keydown="onHeaderKey($event, 'restock_qty_p50')">P50 <span class="rs-sort-ind">{{ sortInd("restock_qty_p50") }}</span></th>
           <th class="rs-num rs-rec-g rs-th-sort" :class="{ 'rs-th-sort--active': sort.key === 'restock_qty_p98' }"
-            data-sort="restock_qty_p98" title="预测模型 p98 × 8周 - 库存 (安全量)" @click="emit('sort-change', 'restock_qty_p98')">P98 <span class="rs-sort-ind">{{ sortInd("restock_qty_p98") }}</span></th>
+            data-sort="restock_qty_p98" tabindex="0" :aria-sort="ariaSort('restock_qty_p98')" title="预测模型 p98 × 8周 - 库存 (安全量)"
+            @click="emit('sort-change', 'restock_qty_p98')" @keydown="onHeaderKey($event, 'restock_qty_p98')">P98 <span class="rs-sort-ind">{{ sortInd("restock_qty_p98") }}</span></th>
           <th class="rs-num rs-rec-g" title="最近一次进货的数量">上次量</th>
         </tr>
       </thead>
@@ -139,6 +156,7 @@ function hasSpark(it: RestockItem): boolean {
 .rs-num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .rs-th-sort { cursor: pointer; user-select: none; }
 .rs-th-sort:hover { color: var(--ink-1); }
+.rs-th-sort:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .rs-th-sort--active { color: var(--accent); }
 .rs-sort-ind { font-size: 8px; margin-left: 2px; }
 .rs-th-sort--active .rs-sort-ind { color: var(--accent); }

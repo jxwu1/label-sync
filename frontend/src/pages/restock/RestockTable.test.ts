@@ -51,6 +51,20 @@ describe("RestockTable", () => {
     });
     expect(w.find('[data-sort="qty_total"]').text()).toContain("↑");
   });
+  it("键盘可达：Enter/Space 触发排序，且 aria-sort 反映状态", async () => {
+    const w = mount(RestockTable, {
+      props: { rows: rows(1), coverThreshold: 4, sort: { key: "margin_pct", dir: "asc" } },
+    });
+    const th = w.find('[data-sort="qty_total"]');
+    expect(th.attributes("tabindex")).toBe("0");
+    expect(th.attributes("aria-sort")).toBe("none");
+    await th.trigger("keydown", { key: "Enter" });
+    expect(w.emitted("sort-change")?.[0]).toEqual(["qty_total"]);
+    await th.trigger("keydown", { key: " " });
+    expect(w.emitted("sort-change")?.[1]).toEqual(["qty_total"]);
+    // 当前排序列 aria-sort 反映方向
+    expect(w.find('[data-sort="margin_pct"]').attributes("aria-sort")).toBe("ascending");
+  });
   it("货号/供应商/盈亏/趋势/上次量 列不可排序（无 .rs-th-sort）", () => {
     const w = mount(RestockTable, { props: { rows: rows(1), coverThreshold: 4 } });
     const sortableKeys = w.findAll("th.rs-th-sort").map((th) => th.attributes("data-sort"));

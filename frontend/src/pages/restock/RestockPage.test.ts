@@ -3,7 +3,7 @@ vi.mock("../../api/client", () => ({
   apiGet: vi.fn(), UnauthenticatedError: class extends Error {},
 }));
 import { mount, flushPromises } from "@vue/test-utils";
-import { apiGet } from "../../api/client";
+import { apiGet, UnauthenticatedError } from "../../api/client";
 import RestockPage from "./RestockPage.vue";
 
 const item = (p: any) => ({ barcode: "b" + Math.random(), model: "M", name_zh: "n",
@@ -58,5 +58,15 @@ describe("RestockPage", () => {
     await flushPromises();
     expect(codes()).toEqual(["lo", "mid", "hi"]);
     expect(w.find('[data-sort="qty_total"]').text()).toContain("↑");
+  });
+
+  it("401 中性态：apiGet 抛 UnauthenticatedError → 中性「加载中…」，非业务错误/空态", async () => {
+    vi.mocked(apiGet).mockRejectedValue(new UnauthenticatedError("unauth"));
+    const w = mount(RestockPage);
+    await flushPromises();
+    // client 已跳登录；页面停在中性占位，不显业务「加载失败」，不渲染行/空态
+    expect(w.text()).toContain("加载中…");
+    expect(w.text()).not.toContain("加载失败");
+    expect(w.findAll("tr.rs-row").length).toBe(0);
   });
 });

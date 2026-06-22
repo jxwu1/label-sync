@@ -48,6 +48,12 @@ describe("FilterBar", () => {
     const w = mount(FilterBar, { props: { filter: { ...INITIAL_FILTER, coverMax: null } } });
     expect(w.find(".rs-cf-clear").exists()).toBe(false);
   });
+  it("清 coverMax 后滑块保留清除前位置（不复位到 4）", async () => {
+    const w = mount(FilterBar, { props: { filter: { ...INITIAL_FILTER, coverMax: 12 } } });
+    // 父把 coverMax 置 null（模拟点 × 后的回流）
+    await w.setProps({ filter: { ...INITIAL_FILTER, coverMax: null } });
+    expect((w.find(".rs-cf-range").element as HTMLInputElement).value).toBe("12"); // 保留 12，非 4
+  });
   it("供应商 tag 仅在 supplier 非空时渲染，× 清 supplier 保留其他筛选", () => {
     const none = mount(FilterBar, { props: { filter: { ...INITIAL_FILTER, supplier: null } } });
     expect(none.find(".rs-supplier-tag").exists()).toBe(false);

@@ -1,9 +1,14 @@
 <script setup lang="ts">
+import { ref, watch } from "vue";
 import { RESET_FILTER, type FilterState } from "./constants";
 const props = defineProps<{ filter: FilterState }>();
 const emit = defineEmits<{ (e: "update", f: FilterState): void }>();
 
 function patch(p: Partial<FilterState>) { emit("update", { ...props.filter, ...p }); }
+
+// 清「不限」后保留清除前的滑块位置（旧页 1:1：rsCfRange.value 不复位）
+const sliderPos = ref(props.filter.coverMax ?? 4);
+watch(() => props.filter.coverMax, (v) => { if (v != null) sliderPos.value = v; });
 function setView(k: "active" | "new" | "disc") {
   patch({ views: { ...props.filter.views, [k]: !props.filter.views[k] } });
 }
@@ -35,7 +40,7 @@ const BANDS: [string, string][] = [["all", "全部"], ["urgent", "紧急"], ["wa
     <span class="rs-f-sep"></span>
     <label class="rs-cf">
       <span class="rs-cf-label">可撑</span>
-      <input class="rs-cf-range" type="range" min="0.5" max="20" step="0.5" :value="props.filter.coverMax ?? 4"
+      <input class="rs-cf-range" type="range" min="0.5" max="20" step="0.5" :value="props.filter.coverMax ?? sliderPos"
         @input="patch({ coverMax: Number(($event.target as HTMLInputElement).value) })" />
       <span class="rs-cf-val">{{ props.filter.coverMax != null ? "≤ " + props.filter.coverMax + "w" : "不限" }}</span>
       <button v-if="props.filter.coverMax != null" type="button" class="rs-cf-clear"
