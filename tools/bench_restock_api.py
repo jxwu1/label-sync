@@ -3,9 +3,9 @@
 两端同源 list_sku_summary()（60s 缓存），差异 = 新端点每请求的投影 + pydantic 27k 行
 校验开销。同机同数据集，预热 3 / 计时 10 取 p50，断言 ratio ≤ 1.3。
 
-跑前置：DATABASE_URL 指向有真实量级数据的库（本地灌 prod DB）。dev.ps1 环境下：
-    DATABASE_URL=postgresql+psycopg://dev:devpass@localhost:5433/label_sync python tools/bench_restock_api.py
-把输出 ratio 贴进 PR 描述。
+跑前置：DATABASE_URL 指向有真实量级数据的库（本地灌 prod DB）。dev.ps1 环境下设
+DATABASE_URL=postgresql+psycopg://dev:devpass@localhost:5433/label_sync
+再 `PYTHONPATH=. python tools/bench_restock_api.py`，把输出 ratio 贴进 PR 描述。
 """
 
 from __future__ import annotations

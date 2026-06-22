@@ -9,7 +9,8 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from app.schemas_api import RestockSuppressedEntry, RestockSuppressedList
+from app.routes.restock import _ITEM_KEYS, _project_item
+from app.schemas_api import RestockItem, RestockSuppressedEntry, RestockSuppressedList
 
 
 def test_suppressed_entry_accepts_full_and_null_reason():
@@ -49,9 +50,6 @@ def test_api_restock_suppressed_shape(real_app):
     data = resp.get_json()
     assert data["ok"] is True
     assert isinstance(data["items"], dict)
-
-
-from app.schemas_api import RestockItem
 
 
 def _full_item():
@@ -105,7 +103,6 @@ def test_restock_item_urgency_score_accepts_fractional():
 
 
 def test_restock_item_nullable_fields_accept_none():
-    it = _full_item()
     for k in [
         "model",
         "name_zh",
@@ -168,9 +165,6 @@ def test_restock_item_origin_enum_rejects_unknown_value(bad):
     d["origin"] = bad
     with pytest.raises(ValidationError):
         RestockItem.model_validate(d)
-
-
-from app.routes.restock import _ITEM_KEYS, _project_item
 
 
 def test_project_item_key_set_equals_whitelist():
