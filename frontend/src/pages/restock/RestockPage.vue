@@ -2,7 +2,7 @@
 import { ref, shallowRef, computed, markRaw, onMounted } from "vue";
 import { apiGet, UnauthenticatedError } from "../../api/client";
 import type { RestockItemList, RestockSuppressedList } from "../../api/types.gen";
-import { INITIAL_FILTER, INITIAL_SORT, THRESH, type FilterState } from "./constants";
+import { INITIAL_FILTER, INITIAL_SORT, THRESH, VISIBLE_CAP, type FilterState } from "./constants";
 import { filterPredicate, type FilterCtx } from "./filter";
 import { applySort, type SortState } from "./sort";
 import { computeKpi } from "./kpi";
@@ -29,6 +29,7 @@ const kpi = computed(() => computeKpi(items.value, filter.value, ctx.value, filt
 const supRows = computed(() => supExpanded.value
   ? allSuppliersSummary(items.value, filter.value, ctx.value, filterPredicate)
   : supplierSummary(items.value, filter.value, ctx.value, filterPredicate).slice(0, THRESH.SUPPLIER_OVERVIEW_TOP));
+const shownCount = computed(() => Math.min(filteredSorted.value.length, VISIBLE_CAP));
 
 async function load() {
   loadError.value = null;
@@ -59,7 +60,7 @@ onMounted(load);
 
 <template>
   <section id="pageRestock">
-    <KpiCards :kpi="kpi" />
+    <div class="rs-top"><KpiCards :kpi="kpi" /></div>
     <SupplierOverview :rows="supRows" :expanded="supExpanded" :active-supplier="filter.supplier"
       @select-supplier="onSelectSupplier" @toggle-expand="supExpanded = !supExpanded" />
     <FilterBar :filter="filter" @update="onUpdateFilter" />
@@ -67,5 +68,17 @@ onMounted(load);
     <p v-else-if="!loaded" class="empty">加载中…</p>
     <RestockTable v-else :rows="filteredSorted" :cover-threshold="filter.coverThreshold"
       @open-history="onOpenHistory" @select-supplier="onSelectSupplier" />
+    <div v-if="loaded" class="rs-foot">
+      <span class="rs-foot-stat">显示前 <b>{{ shownCount }}</b> / {{ filteredSorted.length }} 项</span>
+    </div>
   </section>
 </template>
+
+<style scoped>
+#pageRestock { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; }
+.rs-top { background: var(--bg-1); border-bottom: 1px solid var(--line-soft); flex-shrink: 0; padding: 12px 20px; }
+.empty { text-align: center; color: var(--ink-2); padding: 40px; }
+.rs-foot { display: flex; align-items: center; gap: 12px; padding: 8px 20px; background: var(--bg-1); border-top: 1px solid var(--line-soft); flex-shrink: 0; }
+.rs-foot-stat { font-size: var(--fs-sm); font-family: var(--mono); color: var(--ink-2); }
+.rs-foot-stat b { font-weight: 600; color: var(--ink-1); }
+</style>
