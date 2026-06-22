@@ -30,4 +30,33 @@ describe("RestockPage", () => {
     await flushPromises();
     expect(w.findAll("tr.rs-row").length).toBe(1);
   });
+
+  it("点表头排序：异列→desc 重排，再点同列→asc 翻转", async () => {
+    vi.mocked(apiGet).mockImplementation(async (path: string) => {
+      if (path === "/api/restock/items") return {
+        ok: true, total: 3,
+        items: [
+          item({ barcode: "lo", qty_total: 10, weeks_of_cover: 1, urgency_score: 50 }),
+          item({ barcode: "hi", qty_total: 99, weeks_of_cover: 1, urgency_score: 50 }),
+          item({ barcode: "mid", qty_total: 50, weeks_of_cover: 1, urgency_score: 50 }),
+        ],
+      } as any;
+      return { ok: true, items: {} } as any;
+    });
+    const w = mount(RestockPage);
+    await flushPromises();
+    const codes = () => w.findAll("tr.rs-row .rs-bc-link").map((b) => b.text());
+
+    // 点「库存」表头 → qty_total desc：99,50,10
+    await w.find('[data-sort="qty_total"]').trigger("click");
+    await flushPromises();
+    expect(codes()).toEqual(["hi", "mid", "lo"]);
+    expect(w.find('[data-sort="qty_total"]').text()).toContain("↓");
+
+    // 再点同列 → asc 翻转：10,50,99
+    await w.find('[data-sort="qty_total"]').trigger("click");
+    await flushPromises();
+    expect(codes()).toEqual(["lo", "mid", "hi"]);
+    expect(w.find('[data-sort="qty_total"]').text()).toContain("↑");
+  });
 });

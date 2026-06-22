@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   fmt, fmtDays, coverTone, urgencyLevel, wocLevel, marginLevel,
   originBadge, profitBadge, coverBar, sparklinePoints, sparkTrend, realBars,
+  marginTooltip, marginSrcMark,
 } from "./cells";
 
 describe("cells", () => {
@@ -39,6 +40,33 @@ describe("cells", () => {
     expect(marginLevel(30)).toBe("good");
     expect(marginLevel(10)).toBe("meh");
     expect(marginLevel(9)).toBe("bad");
+  });
+  it("marginTooltip 1:1（restock.js:227-251；实际成交价无 ~）", () => {
+    const real = {
+      margin_pct: 35, margin_source: "purchase", margin_price_source: "events",
+      master_stock_price_eur: 3.2, master_sale_price_eur: 6.0,
+      last_purchase_unit_price: 3.0, sale_net_avg: 5.8,
+    };
+    expect(marginTooltip(real)).toBe("毛利 35%\n批发均价 €5.8\n上次进价 €3");
+    expect(marginSrcMark(real)).toBe("");
+  });
+  it("marginTooltip 主档参考价 → ~ 标记 + 主档文案", () => {
+    const ref = {
+      margin_pct: 40, margin_source: "master", margin_price_source: "master",
+      master_stock_price_eur: 3.2, master_sale_price_eur: 6.0,
+      last_purchase_unit_price: 3.0, sale_net_avg: 5.8,
+    };
+    expect(marginTooltip(ref)).toBe("毛利 40%\n主档售价 €6\n主档参考进价 €3.2");
+    expect(marginSrcMark(ref)).toBe("~");
+  });
+  it("marginTooltip margin null → 缺价文案 + 无 ~", () => {
+    const none = { margin_pct: null };
+    expect(marginTooltip(none)).toBe("缺进货价或售价");
+    expect(marginSrcMark(none)).toBe("");
+  });
+  it("marginSrcMark 单边主档也标 ~（任一兜底）", () => {
+    expect(marginSrcMark({ margin_pct: 20, margin_source: "master", margin_price_source: "events" })).toBe("~");
+    expect(marginSrcMark({ margin_pct: 20, margin_source: "purchase", margin_price_source: "master" })).toBe("~");
   });
   it("originBadge 三态（restock.js:109）", () => {
     expect(originBadge("FOREIGN")).toEqual({ char: "🇬🇷", cls: "fo" });

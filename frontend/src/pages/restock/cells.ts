@@ -41,6 +41,35 @@ export function marginLevel(m: number): string {
 
 const COVER_CAP = 13.0; // 微条满刻度（与 THRESH.COVER_CAP 同值，restock.js COVER_CAP）
 
+// 毛利单元格字段子集（marginTooltip / marginSrcMark 用）
+interface MarginFields {
+  margin_pct: number | null | undefined;
+  margin_source?: string | null;
+  margin_price_source?: string | null;
+  master_stock_price_eur?: number | null;
+  master_sale_price_eur?: number | null;
+  last_purchase_unit_price?: number | null;
+  sale_net_avg?: number | null;
+}
+
+// 毛利 tooltip（restock.js:227-251；spec line 30 明列保留，用扁平字段）
+export function marginTooltip(it: MarginFields): string {
+  if (it.margin_pct === null || it.margin_pct === undefined) return "缺进货价或售价";
+  const costIsMaster = it.margin_source === "master";
+  const priceIsMaster = it.margin_price_source === "master";
+  const cost = costIsMaster ? it.master_stock_price_eur : it.last_purchase_unit_price;
+  const costLabel = costIsMaster ? "主档参考进价" : "上次进价";
+  const salePrice = priceIsMaster ? it.master_sale_price_eur : it.sale_net_avg;
+  const saleLabel = priceIsMaster ? "主档售价" : "批发均价";
+  return `毛利 ${it.margin_pct}%\n${saleLabel} €${salePrice}\n${costLabel} €${cost}`;
+}
+
+// 任一端用主档兜底/参考价 → "~"（restock.js:248）
+export function marginSrcMark(it: MarginFields): string {
+  if (it.margin_pct === null || it.margin_pct === undefined) return "";
+  return it.margin_source === "master" || it.margin_price_source === "master" ? "~" : "";
+}
+
 // 来源徽标前缀（restock.js:109 originBadge）
 export function originBadge(origin: string): { char: string; cls: string } {
   if (origin === "FOREIGN") return { char: "🇬🇷", cls: "fo" };

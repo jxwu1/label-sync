@@ -27,12 +27,19 @@ const BANDS: [string, string][] = [["all", "全部"], ["urgent", "紧急"], ["wa
         :class="['rs-chip', { 'rs-chip--active': props.filter.band === v }]"
         @click="patch({ band: props.filter.band === v ? 'all' : v })">{{ l }}</button>
     </div>
+    <span v-if="props.filter.supplier" class="rs-supplier-tag">
+      <span class="rs-supplier-tag-label">供应商</span>
+      <span class="rs-supplier-tag-val">{{ props.filter.supplier }}</span>
+      <button type="button" class="rs-supplier-tag-x" title="清除供应商筛选" @click="patch({ supplier: null })">×</button>
+    </span>
     <span class="rs-f-sep"></span>
     <label class="rs-cf">
       <span class="rs-cf-label">可撑</span>
-      <input class="rs-cf-range" type="range" min="1" max="13" :value="props.filter.coverMax ?? 13"
+      <input class="rs-cf-range" type="range" min="0.5" max="20" step="0.5" :value="props.filter.coverMax ?? 4"
         @input="patch({ coverMax: Number(($event.target as HTMLInputElement).value) })" />
-      <span class="rs-cf-val">{{ props.filter.coverMax != null ? "≤ " + props.filter.coverMax + "w" : "全部" }}</span>
+      <span class="rs-cf-val">{{ props.filter.coverMax != null ? "≤ " + props.filter.coverMax + "w" : "不限" }}</span>
+      <button v-if="props.filter.coverMax != null" type="button" class="rs-cf-clear"
+        title="不限" @click="patch({ coverMax: null })">×</button>
     </label>
     <span class="rs-f-spacer"></span>
     <input class="rs-search" type="search" placeholder="供应商 / 条码 / 型号 / 品名" :value="props.filter.search"
@@ -59,11 +66,20 @@ const BANDS: [string, string][] = [["all", "全部"], ["urgent", "紧急"], ["wa
 .rs-f-sep { width: 1px; height: 16px; background: var(--line-soft); flex-shrink: 0; }
 .rs-f-spacer { flex: 1; }
 
+/* 当前供应商筛选标签 + 清除（旧 .rs-supplier-tag） */
+.rs-supplier-tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px 3px 10px; border-radius: var(--r-sm); background: var(--accent-subtle); border: 1px solid var(--accent-subtle-border); }
+.rs-supplier-tag-label { font-size: var(--fs-xs); font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.03em; }
+.rs-supplier-tag-val { font-family: var(--mono); font-size: var(--fs-sm); font-weight: 600; color: var(--accent); }
+.rs-supplier-tag-x { background: transparent; border: none; color: var(--accent); cursor: pointer; font-size: 13px; line-height: 1; padding: 0 0 0 2px; }
+.rs-supplier-tag-x:hover { color: var(--error); }
+
 /* 可撑滑块 */
 .rs-cf { display: inline-flex; align-items: center; gap: 6px; }
 .rs-cf-label { font-size: var(--fs-xs); font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.03em; }
 .rs-cf-range { width: 110px; accent-color: var(--accent); }
 .rs-cf-val { font-family: var(--mono); font-size: var(--fs-sm); color: var(--accent); min-width: 44px; }
+.rs-cf-clear { border: none; background: none; color: var(--ink-3); cursor: pointer; font-size: 13px; line-height: 1; padding: 0 2px; }
+.rs-cf-clear:hover { color: var(--error); }
 
 /* 搜索框 */
 .rs-search { padding: 5px 10px; border: 1px solid var(--line-soft); border-radius: var(--r-sm); background: var(--bg-0); font-family: var(--sans); font-size: var(--fs-sm); color: var(--ink-0); width: 200px; outline: none; transition: border-color var(--t-fast); }

@@ -4,15 +4,30 @@ import { VISIBLE_CAP } from "./constants";
 import {
   fmt, fmtDays, urgencyLevel, marginLevel,
   originBadge, profitBadge, coverBar, sparkTrend, sparklinePoints, realBars,
+  marginTooltip, marginSrcMark,
 } from "./cells";
 import type { RestockItem } from "./types";
 
-const props = defineProps<{ rows: RestockItem[]; coverThreshold: number }>();
+const props = withDefaults(
+  defineProps<{
+    rows: RestockItem[];
+    coverThreshold: number;
+    sort?: { key: string; dir: "asc" | "desc" };
+  }>(),
+  { sort: () => ({ key: "urgency_score", dir: "desc" }) },
+);
 const emit = defineEmits<{
   (e: "open-history", bc: string): void;
   (e: "select-supplier", bc: string): void;
+  (e: "sort-change", key: string): void;
 }>();
 const visible = computed(() => props.rows.slice(0, VISIBLE_CAP));
+
+// 排序指示：仅当前排序列显示 ↑/↓（旧 restock.js:1101）
+function sortInd(key: string): string {
+  if (props.sort.key !== key) return "";
+  return props.sort.dir === "asc" ? "↑" : "↓";
+}
 
 function sparkPts(it: RestockItem): string {
   return sparklinePoints(realBars(it.weekly_qty_12w));
@@ -27,20 +42,29 @@ function hasSpark(it: RestockItem): boolean {
     <table class="rs-table">
       <thead>
         <tr>
-          <th>紧迫分</th>
+          <th class="rs-th-sort" :class="{ 'rs-th-sort--active': sort.key === 'urgency_score' }"
+            data-sort="urgency_score" @click="emit('sort-change', 'urgency_score')">紧迫分 <span class="rs-sort-ind">{{ sortInd("urgency_score") }}</span></th>
           <th>货号 / 品名</th>
           <th>供应商</th>
-          <th class="rs-num">库存</th>
-          <th class="rs-num">可撑</th>
-          <th class="rs-num">周销速</th>
-          <th class="rs-num">周销额</th>
-          <th class="rs-num">毛利率</th>
+          <th class="rs-num rs-th-sort" :class="{ 'rs-th-sort--active': sort.key === 'qty_total' }"
+            data-sort="qty_total" @click="emit('sort-change', 'qty_total')">库存 <span class="rs-sort-ind">{{ sortInd("qty_total") }}</span></th>
+          <th class="rs-num rs-th-sort" :class="{ 'rs-th-sort--active': sort.key === 'weeks_of_cover' }"
+            data-sort="weeks_of_cover" @click="emit('sort-change', 'weeks_of_cover')">可撑 <span class="rs-sort-ind">{{ sortInd("weeks_of_cover") }}</span></th>
+          <th class="rs-num rs-th-sort" :class="{ 'rs-th-sort--active': sort.key === 'weekly_velocity' }"
+            data-sort="weekly_velocity" title="近 26 周件/周" @click="emit('sort-change', 'weekly_velocity')">周销速 <span class="rs-sort-ind">{{ sortInd("weekly_velocity") }}</span></th>
+          <th class="rs-num rs-th-sort" :class="{ 'rs-th-sort--active': sort.key === 'weekly_revenue' }"
+            data-sort="weekly_revenue" title="近 26 周折后净销售额 / 周" @click="emit('sort-change', 'weekly_revenue')">周销额 <span class="rs-sort-ind">{{ sortInd("weekly_revenue") }}</span></th>
+          <th class="rs-num rs-th-sort" :class="{ 'rs-th-sort--active': sort.key === 'margin_pct' }"
+            data-sort="margin_pct" title="(售净均价 - 上次进价) / 售净均价" @click="emit('sort-change', 'margin_pct')">毛利率 <span class="rs-sort-ind">{{ sortInd("margin_pct") }}</span></th>
           <th>12W 趋势</th>
           <th>盈亏</th>
-          <th class="rs-num">距进货</th>
-          <th class="rs-num rs-rec-g rs-rec-sep">P50</th>
-          <th class="rs-num rs-rec-g">P98</th>
-          <th class="rs-num rs-rec-g">上次量</th>
+          <th class="rs-num rs-th-sort" :class="{ 'rs-th-sort--active': sort.key === 'last_purchase_days_ago' }"
+            data-sort="last_purchase_days_ago" @click="emit('sort-change', 'last_purchase_days_ago')">距进货 <span class="rs-sort-ind">{{ sortInd("last_purchase_days_ago") }}</span></th>
+          <th class="rs-num rs-rec-g rs-rec-sep rs-th-sort" :class="{ 'rs-th-sort--active': sort.key === 'restock_qty_p50' }"
+            data-sort="restock_qty_p50" title="预测模型 p50 × 8周 - 库存" @click="emit('sort-change', 'restock_qty_p50')">P50 <span class="rs-sort-ind">{{ sortInd("restock_qty_p50") }}</span></th>
+          <th class="rs-num rs-rec-g rs-th-sort" :class="{ 'rs-th-sort--active': sort.key === 'restock_qty_p98' }"
+            data-sort="restock_qty_p98" title="预测模型 p98 × 8周 - 库存 (安全量)" @click="emit('sort-change', 'restock_qty_p98')">P98 <span class="rs-sort-ind">{{ sortInd("restock_qty_p98") }}</span></th>
+          <th class="rs-num rs-rec-g" title="最近一次进货的数量">上次量</th>
         </tr>
       </thead>
       <tbody id="rsTbody">
@@ -80,8 +104,8 @@ function hasSpark(it: RestockItem): boolean {
           <td class="rs-num">{{ fmt(it.weekly_velocity, 1) }}</td>
           <td class="rs-num">€{{ fmt(it.weekly_revenue, 1) }}</td>
           <td class="rs-num">
-            <span v-if="it.margin_pct != null" :class="`rs-margin rs-margin--${marginLevel(it.margin_pct)}`">{{ it.margin_pct.toFixed(1) }}%</span>
-            <span v-else class="rs-margin rs-margin--none">—</span>
+            <span v-if="it.margin_pct != null" :class="`rs-margin rs-margin--${marginLevel(it.margin_pct)}`" :title="marginTooltip(it)">{{ it.margin_pct.toFixed(1) }}%<span v-if="marginSrcMark(it)" class="rs-margin__src" title="部分使用主档参考价, 非实际成交">{{ marginSrcMark(it) }}</span></span>
+            <span v-else class="rs-margin rs-margin--none" title="缺进货价或售价">—</span>
           </td>
           <td>
             <svg v-if="hasSpark(it)" :class="`rs-spark-cell rs-spark-cell--${sparkTrend(it.trend_slope_pct_per_week)}`" viewBox="0 0 60 20">
@@ -113,6 +137,11 @@ function hasSpark(it: RestockItem): boolean {
 .rs-table td { padding: 7px 16px; border-bottom: 1px solid var(--line-soft); color: var(--ink-1); vertical-align: middle; }
 .rs-table td.rs-num { text-align: right; }
 .rs-num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.rs-th-sort { cursor: pointer; user-select: none; }
+.rs-th-sort:hover { color: var(--ink-1); }
+.rs-th-sort--active { color: var(--accent); }
+.rs-sort-ind { font-size: 8px; margin-left: 2px; }
+.rs-th-sort--active .rs-sort-ind { color: var(--accent); }
 .rs-row { transition: background var(--t-fast); }
 .rs-row:hover { background: var(--bg-2); }
 
@@ -169,6 +198,7 @@ function hasSpark(it: RestockItem): boolean {
 .rs-margin--meh  { color: var(--warn); }
 .rs-margin--bad  { color: var(--error); }
 .rs-margin--none { color: var(--ink-3); }
+.rs-margin__src { color: var(--ink-3); margin-left: 2px; font-size: var(--fs-xs); }
 
 /* Sparkline */
 .rs-spark-cell { width: 60px; height: 20px; }
