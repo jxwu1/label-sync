@@ -1,5 +1,12 @@
 export class UnauthenticatedError extends Error {}
 
+export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 /** 统一 API GET：same-origin cookie；401/redirect/HTML 一律按未登录跳转（spec §6）。 */
 export async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(path, {
@@ -11,6 +18,6 @@ export async function apiGet<T>(path: string): Promise<T> {
     location.assign(`/login?next=${encodeURIComponent(location.pathname + location.search)}`);
     throw new UnauthenticatedError(`unauthenticated: ${path}`);
   }
-  if (!res.ok) throw new Error(`API ${res.status}: ${path}`);
+  if (!res.ok) throw new ApiError(res.status, `API ${res.status}: ${path}`);
   return (await res.json()) as T;
 }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import { RESET_FILTER, type FilterState } from "./constants";
+defineOptions({ name: "FilterBar" });
 const props = defineProps<{ filter: FilterState }>();
 const emit = defineEmits<{ (e: "update", f: FilterState): void }>();
 

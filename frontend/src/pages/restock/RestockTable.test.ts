@@ -1,6 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import RestockTable from "./RestockTable.vue";
+
+vi.mock("../../stores/restockDetail", () => ({
+  useRestockDetailStore: () => ({ entries: {}, cache: {}, errorMsg: {}, load: () => {} }),
+}));
 
 function rows(n: number): any[] {
   return Array.from({ length: n }, (_, i) => ({
@@ -87,5 +91,32 @@ describe("RestockTable", () => {
       ["last_purchase_days_ago", "margin_pct", "qty_total", "restock_qty_p50",
        "restock_qty_p98", "urgency_score", "weekly_revenue", "weekly_velocity", "weeks_of_cover"],
     );
+  });
+
+  // Phase 2 Task 8: inline drawer expand tests
+  it("点行非按钮区 emit toggle-expand", async () => {
+    const w = mount(RestockTable, { props: { rows: rows(2), coverThreshold: 4, sort: { key: "urgency_score", dir: "desc" } } });
+    await w.findAll("tr.rs-row")[0].find(".rs-model").trigger("click");
+    expect(w.emitted("toggle-expand")?.[0]).toEqual(["b0"]);
+  });
+  it("命中 expandedBarcode 插 drawer 行（colspan=14，单行）", () => {
+    const w = mount(RestockTable, { props: { rows: rows(3), coverThreshold: 4, sort: { key: "urgency_score", dir: "desc" }, expandedBarcode: "b1" } });
+    const drawerRows = w.findAll("tr.rs-drawer-row");
+    expect(drawerRows.length).toBe(1);
+    expect(drawerRows[0].find("td").attributes("colspan")).toBe("14");
+    expect(w.find('tr.rs-row[aria-expanded="true"]').exists()).toBe(true);
+  });
+  it("红队 click：点货号/供应商不 emit toggle-expand", async () => {
+    const w = mount(RestockTable, { props: { rows: rows(1), coverThreshold: 4, sort: { key: "urgency_score", dir: "desc" } } });
+    await w.find(".rs-bc-link").trigger("click");
+    await w.find(".rs-supplier").trigger("click");
+    expect(w.emitted("toggle-expand")).toBeUndefined();
+  });
+  it("红队 keydown：聚焦货号按 Enter 不展开（.self）；聚焦行 Enter 展开", async () => {
+    const w = mount(RestockTable, { props: { rows: rows(1), coverThreshold: 4, sort: { key: "urgency_score", dir: "desc" } } });
+    await w.find(".rs-bc-link").trigger("keydown", { key: "Enter" });
+    expect(w.emitted("toggle-expand")).toBeUndefined();
+    await w.find("tr.rs-row").trigger("keydown.enter");
+    expect(w.emitted("toggle-expand")?.[0]).toEqual(["b0"]);
   });
 });

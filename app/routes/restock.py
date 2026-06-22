@@ -13,9 +13,17 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 from app.models import get_session
-from app.schemas_api import RestockItem, RestockItemList, RestockSuppressedList
+from app.schemas_api import (
+    RestockDetail,
+    RestockDetailResponse,
+    RestockDetailUrgencyBreakdown,
+    RestockItem,
+    RestockItemList,
+    RestockSuppressedList,
+)
 from app.services import restock_decisions as svc
 from app.services.analytics import list_sku_summary
+from app.services.analytics.restock_calc import compute_restock_snapshot
 
 bp = Blueprint("restock", __name__, url_prefix="/restock")
 
@@ -120,10 +128,19 @@ def api_suppressed():
 
 
 _ITEM_KEYS = tuple(RestockItem.model_fields.keys())  # 白名单单源 = schema 字段
+_BD_KEYS = tuple(RestockDetailUrgencyBreakdown.model_fields.keys())
+_DETAIL_FLAT_KEYS = tuple(k for k in RestockDetail.model_fields.keys() if k != "urgency_breakdown")
 
 
 def _project_item(row: dict) -> dict:
     return {k: row.get(k) for k in _ITEM_KEYS}
+
+
+def _project_detail(row: dict) -> dict:
+    out = {k: row.get(k) for k in _DETAIL_FLAT_KEYS}
+    bd = row.get("urgency_breakdown")
+    out["urgency_breakdown"] = {k: bd.get(k) for k in _BD_KEYS} if bd else None
+    return out
 
 
 @api_bp.get("/items")
@@ -132,3 +149,12 @@ def api_items():
     items = [_project_item(r) for r in rows]
     payload = {"ok": True, "total": len(items), "items": items}
     return jsonify(RestockItemList.model_validate(payload).model_dump())
+
+
+@api_bp.get("/<barcode>/detail")
+def api_detail(barcode: str):
+    row = compute_restock_snapshot(barcode)
+    if row is None:
+        return jsonify({"ok": False, "error": "not_found"}), 404
+    payload = {"ok": True, "detail": _project_detail(row)}
+    return jsonify(RestockDetailResponse.model_validate(payload).model_dump())

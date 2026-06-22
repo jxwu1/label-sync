@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { apiGet, UnauthenticatedError } from "./client";
+import { ApiError, apiGet, UnauthenticatedError } from "./client";
 
 function mockResponse(init: Partial<Response> & { payload?: unknown }) {
   const { payload, ...rest } = init;
@@ -46,5 +46,14 @@ describe("apiGet", () => {
     expect(err).toBeInstanceOf(Error);
     expect(err).not.toBeInstanceOf(UnauthenticatedError);
     expect(assign).not.toHaveBeenCalled();
+  });
+});
+
+describe("ApiError", () => {
+  it("带 status 且仍是 Error 子类（向后兼容）", () => {
+    const e = new ApiError(404, "API 404: /x");
+    expect(e).toBeInstanceOf(Error);
+    expect(e.status).toBe(404);
+    expect(e.message).toBe("API 404: /x");
   });
 });

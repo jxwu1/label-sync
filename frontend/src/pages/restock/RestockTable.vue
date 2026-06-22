@@ -7,12 +7,14 @@ import {
   marginTooltip, marginSrcMark,
 } from "./cells";
 import type { RestockItem } from "./types";
+import RestockDrawer from "./RestockDrawer.vue";
 
 const props = withDefaults(
   defineProps<{
     rows: RestockItem[];
     coverThreshold: number;
     sort?: { key: string; dir: "asc" | "desc" };
+    expandedBarcode?: string | null;
   }>(),
   { sort: () => ({ key: "urgency_score", dir: "desc" }) },
 );
@@ -20,6 +22,7 @@ const emit = defineEmits<{
   (e: "open-history", bc: string): void;
   (e: "select-supplier", bc: string): void;
   (e: "sort-change", key: string): void;
+  (e: "toggle-expand", bc: string): void;
 }>();
 const visible = computed(() => props.rows.slice(0, VISIBLE_CAP));
 
@@ -85,60 +88,68 @@ function hasSpark(it: RestockItem): boolean {
         </tr>
       </thead>
       <tbody id="rsTbody">
-        <tr v-for="it in visible" :key="it.barcode" class="rs-row">
-          <td>
-            <span v-if="it.urgency_score != null" class="rs-urg">
-              <span class="rs-urg-bar"><span :class="`rs-urg-fill rs-urg-fill--${urgencyLevel(it.urgency_score)}`"
-                :style="{ width: Math.max(0, Math.min(100, it.urgency_score)) + '%' }"></span></span>
-              <span :class="`rs-urg-num rs-urg-num--${urgencyLevel(it.urgency_score)}`">{{ it.urgency_score }}</span>
-            </span>
-            <span v-else class="rs-urg-num rs-urg-num--none">—</span>
-          </td>
-          <td>
-            <span class="rs-model">{{ it.name_zh || it.model }}</span>
-            <button class="rs-bc-link" @click="emit('open-history', it.barcode)">{{ it.barcode }}</button>
-            <span v-if="it.is_truly_discontinued" class="rs-tag rs-tag--disc">停用</span>
-            <span v-if="it.is_new_item" class="rs-tag rs-tag--new">新品</span>
-            <span v-if="it.stockout_zero_weeks_last8 > 0" class="rs-badge-stockout">⚠ 近 {{ it.stockout_zero_weeks_last8 }} 周零销疑因缺货</span>
-          </td>
-          <td>
-            <span :class="`rs-origin rs-origin--${originBadge(it.origin).cls}`">{{ originBadge(it.origin).char }}</span>
-            <button v-if="it.supplier_id" class="rs-supplier" @click="emit('select-supplier', it.supplier_id)">{{ it.supplier_id }}</button>
-            <span v-else class="rs-supplier rs-supplier--none">—</span>
-          </td>
-          <td class="rs-num">{{ fmt(it.qty_total) }}</td>
-          <td class="rs-num">
-            <span class="rs-cover">
-              <span :class="`rs-cover-num ${coverBar(it.weeks_of_cover, props.coverThreshold)?.tone ?? 'ok'}`">
-                {{ it.weeks_of_cover != null ? it.weeks_of_cover.toFixed(1) + "w" : "—" }}</span>
-              <span v-if="coverBar(it.weeks_of_cover, props.coverThreshold)" class="rs-cover-track">
-                <span :class="`rs-cover-fill ${coverBar(it.weeks_of_cover, props.coverThreshold)!.tone}`"
-                  :style="{ width: coverBar(it.weeks_of_cover, props.coverThreshold)!.fillPct.toFixed(1) + '%' }"></span>
-                <span class="rs-cover-safe" :style="{ left: coverBar(it.weeks_of_cover, props.coverThreshold)!.safePct.toFixed(1) + '%' }"></span>
+        <template v-for="it in visible" :key="it.barcode">
+          <tr class="rs-row" role="button" tabindex="0" :aria-expanded="it.barcode === expandedBarcode"
+              @click="emit('toggle-expand', it.barcode)"
+              @keydown.enter.self.prevent="emit('toggle-expand', it.barcode)"
+              @keydown.space.self.prevent="emit('toggle-expand', it.barcode)">
+            <td>
+              <span v-if="it.urgency_score != null" class="rs-urg">
+                <span class="rs-urg-bar"><span :class="`rs-urg-fill rs-urg-fill--${urgencyLevel(it.urgency_score)}`"
+                  :style="{ width: Math.max(0, Math.min(100, it.urgency_score)) + '%' }"></span></span>
+                <span :class="`rs-urg-num rs-urg-num--${urgencyLevel(it.urgency_score)}`">{{ it.urgency_score }}</span>
               </span>
-            </span>
-          </td>
-          <td class="rs-num">{{ fmt(it.weekly_velocity, 1) }}</td>
-          <td class="rs-num">€{{ fmt(it.weekly_revenue, 1) }}</td>
-          <td class="rs-num">
-            <span v-if="it.margin_pct != null" :class="`rs-margin rs-margin--${marginLevel(it.margin_pct)}`" :title="marginTooltip(it)">{{ it.margin_pct.toFixed(1) }}%<span v-if="marginSrcMark(it)" class="rs-margin__src" title="部分使用主档参考价, 非实际成交">{{ marginSrcMark(it) }}</span></span>
-            <span v-else class="rs-margin rs-margin--none" title="缺进货价或售价">—</span>
-          </td>
-          <td>
-            <svg v-if="hasSpark(it)" :class="`rs-spark-cell rs-spark-cell--${sparkTrend(it.trend_slope_pct_per_week)}`" viewBox="0 0 60 20">
-              <polyline :points="sparkPts(it)" />
-            </svg>
-            <span v-else class="rs-spark-empty" title="近 12 周无销售">—</span>
-          </td>
-          <td>
-            <span :class="`rs-profit-badge rs-profit-badge--${profitBadge(it.realized_profit_eur, it.inventory_cost_value_eur).cls}`">
-              {{ profitBadge(it.realized_profit_eur, it.inventory_cost_value_eur).label }}</span>
-          </td>
-          <td class="rs-num">{{ fmtDays(it.last_purchase_days_ago) }}</td>
-          <td class="rs-num rs-rec-g rs-rec-sep" :title="it.restock_source || '—'"><span class="rs-rec-v rs-rec-v--hi">{{ it.restock_qty_p50 ?? "—" }}</span></td>
-          <td class="rs-num rs-rec-g" :title="it.restock_source || '—'"><span class="rs-rec-v">{{ it.restock_qty_p98 ?? "—" }}</span></td>
-          <td class="rs-num rs-rec-g"><span class="rs-rec-v rs-rec-v--mut">{{ it.last_purchase_qty ?? "—" }}</span></td>
-        </tr>
+              <span v-else class="rs-urg-num rs-urg-num--none">—</span>
+            </td>
+            <td>
+              <span class="rs-model">{{ it.name_zh || it.model }}</span>
+              <button class="rs-bc-link" @click.stop="emit('open-history', it.barcode)">{{ it.barcode }}</button>
+              <span v-if="it.is_truly_discontinued" class="rs-tag rs-tag--disc">停用</span>
+              <span v-if="it.is_new_item" class="rs-tag rs-tag--new">新品</span>
+              <span v-if="it.stockout_zero_weeks_last8 > 0" class="rs-badge-stockout">⚠ 近 {{ it.stockout_zero_weeks_last8 }} 周零销疑因缺货</span>
+            </td>
+            <td>
+              <span :class="`rs-origin rs-origin--${originBadge(it.origin).cls}`">{{ originBadge(it.origin).char }}</span>
+              <button v-if="it.supplier_id" class="rs-supplier" @click.stop="emit('select-supplier', it.supplier_id)">{{ it.supplier_id }}</button>
+              <span v-else class="rs-supplier rs-supplier--none">—</span>
+            </td>
+            <td class="rs-num">{{ fmt(it.qty_total) }}</td>
+            <td class="rs-num">
+              <span class="rs-cover">
+                <span :class="`rs-cover-num ${coverBar(it.weeks_of_cover, props.coverThreshold)?.tone ?? 'ok'}`">
+                  {{ it.weeks_of_cover != null ? it.weeks_of_cover.toFixed(1) + "w" : "—" }}</span>
+                <span v-if="coverBar(it.weeks_of_cover, props.coverThreshold)" class="rs-cover-track">
+                  <span :class="`rs-cover-fill ${coverBar(it.weeks_of_cover, props.coverThreshold)!.tone}`"
+                    :style="{ width: coverBar(it.weeks_of_cover, props.coverThreshold)!.fillPct.toFixed(1) + '%' }"></span>
+                  <span class="rs-cover-safe" :style="{ left: coverBar(it.weeks_of_cover, props.coverThreshold)!.safePct.toFixed(1) + '%' }"></span>
+                </span>
+              </span>
+            </td>
+            <td class="rs-num">{{ fmt(it.weekly_velocity, 1) }}</td>
+            <td class="rs-num">€{{ fmt(it.weekly_revenue, 1) }}</td>
+            <td class="rs-num">
+              <span v-if="it.margin_pct != null" :class="`rs-margin rs-margin--${marginLevel(it.margin_pct)}`" :title="marginTooltip(it)">{{ it.margin_pct.toFixed(1) }}%<span v-if="marginSrcMark(it)" class="rs-margin__src" title="部分使用主档参考价, 非实际成交">{{ marginSrcMark(it) }}</span></span>
+              <span v-else class="rs-margin rs-margin--none" title="缺进货价或售价">—</span>
+            </td>
+            <td>
+              <svg v-if="hasSpark(it)" :class="`rs-spark-cell rs-spark-cell--${sparkTrend(it.trend_slope_pct_per_week)}`" viewBox="0 0 60 20">
+                <polyline :points="sparkPts(it)" />
+              </svg>
+              <span v-else class="rs-spark-empty" title="近 12 周无销售">—</span>
+            </td>
+            <td>
+              <span :class="`rs-profit-badge rs-profit-badge--${profitBadge(it.realized_profit_eur, it.inventory_cost_value_eur).cls}`">
+                {{ profitBadge(it.realized_profit_eur, it.inventory_cost_value_eur).label }}</span>
+            </td>
+            <td class="rs-num">{{ fmtDays(it.last_purchase_days_ago) }}</td>
+            <td class="rs-num rs-rec-g rs-rec-sep" :title="it.restock_source || '—'"><span class="rs-rec-v rs-rec-v--hi">{{ it.restock_qty_p50 ?? "—" }}</span></td>
+            <td class="rs-num rs-rec-g" :title="it.restock_source || '—'"><span class="rs-rec-v">{{ it.restock_qty_p98 ?? "—" }}</span></td>
+            <td class="rs-num rs-rec-g"><span class="rs-rec-v rs-rec-v--mut">{{ it.last_purchase_qty ?? "—" }}</span></td>
+          </tr>
+          <tr v-if="it.barcode === expandedBarcode" class="rs-drawer-row">
+            <td colspan="14"><RestockDrawer :barcode="it.barcode" /></td>
+          </tr>
+        </template>
         <tr v-if="visible.length === 0"><td colspan="14" class="empty">无匹配项</td></tr>
       </tbody>
     </table>
@@ -160,8 +171,10 @@ function hasSpark(it: RestockItem): boolean {
 .rs-th-sort--active { color: var(--accent); }
 .rs-sort-ind { font-size: 8px; margin-left: 2px; }
 .rs-th-sort--active .rs-sort-ind { color: var(--accent); }
-.rs-row { transition: background var(--t-fast); }
+.rs-row { transition: background var(--t-fast); cursor: pointer; }
 .rs-row:hover { background: var(--bg-2); }
+.rs-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rs-drawer-row td { padding: 0; background: var(--bg-0); border-bottom: 1px solid var(--line-soft); }
 
 /* Urgency cell */
 .rs-urg { display: inline-flex; align-items: center; gap: 6px; }
