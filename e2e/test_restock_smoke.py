@@ -24,8 +24,10 @@ requires_dist = pytest.mark.skipif(
 
 
 def _payload(barcode: str = "5201234567890") -> dict:
-    # 超集：含投影应剔除的胖字段（urgency_breakdown 等），验证 strict 投影不被击穿。
+    # 超集：含 RestockItem（列表页）+ RestockDetail（drawer）所有字段，
+    # 验证 strict 投影不被击穿，同时保证 drawer detail 端点能通过 schema 校验。
     return {
+        # ── RestockItem（列表页）字段 ──────────────────────────────────
         "barcode": barcode,
         "model": "ABC123",
         "name_zh": "测试品",
@@ -56,10 +58,35 @@ def _payload(barcode: str = "5201234567890") -> dict:
         "last_purchase_qty": 60,
         "urgency_score": 88.5,
         "stockout_zero_weeks_last8": 0,
-        # 胖字段（drawer-only / 投影白名单外）
-        "urgency_breakdown": {"velocity": 30},
+        # ── RestockDetail（drawer）追加字段 ───────────────────────────
+        # NON-NULL in RestockDetail schema:
+        "total_qty": 100,
+        "lifetime_purchase_qty": 200,
+        "lifetime_sale_qty": 150,
+        "lifetime_sale_revenue_eur": 870.0,
+        "n_active_weeks_26w": 18,
         "retail_qty_26w": 3,
-        "lifetime_invested_eur": 99.0,
+        "retail_revenue_26w": 17.4,
+        "retail_share_26w": 0.24,
+        "is_history_truncated": False,
+        # Optional:
+        "inventory_sale_value_eur": 600.0,
+        "lifetime_invested_eur": 640.0,
+        "net_cashflow_eur": 230.0,
+        "inventory_imbalance_pct": 5.2,
+        "first_event_at": "2024-01-15",
+        "retail_price_observed": 6.0,
+        "retail_price_estimate": 5.9,
+        # urgency_breakdown: full 7-key RestockDetailUrgencyBreakdown
+        "urgency_breakdown": {
+            "velocity": 30.0,
+            "cover": 22.5,
+            "recency": 8.0,
+            "margin": 28.0,
+            "demand_validity": 1.0,
+            "velocity_pctile": 0.85,
+            "margin_pctile": 0.93,
+        },
     }
 
 
@@ -90,4 +117,16 @@ def test_restock_ui_renders_rows(seed_restock, page_with_console):
     # spec §9 验收：KPI 有数——seed 项 urgency 88.5≥70 → 「紧急」计数 = 1（非占位 —）
     hot = page.locator(".rs-kpi[data-tone='error'] .rs-kpi-num")
     assert hot.inner_text().strip() == "1", f"紧急 KPI 期望 1，实际 {hot.inner_text()!r}"
+    assert page.console_errors == [], f"console errors: {page.console_errors}"
+
+
+@pytest.mark.smoke
+@requires_dist
+def test_restock_drawer_expands(seed_restock, page_with_console):
+    page = page_with_console
+    page.goto(f"{seed_restock}/ui/restock")
+    page.wait_for_selector("tr.rs-row", timeout=10000)
+    page.locator("tr.rs-row").first.click()
+    page.wait_for_selector("tr.rs-drawer-row", timeout=10000)
+    assert page.locator(".rs-drawer-sec").count() >= 1
     assert page.console_errors == [], f"console errors: {page.console_errors}"
