@@ -292,6 +292,13 @@ def test_restock_detail_breakdown_none_ok():
     assert RestockDetail.model_validate(d).urgency_breakdown is None
 
 
+def test_restock_detail_rejects_extra_key():
+    d = _full_detail()
+    d["junk"] = 1
+    with pytest.raises(ValidationError):
+        RestockDetail.model_validate(d)
+
+
 @pytest.mark.parametrize(
     "field",
     [
