@@ -10,8 +10,8 @@ const store = useRestockDetailStore();
 const state = computed(() => store.entries[props.barcode]);
 const d = computed(() => store.cache[props.barcode]);
 
-const ps   = computed(() => (d.value ? profitStatus(d.value.realized_profit_eur, d.value.inventory_cost_value_eur) : null));
-const rpl  = computed(() => (d.value ? retailPriceLine(d.value.retail_price_observed, d.value.retail_price_estimate, d.value.retail_qty_26w) : null));
+const ps   = computed(() => profitStatus(d.value?.realized_profit_eur, d.value?.inventory_cost_value_eur));
+const rpl  = computed(() => retailPriceLine(d.value?.retail_price_observed, d.value?.retail_price_estimate, d.value?.retail_qty_26w ?? 0));
 const segs = computed(() => (d.value?.urgency_breakdown ? scoreSegments(d.value.urgency_breakdown) : []));
 
 onMounted(() => store.load(props.barcode));
@@ -29,19 +29,19 @@ onMounted(() => store.load(props.barcode));
         <h4>💰 财务快照</h4>
         <div>批发价 <b>{{ fmtEurOrDash(d.master_sale_price_eur ?? d.sale_net_avg) }}</b> <span class="rs-drawer-muted">(主档)</span></div>
         <!-- 零售价行: observed/estimate/both/none -->
-        <template v-if="rpl!.kind === 'both'">
-          <div>零售价 <b>{{ fmtEurOrDash(rpl!.observed) }}</b>
-            <span class="rs-drawer-muted">(实际 {{ rpl!.qty }} 笔均价)</span>
-            · 估算 {{ fmtEurOrDash(rpl!.estimate) }} (×2)
+        <template v-if="rpl.kind === 'both'">
+          <div>零售价 <b>{{ fmtEurOrDash(rpl.observed) }}</b>
+            <span class="rs-drawer-muted">(实际 {{ rpl.qty }} 笔均价)</span>
+            · 估算 {{ fmtEurOrDash(rpl.estimate) }} (×2)
           </div>
         </template>
-        <template v-else-if="rpl!.kind === 'observed'">
-          <div>零售价 <b>{{ fmtEurOrDash(rpl!.observed) }}</b>
+        <template v-else-if="rpl.kind === 'observed'">
+          <div>零售价 <b>{{ fmtEurOrDash(rpl.observed) }}</b>
             <span class="rs-drawer-muted">(实际)</span>
           </div>
         </template>
-        <template v-else-if="rpl!.kind === 'estimate'">
-          <div>零售价 <b>{{ fmtEurOrDash(rpl!.estimate) }}</b>
+        <template v-else-if="rpl.kind === 'estimate'">
+          <div>零售价 <b>{{ fmtEurOrDash(rpl.estimate) }}</b>
             <span class="rs-drawer-muted">(批发×2 估算)</span>
           </div>
         </template>
@@ -66,8 +66,8 @@ onMounted(() => store.load(props.barcode));
       <!-- § 3 累计盈亏 -->
       <section class="rs-drawer-sec">
         <h4>💵 累计盈亏
-          <span :class="`rs-profit-badge rs-profit-badge--${ps!.cls}`">
-            {{ ps!.label }}
+          <span :class="`rs-profit-badge rs-profit-badge--${ps.cls}`">
+            {{ ps.label }}
           </span>
         </h4>
         <div>累计投入 <b>{{ fmtEurOrDash(d.lifetime_invested_eur) }}</b>
@@ -77,13 +77,13 @@ onMounted(() => store.load(props.barcode));
           <span class="rs-drawer-muted">({{ fmt(d.lifetime_sale_qty) }} 件)</span>
         </div>
         <!-- profitLine by tier -->
-        <template v-if="ps!.cls === 'unknown'">
+        <template v-if="ps.cls === 'unknown'">
           <div><span class="rs-drawer-muted">无 cost 数据</span></div>
         </template>
-        <template v-else-if="ps!.cls === 'good'">
+        <template v-else-if="ps.cls === 'good'">
           <div>实现利润 <b>+€{{ fmt(d.realized_profit_eur!, 0) }}</b></div>
         </template>
-        <template v-else-if="ps!.cls === 'mid'">
+        <template v-else-if="ps.cls === 'mid'">
           <div>实现利润 <b>€{{ fmt(d.realized_profit_eur!, 0) }}</b> · 库存能补 <b>€{{ fmt(d.inventory_cost_value_eur ?? 0, 0) }}</b> 回本</div>
         </template>
         <template v-else>

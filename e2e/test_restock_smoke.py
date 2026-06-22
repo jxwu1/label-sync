@@ -129,4 +129,7 @@ def test_restock_drawer_expands(seed_restock, page_with_console):
     page.locator("tr.rs-row").first.click()
     page.wait_for_selector("tr.rs-drawer-row", timeout=10000)
     assert page.locator(".rs-drawer-sec").count() >= 1
+    drawer_text = page.locator("tr.rs-drawer-row").inner_text()
+    assert "累计批发" in drawer_text
+    assert "真实零售" in drawer_text
     assert page.console_errors == [], f"console errors: {page.console_errors}"

@@ -35,6 +35,8 @@ export function scoreSegments(bd: RestockDetailUrgencyBreakdown): Array<{
     { val: bd.recency, max: 10, cls: "r", label: `距进货 ${bd.recency}/10` },
     { val: bd.margin, max: 30, cls: "m", label: `毛利 ${bd.margin}/30` },
   ];
+  // widthPct = 各维满分（销30/库30/距10/利30），四者恰好和为 100 → 直接当百分比段宽用。
+  // 若未来改评分权重使其不再和为 100，此处需改为按总分归一化。
   return defs.map((d) => ({
     ...d,
     widthPct: d.max,
