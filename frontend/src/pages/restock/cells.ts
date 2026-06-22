@@ -1,3 +1,7 @@
+export function fmtEurOrDash(v: number | null | undefined): string {
+  return v == null ? "—" : "€" + fmt(v, 2);
+}
+
 export function fmt(n: number | null | undefined, digits = 0): string {
   if (n === null || n === undefined) return "—";
   return Number(n).toLocaleString(undefined, {
