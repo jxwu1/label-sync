@@ -9,7 +9,13 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from app.routes.restock import _ITEM_KEYS, _project_item
+from app.routes.restock import (
+    _BD_KEYS,
+    _DETAIL_FLAT_KEYS,
+    _ITEM_KEYS,
+    _project_detail,
+    _project_item,
+)
 from app.schemas_api import (
     RestockDetail,
     RestockDetailResponse,
@@ -348,3 +354,89 @@ def test_restock_breakdown_rejects_extra_key():
 def test_restock_detail_response_ok():
     m = RestockDetailResponse.model_validate({"ok": True, "detail": _full_detail()})
     assert m.ok is True and m.detail.barcode == "5201234567890"
+
+
+# ---------------------------------------------------------------------------
+# Task 2: projection + GET /api/restock/<barcode>/detail
+# ---------------------------------------------------------------------------
+
+
+def test_project_detail_drops_fat_and_3_breakdown_keys():
+    fat = {
+        **_full_detail(),
+        "model": "X",
+        "supplier_id": "GR1",
+        "lifespan_days": 99,  # drawer 外胖字段
+    }
+    fat["urgency_breakdown"] = {
+        **_full_breakdown(),
+        "margin_missing": False,
+        "margin_source": "purchase",
+        "margin_price_source": "master",
+    }
+    out = _project_detail(fat)
+    assert set(out.keys()) == set(_DETAIL_FLAT_KEYS) | {"urgency_breakdown"}
+    assert "model" not in out and "lifespan_days" not in out
+    assert set(out["urgency_breakdown"].keys()) == set(_BD_KEYS)
+    for dropped in ("margin_missing", "margin_source", "margin_price_source"):
+        assert dropped not in out["urgency_breakdown"]
+
+
+def test_project_detail_breakdown_none_passthrough():
+    d = {**_full_detail(), "urgency_breakdown": None}
+    assert _project_detail(d)["urgency_breakdown"] is None
+
+
+def test_api_detail_seeded_returns_envelope(real_app):
+    from datetime import datetime
+
+    from app.models import SkuSummary, get_session
+    from app.services.analytics.summary import clear_list_sku_summary_cache
+
+    as_of = datetime.now().date().isoformat()
+    fat = {**_full_detail(), "model": "X", "lifespan_days": 9}
+    fat["urgency_breakdown"] = {
+        **_full_breakdown(),
+        "margin_missing": False,
+        "margin_source": "purchase",
+        "margin_price_source": "master",
+    }
+    with get_session() as s:
+        s.merge(SkuSummary(product_barcode="5201234567890", as_of=as_of, payload=fat))
+    clear_list_sku_summary_cache()
+    try:
+        resp = real_app.test_client().get(
+            "/api/restock/5201234567890/detail",
+            headers={"X-Upload-Token": "test-token-123"},
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert data["detail"]["barcode"] == "5201234567890"
+        assert "margin_missing" not in data["detail"]["urgency_breakdown"]
+    finally:
+        clear_list_sku_summary_cache()
+
+
+def test_api_detail_unknown_barcode_404(real_app):
+    resp = real_app.test_client().get(
+        "/api/restock/NOSUCH/detail", headers={"X-Upload-Token": "test-token-123"}
+    )
+    assert resp.status_code == 404
+    assert resp.get_json() == {"ok": False, "error": "not_found"}
+
+
+def test_api_detail_calls_snapshot_once(real_app, monkeypatch):
+    calls = {"n": 0}
+
+    def _fake(barcode):
+        calls["n"] += 1
+        return _full_detail()
+
+    monkeypatch.setattr("app.routes.restock.compute_restock_snapshot", _fake)
+    resp = real_app.test_client().get(
+        "/api/restock/5201234567890/detail",
+        headers={"X-Upload-Token": "test-token-123"},
+    )
+    assert resp.status_code == 200
+    assert calls["n"] == 1
