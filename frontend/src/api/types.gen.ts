@@ -396,3 +396,52 @@ export interface RestockItemList {
   total: number;
   items: RestockItem[];
 }
+
+export interface RestockDetail {
+  barcode: string;
+  master_sale_price_eur: number | null;
+  sale_net_avg: number | null;
+  retail_price_observed: number | null;
+  retail_price_estimate: number | null;
+  last_purchase_unit_price: number | null;
+  master_stock_price_eur: number | null;
+  margin_source: string | null;
+  margin_pct: number | null;
+  qty_total: number | null;
+  inventory_sale_value_eur: number | null;
+  inventory_cost_value_eur: number | null;
+  weeks_of_cover: number | null;
+  realized_profit_eur: number | null;
+  lifetime_invested_eur: number | null;
+  lifetime_purchase_qty: number;
+  lifetime_sale_revenue_eur: number;
+  lifetime_sale_qty: number;
+  net_cashflow_eur: number | null;
+  inventory_imbalance_pct: number | null;
+  is_history_truncated: boolean;
+  first_event_at: string | null;
+  total_qty: number;
+  n_active_weeks_26w: number;
+  weekly_velocity: number;
+  weekly_revenue: number;
+  retail_qty_26w: number;
+  retail_revenue_26w: number;
+  retail_share_26w: number;
+  urgency_score: number | null;
+  urgency_breakdown: RestockDetailUrgencyBreakdown | null;
+}
+
+export interface RestockDetailUrgencyBreakdown {
+  velocity: number;
+  cover: number;
+  recency: number;
+  margin: number;
+  demand_validity: number;
+  velocity_pctile: number;
+  margin_pctile: number;
+}
+
+export interface RestockDetailResponse {
+  ok: boolean;
+  detail: RestockDetail;
+}
