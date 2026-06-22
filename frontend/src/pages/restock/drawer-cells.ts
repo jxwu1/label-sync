@@ -1,5 +1,7 @@
 import type { RestockDetailUrgencyBreakdown } from "../../api/types.gen";
 
+// drawer 盈亏状态档（restock.js:430-446）。亏损档标签 = "账面亏损"（旧 drawer:444 原文），
+// 与 cells.ts profitBadge 的行内 "未回本"（restock.js:282）有意不同——旧页两处本就异文案，1:1 保留。
 export function profitStatus(
   rp: number | null | undefined, inv: number | null | undefined,
 ): { cls: string; label: string } {
@@ -14,7 +16,8 @@ export function retailPriceLine(
   observed: number | null | undefined, estimate: number | null | undefined,
   retailQty26w: number,
 ): { kind: "both" | "observed" | "estimate" | "none"; observed: number | null; estimate: number | null; qty: number } {
-  const o = observed ?? null, e = estimate ?? null;
+  const o = observed ?? null;
+  const e = estimate ?? null;
   const kind = o != null && e != null ? "both" : o != null ? "observed" : e != null ? "estimate" : "none";
   return { kind, observed: o, estimate: e, qty: retailQty26w };
 }
@@ -23,7 +26,9 @@ export function cashflowImbalance(imb: number | null | undefined): { warn: boole
   return { warn: imb != null && imb > 30, pct: imb ?? null };
 }
 
-export function scoreSegments(bd: RestockDetailUrgencyBreakdown) {
+export function scoreSegments(bd: RestockDetailUrgencyBreakdown): Array<{
+  val: number; max: number; cls: string; label: string; widthPct: number; fillPct: number;
+}> {
   const defs = [
     { val: bd.velocity, max: 30, cls: "v", label: `销额 ${bd.velocity}/30` },
     { val: bd.cover, max: 30, cls: "c", label: `库存 ${bd.cover}/30` },
