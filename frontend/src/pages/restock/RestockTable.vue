@@ -89,7 +89,7 @@ function hasSpark(it: RestockItem): boolean {
       </thead>
       <tbody id="rsTbody">
         <template v-for="it in visible" :key="it.barcode">
-          <tr class="rs-row" tabindex="0" :aria-expanded="it.barcode === expandedBarcode"
+          <tr class="rs-row" role="button" tabindex="0" :aria-expanded="it.barcode === expandedBarcode"
               @click="emit('toggle-expand', it.barcode)"
               @keydown.enter.self.prevent="emit('toggle-expand', it.barcode)"
               @keydown.space.self.prevent="emit('toggle-expand', it.barcode)">
@@ -173,6 +173,7 @@ function hasSpark(it: RestockItem): boolean {
 .rs-th-sort--active .rs-sort-ind { color: var(--accent); }
 .rs-row { transition: background var(--t-fast); cursor: pointer; }
 .rs-row:hover { background: var(--bg-2); }
+.rs-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .rs-drawer-row td { padding: 0; background: var(--bg-0); border-bottom: 1px solid var(--line-soft); }
 
 /* Urgency cell */
