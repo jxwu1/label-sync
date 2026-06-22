@@ -10,7 +10,14 @@ import pytest
 from pydantic import ValidationError
 
 from app.routes.restock import _ITEM_KEYS, _project_item
-from app.schemas_api import RestockItem, RestockSuppressedEntry, RestockSuppressedList
+from app.schemas_api import (
+    RestockDetail,
+    RestockDetailResponse,
+    RestockDetailUrgencyBreakdown,
+    RestockItem,
+    RestockSuppressedEntry,
+    RestockSuppressedList,
+)
 
 
 def test_suppressed_entry_accepts_full_and_null_reason():
@@ -217,3 +224,120 @@ def test_api_restock_items_seeded_returns_projected_row(real_app):
         assert "urgency_breakdown" not in row
     finally:
         clear_list_sku_summary_cache()  # 防 seeded 结果泄漏到空库 shape 测试
+
+
+# ---------------------------------------------------------------------------
+# RestockDetail / RestockDetailUrgencyBreakdown / RestockDetailResponse schema
+# (_full_breakdown / _full_detail reused by Task 2 projection/endpoint tests)
+# ---------------------------------------------------------------------------
+
+
+def _full_breakdown():
+    return {
+        "velocity": 25.0,
+        "cover": 28.0,
+        "recency": 8.0,
+        "margin": 22.0,
+        "demand_validity": 0.75,
+        "velocity_pctile": 0.83,
+        "margin_pctile": 0.61,
+    }
+
+
+def _full_detail():
+    return {
+        "barcode": "5201234567890",
+        "master_sale_price_eur": 6.0,
+        "sale_net_avg": 5.8,
+        "retail_price_observed": 5.5,
+        "retail_price_estimate": 6.2,
+        "last_purchase_unit_price": 3.0,
+        "master_stock_price_eur": 3.2,
+        "margin_source": "purchase",
+        "margin_pct": 35.0,
+        "qty_total": 100,
+        "inventory_sale_value_eur": 600.0,
+        "inventory_cost_value_eur": 320.0,
+        "weeks_of_cover": 2.0,
+        "realized_profit_eur": 500.0,
+        "lifetime_invested_eur": 320.0,
+        "lifetime_purchase_qty": 60,
+        "lifetime_sale_revenue_eur": 800.0,
+        "lifetime_sale_qty": 70,
+        "net_cashflow_eur": 480.0,
+        "inventory_imbalance_pct": 12.0,
+        "is_history_truncated": False,
+        "first_event_at": "2021-07-01",
+        "total_qty": 700,
+        "n_active_weeks_26w": 18,
+        "weekly_velocity": 12.5,
+        "weekly_revenue": 80.0,
+        "retail_qty_26w": 3,
+        "retail_revenue_26w": 16.5,
+        "retail_share_26w": 0.04,
+        "urgency_score": 88.5,
+        "urgency_breakdown": _full_breakdown(),
+    }
+
+
+def test_restock_detail_full_ok():
+    m = RestockDetail.model_validate(_full_detail())
+    assert m.urgency_breakdown.velocity_pctile == 0.83
+    assert m.total_qty == 700
+
+
+def test_restock_detail_breakdown_none_ok():
+    d = _full_detail()
+    d["urgency_breakdown"] = None
+    assert RestockDetail.model_validate(d).urgency_breakdown is None
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "total_qty",
+        "lifetime_purchase_qty",
+        "lifetime_sale_qty",
+        "lifetime_sale_revenue_eur",
+        "n_active_weeks_26w",
+        "weekly_velocity",
+        "weekly_revenue",
+        "is_history_truncated",
+    ],
+)
+def test_restock_detail_nonnull_fields_reject_none(field):
+    d = _full_detail()
+    d[field] = None
+    with pytest.raises(ValidationError):
+        RestockDetail.model_validate(d)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "velocity",
+        "cover",
+        "recency",
+        "margin",
+        "demand_validity",
+        "velocity_pctile",
+        "margin_pctile",
+    ],
+)
+def test_restock_breakdown_subfields_reject_none(field):
+    bd = _full_breakdown()
+    bd[field] = None
+    with pytest.raises(ValidationError):
+        RestockDetailUrgencyBreakdown.model_validate(bd)
+
+
+def test_restock_breakdown_rejects_extra_key():
+    bd = _full_breakdown()
+    bd["margin_missing"] = False
+    with pytest.raises(ValidationError):
+        RestockDetailUrgencyBreakdown.model_validate(bd)
+
+
+def test_restock_detail_response_ok():
+    m = RestockDetailResponse.model_validate({"ok": True, "detail": _full_detail()})
+    assert m.ok is True and m.detail.barcode == "5201234567890"

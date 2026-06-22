@@ -522,6 +522,61 @@ class RestockItemList(BaseModel):
     items: list[RestockItem]
 
 
+class RestockDetailUrgencyBreakdown(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    velocity: float
+    cover: float
+    recency: float
+    margin: float
+    demand_validity: float
+    velocity_pctile: float
+    margin_pctile: float
+
+
+class RestockDetail(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    barcode: str
+    master_sale_price_eur: float | None
+    sale_net_avg: float | None
+    retail_price_observed: float | None
+    retail_price_estimate: float | None
+    last_purchase_unit_price: float | None
+    master_stock_price_eur: float | None
+    margin_source: str | None
+    margin_pct: float | None
+    qty_total: int | None
+    inventory_sale_value_eur: float | None
+    inventory_cost_value_eur: float | None
+    weeks_of_cover: float | None
+    realized_profit_eur: float | None
+    lifetime_invested_eur: float | None
+    lifetime_purchase_qty: int
+    lifetime_sale_revenue_eur: float
+    lifetime_sale_qty: int
+    net_cashflow_eur: float | None
+    inventory_imbalance_pct: float | None
+    is_history_truncated: bool
+    first_event_at: str | None
+    total_qty: int
+    n_active_weeks_26w: int
+    weekly_velocity: float
+    weekly_revenue: float
+    retail_qty_26w: int
+    retail_revenue_26w: float
+    retail_share_26w: float
+    urgency_score: float | None
+    urgency_breakdown: RestockDetailUrgencyBreakdown | None
+
+
+class RestockDetailResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ok: bool
+    detail: RestockDetail
+
+
 # gen_ts_types.py 的导出清单：新增模型加进来即自动进 types.gen.ts
 API_MODELS: list[type[BaseModel]] = [
     BriefingData,
@@ -536,4 +591,5 @@ API_MODELS: list[type[BaseModel]] = [
     ScanBatchList,
     RestockSuppressedList,
     RestockItemList,
+    RestockDetailResponse,
 ]
