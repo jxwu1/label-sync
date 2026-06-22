@@ -13,6 +13,7 @@ export const router = createRouter({
         { path: "briefing", name: "briefing", component: () => import("./pages/briefing/BriefingPage.vue") },
         { path: "forecast-eval", name: "forecast-eval", component: () => import("./pages/forecast-eval/ForecastEvalPage.vue") },
         { path: "history", name: "history", component: () => import("./pages/history/HistoryPage.vue") },
+        { path: "restock", name: "restock", component: () => import("./pages/restock/RestockPage.vue") },
       ],
     },
   ],

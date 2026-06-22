@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -464,6 +464,64 @@ class ScanBatchList(BaseModel):
     batches: list[ScanBatch]
 
 
+class RestockSuppressedEntry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    skipped_at: str
+    reason: str | None
+    days_left: int
+
+
+class RestockSuppressedList(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ok: bool
+    items: dict[str, RestockSuppressedEntry]
+
+
+class RestockItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    barcode: str
+    model: str | None
+    name_zh: str | None
+    origin: Literal["FOREIGN", "CN", "unknown"]
+    supplier_id: str | None
+    is_truly_discontinued: bool
+    is_new_item: bool
+    qty_total: int | None
+    weeks_of_cover: float | None
+    weekly_velocity: float
+    weekly_revenue: float
+    margin_pct: float | None
+    margin_source: str | None
+    margin_price_source: str | None
+    master_stock_price_eur: float | None
+    master_sale_price_eur: float | None
+    last_purchase_unit_price: float | None
+    sale_net_avg: float | None
+    weekly_qty_12w: list[int]
+    trend_slope_pct_per_week: float | None
+    realized_profit_eur: float | None
+    inventory_cost_value_eur: float | None
+    last_purchase_days_ago: int | None
+    last_purchase_at: str | None
+    restock_qty_p50: int | None
+    restock_qty_p98: int | None
+    restock_source: str | None
+    last_purchase_qty: int | None
+    urgency_score: float | None  # 真实数据为浮点（69.5「次紧迫」），小数位有排序/显示语义
+    stockout_zero_weeks_last8: int
+
+
+class RestockItemList(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ok: bool
+    total: int
+    items: list[RestockItem]
+
+
 # gen_ts_types.py 的导出清单：新增模型加进来即自动进 types.gen.ts
 API_MODELS: list[type[BaseModel]] = [
     BriefingData,
@@ -476,4 +534,6 @@ API_MODELS: list[type[BaseModel]] = [
     RecentChangesBatchList,
     RecentChangesDetail,
     ScanBatchList,
+    RestockSuppressedList,
+    RestockItemList,
 ]
