@@ -5,10 +5,8 @@ import type { RestockDetail, RestockDetailResponse } from "../api/types.gen";
 
 type Entry = "loading" | "ready" | "missing" | "error";
 
-// 闭包级【非响应式】合并表——Promise 不进 reactive state
-const inflight = new Map<string, Promise<void>>();
-
 export const useRestockDetailStore = defineStore("restockDetail", () => {
+  const inflight = new Map<string, Promise<void>>(); // 闭包级非响应式合并表（per-pinia，随 createPinia 重置）
   const entries = ref<Record<string, Entry>>({});
   const cache = ref<Record<string, RestockDetail>>({});
   const errorMsg = ref<Record<string, string>>({});
