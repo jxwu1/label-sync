@@ -104,4 +104,20 @@ describe("RestockPage", () => {
     await flushPromises();
     expect(w.findAll("tr.rs-drawer-row").length).toBe(0);
   });
+
+  it("排序变化收起已展开行", async () => {
+    vi.mocked(apiGet).mockImplementation(async (path: string) => {
+      if (path === "/api/restock/items") return { ok: true, total: 1, items: [item({ barcode: "x", weeks_of_cover: 1 })] } as any;
+      return { ok: true, items: {} } as any;
+    });
+    const w = mount(RestockPage);
+    await flushPromises();
+    await w.findAll("tr.rs-row")[0].trigger("click");
+    await flushPromises();
+    expect(w.findAll("tr.rs-drawer-row").length).toBe(1);
+    // 点表头排序列 → onSortChange 收起
+    await w.find('[data-sort="qty_total"]').trigger("click");
+    await flushPromises();
+    expect(w.findAll("tr.rs-drawer-row").length).toBe(0);
+  });
 });
