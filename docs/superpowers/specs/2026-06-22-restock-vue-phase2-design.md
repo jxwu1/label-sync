@@ -33,17 +33,18 @@
 
 - **不碰** `/api/restock/items`（列表瘦投影冻结）、不碰旧 `/analytics/*`、不碰 `restock_calc.py`/`restock_decisions.py` 逻辑（仅新增路由）
 - `compute_restock_snapshot` 返回 `None`（barcode 不在汇总：停用 / 无主档 / 未知）→ 端点 **404**（`jsonify({"ok": False, "error": "not_found"}), 404`）
-- 投影 **必须显式处理嵌套**（真实 `urgency_breakdown` dict 有 8 键含 `margin_missing`，**整 dict 透传会被 `extra="forbid"` 拒 → 500**，正是 history Phase 2b 事故）：
+- 投影 **必须显式处理嵌套**（真实 `urgency_breakdown` dict 有 **10 键**（restock_calc.py:144-153）：velocity/cover/recency/margin/velocity_pctile/margin_pctile/`margin_missing`/`margin_source`/`margin_price_source`/demand_validity；**整 dict 透传会被 `extra="forbid"` 拒 → 500**，正是 history Phase 2b 事故）：
   ```python
-  _BD_KEYS = tuple(RestockDetailUrgencyBreakdown.model_fields)            # 7 键（不含 margin_missing）
+  _BD_KEYS = tuple(RestockDetailUrgencyBreakdown.model_fields)            # 7 键
   _DETAIL_FLAT_KEYS = tuple(k for k in RestockDetail.model_fields if k != "urgency_breakdown")
   def _project_detail(row: dict) -> dict:
       out = {k: row.get(k) for k in _DETAIL_FLAT_KEYS}
       bd = row.get("urgency_breakdown")
-      out["urgency_breakdown"] = {k: bd.get(k) for k in _BD_KEYS} if bd else None  # 逐字段，丢 margin_missing
+      out["urgency_breakdown"] = {k: bd.get(k) for k in _BD_KEYS} if bd else None
       return out
   ```
-- strict `extra="forbid"`；**投影 key 集 + 嵌套 key 集后端测试均钉死**（多/少即挂，杜绝胖字段回流 + margin_missing 回潮）
+  → **丢弃 3 键**：`margin_missing`、`margin_source`、`margin_price_source`（drawer 不需要；都是 urgencyTip 旧用法，本期无 cell tooltip）
+- strict `extra="forbid"`；**投影 key 集 + 嵌套 key 集后端测试均钉死**（红队夹具喂满 10 键 breakdown → 逐一断言 3 键被丢弃，杜绝胖字段回流）
 
 ### RestockDetail 字段白名单（扁平 + 一个嵌套）
 
@@ -52,8 +53,8 @@
 | 标识 | `barcode:str` |
 | 财务快照 | `master_sale_price_eur`、`sale_net_avg`、`retail_price_observed`、`retail_price_estimate`、`last_purchase_unit_price`、`master_stock_price_eur`、`margin_source`、`margin_pct`（均 `\|None`）|
 | 库存 | `qty_total:int\|None`、`inventory_sale_value_eur\|None`、`inventory_cost_value_eur\|None`、`weeks_of_cover:float\|None` |
-| 累计盈亏 | `realized_profit_eur\|None`、`lifetime_invested_eur\|None`、`lifetime_purchase_qty\|None`、`lifetime_sale_revenue_eur\|None`、`lifetime_sale_qty\|None`、`net_cashflow_eur\|None`、`inventory_imbalance_pct\|None`、`is_history_truncated:bool`、`first_event_at:str\|None` |
-| **销售概况**（§4 口径）| `total_qty:int\|None`（**累计批发量**）、`n_active_weeks_26w:int`、`weekly_velocity:float`、`weekly_revenue:float`、`retail_qty_26w:int`、`retail_revenue_26w:float`、`retail_share_26w:float` |
+| 累计盈亏 | `lifetime_purchase_qty:int`、`lifetime_sale_qty:int`、`lifetime_sale_revenue_eur:float`（**三者恒非空**，summary.py:531-533 `int()/round()`）；`realized_profit_eur\|None`、`lifetime_invested_eur\|None`、`net_cashflow_eur\|None`、`inventory_imbalance_pct\|None`、`is_history_truncated:bool`、`first_event_at:str\|None` |
+| **销售概况**（§4 口径）| `total_qty:int`（**累计批发量，恒非空** summary.py:300/508）、`n_active_weeks_26w:int`、`weekly_velocity:float`、`weekly_revenue:float`、`retail_qty_26w:int`、`retail_revenue_26w:float`、`retail_share_26w:float` |
 | 紧迫分 | `urgency_score:float\|None`、`urgency_breakdown: RestockDetailUrgencyBreakdown \| None` |
 
 ### RestockDetailUrgencyBreakdown（**独立新模型，不复用 History 的 5 字段 `UrgencyBreakdown`**）
@@ -61,15 +62,16 @@
 `extra="forbid"`，嵌套**逐字段显式投影**（不整 dict 透传 — `feedback_strict_schema_nested_projection`，history Phase 2b urgency_breakdown 整体透传致 500 的事故）：
 
 ```
-velocity: float        # 销额维得分 /30
-cover: float           # 库存维得分 /30
-recency: float         # 距进货维得分 /10
-margin: float          # 毛利维得分 /30
-demand_validity: float | None   # 长尾活跃度折扣
-velocity_pctile: float | None   # 销额分位（drawer 销额行内显示）
-margin_pctile: float | None     # 毛利分位（drawer 毛利行内显示）
+velocity: float          # 销额维得分 /30
+cover: float             # 库存维得分 /30
+recency: float           # 距进货维得分 /10
+margin: float            # 毛利维得分 /30
+demand_validity: float   # 长尾活跃度折扣
+velocity_pctile: float   # 销额分位（drawer 销额行内显示）
+margin_pctile: float     # 毛利分位（drawer 毛利行内显示）
 ```
 
+> **`urgency_breakdown` 整体是唯一可空层**：新品 / 无数据时 `breakdown["total"] is None` → 整个 `urgency_breakdown = None`（restock_calc.py:140-142）；present 时 7 个子字段**全是非空 float**（velocity/cover/recency/margin 来自 `_compute_urgency_score`，pctile=round(...)，demand_validity 已算）。**禁子字段写 `\|None`**（上游永不给 null，写松会静默吞错）。
 > History 的 `UrgencyBreakdown` 只有 `{cover, recency, velocity, margin, demand_validity}`、**无 pctile**；扩它会耦合两消费方 + 撞 History strict。故独立。
 
 ### gen_ts_types
@@ -82,12 +84,14 @@ margin_pctile: float | None     # 毛利分位（drawer 毛利行内显示）
 ### 组件
 - **`RestockDrawer.vue`** — props `{ barcode }`，自取数渲染 5 段；移植 `renderDrawer` 只读部分（去操作按钮）。展示纯函数 `drawer-cells.ts`（盈亏状态档 / 零售价行 / 净现金流行 / 销售概况标签 / 四维 scoreBreakdown 几何）+ 各自 Vitest。
 - **`stores/restockDetail.ts`（keyed Pinia store）** — 按 barcode 分区，多 SKU 缓存 + 并发隔离（见 §5）。
-- **`RestockTable.vue`** — 行加 clickable（cursor + `tabindex=0` + `aria-expanded` + Enter/Space）；点击 emit `toggle-expand(barcode)`。命中 `expandedBarcode` 时该行后插 `<tr class="rs-drawer-row"><td colspan="14"><RestockDrawer :barcode/></td></tr>`。**行内交互元素 `rs-bc-link`/`rs-supplier` 加 `@click.stop`**（防冒泡误展开，§5 红队）。
+- **`RestockTable.vue`** — 行 `<tr>` 加 `tabindex=0` + `:aria-expanded`；命中 `expandedBarcode` 时该行后插 `<tr class="rs-drawer-row"><td colspan="14"><RestockDrawer :barcode/></td></tr>`。点击/键盘语义**非对称**（两层防冒泡）：
+  - **click**：行 `@click` 普通触发 `toggle-expand`（点行任意非按钮区都展开，如品名/单元格）；行内交互元素 `rs-bc-link`/`rs-supplier` 加 **`@click.stop`**（点它们只 open-history/select-supplier，不冒泡展开）
+  - **keydown**：行 `@keydown.enter.self.prevent` + `@keydown.space.self.prevent` 触发 `toggle-expand`——**`.self` 关键**：子按钮聚焦时 Enter/Space 的 `target` 是按钮≠行，`.self` 不触发，故不会一边筛供应商一边展开 drawer（§5 红队）
 - **`RestockPage.vue`** — `expandedBarcode: shallowRef<string|null>`，`onToggleExpand(bc)`（同 bc 收起 / 异 bc 切换），传 RestockTable。
 
 ### 数据流
 1. 点行（非货号/供应商按钮）→ `expandedBarcode = bc`（同 bc → `null` 收起）
-2. RestockTable 插 drawer 行（`:key="bc"`）→ `RestockDrawer` `onMounted/watch(barcode)` 调 `store.load(bc)`
+2. RestockTable 插 drawer 行（`:key="bc"`，每 SKU remount）→ `RestockDrawer` `onMounted` 调 `store.load(bc)`（单触发，不叠 watch）
 3. store：`cache[bc]` 命中 → 立即 `ready`；否则 `inflight[bc]` 合并 → `apiGet` → 写 `cache[bc]` + `entries[bc]=ready`
 4. drawer 按 `entries[bc]` 状态渲染：`loading` 占位 / `ready` 5 段 / `missing` 「无补货明细」/ `error` 「明细加载失败，点重试」
 
@@ -114,23 +118,30 @@ margin_pctile: float | None     # 毛利分位（drawer 毛利行内显示）
 `stores/restockDetail.ts`（Pinia，按 barcode 分区）：
 
 ```
+// 响应式 state（Pinia）
 state:
-  entries: Record<bc, "loading" | "ready" | "missing" | "error">
-  cache:   Record<bc, RestockDetail>     // 仅成功结果
-  inflight: Record<bc, Promise>          // 合并同 SKU 并发
+  entries:  Record<bc, "loading" | "ready" | "missing" | "error">
+  cache:    Record<bc, RestockDetail>    // 仅成功结果
   errorMsg: Record<bc, string>
 
+// 闭包级【非响应式】合并表（绝不进 reactive state——Promise 不该被代理）
+const inflight = new Map<string, Promise<void>>()
+
 load(bc):
-  if cache[bc] → entries[bc]="ready"; return
-  if inflight[bc] → await 它（合并）
+  if cache[bc] → entries[bc]="ready"; return            // 缓存命中
+  if (inflight.has(bc)) return inflight.get(bc)          // ★ 合并：直接 return 在飞的 Promise，不再发第二次
   entries[bc]="loading"
-  try: detail = (await apiGet(`/api/restock/${bc}/detail`)).detail
-       cache[bc]=detail; entries[bc]="ready"
-  catch e:
-    if e instanceof UnauthenticatedError → return（401 中性，不写业务错；apiGet 已跳登录）
-    else if e instanceof ApiError && e.status===404 → entries[bc]="missing"
-    else → entries[bc]="error"; errorMsg[bc]=e.message   // 500/网络：不写 cache，重开可重试
-  finally: delete inflight[bc]
+  const p = (async () => {
+    try: detail = (await apiGet(`/api/restock/${bc}/detail`)).detail
+         cache[bc]=detail; entries[bc]="ready"
+    catch e:
+      if e instanceof UnauthenticatedError → return（401 中性，不写业务错；apiGet 已跳登录）
+      else if e instanceof ApiError && e.status===404 → entries[bc]="missing"
+      else → entries[bc]="error"; errorMsg[bc]=e.message  // 500/网络：不写 cache，重开可重试
+    finally: inflight.delete(bc)
+  })()
+  inflight.set(bc, p)
+  return p
 ```
 
 **为何 keyed 优于 single-vm + request-id**：A/B 响应各只写自己 key，**A 迟到只填 `cache[A]`，绝不污染当前展示的 B drawer**（不同 key 天然隔离）；多 barcode 缓存白送（重开任意已载 SKU 秒开）；`inflight` 合并快速重复展开同 SKU。
@@ -142,28 +153,30 @@ export class ApiError extends Error { constructor(public status: number, msg: st
 ```
 仍 `extends Error`，既有 `catch (e) { (e as Error).message }` 不破；store 可 `e instanceof ApiError && e.status===404`。
 
-### 红队（行点击冒泡）
+### 红队（行点击 + 键盘冒泡，两层都要测）
 - 点**货号** `rs-bc-link` → 仅 `open-history`，**不展开 drawer**（`@click.stop`）
 - 点**供应商** `rs-supplier` → 仅 `select-supplier`，**不展开 drawer**（`@click.stop`）
-- 点行其余区域 → 展开/收起 drawer
-- 键盘 focus 行 Enter/Space → 展开/收起；`aria-expanded` 反映态
+- 点行其余区域（品名/单元格）→ 展开/收起 drawer
+- **聚焦货号/供应商按钮按 Enter/Space → 仅触发该按钮动作，不展开 drawer**（行 `@keydown.self`；红队：键盘冒泡比 click 更隐蔽）
+- 聚焦**行本身** Enter/Space → 展开/收起；`aria-expanded` 反映态
 
 ---
 
 ## 6. 测试（可执行）
 
 ### 后端
-- `RestockDetail` strict：满字段真 payload（`compute_restock_snapshot` 输出形状）`extra="forbid"` 不漏不拒；各 nullable 字段喂 `None` 通过、非空字段喂 `None` 拒；额外键拒
-- `RestockDetailUrgencyBreakdown`：嵌套满字段 + pctile=None 通过 + 额外键拒（防整 dict 透传回潮）
-- 投影 key 集：`_project_detail` 喂超集（含 drawer 外胖字段 + `urgency_breakdown` 含 `margin_missing`）→ 顶层 `keys()==RestockDetail 字段集` **且** `out["urgency_breakdown"].keys()==_BD_KEYS`（**显式断言 `margin_missing` 被丢弃**）
-- `/detail` 端点：seed 物化 `SkuSummary` → 200 `{ok:true, detail:{...}}`；未知 barcode → 404 `{ok:false}`
+- `RestockDetail` strict：满字段真 payload `extra="forbid"` 不漏不拒；各 nullable 字段喂 `None` 通过；**非空字段喂 `None` 拒**（含 `total_qty`/`lifetime_purchase_qty`/`lifetime_sale_qty`/`lifetime_sale_revenue_eur`——上游漏值要 500 暴露非静默吞）；额外键拒
+- `RestockDetailUrgencyBreakdown`：满 7 字段非空通过；**任一子字段喂 `None` 拒**（present 时子字段恒非空）；额外键拒（防整 dict 透传回潮）
+- 投影 key 集：`_project_detail` 喂超集（drawer 外胖字段 + `urgency_breakdown` 喂满 **10 键**含 `margin_missing`/`margin_source`/`margin_price_source`）→ 顶层 `keys()==RestockDetail 字段集` **且** `out["urgency_breakdown"].keys()==_BD_KEYS`（**逐一断言 3 键被丢弃**）
+- `/detail` 端点：seed 物化 `SkuSummary` → 200 `{ok:true, detail:{...}}`；未知 barcode → **404 精确断言 `{ok:false, error:"not_found"}`**
 - **结构性（非毫秒）**：mock `compute_restock_snapshot`，断言 `/detail` **只调它一次** + 返回投影后 key 集（机器/缓存态无关，不 flaky）。**perf 仅人工 bench 记 PR，不入 CI 断言**
 
 ### 前端
 - `drawer-cells.ts` 纯函数：盈亏四档（已回本/压货中/账面亏损/缺成本）、零售价 observed/estimate 分支、净现金流 imbalance 警告、**销售概况标签准确**（累计批发 vs 周销额 per-week 不混淆 + 不出现"×26")
 - `RestockDrawer.vue`：渲染 5 段 + **无操作按钮**；`missing/error/loading` 三态占位；销售概况无外推文案
 - `restockDetail` store：`cache` 命中不重拉；`inflight` 合并同 SKU；**A/B 隔离**（载 A 未完切 B，A 迟到只填 cache[A] 不动 B drawer）；404→missing；500→error 不缓存可重试；401→中性不写错
-- `RestockTable`：点行展开/收起（单行 / colspan=14 / drawer 行现）；**红队：点货号/供应商不展开**（`@click.stop`）；Enter/Space 展开 + `aria-expanded`
+- `RestockTable`：点行展开/收起（单行 / colspan=14 / drawer 行现）；**红队 click：点货号/供应商不展开**（`@click.stop`）；**红队 keydown：聚焦货号/供应商按钮按 Enter/Space 不展开**（行 `@keydown.self`，仅触发按钮自身）；聚焦行 Enter/Space 展开 + `aria-expanded` 反映
+- `RestockDrawer`：**`onMounted` 与 `watch(barcode,{immediate:true})` 二选一触发 `load`**（避免重复触发）；本期用 `:key="bc"` 每 SKU remount → `onMounted(load)` 即可
 - `client.ts`：`ApiError` 带 status + `instanceof Error` 仍真
 - **no-analytics guard 仍过**：drawer 只走 `/api/restock/*`
 
