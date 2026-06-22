@@ -7,7 +7,8 @@ function rows(n: number): any[] {
     barcode: "b" + i, model: "M" + i, name_zh: "名" + i, origin: "FOREIGN",
     supplier_id: "GR1", urgency_score: 50, qty_total: 1, weeks_of_cover: 1,
     weekly_velocity: 1, weekly_revenue: 1, margin_pct: 20, weekly_qty_12w: new Array(12).fill(0),
-    restock_qty_p50: 5, restock_qty_p98: 9, last_purchase_qty: 3, last_purchase_days_ago: 1,
+    restock_qty_p50: 5, restock_qty_p98: 9, restock_source: "forecast:CrostonSBA",
+    last_purchase_qty: 3, last_purchase_days_ago: 1,
     realized_profit_eur: 1, inventory_cost_value_eur: 1, stockout_zero_weeks_last8: 0,
     is_truly_discontinued: false, is_new_item: false, trend_slope_pct_per_week: 0,
   }));
@@ -64,6 +65,19 @@ describe("RestockTable", () => {
     expect(w.emitted("sort-change")?.[1]).toEqual(["qty_total"]);
     // 当前排序列 aria-sort 反映方向
     expect(w.find('[data-sort="margin_pct"]').attributes("aria-sort")).toBe("ascending");
+  });
+  it("P50/P98 表头去废弃 RL-1 公式（红线 A4：周分位×8），行单元格暴露 restock_source", () => {
+    const w = mount(RestockTable, { props: { rows: rows(1), coverThreshold: 4 } });
+    for (const key of ["restock_qty_p50", "restock_qty_p98"]) {
+      const t = w.find(`[data-sort="${key}"]`).attributes("title") || "";
+      expect(t).not.toContain("8周");      // 禁「× 8周」RL-1 复发文案
+      expect(t).not.toMatch(/[×x]\s*8/);   // 禁 ×8 / x8
+      expect(t).not.toContain("× 8");
+    }
+    // 真实来源走行单元格（旧 restock.js:401 在 p50 td 上的 restock_source title）
+    const recCells = w.findAll("tr.rs-row td.rs-rec-g");
+    expect(recCells[0].attributes("title")).toBe("forecast:CrostonSBA"); // P50
+    expect(recCells[1].attributes("title")).toBe("forecast:CrostonSBA"); // P98
   });
   it("货号/供应商/盈亏/趋势/上次量 列不可排序（无 .rs-th-sort）", () => {
     const w = mount(RestockTable, { props: { rows: rows(1), coverThreshold: 4 } });

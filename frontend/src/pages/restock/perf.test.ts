@@ -91,12 +91,18 @@ describe("perf", () => {
     // 预热双方（JIT 稳态）
     for (let i = 0; i < 5; i++) { newRun(); baseRun(); }
 
-    // 交错采样：每轮先新后旧 → 任何单调漂移（GC / 频率调节）对两者等量作用
+    // 交错采样 + 奇偶轮翻转顺序：两者各占「先手」一半，彻底抵消单调漂移
+    // （GC / 频率调节 / 缓存预热）对「先跑者」的系统性优待（第3轮建议）。
     const N = 40;
     const newTimes: number[] = [], baseTimes: number[] = [];
     for (let i = 0; i < N; i++) {
-      let t = performance.now(); newRun(); newTimes.push(performance.now() - t);
-      t = performance.now(); baseRun(); baseTimes.push(performance.now() - t);
+      if (i % 2 === 0) {
+        let t = performance.now(); newRun(); newTimes.push(performance.now() - t);
+        t = performance.now(); baseRun(); baseTimes.push(performance.now() - t);
+      } else {
+        let t = performance.now(); baseRun(); baseTimes.push(performance.now() - t);
+        t = performance.now(); newRun(); newTimes.push(performance.now() - t);
+      }
     }
     const newMed = med(newTimes);
     const baseMed = med(baseTimes);

@@ -76,10 +76,10 @@ function hasSpark(it: RestockItem): boolean {
             data-sort="last_purchase_days_ago" tabindex="0" :aria-sort="ariaSort('last_purchase_days_ago')"
             @click="emit('sort-change', 'last_purchase_days_ago')" @keydown="onHeaderKey($event, 'last_purchase_days_ago')">距进货 <span class="rs-sort-ind">{{ sortInd("last_purchase_days_ago") }}</span></th>
           <th class="rs-num rs-rec-g rs-rec-sep rs-th-sort" :class="{ 'rs-th-sort--active': sort.key === 'restock_qty_p50' }"
-            data-sort="restock_qty_p50" tabindex="0" :aria-sort="ariaSort('restock_qty_p50')" title="预测模型 p50 × 8周 - 库存"
+            data-sort="restock_qty_p50" tabindex="0" :aria-sort="ariaSort('restock_qty_p50')" title="推荐补货量（P50，来源见单元格悬停）"
             @click="emit('sort-change', 'restock_qty_p50')" @keydown="onHeaderKey($event, 'restock_qty_p50')">P50 <span class="rs-sort-ind">{{ sortInd("restock_qty_p50") }}</span></th>
           <th class="rs-num rs-rec-g rs-th-sort" :class="{ 'rs-th-sort--active': sort.key === 'restock_qty_p98' }"
-            data-sort="restock_qty_p98" tabindex="0" :aria-sort="ariaSort('restock_qty_p98')" title="预测模型 p98 × 8周 - 库存 (安全量)"
+            data-sort="restock_qty_p98" tabindex="0" :aria-sort="ariaSort('restock_qty_p98')" title="安全补货量（P98，来源见单元格悬停）"
             @click="emit('sort-change', 'restock_qty_p98')" @keydown="onHeaderKey($event, 'restock_qty_p98')">P98 <span class="rs-sort-ind">{{ sortInd("restock_qty_p98") }}</span></th>
           <th class="rs-num rs-rec-g" title="最近一次进货的数量">上次量</th>
         </tr>
@@ -135,8 +135,8 @@ function hasSpark(it: RestockItem): boolean {
               {{ profitBadge(it.realized_profit_eur, it.inventory_cost_value_eur).label }}</span>
           </td>
           <td class="rs-num">{{ fmtDays(it.last_purchase_days_ago) }}</td>
-          <td class="rs-num rs-rec-g rs-rec-sep"><span class="rs-rec-v rs-rec-v--hi">{{ it.restock_qty_p50 ?? "—" }}</span></td>
-          <td class="rs-num rs-rec-g"><span class="rs-rec-v">{{ it.restock_qty_p98 ?? "—" }}</span></td>
+          <td class="rs-num rs-rec-g rs-rec-sep" :title="it.restock_source || '—'"><span class="rs-rec-v rs-rec-v--hi">{{ it.restock_qty_p50 ?? "—" }}</span></td>
+          <td class="rs-num rs-rec-g" :title="it.restock_source || '—'"><span class="rs-rec-v">{{ it.restock_qty_p98 ?? "—" }}</span></td>
           <td class="rs-num rs-rec-g"><span class="rs-rec-v rs-rec-v--mut">{{ it.last_purchase_qty ?? "—" }}</span></td>
         </tr>
         <tr v-if="visible.length === 0"><td colspan="14" class="empty">无匹配项</td></tr>
