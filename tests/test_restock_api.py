@@ -94,6 +94,16 @@ def test_restock_item_full_ok():
     assert m.urgency_score == 72
 
 
+def test_restock_item_urgency_score_accepts_fractional():
+    # 真实 list_sku_summary() 的 urgency_score 是浮点（如 69.5「次紧迫」），
+    # 小数位有业务语义（供应商概览 max 排序 + 旧页直接显示原值 restock.js:152/835）。
+    # schema 若写 int 会在真实数据上 500（15269 行全挂）。
+    d = _full_item()
+    d["urgency_score"] = 69.5
+    m = RestockItem.model_validate(d)
+    assert m.urgency_score == 69.5
+
+
 def test_restock_item_nullable_fields_accept_none():
     it = _full_item()
     for k in [

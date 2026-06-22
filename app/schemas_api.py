@@ -510,7 +510,7 @@ class RestockItem(BaseModel):
     restock_qty_p98: int | None
     restock_source: str | None
     last_purchase_qty: int | None
-    urgency_score: int | None
+    urgency_score: float | None  # 真实数据为浮点（69.5「次紧迫」），小数位有排序/显示语义
     stockout_zero_weeks_last8: int
 
 
