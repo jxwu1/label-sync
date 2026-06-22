@@ -2,9 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("../../api/client", () => ({
   apiGet: vi.fn(), UnauthenticatedError: class extends Error {},
 }));
+vi.mock("../../stores/restockDetail", () => ({
+  useRestockDetailStore: () => ({ entries: {}, cache: {}, errorMsg: {}, load: () => {} }),
+}));
 import { mount, flushPromises } from "@vue/test-utils";
 import { apiGet, UnauthenticatedError } from "../../api/client";
 import RestockPage from "./RestockPage.vue";
+import { INITIAL_FILTER } from "./constants";
 
 const item = (p: any) => ({ barcode: "b" + Math.random(), model: "M", name_zh: "n",
   origin: "FOREIGN", supplier_id: "GR1", is_truly_discontinued: false, is_new_item: false,
@@ -68,5 +72,36 @@ describe("RestockPage", () => {
     expect(w.text()).toContain("加载中…");
     expect(w.text()).not.toContain("加载失败");
     expect(w.findAll("tr.rs-row").length).toBe(0);
+  });
+
+  it("点行展开 drawer 行；再点收起", async () => {
+    vi.mocked(apiGet).mockImplementation(async (path: string) => {
+      if (path === "/api/restock/items") return { ok: true, total: 2, items: [item({ barcode: "x", weeks_of_cover: 1 }), item({ barcode: "y", weeks_of_cover: 1 })] } as any;
+      return { ok: true, items: {} } as any;
+    });
+    const w = mount(RestockPage);
+    await flushPromises();
+    await w.findAll("tr.rs-row")[0].trigger("click");
+    await flushPromises();
+    expect(w.findAll("tr.rs-drawer-row").length).toBe(1);
+    await w.findAll("tr.rs-row")[0].trigger("click"); // 同行收起
+    await flushPromises();
+    expect(w.findAll("tr.rs-drawer-row").length).toBe(0);
+  });
+
+  it("筛选变化收起已展开行", async () => {
+    vi.mocked(apiGet).mockImplementation(async (path: string) => {
+      if (path === "/api/restock/items") return { ok: true, total: 1, items: [item({ barcode: "x", weeks_of_cover: 1 })] } as any;
+      return { ok: true, items: {} } as any;
+    });
+    const w = mount(RestockPage);
+    await flushPromises();
+    await w.findAll("tr.rs-row")[0].trigger("click");
+    await flushPromises();
+    expect(w.findAll("tr.rs-drawer-row").length).toBe(1);
+    // 触发筛选变化（FilterBar emit update）→ 收起
+    w.findComponent({ name: "FilterBar" }).vm.$emit("update", { ...INITIAL_FILTER, search: "changed" });
+    await flushPromises();
+    expect(w.findAll("tr.rs-drawer-row").length).toBe(0);
   });
 });

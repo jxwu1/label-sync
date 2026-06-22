@@ -15,6 +15,7 @@ import KpiCards from "./KpiCards.vue";
 import SupplierOverview from "./SupplierOverview.vue";
 
 const items = shallowRef<any[]>([]);
+const expandedBarcode = shallowRef<string | null>(null);
 const suppressed = ref<Record<string, any>>({});
 const ordered = ref<Record<string, { marked_at: string }>>({});
 const filter = ref<FilterState>({ ...INITIAL_FILTER });
@@ -51,15 +52,18 @@ async function load() {
 
 function onSelectSupplier(bc: string) {
   filter.value = { ...filter.value, supplier: bc, coverMax: null };
+  expandedBarcode.value = null;
 }
 function onSortChange(key: string) {
   // 同列切方向；异列换 key 默认 desc（restock.js:1298）
   sort.value = sort.value.key === key
     ? { key, dir: sort.value.dir === "asc" ? "desc" : "asc" }
     : { key, dir: "desc" };
+  expandedBarcode.value = null;
 }
-function onUpdateFilter(f: FilterState) { filter.value = f; }
+function onUpdateFilter(f: FilterState) { filter.value = f; expandedBarcode.value = null; }
 function onOpenHistory(bc: string) { location.href = "/ui/history?q=" + encodeURIComponent(bc); }
+function onToggleExpand(bc: string) { expandedBarcode.value = expandedBarcode.value === bc ? null : bc; }
 
 onMounted(load);
 </script>
@@ -73,7 +77,9 @@ onMounted(load);
     <p v-if="loadError" class="empty">加载失败：{{ loadError }}</p>
     <p v-else-if="!loaded" class="empty">加载中…</p>
     <RestockTable v-else :rows="filteredSorted" :cover-threshold="filter.coverThreshold" :sort="sort"
-      @open-history="onOpenHistory" @select-supplier="onSelectSupplier" @sort-change="onSortChange" />
+      :expanded-barcode="expandedBarcode"
+      @open-history="onOpenHistory" @select-supplier="onSelectSupplier" @sort-change="onSortChange"
+      @toggle-expand="onToggleExpand" />
     <div v-if="loaded" class="rs-foot">
       <span class="rs-foot-stat">显示前 <b>{{ shownCount }}</b> / {{ filteredSorted.length }} 项</span>
     </div>
