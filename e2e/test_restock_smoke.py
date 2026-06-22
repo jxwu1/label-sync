@@ -87,4 +87,7 @@ def test_restock_ui_renders_rows(seed_restock, page_with_console):
     assert "urgency_breakdown" not in page.locator("#pageRestock").inner_text()
     # 默认 origin=FOREIGN → GR 徽标在；urgency 88.5 浮点原样显示（float 修复回归）
     assert "88.5" in page.locator("tr.rs-row").first.inner_text()
+    # spec §9 验收：KPI 有数——seed 项 urgency 88.5≥70 → 「紧急」计数 = 1（非占位 —）
+    hot = page.locator(".rs-kpi[data-tone='error'] .rs-kpi-num")
+    assert hot.inner_text().strip() == "1", f"紧急 KPI 期望 1，实际 {hot.inner_text()!r}"
     assert page.console_errors == [], f"console errors: {page.console_errors}"

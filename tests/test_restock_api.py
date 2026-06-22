@@ -197,3 +197,29 @@ def test_api_restock_items_returns_projected_rows(real_app):
     assert data["total"] == len(data["items"])
     for row in data["items"]:
         assert set(row.keys()) == set(_ITEM_KEYS)
+
+
+def test_api_restock_items_seeded_returns_projected_row(real_app):
+    # 空库 shape 测试 total=0 也过；seed 一行物化 SkuSummary 验真实取数 + 投影白名单。
+    from datetime import datetime
+
+    from app.models import SkuSummary, get_session
+    from app.services.analytics.summary import clear_list_sku_summary_cache
+
+    as_of = datetime.now().date().isoformat()
+    fat = {**_full_item(), "urgency_breakdown": {"velocity": 30}, "retail_qty_26w": 3}
+    with get_session() as s:
+        s.merge(SkuSummary(product_barcode="5201234567890", as_of=as_of, payload=fat))
+    clear_list_sku_summary_cache()  # 读新 seed 而非旧空库缓存
+    try:
+        resp = real_app.test_client().get(
+            "/api/restock/items", headers={"X-Upload-Token": "test-token-123"}
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["total"] >= 1
+        row = next(r for r in data["items"] if r["barcode"] == "5201234567890")
+        assert set(row.keys()) == set(_ITEM_KEYS)  # 投影白名单：胖字段不回流
+        assert "urgency_breakdown" not in row
+    finally:
+        clear_list_sku_summary_cache()  # 防 seeded 结果泄漏到空库 shape 测试
