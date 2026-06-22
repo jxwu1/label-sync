@@ -6,7 +6,8 @@ vi.mock("../../stores/restockDetail", () => {
 });
 import { mount } from "@vue/test-utils";
 import RestockDrawer from "./RestockDrawer.vue";
-import { __state } from "../../stores/restockDetail";
+import * as restockDetailStore from "../../stores/restockDetail";
+const __state = (restockDetailStore as unknown as { __state: any }).__state;
 
 const detail = () => ({
   barcode: "b1", master_sale_price_eur: 6, sale_net_avg: 5.8, retail_price_observed: 5.5,

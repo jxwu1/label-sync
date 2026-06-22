@@ -35,7 +35,3 @@ export const useRestockDetailStore = defineStore("restockDetail", () => {
 
   return { entries, cache, errorMsg, load };
 });
-
-// Test-only hook: vi.mock replaces this module entirely; __state is the mock's internal state.
-// This export exists solely so vue-tsc can resolve the named import in RestockDrawer.test.ts.
-export const __state = undefined as any;
