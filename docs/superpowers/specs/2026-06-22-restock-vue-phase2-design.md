@@ -1,6 +1,7 @@
 # 补货决策页 Vue 迁移 — Phase 2（只读 drawer 明细）设计
 
-> **Status:** 设计待批（brainstorm 完成，待用户审 spec）
+> **Status:** Approved（2026-06-22 评审 APPROVE）
+> **实施计划注意（评审建议）：** ① 字段基础类型写全，金额字段统一显式 `float | None`（如 inventory_*/net_cashflow/realized_profit/lifetime_invested 等可空金额）；② TS store 命中 inflight 写 `return inflight.get(bc)!` 消类型歧义。
 > **前序:** Phase 1（只读列表 + 筛选 + 排序 + KPI + 供应商概览）已上线 = main `e9324a0`（PR #86）。
 > **Spec:** `docs/superpowers/specs/2026-06-20-restock-vue-phase1-design.md`（Phase 1，§12 已划本期范围）。
 
@@ -71,7 +72,7 @@ velocity_pctile: float   # 销额分位（drawer 销额行内显示）
 margin_pctile: float     # 毛利分位（drawer 毛利行内显示）
 ```
 
-> **`urgency_breakdown` 整体是唯一可空层**：新品 / 无数据时 `breakdown["total"] is None` → 整个 `urgency_breakdown = None`（restock_calc.py:140-142）；present 时 7 个子字段**全是非空 float**（velocity/cover/recency/margin 来自 `_compute_urgency_score`，pctile=round(...)，demand_validity 已算）。**禁子字段写 `\|None`**（上游永不给 null，写松会静默吞错）。
+> **`urgency_breakdown` 整体是唯一可空层**：**仅新品（`is_new_item`，lifespan<28d）**令 `breakdown["total"] is None` → 整个 `urgency_breakdown = None`（restock_calc.py:186-194 唯一置 None 路径；140-142 据此整体 None）；present 时 7 个子字段**全是非空 float**（velocity/cover/recency/margin 来自 `_compute_urgency_score`，pctile=round(...)，demand_validity 已算）。**禁子字段写 `\|None`**（上游永不给 null，写松会静默吞错）。
 > History 的 `UrgencyBreakdown` 只有 `{cover, recency, velocity, margin, demand_validity}`、**无 pctile**；扩它会耦合两消费方 + 撞 History strict。故独立。
 
 ### gen_ts_types
