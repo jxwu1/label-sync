@@ -13,6 +13,25 @@ const d = computed(() => store.cache[props.barcode]);
 const ps   = computed(() => profitStatus(d.value?.realized_profit_eur, d.value?.inventory_cost_value_eur));
 const rpl  = computed(() => retailPriceLine(d.value?.retail_price_observed, d.value?.retail_price_estimate, d.value?.retail_qty_26w ?? 0));
 const segs = computed(() => (d.value?.urgency_breakdown ? scoreSegments(d.value.urgency_breakdown) : []));
+const wholesalePrice = computed(() => {
+  const master = d.value?.master_sale_price_eur;
+  if (master != null && master > 0) return { value: master, label: "主档" };
+  const events = d.value?.sale_net_avg;
+  if (events != null && events > 0) return { value: events, label: "批发均价" };
+  return { value: null, label: "—" };
+});
+const costPrice = computed(() => {
+  const source = d.value?.margin_source;
+  if (source === "master") {
+    const value = d.value?.master_stock_price_eur;
+    return { value: value != null && value > 0 ? value : null, label: "主档参考" };
+  }
+  if (source === "purchase") {
+    const value = d.value?.last_purchase_unit_price;
+    return { value: value != null && value > 0 ? value : null, label: "上次成交" };
+  }
+  return { value: null, label: "—" };
+});
 
 onMounted(() => store.load(props.barcode));
 </script>
@@ -27,11 +46,11 @@ onMounted(() => store.load(props.barcode));
       <!-- § 1 财务快照 -->
       <section class="rs-drawer-sec">
         <h4>💰 财务快照</h4>
-        <div>批发价 <b>{{ fmtEurOrDash(d.master_sale_price_eur ?? d.sale_net_avg) }}</b> <span class="rs-drawer-muted">(主档)</span></div>
+        <div>批发价 <b>{{ fmtEurOrDash(wholesalePrice.value) }}</b> <span class="rs-drawer-muted">({{ wholesalePrice.label }})</span></div>
         <!-- 零售价行: observed/estimate/both/none -->
         <template v-if="rpl.kind === 'both'">
           <div>零售价 <b>{{ fmtEurOrDash(rpl.observed) }}</b>
-            <span class="rs-drawer-muted">(实际 {{ rpl.qty }} 笔均价)</span>
+            <span class="rs-drawer-muted">(实际 {{ rpl.qty }} 件均价)</span>
             · 估算 {{ fmtEurOrDash(rpl.estimate) }} (×2)
           </div>
         </template>
@@ -48,8 +67,8 @@ onMounted(() => store.load(props.barcode));
         <template v-else>
           <div>零售价 —</div>
         </template>
-        <div>单件进价 <b>{{ fmtEurOrDash(d.last_purchase_unit_price ?? d.master_stock_price_eur) }}</b>
-          <span class="rs-drawer-muted">({{ d.margin_source === 'master' ? '主档参考' : d.margin_source === 'purchase' ? '上次成交' : '—' }})</span>
+        <div>单件进价 <b>{{ fmtEurOrDash(costPrice.value) }}</b>
+          <span class="rs-drawer-muted">({{ costPrice.label }})</span>
         </div>
         <div>单件毛利率 <b>{{ d.margin_pct != null ? d.margin_pct + '%' : '—' }}</b></div>
       </section>
@@ -126,7 +145,7 @@ onMounted(() => store.load(props.barcode));
               v-for="seg in segs"
               :key="seg.cls"
               :class="`rs-score-seg rs-score-seg--${seg.cls}`"
-              :style="{ width: seg.widthPct + '%', opacity: seg.fillPct / 100 + 0.15 }"
+              :style="{ width: seg.widthPct + '%', opacity: Math.min(1, Math.max(0.35, 0.35 + seg.fillPct / 100 * 0.65)) }"
             ></div>
           </div>
           <div class="rs-score-legend">

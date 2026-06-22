@@ -128,7 +128,16 @@ def test_restock_drawer_expands(seed_restock, page_with_console):
     page.wait_for_selector("tr.rs-row", timeout=10000)
     page.locator("tr.rs-row").first.click()
     page.wait_for_selector("tr.rs-drawer-row", timeout=10000)
-    assert page.locator(".rs-drawer-sec").count() >= 1
+    sections = page.locator(".rs-drawer-sec")
+    assert sections.count() == 5
+    headings = [" ".join(text.split()) for text in sections.locator("h4").all_inner_texts()]
+    assert headings == [
+        "💰 财务快照",
+        "📦 库存",
+        "💵 累计盈亏 已回本",
+        "📊 销售概况",
+        "🎯 紧迫分 88.5",
+    ]
     drawer_text = page.locator("tr.rs-drawer-row").inner_text()
     assert "累计批发" in drawer_text
     assert "真实零售" in drawer_text

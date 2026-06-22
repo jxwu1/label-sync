@@ -41,6 +41,53 @@ describe("RestockDrawer", () => {
     expect(txt).toContain("累计批发");
     expect(txt).not.toContain("×26");
   });
+  it("CN/HZ 主档进价不把上次人民币成交价显示成欧元", () => {
+    __state.entries["b1"] = "ready";
+    __state.cache["b1"] = {
+      ...detail(), margin_source: "master", last_purchase_unit_price: 20,
+      master_stock_price_eur: 2.5,
+    };
+    const w = mount(RestockDrawer, { props: { barcode: "b1" } });
+    const financial = w.findAll(".rs-drawer-sec")[0].text();
+    expect(financial).toContain("单件进价 €2.50");
+    expect(financial).toContain("(主档参考)");
+    expect(financial).not.toContain("€20.00");
+  });
+  it("批发价仅接受正主档价，否则显示事件均价及其来源", () => {
+    __state.entries["b1"] = "ready";
+    __state.cache["b1"] = {
+      ...detail(), master_sale_price_eur: 0, sale_net_avg: 5.8,
+    };
+    const w = mount(RestockDrawer, { props: { barcode: "b1" } });
+    const financial = w.findAll(".rs-drawer-sec")[0].text();
+    expect(financial).toContain("批发价 €5.80 (批发均价)");
+    expect(financial).not.toContain("批发价 €0.00");
+  });
+  it("批发价缺失时显示破折号且不伪造来源", () => {
+    __state.entries["b1"] = "ready";
+    __state.cache["b1"] = {
+      ...detail(), master_sale_price_eur: null, sale_net_avg: null,
+    };
+    const w = mount(RestockDrawer, { props: { barcode: "b1" } });
+    expect(w.findAll(".rs-drawer-sec")[0].text()).toContain("批发价 — (—)");
+  });
+  it("零售观测均价按销售件数标注", () => {
+    __state.entries["b1"] = "ready"; __state.cache["b1"] = detail();
+    const w = mount(RestockDrawer, { props: { barcode: "b1" } });
+    expect(w.findAll(".rs-drawer-sec")[0].text()).toContain("实际 3 件均价");
+    expect(w.text()).not.toContain("3 笔均价");
+  });
+  it("紧迫分满段 opacity 不超过 1", () => {
+    __state.entries["b1"] = "ready";
+    __state.cache["b1"] = {
+      ...detail(),
+      urgency_breakdown: { velocity: 30, cover: 30, recency: 10, margin: 30 },
+    };
+    const w = mount(RestockDrawer, { props: { barcode: "b1" } });
+    for (const segment of w.findAll(".rs-score-seg")) {
+      expect(Number((segment.element as HTMLElement).style.opacity)).toBeLessThanOrEqual(1);
+    }
+  });
   it("missing/error/loading 三态占位", () => {
     __state.entries["b1"] = "missing";
     let w = mount(RestockDrawer, { props: { barcode: "b1" } });
